@@ -9,6 +9,7 @@ import { useMachines } from '@/hooks/queries/useMachines'
 import { getMachineTitle } from '@/hooks/useMachineLabels'
 import { queryKeys } from '@/lib/query-keys'
 import { SettingsPageContent, SettingsSection } from '@/components/settings/SettingsPrimitives'
+import { NativeCodexHosts } from '@/components/settings/NativeCodexHosts'
 
 function MachineRow(props: { api: ApiClient | null; machine: Machine }) {
     const { t } = useTranslation()
@@ -126,6 +127,7 @@ export default function SettingsMachinesPage() {
                     ))
                 )}
             </SettingsSection>
+            <NativeCodexHosts api={api} />
         </SettingsPageContent>
     )
 }
