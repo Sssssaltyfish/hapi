@@ -120,7 +120,15 @@ export type AuthResponse = {
     }
 }
 
-export type SessionsResponse = { sessions: SessionSummary[] }
+export type SessionsResponse = {
+    sessions: SessionSummary[]
+    nativePagination?: Array<{
+        endpointId: string
+        nextCursor: string | null
+        available: boolean
+        error?: string
+    }>
+}
 export type SessionResponse = { session: Session }
 export type MessagesResponse = {
     messages: DecryptedMessage[]
