@@ -8,11 +8,13 @@ import { validateTelegramInitData } from '../telegramInitData'
 import { getOrCreateOwnerId } from '../../config/ownerId'
 import type { WebAppEnv } from '../middleware/auth'
 import type { Store } from '../../store'
+import { passkeyConfig } from '../../passkeys/config'
 
 export function createAuthRoutes(jwtSecret: Uint8Array, store: Store): Hono<WebAppEnv> {
     const app = new Hono<WebAppEnv>()
 
     app.post('/auth', async (c) => {
+        if (passkeyConfig()) return c.json({ error: 'Passkey login required', code: 'passkey_required' }, 403)
         const json = await c.req.json().catch(() => null)
         const parsed = AuthRequestSchema.safeParse(json)
         if (!parsed.success) {

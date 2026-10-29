@@ -5,6 +5,7 @@ import type { AuthResponse } from '@/types/api'
 export type AuthSource =
     | { type: 'telegram'; initData: string }
     | { type: 'accessToken'; token: string }
+    | { type: 'passkey'; token: string }
 
 function decodeJwtExpMs(token: string): number | null {
     const parts = token.split('.')
@@ -27,10 +28,18 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 function getAuthPayload(source: AuthSource): { initData: string } | { accessToken: string } {
+    if (source.type === 'passkey') throw new Error('Passkeys do not use access-token exchange')
     if (source.type === 'telegram') {
         return { initData: source.initData }
     }
     return { accessToken: source.token }
+}
+
+async function authenticateSource(source: AuthSource, baseUrl: string): Promise<AuthResponse> {
+    if (source.type !== 'passkey') return new ApiClient('', { baseUrl }).authenticate(getAuthPayload(source))
+    const response = await fetch(`${baseUrl}/api/passkey/session`, { cache: 'no-store', headers: { Authorization: `Bearer ${source.token}` } })
+    if (!response.ok) throw new Error('登录已过期或已撤销，请重新使用 Passkey 登录。')
+    return response.json() as Promise<AuthResponse>
 }
 
 function isNotBoundError(error: unknown): boolean {
@@ -100,8 +109,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             lastRefreshAttemptRef.current = now
 
             try {
-                const client = new ApiClient('', { baseUrl })
-                const auth = await client.authenticate(getAuthPayload(currentSource))
+                const auth = await authenticateSource(currentSource, baseUrl)
                 tokenRef.current = auth.token
                 setToken(auth.token)
                 setUser(auth.user)
@@ -118,7 +126,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
                     return null
                 }
                 const isExpired = expMs ? Date.now() >= expMs : false
-                if (options?.hardFail || isExpired) {
+                if (options?.hardFail || isExpired || currentSource.type === 'passkey') {
                     tokenRef.current = null
                     setToken(null)
                     setUser(null)
@@ -193,6 +201,10 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
         async function run() {
             if (!authSource) {
                 // No auth source - waiting for login
+                tokenRef.current = null
+                setToken(null)
+                setUser(null)
+                setError(null)
                 setNeedsBinding(false)
                 return
             }
@@ -201,8 +213,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             setError(null)
             setNeedsBinding(false)
             try {
-                const client = new ApiClient('', { baseUrl }) // temporary for auth call
-                const auth = await client.authenticate(getAuthPayload(authSource))
+                const auth = await authenticateSource(authSource, baseUrl)
                 if (isCancelled) return
                 setToken(auth.token)
                 setUser(auth.user)
@@ -271,7 +282,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             }
         }
 
-        schedule(expMs - 60_000 - Date.now())
+        schedule(expMs - (authSource.type === 'passkey' ? 0 : 60_000) - Date.now())
 
         return () => {
             isCancelled = true

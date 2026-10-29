@@ -15,6 +15,8 @@ import { decodeVoiceSystemPromptParam } from '../voiceSystemPromptParam'
 import type { SyncEngine } from '../sync/syncEngine'
 import { createAuthMiddleware, type WebAppEnv } from './middleware/auth'
 import { createAuthRoutes } from './routes/auth'
+import { createPasskeyRoutes } from './routes/passkeys'
+import { passkeyConfig, verifyWebToken } from '../passkeys/config'
 import { createBindRoutes } from './routes/bind'
 import { createEventsRoutes } from './routes/events'
 import { createSessionsRoutes } from './routes/sessions'
@@ -38,7 +40,6 @@ import type { Server as BunServer, ServerWebSocket } from 'bun'
 import { applyDefaultWsCompression } from './wsCompression'
 import { acceptsGzip } from './sseCompression'
 import type { Server as SocketEngine } from '@socket.io/bun-engine'
-import { jwtVerify } from 'jose'
 import type { WebSocketData } from '@socket.io/bun-engine'
 import { loadEmbeddedAssetMap, type EmbeddedWebAsset } from './embeddedAssets'
 import { isBunCompiled } from '../utils/bunCompiled'
@@ -282,7 +283,9 @@ function createWebApp(options: {
     app.route('/cli', createCliRoutes(options.getSyncEngine))
 
     app.route('/api', createAuthRoutes(options.jwtSecret, options.store))
-    app.route('/api', createBindRoutes(options.jwtSecret, options.store))
+    app.route('/api', createPasskeyRoutes(options.jwtSecret))
+    if (!passkeyConfig()) app.route('/api', createBindRoutes(options.jwtSecret, options.store))
+    else app.post('/api/bind', c => c.json({ error: 'Passkey login required' }, 403))
 
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
     app.route('/api', createEventsRoutes(options.getSseManager, options.getSyncEngine, options.getVisibilityTracker))
@@ -506,7 +509,7 @@ export async function startWebServer(options: {
                     return new Response('Missing authorization token', { status: 401 })
                 }
                 try {
-                    await jwtVerify(token, options.jwtSecret, { algorithms: ['HS256'] })
+                    await verifyWebToken(token, options.jwtSecret)
                 } catch {
                     return new Response('Invalid token', { status: 401 })
                 }
