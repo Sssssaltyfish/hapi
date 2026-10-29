@@ -9,6 +9,7 @@ export default {
   'loading.messages': 'Loading messages…',
   'loading.machines': 'Loading machines…',
   'message.copy': 'Copy',
+  'message.quoteSelection': 'Quote selected text',
   'message.copied': 'Copied',
   'message.info': 'Message details',
   'message.fork': 'Fork',

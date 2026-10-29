@@ -9,6 +9,7 @@ export default {
   'loading.messages': '加载消息…',
   'loading.machines': '加载机器…',
   'message.copy': '复制',
+  'message.quoteSelection': '引用所选文字',
   'message.copied': '已复制',
   'message.info': '消息详情',
   'message.fork': '分叉',
