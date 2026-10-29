@@ -9,7 +9,7 @@ import { CodexAppServerClient } from '../codexAppServerClient';
 import { initializeSharedClient } from './launch';
 import { readRuntimes, runtimeMayBeAlive } from './registry';
 import { record, string } from './gateway';
-import { desktopThreadSelection, type DesktopProject } from './desktopSelection';
+import { desktopThreadSelection, desktopProjects, createWorkspaceIdentityReader, type DesktopProject, type WorkspaceIdentity } from './desktopSelection';
 
 export function eligibleThread(thread: Record<string, unknown>, since: number, workspace: string): boolean {
     const cwd = string(thread.cwd);
@@ -34,7 +34,7 @@ export async function listNewThreads(client: Pick<CodexAppServerClient, 'request
     do {
         const page = record(await client.request('thread/list', {
             limit: 100, sortKey: 'created_at', sortDirection: 'desc', archived: false,
-            sourceKinds: ['cli', 'vscode', 'appServer', 'unknown'], ...(cursor ? { cursor } : {})
+            sourceKinds: [], useStateDbOnly: true, ...(cursor ? { cursor } : {})
         }));
         if (!Array.isArray(page.data)) throw new Error('Invalid native thread list');
         for (const item of page.data) {
@@ -130,6 +130,7 @@ export async function discoveryMain(): Promise<void> {
     const api = await ApiClient.create();
     const children = new Map<string, ChildProcess>();
     const retryAfter = new Map<string, number>();
+    const readIdentity = createWorkspaceIdentityReader();
     let stopped = false;
     let wake: (() => void) | undefined;
     const stop = () => { stopped = true; wake?.(); };
@@ -143,14 +144,20 @@ export async function discoveryMain(): Promise<void> {
             try {
                 if (!client.isInitialized()) await initializeSharedClient(client);
                 const archived = await listArchivedThreadIds(client);
-                const selection = desktopState && desktopHost
-                    ? desktopThreadSelection(JSON.parse(await readFile(desktopState, 'utf8')), desktopHost,
-                        process.env.HAPI_DISCOVERY_MEMBERSHIP_FILE
-                            ? JSON.parse(await readFile(process.env.HAPI_DISCOVERY_MEMBERSHIP_FILE, 'utf8')) : {}) : undefined;
-                const persisted = selection ? await listDesktopThreads(client, selection, archived, since, workspace)
-                    : await listNewThreads(client, since, workspace);
+                const persisted = await listNewThreads(client, since, desktopState ? '/' : workspace);
+                let selection: Map<string, DesktopProject> | undefined;
+                if (desktopState && desktopHost) {
+                    const state = JSON.parse(await readFile(desktopState, 'utf8'));
+                    const paths = new Set([...desktopProjects(state, desktopHost).map(project => project.path),
+                        ...persisted.map(thread => string(thread.cwd)).filter((path): path is string => Boolean(path))]);
+                    const identities = new Map<string, WorkspaceIdentity>();
+                    // Sequential, cached Git probes avoid a process burst for large sidebars.
+                    for (const path of paths) identities.set(path, await readIdentity(path));
+                    selection = desktopThreadSelection(state, desktopHost, persisted, identities);
+                }
                 const loaded = selection ? [] : await listLoadedNewThreads(client, since, workspace, archived);
-                const threads = [...new Map([...persisted, ...loaded].map(thread => [thread.id, thread])).values()];
+                const threads = [...new Map([...persisted, ...loaded].filter(thread => !selection || selection.has(string(thread.id)!))
+                    .map(thread => [thread.id, thread])).values()];
                 const sessions = await api.listResumableSessions(settings.machineId);
                 for (const session of sessions) {
                     if (session.flavor === 'codex' && session.agentSessionId && archived.has(session.agentSessionId)) {
