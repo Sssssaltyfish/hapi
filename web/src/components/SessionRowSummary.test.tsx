@@ -1,9 +1,10 @@
-import { act, cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionSummary } from '@/types/api'
 import { I18nProvider } from '@/lib/i18n-context'
 import { markCodexSessionsImported } from '@/lib/codexImportedSessions'
 import { SessionRowSummary } from './SessionRowSummary'
+import { useSessionListAgentLabel } from '@/hooks/useSessionListAgentLabel'
 
 afterEach(() => cleanup())
 
@@ -45,6 +46,26 @@ function renderSummary(showDetailedStatus: boolean) {
 describe('SessionRowSummary background status', () => {
     beforeEach(() => {
         localStorage.clear()
+    })
+
+    it('uses one optional display preference for native and ordinary agent labels', () => {
+        function Preference() {
+            const { showSessionListAgentLabel, setShowSessionListAgentLabel } = useSessionListAgentLabel()
+            return <button onClick={() => setShowSessionListAgentLabel(!showSessionListAgentLabel)}>Toggle agent labels</button>
+        }
+        render(<I18nProvider>
+            <Preference />
+            <SessionRowSummary session={makeSummary()} />
+            <SessionRowSummary session={makeSummary({ id: 'native', metadata: { flavor: 'codex', path: '/repo', name: 'Native conversation', nativeCodex: { endpointId: 'host', threadId: 'thread' } } })} />
+        </I18nProvider>)
+        expect(screen.queryByText('Codex Native')).not.toBeInTheDocument()
+        expect(screen.queryByText('Claude', { selector: 'span' })).not.toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Toggle agent labels' }))
+        expect(screen.getByText('Codex Native')).toBeInTheDocument()
+        expect(screen.getByText('Claude', { selector: 'span' })).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Toggle agent labels' }))
+        expect(screen.queryByText('Codex Native')).not.toBeInTheDocument()
+        expect(screen.queryByText('Claude', { selector: 'span' })).not.toBeInTheDocument()
     })
 
     it('draws the background spinner with the thinking spinner markup, only in blue', () => {
