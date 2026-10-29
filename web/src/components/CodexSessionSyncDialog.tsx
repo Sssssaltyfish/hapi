@@ -14,6 +14,10 @@ import { readCodexImportedSessions, subscribeCodexImportedSessions } from '@/lib
 
 const ALL_WORKDIR_FILTER = '__all__'
 
+function isBackgroundSession(session: CodexLocalSessionSummary): boolean {
+    return session.source === 'exec' || /sub_?agent/i.test(session.source ?? '')
+}
+
 function formatCodexSessionTime(value: number): string | null {
     if (!Number.isFinite(value)) return null
     return new Date(value).toLocaleString()
@@ -34,7 +38,7 @@ function getCodexSessionCwd(session: CodexLocalSessionSummary): string | null {
 }
 
 function isOriginalCodexSession(session: CodexLocalSessionSummary): boolean {
-    return session.threadSource === 'user' || !session.forkedFromId
+    return !isBackgroundSession(session) && (session.threadSource === 'user' || !session.forkedFromId)
 }
 
 function isForkedCodexSession(session: CodexLocalSessionSummary): boolean {
@@ -99,7 +103,8 @@ export function CodexSessionSyncDialog(props: {
             const cwd = getCodexSessionCwd(session)
             if (cwd) directories.add(cwd)
         }
-        return Array.from(directories).sort((a, b) => a.localeCompare(b))
+        const interactiveDirectories = new Set(sessions.filter(session => !isBackgroundSession(session)).map(getCodexSessionCwd))
+        return Array.from(directories).sort((a, b) => Number(!interactiveDirectories.has(a)) - Number(!interactiveDirectories.has(b)) || a.localeCompare(b))
     }, [sessions])
     const defaultWorkdirFilter = useMemo(() => {
         const directory = currentWorkDirectory?.trim()
@@ -114,7 +119,7 @@ export function CodexSessionSyncDialog(props: {
             return [session.title, session.lastUserMessage, session.cwd, session.originator, session.cliVersion, session.id]
                 .filter((value): value is string => typeof value === 'string' && value.length > 0)
                 .some((value) => value.toLowerCase().includes(query))
-        })
+        }).sort((a, b) => Number(isBackgroundSession(a)) - Number(isBackgroundSession(b)))
     }, [searchQuery, sessions, workdirFilter])
 
     useEffect(() => {
