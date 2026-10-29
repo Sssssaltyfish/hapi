@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { jwtVerify, type JWTPayload } from 'jose'
 import { PasskeyStore } from './store'
+import { externalAuthConfig, requireExternalSession } from './external'
 
 export function passkeyConfig() {
     const value = process.env.HAPI_PASSKEY_ORIGIN
@@ -33,6 +34,8 @@ export function requirePasskeySession(payload: JWTPayload) {
 }
 export async function verifyWebToken(token: string, secret: Uint8Array) {
     const result = await jwtVerify(token, secret, { algorithms: ['HS256'] })
-    requirePasskeySession(result.payload)
+    const external = externalAuthConfig()
+    if (external) await requireExternalSession(external, result.payload)
+    else requirePasskeySession(result.payload)
     return result
 }

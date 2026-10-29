@@ -9,8 +9,12 @@ import { passkeyConfig, passkeyStore, verifyWebToken } from '../../passkeys/conf
 import { hashCode } from '../../passkeys/store'
 import { getOrCreateOwnerId } from '../../config/ownerId'
 import type { WebAppEnv } from '../middleware/auth'
+import { externalAuthConfig } from '../../passkeys/external'
+import { createExternalAuthRoutes } from './externalAuth'
 
 export function createPasskeyRoutes(jwtSecret: Uint8Array) {
+    const external = externalAuthConfig()
+    if (external) return createExternalAuthRoutes(jwtSecret, external)
     const app = new Hono<WebAppEnv>()
     const config = passkeyConfig()
     app.get('/passkey/config', c => {

@@ -17,6 +17,7 @@ import { createAuthMiddleware, type WebAppEnv } from './middleware/auth'
 import { createAuthRoutes } from './routes/auth'
 import { createPasskeyRoutes } from './routes/passkeys'
 import { passkeyConfig, verifyWebToken } from '../passkeys/config'
+import { externalAuthConfig } from '../passkeys/external'
 import { createBindRoutes } from './routes/bind'
 import { createEventsRoutes } from './routes/events'
 import { createSessionsRoutes } from './routes/sessions'
@@ -288,7 +289,7 @@ function createWebApp(options: {
 
     app.route('/api', createAuthRoutes(options.jwtSecret, options.store))
     app.route('/api', createPasskeyRoutes(options.jwtSecret))
-    if (!passkeyConfig()) app.route('/api', createBindRoutes(options.jwtSecret, options.store))
+    if (!passkeyConfig() && !externalAuthConfig()) app.route('/api', createBindRoutes(options.jwtSecret, options.store))
     else app.post('/api/bind', c => c.json({ error: 'Passkey login required' }, 403))
 
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
