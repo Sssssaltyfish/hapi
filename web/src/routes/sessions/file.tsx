@@ -23,6 +23,8 @@ import {
 } from '@/lib/file-markdown-preview'
 import { downloadBase64File } from '@/lib/file-download'
 import { useCodeWrap } from '@/hooks/useCodeWrap'
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
+import { useSession } from '@/hooks/queries/useSession'
 
 const MAX_COPYABLE_FILE_BYTES = 1_000_000
 const FILE_SCROLL_KEY_PREFIX = 'hapi-file-scroll-'
@@ -239,9 +241,15 @@ export default function FilePage() {
     const { copied: contentCopied, copy: copyContent } = useCopyToClipboard()
     const goBack = useAppGoBack()
     const { sessionId } = useParams({ from: '/sessions/$sessionId/file' })
+    const keyedNativeIdentity = parseCodexNativeSessionId(sessionId)
+    const sessionQuery = useSession(api, keyedNativeIdentity ? null : sessionId)
+    const nativeIdentity = keyedNativeIdentity ?? sessionQuery.session?.metadata?.nativeCodex ?? null
+    const resolvingSession = !keyedNativeIdentity && sessionQuery.isLoading
+    const sessionRoutingError = !keyedNativeIdentity ? sessionQuery.error : null
     const search = useSearch({ from: '/sessions/$sessionId/file' })
     const encodedPath = typeof search.path === 'string' ? search.path : ''
     const staged = search.staged
+    const targetLine = search.line
 
     const filePath = useMemo(() => decodePath(encodedPath), [encodedPath])
     const fileName = filePath.split('/').pop() || filePath || t('file.page.fallbackName')
@@ -256,7 +264,7 @@ export default function FilePage() {
             }
             return await api.getGitDiffFile(sessionId, filePath, staged)
         },
-        enabled: Boolean(api && sessionId && filePath)
+        enabled: Boolean(api && sessionId && filePath && !nativeIdentity && !resolvingSession && !sessionRoutingError)
     })
 
     const fileQuery = useQuery({
@@ -265,9 +273,11 @@ export default function FilePage() {
             if (!api || !sessionId || !filePath) {
                 throw new Error('Missing session or path')
             }
-            return await api.readSessionFile(sessionId, filePath)
+            return nativeIdentity
+                ? await api.readCodexNativeFile(nativeIdentity.endpointId, nativeIdentity.threadId, filePath)
+                : await api.readSessionFile(sessionId, filePath)
         },
-        enabled: Boolean(api && sessionId && filePath)
+        enabled: Boolean(api && sessionId && filePath && !resolvingSession && !sessionRoutingError)
     })
 
     const diffContent = diffQuery.data?.success ? (diffQuery.data.stdout ?? '') : ''
@@ -288,7 +298,8 @@ export default function FilePage() {
         : null
 
     const language = useMemo(() => imageMimeType ? undefined : resolveLanguage(filePath), [filePath, imageMimeType])
-    const [markdownMode, setMarkdownMode] = useState<MarkdownPreviewMode>(getInitialMarkdownPreviewMode)
+    const [markdownMode, setMarkdownMode] = useState<MarkdownPreviewMode>(() => targetLine ? 'source' : getInitialMarkdownPreviewMode())
+    useEffect(() => { if (targetLine) setMarkdownMode('source') }, [filePath, targetLine])
     const showMarkdownSource = !markdownFile || markdownMode === 'source'
     const highlighted = useShikiHighlighter(
         imageMimeType || (markdownFile && !showMarkdownSource) ? '' : decodedContent,
@@ -305,14 +316,36 @@ export default function FilePage() {
 
     const canDownload = fileContentResult?.success === true && Boolean(fileContentResult.content)
 
-    const [displayMode, setDisplayMode] = useState<'diff' | 'file'>('diff')
+    const [displayMode, setDisplayMode] = useState<'diff' | 'file'>(nativeIdentity ? 'file' : 'diff')
     const { codeWrap, setCodeWrap } = useCodeWrap()
     const fileScrollRef = useRef<HTMLDivElement>(null)
     const restoredScrollKeyRef = useRef<string | null>(null)
+    const jumpedLocationRef = useRef<string | null>(null)
     const fileScrollKey = useMemo(
         () => getFileScrollStorageKey(sessionId, filePath, staged),
         [filePath, sessionId, staged]
     )
+
+    useEffect(() => {
+        if (!targetLine || fileQuery.isLoading || !decodedContent) return
+        const locationKey = `${fileScrollKey}:${targetLine}`
+        if (jumpedLocationRef.current === locationKey) return
+        const element = fileScrollRef.current
+        if (!element) return
+        const frame = requestAnimationFrame(() => {
+            const source = element.querySelector('pre')
+            if (!source) return
+            const lines = source.querySelectorAll('.line')
+            const line = lines[Math.min(targetLine - 1, lines.length - 1)]
+            if (line) line.scrollIntoView({ block: 'center' })
+            else {
+                const lineHeight = Number.parseFloat(getComputedStyle(source).lineHeight) || 18
+                element.scrollTop = Math.max(0, source.offsetTop - element.offsetTop + (targetLine - 1) * lineHeight - element.clientHeight / 2)
+            }
+            jumpedLocationRef.current = locationKey
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [decodedContent, fileQuery.isLoading, fileScrollKey, highlighted, targetLine])
 
     const restoreFileScroll = useCallback((element: HTMLDivElement | null = fileScrollRef.current) => {
         if (!element) return
@@ -359,7 +392,7 @@ export default function FilePage() {
     }
 
     useEffect(() => {
-        if (imageMimeType) {
+        if (imageMimeType || nativeIdentity) {
             setDisplayMode('file')
             return
         }
@@ -370,12 +403,12 @@ export default function FilePage() {
         if (diffFailed) {
             setDisplayMode('file')
         }
-    }, [diffSuccess, diffFailed, diffContent, imageMimeType])
+    }, [diffSuccess, diffFailed, diffContent, imageMimeType, Boolean(nativeIdentity)])
 
-    const loading = diffQuery.isLoading || fileQuery.isLoading
-    const fileError = fileContentResult && !fileContentResult.success
+    const loading = resolvingSession || diffQuery.isLoading || fileQuery.isLoading
+    const fileError = sessionRoutingError ?? fileQuery.error?.message ?? (fileContentResult && !fileContentResult.success
         ? (fileContentResult.error ?? 'Failed to read file')
-        : null
+        : null)
     const missingPath = !filePath
     const diffErrorMessage = diffError ? formatDiffError(diffError, t) : null
     const fileErrorMessage = fileError ? formatReadFileError(fileError, t) : null

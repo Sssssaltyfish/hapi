@@ -33,6 +33,23 @@ describe('attachmentAdapter', () => {
         expect(adapter.accept).toBe('*')
     })
 
+    it('bypasses the existing upload ceiling only for native and preserves a daemon rejection verbatim', async () => {
+        const { createAttachmentAdapter, MAX_UPLOAD_BYTES } = await import('./attachmentAdapter')
+        const { ApiError } = await import('@/api/client')
+        const file = new File(['payload'], 'large.bin', { type: 'application/octet-stream' })
+        Object.defineProperty(file, 'size', { value: MAX_UPLOAD_BYTES + 1 })
+        const uploadFile = vi.fn().mockRejectedValue(new ApiError('HTTP 502', 502, undefined, JSON.stringify({ error: 'daemon: cannot write attachment\nremote disk error' })))
+        const native = createAttachmentAdapter({ uploadFile } as never, 'native-session', undefined, undefined, { skipSizeLimit: true })
+        const emitted = []
+        for await (const addition of native.add({ file }) as AsyncIterable<Record<string, unknown>>) emitted.push(addition)
+        expect(uploadFile).toHaveBeenCalledOnce()
+        expect(emitted.at(-1)).toMatchObject({ status: { type: 'incomplete', reason: 'error' }, errorMessage: 'daemon: cannot write attachment\nremote disk error' })
+        uploadFile.mockClear()
+        const original = createAttachmentAdapter({ uploadFile } as never, 'runner-session')
+        for await (const _addition of original.add({ file }) as AsyncIterable<unknown>) { /* Consume the existing runner rejection. */ }
+        expect(uploadFile).not.toHaveBeenCalled()
+    })
+
     it('restores an uploaded draft without uploading it again', async () => {
         const drafts = await import('./composer-attachment-drafts')
         const { createAttachmentAdapter } = await import('./attachmentAdapter')

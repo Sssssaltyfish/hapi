@@ -62,6 +62,7 @@ import type {
     UploadFileResponse
 } from '@hapi/protocol/apiTypes'
 import { fetchThroughAuthProxy } from '@/api/authProxy'
+import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeStatus, NativeThreadPage } from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
@@ -164,6 +165,7 @@ export class ApiClient {
     private readonly baseUrl: string | null
     private readonly getToken: (() => string | null) | null
     private readonly onUnauthorized: (() => Promise<string | null>) | null
+    private nativeEndpointId: string | null = null
 
     constructor(token: string, options?: ApiClientOptions) {
         this.token = token
@@ -173,6 +175,10 @@ export class ApiClient {
     }
 
     private buildUrl(path: string): string {
+        if (this.nativeEndpointId && path.startsWith('/api/codex-native/')) {
+            const separator = path.includes('?') ? '&' : '?'
+            path += `${separator}endpointId=${encodeURIComponent(this.nativeEndpointId)}`
+        }
         if (!this.baseUrl) {
             return path
         }
@@ -265,8 +271,113 @@ export class ApiClient {
         return await res.json() as AuthResponse
     }
 
-    async getSessions(): Promise<SessionsResponse> {
-        return await this.request<SessionsResponse>('/api/sessions')
+    async getSessions(options?: { nativeEndpointId: string; nativeCursor?: string; nativeCatalog?: 'background' }): Promise<SessionsResponse> {
+        const params = new URLSearchParams()
+        if (options) for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+        return await this.request<SessionsResponse>(`/api/sessions${params.size ? `?${params}` : ''}`)
+    }
+
+    async getCodexNativeStatus(): Promise<NativeStatus> {
+        return await this.request('/api/codex-native/status')
+    }
+
+    withCodexNativeEndpoint(endpointId: string): ApiClient {
+        const client = new ApiClient(this.token, { baseUrl: this.baseUrl ?? undefined, getToken: this.getToken ?? undefined, onUnauthorized: this.onUnauthorized ?? undefined })
+        client.nativeEndpointId = endpointId
+        return client
+    }
+
+    async getCodexNativeEndpoints(): Promise<{ endpoints: { id: string; label: string; defaultCwd?: string }[] }> {
+        return await this.request('/api/codex-native/endpoints')
+    }
+
+    async createCodexNativeThread(endpointId: string, payload: { cwd: string; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads`, { method: 'POST', body: JSON.stringify(payload) })
+    }
+
+    async readCodexNativeFile(endpointId: string, threadId: string, path: string): Promise<FileReadResponse> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads/${encodeURIComponent(threadId)}/file?${new URLSearchParams({ path })}`)
+    }
+
+    async readCodexNativeDirectory(endpointId: string, threadId: string, path: string): Promise<{ entries: { fileName: string; isDirectory: boolean; isFile: boolean }[] }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads/${encodeURIComponent(threadId)}/directory?${new URLSearchParams({ path })}`)
+    }
+
+    async getCodexNativeThreads(options: { projectId?: string; cursor?: string; catalog?: 'main' | 'background' } = {}): Promise<NativeThreadPage> {
+        const params = new URLSearchParams({ limit: '50' })
+        for (const [key, value] of Object.entries(options)) if (value) params.set(key, value)
+        return await this.request(`/api/codex-native/threads?${params}`)
+    }
+
+    async getCodexNativeThread(id: string): Promise<NativeRecord> {
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}`)
+    }
+
+    async getCodexNativeActiveTurn(id: string): Promise<NativeRecord> {
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/active-turn`)
+    }
+
+    async uploadCodexNativeFile(threadId: string, filename: string, dataBase64: string, mimeType: string): Promise<UploadFileResponse> {
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(threadId)}/attachments`, {
+            method: 'POST', body: JSON.stringify({ filename, dataBase64, mimeType })
+        })
+    }
+
+    async deleteCodexNativeUpload(threadId: string, path: string): Promise<DeleteUploadResponse> {
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(threadId)}/attachments`, {
+            method: 'DELETE', body: JSON.stringify({ path })
+        })
+    }
+
+    async getCodexNativeItems(id: string, cursor?: string): Promise<NativePage<NativeItemEntry>> {
+        const params = new URLSearchParams({ limit: '50' })
+        if (cursor) params.set('cursor', cursor)
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items?${params}`)
+    }
+
+    async getCodexNativeModels(): Promise<NativePage<NativeRecord>> {
+        return await this.request('/api/codex-native/models')
+    }
+
+    async codexNativeAction(id: string, action: 'settings' | 'messages' | 'interrupt' | `requests/${string}`, payload: NativeRecord): Promise<NativeRecord> {
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/${action}`, {
+            method: 'POST', body: JSON.stringify(payload)
+        })
+    }
+
+    async streamCodexNativeEvents(id: string, signal: AbortSignal, onEvent: (event: NativeEvent) => void): Promise<void> {
+        const path = `/api/codex-native/threads/${encodeURIComponent(id)}/events`
+        let token = this.getToken?.() ?? this.token
+        let response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal })
+        if (response.status === 401 && this.onUnauthorized) {
+            const refreshed = await this.onUnauthorized()
+            if (refreshed) {
+                this.token = refreshed
+                token = refreshed
+                response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal })
+            }
+        }
+        if (!response.ok || !response.body) throw new ApiError('Native event stream unavailable', response.status)
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        try {
+            while (!signal.aborted) {
+                const { value, done } = await reader.read()
+                if (done) break
+                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+                let boundary: number
+                while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+                    const frame = buffer.slice(0, boundary)
+                    buffer = buffer.slice(boundary + 2)
+                    const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
+                    if (data) onEvent(JSON.parse(data) as NativeEvent)
+                }
+            }
+        } finally {
+            await reader.cancel().catch(() => {})
+            reader.releaseLock()
+        }
     }
 
     async getHealth(): Promise<HubHealthResponse> {

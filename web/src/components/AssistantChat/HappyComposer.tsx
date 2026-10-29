@@ -290,6 +290,7 @@ export function HappyComposer(props: {
     focusInputRef?: MutableRefObject<(() => void) | null>
     onUploadDraftSnapshot?: (text: string, attachments: AttachmentDraftInput[]) => void
     canRestoreAttachments?: boolean
+    attachmentsDisabled?: boolean
     disabled?: boolean
     permissionMode?: PermissionMode
     collaborationMode?: CodexCollaborationMode
@@ -1669,16 +1670,15 @@ export function HappyComposer(props: {
         }
     }, [props.dictateHotkeyRef, invokeDictateHotkey])
 
-    // Generic model/effort value buttons. The current value label doubles as
-    // the button caption; clicking opens the settings sheet. Hidden on narrow
-    // viewports where only the settings button remains.
+    // Value buttons open their own section in the existing settings sheet.
+    // Codex keeps its reasoning shortcut on phones so long model lists do not
+    // push the only effort control below the visible part of the full sheet.
     const isNarrowViewport = useNarrowViewport()
     // Pi turns run for minutes with thread.isDisabled set the whole time, so
     // Pi keeps its model/effort controls live mid-turn (#1442) — the generic
     // disable rule (controlsDisabled) would lock them for the entire turn.
     const modelEffortControlsDisabled = agentFlavor === 'pi' ? configurationControlsDisabled : controlsDisabled
     const modelValueLabel = useMemo(() => {
-        if (isNarrowViewport) return undefined
         if (!onModelChange || !supportsModelChange(agentFlavor)) return undefined
         // Pi models come from the dynamic piModels catalog; show the
         // provider-qualified selection name. No button until the catalog
@@ -1695,8 +1695,12 @@ export function HappyComposer(props: {
             : (!rawKey || rawKey === 'auto' || rawKey === 'default' ? null : rawKey)
         const option = modelOptions.find((candidate) => candidate.value === normalizedKey)
         return option?.label ?? rawKey ?? undefined
-    }, [isNarrowViewport, onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase])
+    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase])
     const effortValueLabel = useMemo(() => {
+        if (agentFlavor === 'codex' && showModelReasoningEffortSettings) {
+            return codexReasoningEffortOptions.find(option => option.value === (modelReasoningEffort || null))?.label
+                ?? t('misc.reasoningEffort')
+        }
         if (isNarrowViewport) return undefined
         if (!onEffortChange || !supportsEffort(agentFlavor)) return undefined
         // Pi: without a resolved catalog entry there is no capability map to
@@ -1712,7 +1716,7 @@ export function HappyComposer(props: {
         }
         const option = claudeEffortOptions.find((candidate) => candidate.value === effort)
         return option?.label ?? (effort ? effort : undefined)
-    }, [isNarrowViewport, onEffortChange, agentFlavor, selectedPiModel, effort, claudeEffortOptions])
+    }, [isNarrowViewport, onEffortChange, agentFlavor, selectedPiModel, effort, claudeEffortOptions, showModelReasoningEffortSettings, codexReasoningEffortOptions, modelReasoningEffort, t])
 
     // Wrapper for DOM onClick consumers: never leak the MouseEvent into the
     // `section` parameter (the gear must always open the full sheet).
@@ -2381,6 +2385,7 @@ export function HappyComposer(props: {
                             ) : null}
 
                             <ComposerButtons
+                                attachmentsDisabled={props.attachmentsDisabled}
                                 canSend={canSend}
                                 controlsDisabled={controlsDisabled}
                                 showSettingsButton={showSettingsButton}
@@ -2411,7 +2416,7 @@ export function HappyComposer(props: {
                                 onVoiceMicToggle={dictationActive ? undefined : onVoiceMicToggle}
                                 onSend={handleSend}
                                 pendingSchedule={pendingSchedule}
-                                onSchedule={handleUserSchedule}
+                                onSchedule={onScheduleProp ? handleUserSchedule : undefined}
                                 onClearSchedule={onUserClearSchedule}
                                 hasAttachments={blocksScheduling}
                                 modelValueLabel={modelValueLabel}
@@ -2419,6 +2424,7 @@ export function HappyComposer(props: {
                                 modelValueOpen={showSettings && settingsSection !== 'effort'}
                                 onModelValueToggle={handleModelValueToggle}
                                 effortValueLabel={effortValueLabel}
+                                effortValueTitle={agentFlavor === 'codex' && effortValueLabel ? `${t('misc.reasoningEffort')}: ${effortValueLabel}` : undefined}
                                 effortValueDisabled={modelEffortControlsDisabled}
                                 effortValueOpen={showSettings && settingsSection !== 'model'}
                                 onEffortValueToggle={handleEffortValueToggle}

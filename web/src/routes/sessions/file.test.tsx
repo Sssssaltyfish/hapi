@@ -27,6 +27,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/lib/app-context', () => ({
     useAppContext: () => ({
         api: {
+            getSession: vi.fn(async () => ({ session: { id: 'session-1', metadata: { path: '/repo', host: 'local' } } })),
             getGitDiffFile: vi.fn(async () => ({ success: true, stdout: '' })),
             readSessionFile: vi.fn(async () => ({
                 success: true,

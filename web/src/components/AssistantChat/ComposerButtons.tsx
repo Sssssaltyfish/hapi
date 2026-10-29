@@ -783,6 +783,7 @@ export function ComposerButtons(props: {
     pendingSchedule?: PendingSchedule | null
     onSchedule?: (pending: PendingSchedule) => void
     onClearSchedule?: () => void
+    attachmentsDisabled?: boolean
     // The backend rejects scheduled-send + attachment combinations (the per-CLI
     // upload directory is torn down before a mature emit could read the files).
     // The composer must surface that constraint at UI time so the user never
@@ -795,6 +796,7 @@ export function ComposerButtons(props: {
     modelValueOpen?: boolean
     onModelValueToggle?: () => void
     effortValueLabel?: string
+    effortValueTitle?: string
     effortValueButtonRef?: Ref<HTMLButtonElement>
     effortValueDisabled?: boolean
     effortValueOpen?: boolean
@@ -815,15 +817,17 @@ export function ComposerButtons(props: {
     const { t } = useTranslation()
     const { layout } = useComposerToolbarLayout()
     const isNarrowViewport = useNarrowViewport()
-    // Narrow viewports collapse the model/effort value buttons into the settings
-    // sheet, so the gear must stay reachable even when a persisted layout hides
-    // it (otherwise no session-settings trigger remains). Wide layouts keep
-    // honoring the user's hidden choice.
-    const effectiveLayout: ComposerToolbarLayout = isNarrowViewport && layout.hidden.includes('settings')
+    // Keep phone settings and any explicitly supplied effort shortcut reachable,
+    // including layouts saved before Codex had a direct reasoning control.
+    const narrowValues: ComposerToolbarItemId[] = isNarrowViewport ? [...(props.modelValueLabel ? ['model' as const] : []), ...(props.effortValueLabel ? ['effort' as const] : [])] : []
+    const requiredItems: ComposerToolbarItemId[] = isNarrowViewport ? ['settings', ...narrowValues] : []
+    const restoredItems = requiredItems.filter(item => layout.hidden.includes(item))
+    const effectiveLayout: ComposerToolbarLayout = isNarrowViewport
         ? {
             ...layout,
-            hidden: layout.hidden.filter((item) => item !== 'settings'),
-            left: [...layout.left, 'settings'],
+            hidden: layout.hidden.filter((item) => !restoredItems.includes(item)),
+            left: [...narrowValues, ...layout.left.filter(item => !narrowValues.includes(item)), ...restoredItems.filter(item => !narrowValues.includes(item))],
+            right: layout.right.filter(item => !narrowValues.includes(item)),
         }
         : layout
     const isVoiceConnected = props.voiceStatus === 'connected'
@@ -845,8 +849,8 @@ export function ComposerButtons(props: {
                 <ToolbarItemSlot item="attachment">
                 <ComposerPrimitive.AddAttachment
                     aria-label={t('composer.attach')}
-                    title={t('composer.attach')}
-                    disabled={props.controlsDisabled || hasSchedule}
+                    title={props.attachmentsDisabled ? t('native.unsupported') : t('composer.attach')}
+                    disabled={props.controlsDisabled || hasSchedule || props.attachmentsDisabled}
                     className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <AttachmentIcon />
@@ -883,7 +887,7 @@ export function ComposerButtons(props: {
                         type="button"
                         aria-label={props.modelValueLabel}
                         title={props.modelValueLabel}
-                        className={`flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium transition-colors ${
+                        className={`flex h-8 max-w-24 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
                             props.modelValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'
@@ -891,7 +895,7 @@ export function ComposerButtons(props: {
                         onClick={props.onModelValueToggle}
                         disabled={props.modelValueDisabled}
                     >
-                        {props.modelValueLabel}
+                        <span className="min-w-0 truncate">{props.modelValueLabel}</span>
                         <ChevronIcon />
                     </button>
                 ) : null}
@@ -902,9 +906,9 @@ export function ComposerButtons(props: {
                     <button
                         ref={props.effortValueButtonRef}
                         type="button"
-                        aria-label={props.effortValueLabel}
-                        title={props.effortValueLabel}
-                        className={`flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium transition-colors ${
+                        aria-label={props.effortValueTitle ?? props.effortValueLabel}
+                        title={props.effortValueTitle ?? props.effortValueLabel}
+                        className={`flex h-8 max-w-20 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-28 sm:px-3 ${
                             props.effortValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'
@@ -912,7 +916,7 @@ export function ComposerButtons(props: {
                         onClick={props.onEffortValueToggle}
                         disabled={props.effortValueDisabled}
                     >
-                        {props.effortValueLabel}
+                        <span className="min-w-0 truncate">{props.effortValueLabel}</span>
                         <ChevronIcon />
                     </button>
                 ) : null}

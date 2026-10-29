@@ -31,6 +31,8 @@ import { useTranslation } from '@/lib/use-translation'
 import * as Popover from '@radix-ui/react-popover'
 import { CheckIcon, CloseIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
+import { NativeFilesBrowser } from './NativeFilesBrowser'
 import {
     DEFAULT_DIRECTORY_SORT,
     type DirectorySort,
@@ -346,6 +348,17 @@ function FileListSkeleton(props: { label: string; rows?: number }) {
 const SCROLL_KEY_PREFIX = 'hapi-dir-scroll-'
 
 export default function FilesPage() {
+    const { api } = useAppContext()
+    const { sessionId } = useParams({ from: '/sessions/$sessionId/files' })
+    const keyedIdentity = parseCodexNativeSessionId(sessionId)
+    const sessionQuery = useSession(api, keyedIdentity ? null : sessionId)
+    const identity = keyedIdentity ?? sessionQuery.session?.metadata?.nativeCodex ?? null
+    if (!keyedIdentity && sessionQuery.isLoading) return <LoadingState label="Loading files…" />
+    if (!keyedIdentity && sessionQuery.error) return <div role="alert" className="p-3 text-sm text-red-600">{sessionQuery.error}</div>
+    return identity ? <NativeFilesBrowser api={api} sessionId={sessionId} identity={identity} /> : <RunnerFilesPage />
+}
+
+function RunnerFilesPage() {
     const { api, titleSuggestionAvailable = false } = useAppContext()
     const { t, locale } = useTranslation()
     const navigate = useNavigate()

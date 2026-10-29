@@ -1,4 +1,18 @@
 export default {
+  'settings.display.sessionListAgentLabel': 'Показывать имена агентов в списке чатов',
+  'settings.display.sessionListAgentLabel.desc': 'Показывать метку агента рядом с названием каждого чата.',
+  'native.unsupported': 'Недоступно для собственных чатов Codex',
+  'native.unavailable': 'Служба Codex недоступна',
+  'native.backgroundCatalog': 'Каталог exec и субагентов',
+  'native.moreConversations': 'Загрузить ещё чаты Codex',
+  'newSession.provider': 'Провайдер',
+  'newSession.provider.runner': 'HAPI runner',
+  'newSession.provider.codex': 'Служба Codex',
+  'newSession.codexHost': 'Хост Codex',
+  'newSession.codexHost.select': 'Выберите хост Codex',
+  'newSession.codexHost.none': 'Служба Codex не настроена',
+  'newSession.hostDefault': 'По умолчанию на хосте',
+  'newSession.createFailed': 'Не удалось создать чат',
   // Состояния загрузки
   'loading': 'Загрузка…',
   'authorizing': 'Авторизация…',

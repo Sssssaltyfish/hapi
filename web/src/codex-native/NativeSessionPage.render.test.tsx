@@ -1,0 +1,64 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterEach, expect, it, vi } from 'vitest'
+import { I18nProvider } from '@/lib/i18n-context'
+import { ToastProvider } from '@/lib/toast-context'
+import { SessionSchema } from '@hapi/protocol/schemas'
+import type { ApiClient } from '@/api/client'
+import { NativeSessionPage } from './NativeSessionPage'
+
+vi.mock('@tanstack/react-router', async importOriginal => ({ ...await importOriginal<typeof import('@tanstack/react-router')>(), useNavigate: () => vi.fn() }))
+vi.mock('@/components/AgentTerminal/AgentTerminalView', () => ({ AgentTerminalView: () => null }))
+
+const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
+afterEach(() => {
+    vi.unstubAllGlobals()
+    if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, 'scrollTo', originalScrollTo)
+    else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
+})
+
+it('renders native content after the native model catalogue reaches the existing chat controls', async () => {
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    HTMLElement.prototype.scrollTo = vi.fn()
+    const session = SessionSchema.parse({ id: 'codex-native:test:native-thread', namespace: 'test', seq: 0, createdAt: 1000, updatedAt: 2000,
+        active: true, activeAt: 2000, metadataVersion: 1, agentStateVersion: 1, thinking: false, thinkingAt: 0, agentState: {},
+        metadata: { flavor: 'codex', name: 'Native chat', host: 'Test daemon', path: '/tmp', nativeCodex: { endpointId: 'test', threadId: 'native-thread', available: true } }, model: 'gpt-6-astra', modelReasoningEffort: 'ultra' })
+    const codexNativeAction = vi.fn(async (_id: string, _action: string, patch: Record<string, unknown>) => ({ applied: { model: 'gpt-6-astra', ...patch } }))
+    const uploadCodexNativeFile = vi.fn(async (_id: string, filename: string) => ({ success: true, path: `native-upload:${filename}` }))
+    const api = {
+        codexNativeAction,
+        uploadCodexNativeFile,
+        deleteCodexNativeUpload: vi.fn(async () => ({ success: true })),
+        withCodexNativeEndpoint: () => api,
+        getCodexNativeThread: async () => ({ thread: { id: 'native-thread', name: 'Native chat', status: { type: 'idle' } } }),
+        getCodexNativeActiveTurn: async () => ({ activeTurn: null }),
+        getCodexNativeItems: async () => ({ data: [{ turnId: 'turn', item: { id: 'response', type: 'agentMessage', text: 'Native message renders here' }, startedAtMs: 2000, completedAtMs: 2001 }], nextCursor: null }),
+        getCodexNativeModels: async () => ({ data: [{ id: 'gpt-6-astra', model: 'gpt-6-astra', displayName: 'Astra', isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Medium' }, { reasoningEffort: 'ultra', description: 'Ultra' }] }] }),
+        streamCodexNativeEvents: () => new Promise<void>(() => {}),
+        getSessions: async () => ({ sessions: [] }), getMachines: async () => ({ machines: [] }),
+        fetchTranscriptionProviders: async () => ({ providers: [] }),
+    }
+    render(<I18nProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider>
+        <NativeSessionPage api={api as unknown as ApiClient} session={session} onBack={() => {}} />
+    </ToastProvider></QueryClientProvider></I18nProvider>)
+    expect(await screen.findByText('Native message renders here')).toBeInTheDocument()
+    expect((await screen.findAllByText('Astra')).length).toBeGreaterThan(0)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reasoning Effort: Ultra' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+    await waitFor(() => expect(codexNativeAction).toHaveBeenCalledWith('native-thread', 'settings', { effort: 'medium' }))
+    expect(await screen.findByRole('button', { name: 'Reasoning Effort: Medium' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Attach file' })).toBeEnabled()
+    fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [
+        new File(['notes'], 'notes.txt', { type: 'text/plain' }),
+        new File(['image'], 'proof.png', { type: 'image/png' }),
+    ] } })
+    await waitFor(() => expect(uploadCodexNativeFile).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(codexNativeAction).toHaveBeenCalledWith('native-thread', 'messages', expect.objectContaining({
+        text: '', attachments: expect.arrayContaining([
+            expect.objectContaining({ filename: 'notes.txt', path: 'native-upload:notes.txt' }),
+            expect.objectContaining({ filename: 'proof.png', path: 'native-upload:proof.png' }),
+        ])
+    })))
+})

@@ -8,6 +8,7 @@ import { useAnchoredMenu } from '@/hooks/useAnchoredMenu'
 import { CopyIcon } from '@/components/icons'
 
 type SessionActionMenuProps = {
+    disabledActions?: Partial<Record<'rename' | 'pin' | 'export' | 'archive' | 'delete' | 'reopen', string>>
     isOpen: boolean
     onClose: () => void
     sessionId: string
@@ -275,7 +276,7 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
     // The left text inset includes the icon and gap; mirror it on the right so
     // the text-to-border distance is symmetric without counting the icon twice.
     const baseItemClassName =
-        'flex w-full items-center gap-3 rounded-md py-2 pl-3 pr-[42px] text-left text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]'
+        'flex w-full items-center gap-3 rounded-md py-2 pl-3 pr-[42px] text-left text-base transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]'
 
     return (
         <div
@@ -300,6 +301,8 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                     role="menuitem"
                     className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`}
                     onClick={handleRename}
+                    disabled={Boolean(props.disabledActions?.rename)}
+                    title={props.disabledActions?.rename}
                 >
                     <EditIcon className="text-[var(--app-hint)]" />
                     {t('session.action.rename')}
@@ -327,13 +330,15 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                     </button>
                 ) : null}
 
-                {onSetPinMode ? (
+                {onSetPinMode || props.disabledActions?.pin ? (
                     <>
                         <button
                             type="button"
                             role="menuitem"
                             className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`}
                             onClick={() => handleSetPinMode(sessionPinned ? 'none' : 'project')}
+                            disabled={Boolean(props.disabledActions?.pin)}
+                            title={props.disabledActions?.pin}
                         >
                             <PinIcon filled={sessionPinned} className="text-[var(--app-hint)]" />
                             {t(sessionPinned ? 'session.action.unpinProject' : 'session.action.pinProject')}
@@ -343,6 +348,8 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                             role="menuitem"
                             className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`}
                             onClick={() => handleSetPinMode(sessionGlobalPinned ? 'none' : 'global')}
+                            disabled={Boolean(props.disabledActions?.pin)}
+                            title={props.disabledActions?.pin}
                         >
                             <PinIcon filled={sessionGlobalPinned} className="text-[var(--app-hint)]" />
                             {t(sessionGlobalPinned ? 'session.action.unpinGlobal' : 'session.action.pinGlobal')}
@@ -356,6 +363,8 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                         role="menuitem"
                         className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`}
                         onClick={handleExport}
+                        disabled={Boolean(props.disabledActions?.export)}
+                        title={props.disabledActions?.export}
                     >
                         <DownloadIcon className="text-[var(--app-hint)]" />
                         {t('session.action.export')}
@@ -392,13 +401,15 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                         role="menuitem"
                         className={`${baseItemClassName} text-red-500 hover:bg-red-500/10`}
                         onClick={handleArchive}
+                        disabled={Boolean(props.disabledActions?.archive)}
+                        title={props.disabledActions?.archive}
                     >
                         <ArchiveIcon className="text-red-500" />
                         {t('session.action.archive')}
                     </button>
                 ) : (
                     <>
-                        {onReopen || reopenDisabledReason || reopenHint ? (
+                        {onReopen || reopenDisabledReason || reopenHint || props.disabledActions?.reopen ? (
                             <HoverTooltip
                                 id={`${resolvedMenuId}-reopen-tooltip`}
                                 className="w-full [&>span:first-child]:w-full"
@@ -408,6 +419,8 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                                     <button
                                         type="button"
                                         role="menuitem"
+                                        disabled={Boolean(props.disabledActions?.reopen)}
+                                        title={props.disabledActions?.reopen}
                                         aria-disabled={reopenDisabledReason ? true : undefined}
                                         aria-describedby={
                                             reopenDisabledReason || reopenHint
@@ -432,6 +445,8 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                             role="menuitem"
                             className={`${baseItemClassName} text-red-500 hover:bg-red-500/10`}
                             onClick={handleDelete}
+                            disabled={Boolean(props.disabledActions?.delete)}
+                            title={props.disabledActions?.delete}
                         >
                             <TrashIcon className="text-red-500" />
                             {t('session.action.delete')}

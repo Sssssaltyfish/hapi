@@ -13,6 +13,7 @@ import { useServerUrl } from '@/hooks/useServerUrl'
 import { useSSE } from '@/hooks/useSSE'
 import { useFixedSessionOrder } from '@/hooks/useFixedSessionOrder'
 import { useSessions } from '@/hooks/queries/useSessions'
+import { useSession } from '@/hooks/queries/useSession'
 import { useReconnectingState } from '@/hooks/useReconnectingState'
 import { useSyncingState } from '@/hooks/useSyncingState'
 import { usePushNotifications } from '@/hooks/usePushNotifications'
@@ -172,7 +173,9 @@ function AppInner() {
     }, [goBack, pathname])
     const queryClient = useQueryClient()
     const sessionMatch = matchRoute({ to: '/sessions/$sessionId' })
-    const selectedSessionId = sessionMatch && sessionMatch.sessionId !== 'new' ? sessionMatch.sessionId : null
+    const selectedRouteSessionId = sessionMatch && sessionMatch.sessionId !== 'new' ? sessionMatch.sessionId : null
+    const { session: selectedSession } = useSession(api, selectedRouteSessionId)
+    const selectedSessionId = selectedSession && !selectedSession.metadata?.nativeCodex ? selectedRouteSessionId : null
     const { isSyncing, startSync, endSync } = useSyncingState()
     const {
         isReconnecting: sseDisconnected,
