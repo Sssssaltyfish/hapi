@@ -86,3 +86,15 @@ Local implementation commits:
 - `c50ca64`: background history entries after interactive chats.
 
 Local raw diagnostic scripts and observations are in `../diagnostics-20261029/`. Extracted proprietary Desktop assets and authentication data are not included in Git.
+
+## Native bridge integration review — 2026-10-30
+
+This supersedes the initial audit's deployment status above. Native Codex uses the existing HAPI list, chat, composer, file viewer and creation form. The upstream comparison target is v0.31.3 (`85ccab1`), the deployed base; this work does not upgrade upstream. UI creation choices distinguish runner machines from native endpoints while retaining the Codex wire flavor. Explicit API adapter operations replace argument-based routing guesses. Agent labels reuse display preferences, and model/effort shortcuts remain visible on phones.
+
+Daemon-backed attachments now support images, files and attachment-only input. The hub keeps no attachment registry or native conversation state. The custom Native file-viewer and WebSocket payload caps were removed; the upstream HTTP body limit remains. Native files still transfer as complete payloads. A disposable model run read the supplied text marker and identified the supplied red PNG; its completed conversation was archived. Separate phone UI checks covered creation, model/effort menus, an applied High setting and an uploaded draft removed before cleanup.
+
+Read-only review found two pagination defects, both corrected: stale older/background responses could override a Return latest operation, and aggregate truncation could expose a cursor that skipped unseen sessions. Focused regressions cover those races and 50/50/20 endpoint pagination. No additional authoritative history cache or namespace bypass was found in the reviewed bridge paths.
+
+The combined source passed all-package typecheck and existing suites: CLI 3,246 passed / 11 skipped; hub 1,438 passed / 3 skipped; web 3,528 passed; shared 329 passed; relay 118 passed. Fixture generation produced no content drift after normalizing Windows line endings; the production web build passed. Only focused regressions were added. Native source formatting was checked against TypeScript ASTs before and after formatting.
+
+The shared Seia authentication adapter is a local deployment customization. Keep it, the earlier local Passkey baseline and deployment configuration separate from reusable Native provider commits. It does not belong in the proposed upstream Native feature. Authentication changes were delivered by the separately authorized Editor task, reviewed independently, and integrated by the HAPI owner. Runtime configuration and secrets stay outside Git.

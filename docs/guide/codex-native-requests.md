@@ -1,0 +1,85 @@
+# Codex native questions and requests
+
+Verified 2026-10-29 against the installed Desktop bundles and the native WSL daemon at `unix:///home/igna/.codex/app-server-control/app-server-control.sock`. Both the installed CLI and daemon initialize response identified `0.165.0-alpha.1.2`; an earlier audit's `0.164.0-alpha.11.1` is no longer the running version.
+
+## Async questions
+
+Desktop represents `request_user_input_async` as questions attached to an `agentMessage` item:
+
+```ts
+{ type: 'agentMessage', id: string, questions: Array<{ title: string; options?: string[] }> }
+```
+
+The exact question identifier is `JSON.stringify(['request_user_input_async', item.id, questionIndex])`. Preserve the opaque source item ID and zero-based question index. A reply is ordinary user input containing the following exact wrapper, with JSON serialized by a JSON library:
+
+```text
+<send_user_message_question_reply>
+[{"questionItemId":"[\"request_user_input_async\",\"ITEM_ID\",0]","question":"Original question title","answer":"User answer"}]
+</send_user_message_question_reply>
+```
+
+Installed Desktop accepts an array with at least one reply, and also parses a single reply object for compatibility. Its pending question calculation collects question IDs from `agentMessage.questions` and subtracts IDs found in wrapped user messages or `steeringUserMessage` items whose status is `accepted`. A pending or rejected steering item does not resolve the question.
+
+For an active turn, the supported app-server input primitive is:
+
+```json
+{"method":"turn/steer","id":42,"params":{"threadId":"THREAD_ID","expectedTurnId":"ACTIVE_TURN_ID","clientUserMessageId":"STABLE_CLIENT_UUID","input":[{"type":"text","text":"WRAPPED_REPLY"}]}}
+```
+
+`expectedTurnId` is required and fails if the active turn changed or ended. Preserve that race check. The wrapper semantics are verified from installed Desktop; a live async answer has deliberately not been sent during this investigation. End-to-end acceptance of a real async question remains a targeted smoke test. When the originating turn has completed, any reply starts follow-up work through the normal explicit message flow; do not silently transform a failed active-turn answer into a new turn.
+
+Bundle evidence: `webview/assets/app-initial-db76c3384587.js`, functions `ZJt` (ID), `QJt` (wrapper), `Jw` (parser), `rYt` (question projection), `E3t`/`A3t` (pending and accepted reply rules). The main process bundle duplicates these rules as `bSe`, `xSe`, `SSe`, and `iy`.
+
+## Blocking server requests
+
+`item/tool/requestUserInput`, command/file/permission approvals, MCP elicitations, and dynamic tool calls are server-initiated JSON-RPC requests. A client that receives a request answers using its original JSON-RPC `id` and the method-specific result shape. `serverRequest/resolved` is a notification confirming completion or cancellation; it is not an API for retrieving or answering a request.
+
+The generated experimental `ClientRequest.json` contains neither `serverRequest/list` nor `serverRequest/respond`. A read-only live call to `serverRequest/list` returned `-32600` with an unknown method variant. Do not invent these routes.
+
+The public app-server implementation supplies the pending snapshot through **request replay after resume**, rather than a list route. In pinned commit `9cc14e79882ff8885cd5d33b4adadae014045aef`, [thread lifecycle lines 1230–1259](https://github.com/openai/codex/blob/9cc14e79882ff8885cd5d33b4adadae014045aef/codex-rs/app-server/src/request_processors/thread_lifecycle.rs#L1230-L1259) sends the resume response, then invokes `replay_requests_to_connection_for_thread`. [Outgoing request routing lines 513–548](https://github.com/openai/codex/blob/9cc14e79882ff8885cd5d33b4adadae014045aef/codex-rs/app-server/src/outgoing_message.rs#L513-L548) sends each pending request with its original ID to the attaching connection.
+
+Install the incoming request handler before sending resume. Keep it active after the response resolves: replay follows that response. Preserve IDs as strings or numbers, retain the original method and params, deduplicate replay by ID, and send `{id: originalId, result: methodSpecificResponse}` over the same transport. Remove UI prompts on `serverRequest/resolved`. [Callback removal lines 645–689](https://github.com/openai/codex/blob/9cc14e79882ff8885cd5d33b4adadae014045aef/codex-rs/app-server/src/outgoing_message.rs#L645-L689) makes the first accepted response consume the shared callback. A competing later reply cannot resolve it again; sending a response alone does not provide an application-level acknowledgement.
+
+This applies to ordinary blocking tool input. User verification ceremonies are tied to one connection and excluded from replay. The newer public source also gates the special `HumanCommand` approval variant by eligible connection; this gate does not cover ordinary `ToolRequestUserInput`. These restrictions should remain method-specific. The source demonstrates the intended multi-client route; a real pending request replay on the installed daemon has not been empirically exercised because the probe did not generate or answer model work. Async questions remain recoverable from history independently.
+
+## Bounded attachment and history
+
+Use `thread/resume` with `{threadId, excludeTurns:true}` to attach and subscribe while excluding historical turns. Do not pass model, approval, sandbox, workspace, or instruction overrides when attaching an existing Desktop chat. This can load an unloaded thread and start its MCP integrations, but it sends no user input or model request.
+
+The live M1 probe returned the same ID, `historyMode: paginated`, zero turns, and 4,034 response bytes. Initial load took 5.35 seconds and changed runtime status from `notLoaded` to `idle`. A subsequent `thread/turns/list` with `limit:1`, `sortDirection:'desc'`, `itemsView:'summary'` returned 36,686 bytes: even a single summary page can contain substantial text, so retain item pagination.
+
+`thread/items/list` accepts `{threadId, turnId?, limit?, sortDirection?, cursor?}`. The cursor is either an opaque string or `{type:'item',itemId}`; an item anchor requires `turnId` and is exclusive. Continue pagination with returned opaque cursors. `thread/resume` also supports optional `initialTurnsPage` and returns backwards cursors. Release subscriptions with `thread/unsubscribe` when a chat no longer needs streaming.
+
+## Native message queue
+
+The installed schema defines:
+
+```ts
+// All add fields are required.
+thread/queue/add({ threadId, clientUserMessageId, input })
+  => { queuedSubmission: { id, clientUserMessageId, input } }
+thread/queue/start({ threadId, queuedSubmissionId?: string | null })
+  => { turn }
+```
+
+Use a stable client message ID and preserve the returned submission ID. Do not claim retry deduplication from the field name alone: the schema provides no explicit idempotency guarantee. Queue/start is an execution action and was not exercised in the read-only probe.
+
+## Evidence and reproduction
+
+The generated schema and the standalone read-only probe are under deployment diagnostics `diagnostics-native-20261029/schema` and `request-probe.cjs`, outside the source tree. Generate a fresh schema with `codex app-server generate-json-schema --experimental --out DIR`. Run the probe under WSL with Node and the existing `ws` dependency; it initializes a separate client, probes the unsupported list route, reads metadata, attaches without history, and fetches one turn summary. It never responds to incoming requests or sends input.
+
+The [official app-server documentation](https://learn.chatgpt.com/docs/app-server) describes active-turn steering, server-initiated request responses, and resolved notifications. Installed version-specific schemas and bundle evidence supply the additional Desktop async wrapper and pagination details above.
+
+## File and image inputs
+
+Read-only investigation on 2026-10-30 confirmed the installed CLI remains `0.165.0-alpha.1.2`. Its generated experimental `UserInput` schema includes `text`, `image`, `localImage`, `audio`, `localAudio`, `skill`, and `mention`; it has no generic `file` input. `image` accepts a URL or an existing image `fileId`, while `localImage` accepts a path on the daemon's execution host. An image `fileId` is not a generic document upload interface.
+
+App-server does expose byte transfer: `fs/writeFile({path, dataBase64})` writes base64-decoded contents to an absolute path on its host, and `fs/createDirectory`, `fs/copy`, `fs/readFile`, and `fs/remove` provide the accompanying file operations. File transfer therefore does not require invoking the agent's terminal. Ordinary documents can be staged on the execution host and referenced by path in text input; the agent's available tools then determine how their contents are read or parsed.
+
+The installed Desktop main bundle (`main-CP9z2iYn.js`, line 521, `vCe.uploadLocalFiles`) implements this for remote hosts: create a directory under the remote Codex home `attachments/<UUID>`, read the client file, write it through `fs/writeFile`, and replace its attachment path with the remote path. Its SSH host adapter (line 624, `uPe`/`sPe`) uses a 10 MiB direct-transfer threshold when SFTP is allowed, then transfers larger files using SFTP `put`. This is Desktop's attachment transport policy, not a universal app-server file-size limit.
+
+For pictures, Desktop's input builder (line 540, `mx`/`CDe`) uses `localImage` for an accessible local path and `image.url` for a data URL when targeting a remote host. The [official upstream TUI image preparation implementation](https://github.com/openai/codex/blob/main/codex-rs/tui/src/chatwidget/image_submission.rs#L123-L163) likewise snapshots local images into inline image URLs before remote submission. That upstream source is supporting evidence for current TUI behavior, rather than a claim that its revision matches the installed binary. The official mobile application's private upload protocol was not verified in this investigation.
+
+HAPI's existing runner attachment path uploads base64 through the Hub to the runner, stores the file on that runner's host, and prefixes attachment paths into the Codex prompt. The native bridge currently accepts text messages only and explicitly rejects attachments in its existing chat adapter. Native attachment support remains unwired; no attachment implementation or live model input was performed during this investigation.
+
+A minimal native extension would retain HAPI's existing attachment UI, stage bytes through the selected configured daemon's filesystem API into a controlled upload directory, and return a server-owned attachment ID. Message submission would resolve that ID to `localImage` for images or a text file reference for ordinary documents. Paths must refer to the daemon host, and upload ownership, cleanup, and retry state must follow the attachment lifecycle. The bridge currently caps native transport frames at 16 MiB, so it cannot inherit the runner upload path's 50 MB allowance: base64 overhead and message framing require a smaller first-version limit or a separately implemented transfer mechanism. The present `fs/writeFile` schema supplies no chunked upload or exclusive-create option; server-generated unique directories avoid accepting arbitrary caller-selected write targets.
