@@ -23,6 +23,20 @@ beforeAll(async () => {
 })
 
 describe('cli resume routes', () => {
+    it('reconciles only the exact machine/native-thread mapping and requires machine authentication', async () => {
+        const reconcile = mock(() => {})
+        const session = {id:'s1',active:false,metadata:{machineId:'m1',flavor:'codex',codexSessionId:'t1'}}
+        const app = createApp({resolveSessionAccess: () => ({ok:true,session,sessionId:'s1'}), reconcileNativeArchive:reconcile} as never)
+        const post = (machineId:string, threadId:string, authenticated=true) => app.request('/cli/sessions/s1/native-archive',{
+            method:'POST',headers:{'Content-Type':'application/json',...(authenticated?authHeaders():{})},body:JSON.stringify({machineId,threadId})})
+        expect((await post('m1','t1',false)).status).toBe(401)
+        expect((await post('wrong','t1')).status).toBe(409)
+        expect((await post('m1','wrong')).status).toBe(409)
+        expect(reconcile).not.toHaveBeenCalled()
+        expect((await post('m1','t1')).status).toBe(200)
+        expect(reconcile).toHaveBeenCalledWith('s1')
+    })
+
     it('returns local resumable sessions', async () => {
         const app = createApp({
             listLocalResumableSessions: () => [{

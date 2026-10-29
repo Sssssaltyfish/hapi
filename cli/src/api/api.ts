@@ -239,6 +239,11 @@ export class ApiClient {
         }
     }
 
+    async reconcileNativeArchive(sessionId: string, machineId: string, threadId: string): Promise<void> {
+        await axios.post(`${configuration.apiUrl}/cli/sessions/${encodeURIComponent(sessionId)}/native-archive`,
+            { machineId, threadId }, { headers: this.authHeaders(), timeout: 30_000 });
+    }
+
     async listResumableSessions(machineId?: string): Promise<ResumableSession[]> {
         const qs = machineId ? `?machineId=${encodeURIComponent(machineId)}` : ''
         const response = await axios.get(
