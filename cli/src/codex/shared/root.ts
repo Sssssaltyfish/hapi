@@ -195,15 +195,15 @@ export class SharedCodexRoot {
         if (this.threadId && this.threadId !== threadId) throw new Error('Cannot retarget a shared HAPI session');
         this.threadId = threadId;
         this.queue = new SharedCodexQueue(this.client, threadId, join(this.host.directory, `${this.session.sessionId}.queue.json`),
-            (ids, steered) => {
-                this.session.emitMessagesConsumed(ids, { steered });
+            (ids, steered, invokedAt) => {
+                this.session.emitMessagesConsumed(ids, { steered, ...(invokedAt !== undefined ? { invokedAt } : {}) });
                 for (const id of ids) this.dequeuedInputs.delete(id);
                 this.publishCompaction();
             }, ids => this.session.emitSteerIndeterminate(ids),
             (id, input) => this.session.syncNativeQueuedMessage(id, input === null ? null : inputText(input)),
             ids => this.session.setSteerDeliveryState(ids, 'queued'));
         await this.queue.load();
-        this.projection = new SharedCodexProjection(this.session, threadId, id => this.queue.committed(id));
+        this.projection = new SharedCodexProjection(this.session, threadId, (id, invokedAt) => this.queue.committed(id, invokedAt));
         this.session.updateMetadata(metadata => ({ ...metadata, codexSessionId: threadId, capabilities: {
             ...metadata.capabilities, concurrentClients: true, terminal: true,
             // In-place rewind needs a native + hub commit barrier. Do not
@@ -351,9 +351,13 @@ export class SharedCodexRoot {
         this.inheritNativeName(thread, nameRevision);
         const turns = Array.isArray(thread.turns) ? thread.turns.map(record) : [];
         if (revision === this.turnRevision) {
-            this.currentTurn = string(turns.find(turn => turn.status === 'inProgress')?.id);
-            this.interrupted = turns.at(-1)?.status === 'interrupted';
             const last = turns.at(-1);
+            // A historical inProgress row can survive a crash. Only the latest
+            // turn and the current native runtime status can establish busy.
+            const runtimeStatus = string(record(thread.status).type);
+            this.currentTurn = (!runtimeStatus || runtimeStatus === 'active') && last?.status === 'inProgress'
+                ? string(last.id) : undefined;
+            this.interrupted = last?.status === 'interrupted';
             const id = string(last?.id);
             this.latestTurn = id && last ? { id, status: string(last.status) ?? 'unknown', planId: planProposalForTurn(this.threadId, last) } : undefined;
         }
