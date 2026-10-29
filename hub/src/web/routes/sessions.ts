@@ -35,6 +35,7 @@ import { loadScratchlistAttachmentLimitsFromEnv } from '../../config/scratchlist
 import { validateScratchlistAttachmentsForWrite, scratchlistSessionBytesBeforeForPut } from '../../scratchlistAttachments/validate'
 import { TitleSuggestionError } from '../../sync/titleSuggestion'
 import { requireSessionFromParam, requireSyncEngine } from './guards'
+import type { NativeRegistry } from '../../codexNative/registry'
 
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
@@ -69,10 +70,10 @@ function estimateBase64Bytes(base64: string): number {
     return Math.floor((len * 3) / 4) - padding
 }
 
-export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Hono<WebAppEnv> {
+export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nativeRegistry?: NativeRegistry): Hono<WebAppEnv> {
     const app = new Hono<WebAppEnv>()
 
-    app.get('/sessions', (c) => {
+    app.get('/sessions', async (c) => {
         const engine = requireSyncEngine(c, getSyncEngine)
         if (engine instanceof Response) {
             return engine
@@ -87,6 +88,7 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
             ? Math.min(500, Math.max(1, Math.floor(parsedLimit)))
             : null
         const order = c.req.query('order')
+        const nativeEnabled = Boolean(nativeRegistry?.visible(namespace).length)
 
         let sessionRecords = engine.getSessionsByNamespace(namespace)
             .sort((a, b) => {
@@ -113,7 +115,7 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
                 // Then by updatedAt
                 return b.updatedAt - a.updatedAt
             })
-        if (limit !== null) {
+        if (limit !== null && !nativeEnabled) {
             sessionRecords = sessionRecords.slice(0, limit)
         }
         const scheduledCounts = engine.getFutureScheduledMessageCounts(sessionRecords.map((session) => session.id))
@@ -126,6 +128,33 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
                 nextScheduledAt: nextScheduledAt.get(session.id) ?? null
             }
         })
+
+        if (nativeEnabled && nativeRegistry) {
+            const nativeEndpointId = c.req.query('nativeEndpointId')
+            const result = await nativeRegistry.list(namespace, sessionRecords, {
+                endpointId: nativeEndpointId,
+                cursor: c.req.query('nativeCursor'),
+                projectId: c.req.query('nativeProjectId'),
+                catalog: c.req.query('nativeCatalog'),
+                limit: nativeEndpointId ? limit ?? undefined : undefined
+            })
+            const legacySummaries = new Map(sessions.map(summary => [summary.id, summary]))
+            result.sessions = result.sessions.map(summary => legacySummaries.get(summary.id) ?? summary)
+            result.sessions.sort((a, b) => {
+                if (order === 'updatedAt') return b.updatedAt - a.updatedAt
+                if (Boolean(a.globalPinned) !== Boolean(b.globalPinned)) return a.globalPinned ? -1 : 1
+                if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+                if (a.active !== b.active) return a.active ? -1 : 1
+                if (a.active && a.pendingRequestsCount !== b.pendingRequestsCount) return b.pendingRequestsCount - a.pendingRequestsCount
+                return b.updatedAt - a.updatedAt
+            })
+            if (limit !== null && !nativeEndpointId) {
+                // A limited aggregate is a preview, not a cursor page. Native
+                // pagination uses an explicit endpoint and its complete page.
+                return c.json({ sessions: result.sessions.slice(0, limit) })
+            }
+            return c.json(result)
+        }
 
         return c.json({ sessions })
     })
@@ -164,12 +193,17 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null): Ho
         return c.json(result.payload)
     })
 
-    app.get('/sessions/:id', (c) => {
+    app.get('/sessions/:id', async (c) => {
         const engine = requireSyncEngine(c, getSyncEngine)
         if (engine instanceof Response) {
             return engine
         }
 
+        if (nativeRegistry) {
+            const access = engine.resolveSessionAccess(c.req.param('id'), c.get('namespace'))
+            const native = await nativeRegistry.resolve(c.get('namespace'), c.req.param('id'), access.ok ? access.session : undefined)
+            if (native) return c.json({ session: native })
+        }
         const sessionResult = requireSessionFromParam(c, engine)
         if (sessionResult instanceof Response) {
             return sessionResult
