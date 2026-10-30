@@ -7,6 +7,7 @@ import { nativeFilePath } from '../../codexNative/files'
 import { uploadAttachment, deleteAttachment, attachmentInputs } from '../../codexNative/attachments'
 import { record, type NativeRecord } from '../../codexNative/transport'
 import { createNativeMachinesRoutes, nativeMachineStatus } from './nativeMachines'
+import { createNativeMentionsRoutes } from './nativeMentions'
 
 const limit = (value: string | undefined) =>
     Math.min(100, Math.max(1, Number.parseInt(value ?? '50', 10) || 50))
@@ -96,6 +97,7 @@ export function createCodexNativeRoutes(
         )
     )
     app.route('/', createNativeMachinesRoutes(registry))
+    app.route('/', createNativeMentionsRoutes(registry))
     app.post('/codex-native/endpoints/:endpointId/threads', async (c) => {
         const parsed = createThreadSchema.safeParse(await c.req.json())
         if (!parsed.success) return c.json({ error: 'Invalid native thread options' }, 400)
@@ -250,7 +252,7 @@ export function createCodexNativeRoutes(
         if (!parsed.success) return c.json({ error: 'Invalid native message' }, 400)
         const { text, clientId, expectedTurnId } = parsed.data
         const endpoint = getEndpoint(c)!
-        const input: NativeRecord[] = text ? [{ type: 'text', text, text_elements: [] }] : []
+        const input = text ? await endpoint.service.messageInput(c.req.param('id'), text) : []
         input.push(
             ...(await attachmentInputs(
                 endpoint.service,

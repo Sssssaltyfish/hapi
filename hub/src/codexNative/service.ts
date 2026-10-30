@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises'
+import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import {
     createWorkspaceIdentityReader,
@@ -52,6 +53,12 @@ export class NativeService {
         for (const client of [...this.connections])
             client.close('Native machine connection changed')
         this.connections.clear()
+    }
+    messageInput(threadId: string, message: string) {
+        return messageInput(this, threadId, message)
+    }
+    suggestions(threadId: string, query: string) {
+        return mentionSuggestions(this, threadId, query)
     }
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()

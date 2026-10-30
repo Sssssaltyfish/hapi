@@ -11,6 +11,7 @@ import { nativeAsyncReplyTurn, nativeQuestionReplies, nativeState, record } from
 import { projectNativeItems } from './projectNativeItems'
 import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
+import { useNativeSuggestions } from './useNativeSuggestions'
 
 export function NativeSessionPage({
     api,
@@ -52,6 +53,7 @@ function NativeSessionChat({
 }) {
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false)
+    const autocompleteSuggestions = useNativeSuggestions(api, native.threadId)
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
         observedReplies.current.set(id, answer)
@@ -143,6 +145,7 @@ function NativeSessionChat({
     return (
         <SessionChat
             api={adapter}
+            autocompleteSuggestions={autocompleteSuggestions}
             session={liveSession}
             nativeCapabilities={{ available: !unavailable, connected: thread.connected }}
             messages={projected.messages}

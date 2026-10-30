@@ -1184,6 +1184,7 @@ export default {
   'misc.typeMessage': "Введите 'continue', чтобы продолжить...",
   'misc.typeAMessage': 'Введите сообщение...',
   'misc.typeAMessageWithMentions': 'Введите, что должен сделать агент, или @упомяните другую сессию для контекста или передачи',
+  'misc.typeAMessageWithFileMentions': 'Введите задачу для Codex или @упомяните файлы, папки, плагины или приложения',
   'misc.offline': 'офлайн',
   'misc.permissionRequired': 'требуется разрешение',
   'misc.online': 'онлайн',

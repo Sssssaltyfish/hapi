@@ -323,6 +323,17 @@ export class ApiClient {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/status`)
     }
 
+    async getCodexNativeSuggestions(
+        threadId: string,
+        query: string,
+        signal?: AbortSignal
+    ): Promise<{ suggestions: { key: string; text: string; label: string; description?: string }[] }> {
+        return await this.request(
+            `/api/codex-native/threads/${encodeURIComponent(threadId)}/suggestions?${new URLSearchParams({ query })}`,
+            { signal }
+        )
+    }
+
     async createCodexNativeThread(endpointId: string, payload: { cwd: string; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads`, { method: 'POST', body: JSON.stringify(payload) })
     }

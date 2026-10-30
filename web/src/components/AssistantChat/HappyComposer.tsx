@@ -397,6 +397,7 @@ export function HappyComposer(props: {
     attachmentOrderRef?: MutableRefObject<string[]>
     /** Chip hover / aria-label resolver (SessionChat → useSessions). */
     resolveSessionMentionTooltip?: (id: string, title: string) => SessionMentionResolveResult
+    sessionMentionsEnabled?: boolean
 }) {
     const { t } = useTranslation()
     const {
@@ -456,6 +457,7 @@ export function HappyComposer(props: {
         pendingSendIntentRef,
         attachmentOrderRef: externalAttachmentOrderRef,
         resolveSessionMentionTooltip,
+        sessionMentionsEnabled = true,
     } = props
 
     // Use ?? so missing values fall back to default (destructuring defaults only handle undefined)
@@ -630,9 +632,9 @@ export function HappyComposer(props: {
     // path is live. Relying on DOM focus alone is flaky (programmatic
     // autofocus / Playwright headless often skip the focus event).
     useEffect(() => {
-        if (!richMentionsEnabled) return
+        if (!richMentionsEnabled || !sessionMentionsEnabled) return
         engageRichComposerFue()
-    }, [richMentionsEnabled, engageRichComposerFue])
+    }, [richMentionsEnabled, sessionMentionsEnabled, engageRichComposerFue])
 
     const recordUserEdit = useCallback(() => {
         userEditGenerationRef.current += 1
@@ -2313,18 +2315,21 @@ export function HappyComposer(props: {
                                             placeholder={t(resolveComposerPlaceholderKey({
                                                 richMentionsEnabled: true,
                                                 showContinueHint,
+                                                sessionMentionsEnabled,
                                             }))}
                                             disabled={controlsDisabled}
                                             onValueChange={handleRichValueChange}
                                             onMirrorChange={handleRichMirrorChange}
                                             onKeyDown={handleKeyDown}
                                             onPaste={handlePaste}
-                                            onFocus={() => engageRichComposerFue()}
+                                            onFocus={() => {
+                                                if (sessionMentionsEnabled) engageRichComposerFue()
+                                            }}
                                             resolveSessionMentionTooltip={resolveSessionMentionTooltip}
                                             onEdit={handleRichEdit}
                                             className={editorClassName}
                                         />
-                                        {richComposerFueStatus !== 'acknowledged' ? (
+                                        {sessionMentionsEnabled && richComposerFueStatus !== 'acknowledged' ? (
                                             <FueDot
                                                 pulsing={richComposerFueStatus === 'unseen'}
                                                 ariaLabel={t('fue.newFeatureDot')}
@@ -2372,7 +2377,7 @@ export function HappyComposer(props: {
                                     />
                                 )}
                             </div>
-                            {richMentionsEnabled && richComposerFueStatus === 'engaging' ? (
+                            {richMentionsEnabled && sessionMentionsEnabled && richComposerFueStatus === 'engaging' ? (
                                 <FueCallout
                                     title={t('richComposer.fueTitle')}
                                     body={t('richComposer.fueBody')}

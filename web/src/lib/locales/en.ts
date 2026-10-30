@@ -1186,6 +1186,7 @@ export default {
   'misc.typeMessage': "Type 'continue' to resume...",
   'misc.typeAMessage': 'Type a message...',
   'misc.typeAMessageWithMentions': 'Type what you want the agent to do, or @mention another session for context or handoff',
+  'misc.typeAMessageWithFileMentions': 'Type what you want Codex to do, or @mention files, folders, plugins or apps',
   'misc.offline': 'offline',
   'misc.permissionRequired': 'permission required',
   'misc.online': 'online',
