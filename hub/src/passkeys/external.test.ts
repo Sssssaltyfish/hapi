@@ -23,6 +23,13 @@ const issuer = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) 
     if (!available) return new Response(null, { status: 503 })
     if (request.headers.get('Authorization') !== `Bearer ${serviceToken}`) return new Response(null, { status: 401 })
     const action = new URL(request.url).pathname.split('/').pop()
+    if (new URL(request.url).pathname.includes('/passkey/')) {
+        if (request.headers.get('Origin') !== 'https://seia.test:8444') return new Response(null, { status: 403 })
+        if (action === 'options') return Response.json({ options: { challenge: 'nonce' }, requestId: 'request' })
+        return Response.json({ subject: 'owner', sessionId, expiresAt: Date.now() + 60_000 }, {
+            headers: { 'Set-Cookie': '__Host-seia_session=test; Path=/; Secure; HttpOnly; SameSite=Lax' }
+        })
+    }
     if (action === 'logout') { active = false; return Response.json({ ok: true }) }
     if (!active) return new Response(null, { status: 401 })
     if (action === 'session' && request.headers.get('Cookie') !== '__Host-seia_session=test') return new Response(null, { status: 401 })
@@ -54,11 +61,20 @@ test('central cookie exchange preserves app JWT, rejects bypasses and follows re
     app.route('/api', createPasskeyRoutes(secret))
     app.use('/api/*', createAuthMiddleware(secret))
     app.get('/api/private', c => c.json({ ok: true }))
-    const config = await (await app.request('/api/passkey/config')).json() as { externalLoginUrl: string }
-    expect(config.externalLoginUrl).toBe('https://seia.test/auth/?app=hapi')
+    const config = await (await app.request('/api/passkey/config')).json()
+    expect(config).toEqual({ enabled: true, sharedSession: true })
     expect((await app.request('/api/passkey/session')).status).toBe(401)
     expect((await app.request('/api/auth', { method: 'POST', body: '{}' })).status).toBe(403)
-    expect((await app.request('/api/passkey/login/options', { method: 'POST', headers: { Origin: 'https://seia.test:8444' } })).status).toBe(403)
+    const postHeaders = { Origin: 'https://seia.test:8444', 'Content-Type': 'application/json' }
+    expect((await app.request('/api/passkey/login/options', { method: 'POST', headers: { ...postHeaders, Origin: 'https://evil.test' }, body: '{}' })).status).toBe(403)
+    const options = await app.request('/api/passkey/login/options', { method: 'POST', headers: postHeaders, body: '{}' })
+    expect(options.status).toBe(200)
+    expect(await options.json()).toEqual({ options: { challenge: 'nonce' }, requestId: 'request' })
+    const login = await app.request('/api/passkey/login/verify', { method: 'POST', headers: postHeaders, body: '{}' })
+    expect(login.headers.get('set-cookie')).toContain('__Host-seia_session=test')
+    const logged = await login.json() as { token: string; sessionId?: string }
+    expect(logged.sessionId).toBeUndefined()
+    expect((await verifyWebToken(logged.token, secret)).payload.ns).toBe('default')
     const response = await app.request('/api/passkey/session', { headers: { Cookie: '__Host-seia_session=test' } })
     expect(response.status).toBe(200)
     const auth = await response.json() as { token: string }
@@ -75,10 +91,10 @@ test('central cookie exchange preserves app JWT, rejects bypasses and follows re
     available = false
     expect((await app.request('/api/private', { headers })).status).toBe(401)
     expect((await app.request('/api/passkey/session', { headers })).status).toBe(503)
-    expect((await app.request('/api/passkey/logout', { method: 'POST', headers: { ...headers, Origin: 'https://seia.test:8444' } })).status).toBe(503)
+    expect((await app.request('/api/passkey/logout', { method: 'POST', headers: { ...headers, ...postHeaders } })).status).toBe(503)
     available = true
     expect((await app.request('/api/passkey/logout', { method: 'POST', headers: { ...headers, Origin: 'https://evil.test' } })).status).toBe(403)
-    const logout = await app.request('/api/passkey/logout', { method: 'POST', headers: { ...headers, Origin: 'https://seia.test:8444' } })
+    const logout = await app.request('/api/passkey/logout', { method: 'POST', headers: { ...headers, ...postHeaders } })
     expect(logout.status).toBe(200)
     expect(logout.headers.get('set-cookie')).toContain('__Host-seia_session=')
     expect((await app.request('/api/private', { headers })).status).toBe(401)

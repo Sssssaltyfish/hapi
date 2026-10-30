@@ -451,7 +451,7 @@ function AppInner() {
     // Loading auth source
     if (passkey.error) return <div className="p-6 space-y-3"><p role="alert">{passkey.error}</p><button onClick={passkey.retry}>重试</button></div>
     if (passkey.enabled && (!authSource || authError)) {
-        return withPwaBanner(<PasskeyLogin baseUrl={baseUrl} onLogin={passkey.login} error={authError} externalLoginUrl={passkey.externalLoginUrl} />)
+        return withPwaBanner(<PasskeyLogin baseUrl={baseUrl} onLogin={passkey.login} error={authError} />)
     }
     if (passkey.enabled === null || (!passkey.enabled && isAuthSourceLoading)) {
         return withPwaBanner(
