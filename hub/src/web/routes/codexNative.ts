@@ -175,9 +175,9 @@ export function createCodexNativeRoutes(
             })
         const desktop = await getService(c).desktop()
         return c.json({
-            ...await nativeMachineStatus(getEndpoint(c)!),
+            ...(await nativeMachineStatus(getEndpoint(c)!)),
             projects: desktop.projects,
-            membership: desktop.membership
+            membership: desktop.membership,
         })
     })
     app.get('/codex-native/threads', async (c) =>
@@ -289,10 +289,33 @@ export function createCodexNativeRoutes(
             )
             const latest = record(Array.isArray(page.data) ? page.data[0] : undefined)
             if (latest.status !== 'interrupted') return c.json({ ...queued, accepted: true })
+            const [metadata, pending] = await Promise.all([
+                getService(c).readThread(c.req.param('id')).then(record),
+                getService(c)
+                    .control(c.req.param('id'), 'thread/queue/list', { limit: 1 })
+                    .then(record),
+            ])
+            if (
+                record(record(metadata.thread).status).type === 'active' ||
+                (Array.isArray(pending.data) && pending.data.length === 0)
+            ) {
+                return c.json({ ...queued, accepted: true })
+            }
+            let started: unknown
+            try {
+                started = await getService(c).control(c.req.param('id'), 'thread/queue/start', {})
+            } catch (error) {
+                // Another client or native auto-draining can consume the queue after
+                // our snapshot. Acceptance already succeeded; never replay this input.
+                if (error instanceof Error && error.message === 'queue is empty') {
+                    return c.json({ ...queued, accepted: true })
+                }
+                throw error
+            }
             return c.json({
                 ...queued,
                 accepted: true,
-                started: await getService(c).control(c.req.param('id'), 'thread/queue/start', {}),
+                started,
             })
         } catch (error) {
             return c.json({
