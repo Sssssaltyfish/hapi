@@ -62,7 +62,16 @@ import type {
     UploadFileResponse
 } from '@hapi/protocol/apiTypes'
 import { fetchThroughAuthProxy } from '@/api/authProxy'
-import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeStatus, NativeThreadPage } from '@/codex-native/types'
+import type {
+    NativeEndpoint,
+    NativeEndpointStatus,
+    NativeEvent,
+    NativeItemEntry,
+    NativePage,
+    NativeRecord,
+    NativeStatus,
+    NativeThreadPage
+} from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
@@ -287,8 +296,31 @@ export class ApiClient {
         return client
     }
 
-    async getCodexNativeEndpoints(): Promise<{ endpoints: { id: string; label: string; defaultCwd?: string }[] }> {
+    async getCodexNativeEndpoints(): Promise<{ endpoints: NativeEndpoint[] }> {
         return await this.request('/api/codex-native/endpoints')
+    }
+
+    async createCodexNativeEndpoint(payload: {
+        address: string
+        displayName?: string
+        token?: string
+        defaultCwd?: string
+    }): Promise<{ endpoint: NativeEndpoint }> {
+        return await this.request('/api/codex-native/endpoints', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        })
+    }
+
+    async renameCodexNativeEndpoint(endpointId: string, displayName: string): Promise<{ endpoint: NativeEndpoint }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ displayName })
+        })
+    }
+
+    async getCodexNativeEndpointStatus(endpointId: string): Promise<NativeEndpointStatus> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/status`)
     }
 
     async createCodexNativeThread(endpointId: string, payload: { cwd: string; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {

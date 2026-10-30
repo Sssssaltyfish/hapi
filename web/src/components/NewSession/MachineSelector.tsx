@@ -31,12 +31,46 @@ export function MachineSelector(props: {
     const { t } = useTranslation()
 
     return (
+        <MachineSelectionField
+            options={props.machines.map((machine) => ({
+                kind: 'runner',
+                id: machine.id,
+                label: getMachineOptionLabel(machine, t('runner.skew.updateRequired')),
+            }))}
+            value={props.machineId}
+            isLoading={props.isLoading}
+            isDisabled={props.isDisabled}
+            onChange={props.onChange}
+        />
+    )
+}
+
+export type MachineSelectionOption = {
+    kind: 'runner' | 'native'
+    id: string
+    label: string
+    platform?: string
+}
+
+/** Shared target selector presentation; native endpoints do not become runner Machines. */
+export function MachineSelectionField(props: {
+    options: readonly MachineSelectionOption[]
+    value: string | null
+    isLoading?: boolean
+    isDisabled: boolean
+    placeholder?: string
+    onChange: (id: string) => void
+}) {
+    const { t } = useTranslation()
+
+    return (
         <div className="flex flex-col gap-1.5 px-3 py-3">
             <label className="text-xs font-medium text-[var(--app-hint)]">
                 {t('newSession.machine')}
             </label>
             <SelectControl
-                value={props.machineId ?? ''}
+                aria-label={t('newSession.machine')}
+                value={props.value ?? ''}
                 onChange={(e) => props.onChange(e.target.value)}
                 disabled={props.isDisabled}
                 className="rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] py-2 pl-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50"
@@ -44,12 +78,15 @@ export function MachineSelector(props: {
                 {props.isLoading && (
                     <option value="">{t('loading.machines')}</option>
                 )}
-                {!props.isLoading && props.machines.length === 0 && (
+                {!props.isLoading && props.options.length === 0 && (
                     <option value="">{t('misc.noMachines')}</option>
                 )}
-                {props.machines.map((m) => (
-                    <option key={m.id} value={m.id}>
-                        {getMachineOptionLabel(m, t('runner.skew.updateRequired'))}
+                {!props.isLoading && props.options.length > 0 && props.placeholder ? (
+                    <option value="">{props.placeholder}</option>
+                ) : null}
+                {props.options.map((option) => (
+                    <option key={`${option.kind}:${option.id}`} value={option.id}>
+                        {option.label}{option.platform ? ` (${option.platform})` : ''}
                     </option>
                 ))}
             </SelectControl>

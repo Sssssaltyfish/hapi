@@ -11,6 +11,7 @@ export function nativeSessionMiddleware(
     getEngine: () => SyncEngine | null
 ): MiddlewareHandler<WebAppEnv> {
     return async (c, next) => {
+        await registry.refresh()
         const match = /^\/api\/sessions\/([^/]+)(\/.*)?$/.exec(c.req.path)
         if (!match) return next()
         const id = decodeURIComponent(match[1]),

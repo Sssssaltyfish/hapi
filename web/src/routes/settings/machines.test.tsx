@@ -7,9 +7,13 @@ import SettingsMachinesPage from '@/routes/settings/machines'
 
 const renameMachineMock = vi.fn()
 const machinesMock = vi.fn()
+const endpointsMock = vi.fn()
+const endpointStatusMock = vi.fn()
+const renameEndpointMock = vi.fn()
+const createEndpointMock = vi.fn()
 
 vi.mock('@/lib/app-context', () => ({
-    useAppContext: () => ({ api: { renameMachine: renameMachineMock } }),
+    useAppContext: () => ({ api: { renameMachine: renameMachineMock, getCodexNativeEndpoints: endpointsMock, getCodexNativeEndpointStatus: endpointStatusMock, renameCodexNativeEndpoint: renameEndpointMock, createCodexNativeEndpoint: createEndpointMock } }),
 }))
 
 vi.mock('@/hooks/queries/useMachines', () => ({
@@ -54,10 +58,42 @@ describe('SettingsMachinesPage', () => {
         vi.clearAllMocks()
         renameMachineMock.mockResolvedValue(undefined)
         machinesMock.mockReturnValue([makeMachine()])
+        endpointsMock.mockResolvedValue({ endpoints: [] })
+        endpointStatusMock.mockResolvedValue({ enabled: true, available: true, platformOs: 'windows', platformFamily: 'windows' })
+        renameEndpointMock.mockResolvedValue({ endpoint: {} })
     })
 
     afterEach(() => {
         cleanup()
+    })
+
+    it('lists native and runner machines together with real platform, address, and the same inline rename', async () => {
+        endpointsMock.mockResolvedValue({ endpoints: [{ id: 'endpoint-uuid', label: 'Windows box', displayName: 'Windows box', address: 'wss://remote.example:8443', source: 'settings' }] })
+        renderPage()
+        const rename = await screen.findByRole('button', { name: 'Rename Windows box' })
+        await screen.findByText('wss://remote.example:8443 · windows · Connected')
+        expect(rename.closest('section')).toBe(screen.getByRole('button', { name: 'Rename workstation.local' }).closest('section'))
+        fireEvent.click(rename)
+        const input = screen.getByRole('textbox')
+        fireEvent.change(input, { target: { value: '  My Windows  ' } })
+        fireEvent.keyDown(input, { key: 'Enter' })
+        fireEvent.blur(input)
+        await waitFor(() => expect(renameEndpointMock).toHaveBeenCalledExactlyOnceWith('endpoint-uuid', 'My Windows'))
+    })
+
+    it('adds a native machine using the server-generated identity and refreshes the shared list', async () => {
+        const endpoint = { id: 'server-uuid', label: 'Remote Mac', displayName: 'Remote Mac', address: 'wss://mac.example', source: 'settings' }
+        createEndpointMock.mockImplementation(async () => { endpointsMock.mockResolvedValue({ endpoints: [endpoint] }); return { endpoint } })
+        renderPage()
+        fireEvent.click(screen.getByRole('button', { name: 'Add Codex Native machine' }))
+        fireEvent.change(screen.getByLabelText('Connection address'), { target: { value: ' wss://mac.example ' } })
+        fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Remote Mac' } })
+        fireEvent.change(screen.getByLabelText('Authentication token (optional)'), { target: { value: 'test-upload-token' } })
+        fireEvent.change(screen.getByLabelText('Default directory (optional)'), { target: { value: '/Users/me/project' } })
+        fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+        await screen.findByRole('button', { name: 'Rename Remote Mac' })
+        expect(createEndpointMock).toHaveBeenCalledExactlyOnceWith({ address: 'wss://mac.example', displayName: 'Remote Mac', token: 'test-upload-token', defaultCwd: '/Users/me/project' })
+        expect(screen.queryByDisplayValue('test-upload-token')).toBeNull()
     })
 
     it('falls back to the hostname and always shows host and platform', () => {
@@ -174,10 +210,10 @@ describe('SettingsMachinesPage', () => {
         expect(screen.getByRole('textbox')).toBeTruthy()
     })
 
-    it('renders an empty state when no machines are online', () => {
+    it('renders an empty state when no machines are online', async () => {
         machinesMock.mockReturnValue([])
         renderPage()
 
-        expect(screen.getByText('No machines online.')).toBeTruthy()
+        expect(await screen.findByText('No machines online.')).toBeTruthy()
     })
 })

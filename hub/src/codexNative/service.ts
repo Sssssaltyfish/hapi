@@ -46,6 +46,13 @@ export function fallbackThread(thread: NativeRecord): boolean {
     )
 }
 export class NativeService {
+    dispose(): void {
+        for (const entry of this.subscriptions.values()) clearTimeout(entry.timer)
+        this.subscriptions.clear()
+        for (const client of [...this.connections])
+            client.close('Native machine connection changed')
+        this.connections.clear()
+    }
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private identities = createWorkspaceIdentityReader()
@@ -69,7 +76,9 @@ export class NativeService {
                 namespace === this.config.namespace
         )
     }
-    async call(method: string, params: unknown): Promise<unknown> {
+    async call(method: string, params: unknown, deadline?: number): Promise<unknown> {
+        if (deadline !== undefined)
+            return this.withConnection((client) => client.request(method, params), deadline)
         const client = this.connection()
         try {
             return await client.request(method, params)
@@ -77,12 +86,27 @@ export class NativeService {
             client.close()
         }
     }
-    async withConnection<T>(action: (client: NativeConnection) => Promise<T>): Promise<T> {
+    async withConnection<T>(
+        action: (client: NativeConnection) => Promise<T>,
+        deadline?: number
+    ): Promise<T> {
+        if (deadline !== undefined && deadline <= Date.now())
+            throw new Error('Native directory operation timed out')
         const client = this.connection()
+        const timer =
+            deadline === undefined
+                ? undefined
+                : setTimeout(
+                      () => client.close('Native directory operation timed out'),
+                      Math.max(1, deadline - Date.now())
+                  )
         try {
             await client.connect()
+            if (deadline !== undefined && deadline <= Date.now())
+                throw new Error('Native directory operation timed out')
             return await action(client)
         } finally {
+            clearTimeout(timer)
             client.close()
         }
     }
@@ -176,7 +200,7 @@ export class NativeService {
             throw error
         }
     }
-    async desktop(): Promise<{
+    async desktop(deadline?: number): Promise<{
         state?: NativeRecord
         projects: DesktopProject[]
         membership: 'desktop' | 'fallback'
@@ -186,7 +210,13 @@ export class NativeService {
         try {
             if ((await stat(desktopStatePath)).size > 8 * 1024 * 1024)
                 throw new Error('Desktop state too large')
-            const state = record(JSON.parse(await readFile(desktopStatePath, 'utf8')))
+            const signal =
+                deadline === undefined
+                    ? undefined
+                    : AbortSignal.timeout(Math.max(1, deadline - Date.now()))
+            const state = record(
+                JSON.parse(await readFile(desktopStatePath, { encoding: 'utf8', signal }))
+            )
             return { state, projects: desktopProjects(state, desktopHostId), membership: 'desktop' }
         } catch {
             return { projects: [], membership: 'fallback' }
@@ -198,40 +228,52 @@ export class NativeService {
         projectId?: string
         catalog?: string
         parentThreadId?: string
+        deadline?: number
     }): Promise<NativeRecord> {
+        const deadline = params.deadline ?? Date.now() + 5000
+        const checkBudget = () => {
+            if (Date.now() >= deadline) throw new Error('Native directory operation timed out')
+        }
+        checkBudget()
         const background = params.catalog === 'background'
         const page = record(
-            await this.call('thread/list', {
-                cursor: params.cursor,
-                limit: params.limit,
-                archived: false,
-                sourceKinds: background
-                    ? [
-                          'cli',
-                          'vscode',
-                          'exec',
-                          'appServer',
-                          'subAgent',
-                          'subAgentReview',
-                          'subAgentCompact',
-                          'subAgentThreadSpawn',
-                          'subAgentOther',
-                          'unknown',
-                      ]
-                    : ['cli', 'vscode'],
-                parentThreadId: params.parentThreadId,
-                useStateDbOnly: true,
-                sortKey: 'updated_at',
-            })
+            await this.call(
+                'thread/list',
+                {
+                    cursor: params.cursor,
+                    limit: params.limit,
+                    archived: false,
+                    sourceKinds: background
+                        ? [
+                              'cli',
+                              'vscode',
+                              'exec',
+                              'appServer',
+                              'subAgent',
+                              'subAgentReview',
+                              'subAgentCompact',
+                              'subAgentThreadSpawn',
+                              'subAgentOther',
+                              'unknown',
+                          ]
+                        : ['cli', 'vscode'],
+                    parentThreadId: params.parentThreadId,
+                    useStateDbOnly: true,
+                    sortKey: 'updated_at',
+                },
+                deadline
+            )
         )
-        const desktop = await this.desktop()
+        checkBudget()
+        const desktop = await this.desktop(deadline)
+        checkBudget()
         const threads = Array.isArray(page.data) ? page.data.map(record) : []
         // State-db catalog rows omit provenance on some daemon versions. Resolve only this
         // page, four requests at a time, without loading any conversation items.
         if (desktop.membership === 'fallback' || background) {
-            const client = this.connection()
-            try {
+            await this.withConnection(async (client) => {
                 for (let offset = 0; offset < threads.length; offset += 4) {
+                    checkBudget()
                     await Promise.all(
                         threads.slice(offset, offset + 4).map(async (thread, index) => {
                             if (thread.source !== 'cli' && thread.source !== 'vscode') return
@@ -251,9 +293,8 @@ export class NativeService {
                         })
                     )
                 }
-            } finally {
-                client.close()
-            }
+                checkBudget()
+            }, deadline)
         }
         let selected = new Map<string, DesktopProject>()
         if (desktop.state) {
@@ -269,11 +310,13 @@ export class NativeService {
                 this.config.endpoint?.startsWith('unix://') && offset < paths.length;
                 offset += 4
             ) {
-                await Promise.all(
+                checkBudget()
+                const results = await Promise.allSettled(
                     paths.slice(offset, offset + 4).map(async (path) => {
-                        identities.set(path, await this.identities(path))
+                        identities.set(path, await this.identities(path, deadline))
                     })
                 )
+                for (const result of results) if (result.status === 'rejected') throw result.reason
             }
             selected = desktopThreadSelection(
                 desktop.state,
@@ -282,6 +325,7 @@ export class NativeService {
                 identities
             )
         }
+        checkBudget()
         const data = threads
             .filter((thread) => {
                 const membership = selected.get(String(thread.id))

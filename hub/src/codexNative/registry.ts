@@ -2,10 +2,13 @@ import { z } from 'zod'
 import { toSessionSummary, type Session, type SessionSummary } from '@hapi/protocol'
 import { NativeService, nativeConfig, type NativeConfig } from './service'
 import { record, text, type NativeRecord } from './transport'
+import { NativeMachineSettings, nativeDisplayAddress, nativeMachineError, type NewNativeEndpoint } from './machineSettings'
 
 export type NativeEndpointConfig = NativeConfig & {
     id: string
     label: string
+    displayName?: string
+    source?: 'env' | 'settings'
     defaultCwd?: string
     allowedRoots?: string[]
     legacyMachineIds?: string[]
@@ -92,8 +95,88 @@ export function nativeSession(endpoint: NativeEndpointConfig, thread: NativeReco
 
 export class NativeRegistry {
     readonly endpoints: Array<{ config: NativeEndpointConfig; service: NativeService }>
-    constructor(configs = configuredNativeEndpoints(), factory = (config: NativeEndpointConfig) => new NativeService(config)) {
+    private readonly machineSettings?: NativeMachineSettings
+    private refreshing?: Promise<void>
+
+    constructor(
+        private readonly configs = configuredNativeEndpoints(),
+        private readonly factory = (config: NativeEndpointConfig) => new NativeService(config),
+        options?: { dataDir: string }
+    ) {
         this.endpoints = configs.map(config => ({ config, service: factory(config) }))
+        if (options) this.machineSettings = new NativeMachineSettings(options.dataDir)
+    }
+
+    refresh(): Promise<void> {
+        if (!this.machineSettings) return Promise.resolve()
+        if (!this.refreshing) {
+            this.refreshing = this.refreshSettings().finally(() => { this.refreshing = undefined })
+        }
+        return this.refreshing
+    }
+
+    private async refreshSettings(): Promise<void> {
+        const settings = await this.machineSettings!.read()
+        const configs: NativeEndpointConfig[] = [
+            ...this.configs.map(config => ({ ...config, source: 'env' as const })),
+            ...settings.endpoints.map(config => ({
+                ...config,
+                label: config.displayName || 'Codex Native',
+                source: 'settings' as const
+            }))
+        ]
+        if (configs.length > 16) throw new Error('Native machine limit reached')
+        if (new Set(configs.map(config => config.id)).size !== configs.length) {
+            throw new Error('Duplicate native machine ID across environment and settings.json')
+        }
+        const next = configs.map(config => {
+            const name = settings.names.find(name => name.id === config.id && name.namespace === config.namespace)?.displayName
+                || config.displayName
+            if (name) config = { ...config, label: name, displayName: name }
+            const existing = this.endpoints.find(endpoint => endpoint.config.id === config.id
+                && endpoint.config.namespace === config.namespace && endpoint.config.endpoint === config.endpoint
+                && endpoint.config.token === config.token)
+            return { config, service: existing?.service ?? this.factory(config) }
+        })
+        const retained = new Set(next.map(endpoint => endpoint.service))
+        for (const endpoint of this.endpoints) {
+            if (!retained.has(endpoint.service)) endpoint.service.dispose()
+        }
+        this.endpoints.splice(0, this.endpoints.length, ...next)
+    }
+
+    summary(config: NativeEndpointConfig) {
+        return {
+            id: config.id,
+            label: config.label,
+            ...(config.displayName ? { displayName: config.displayName } : {}),
+            address: nativeDisplayAddress(config.endpoint!),
+            ...(config.defaultCwd ? { defaultCwd: config.defaultCwd } : {}),
+            source: config.source ?? 'env' as 'env' | 'settings'
+        }
+    }
+
+    async add(namespace: string, input: NewNativeEndpoint) {
+        if (!this.machineSettings) throw new Error('Native machine settings are unavailable')
+        await this.refresh()
+        if (this.endpoints.length >= 16) throw new Error('Native machine limit reached')
+        if (this.visible(namespace).some(endpoint => endpoint.config.endpoint === input.address)) {
+            throw new Error('This native connection is already configured')
+        }
+        const saved = await this.machineSettings.add(namespace, input, this.configs.length)
+        await this.refreshing
+        await this.refresh()
+        return this.summary(this.get(namespace, saved.id)!.config)
+    }
+
+    async rename(namespace: string, id: string, displayName: string) {
+        if (!this.machineSettings) throw new Error('Native machine settings are unavailable')
+        await this.refresh()
+        if (!this.get(namespace, id)) return undefined
+        await this.machineSettings.rename(namespace, id, displayName)
+        await this.refreshing
+        await this.refresh()
+        return this.summary(this.get(namespace, id)!.config)
     }
     visible(namespace: string) {
         return this.endpoints.filter(endpoint => endpoint.config.namespace === namespace && endpoint.service.authorized(namespace))
@@ -113,6 +196,7 @@ export class NativeRegistry {
         return endpoint ? { endpoint, threadId } : undefined
     }
     async resolve(namespace: string, id: string, legacy?: Session): Promise<Session | undefined> {
+        await this.refresh()
         const parsed = parseNativeSessionId(id)
         const binding = parsed ? { endpoint: this.get(namespace, parsed.endpointId), threadId: parsed.threadId } : legacy ? this.alias(legacy, namespace) : undefined
         if (!binding?.endpoint) {
@@ -133,7 +217,7 @@ export class NativeRegistry {
             const response = record(await endpoint.service.readThread(threadId))
             return nativeSession(endpoint.config, { ...record(response.thread), id: threadId }, true, undefined, legacy)
         } catch (error) {
-            return nativeSession(endpoint.config, { id: threadId }, false, error instanceof Error ? error.message : String(error), legacy)
+            return nativeSession(endpoint.config, { id: threadId }, false, nativeMachineError(error, endpoint.config), legacy)
         }
     }
     async list(namespace: string, legacy: Session[], options?: {
@@ -146,6 +230,7 @@ export class NativeRegistry {
         sessions: SessionSummary[]
         nativePagination: Array<{ endpointId: string; nextCursor: string | null; available: boolean; error?: string }>
     }> {
+        await this.refresh()
         const endpoints = options?.endpointId ? this.visible(namespace).filter(e => e.config.id === options.endpointId) : this.visible(namespace)
         const summaries = new Map<string, SessionSummary>()
         if (!options?.endpointId) {
@@ -155,26 +240,41 @@ export class NativeRegistry {
                 }
             }
         }
+        const deadline = Date.now() + 5_000
+        // Configuration is capped at 16 connections. Start every configured machine
+        // within the shared budget so stalled connections cannot starve later ones.
+        const results = await Promise.all(endpoints.map(async (endpoint): Promise<{
+            page: NativeRecord
+            available: boolean
+            error?: string
+        }> => {
+            if (Date.now() >= deadline) {
+                return { page: {}, available: false, error: 'Native catalog request timed out' }
+            }
+            try {
+                const page = await endpoint.service.catalog({
+                    limit: options?.limit ?? 100,
+                    cursor: options?.cursor,
+                    projectId: options?.projectId,
+                    catalog: options?.catalog,
+                    deadline
+                })
+                return { page, available: true }
+            } catch (failure) {
+                return {
+                    page: {},
+                    available: false,
+                    error: nativeMachineError(failure, endpoint.config)
+                }
+            }
+        }))
         const nativePagination = []
-        for (const endpoint of endpoints) {
+        for (const [index, endpoint] of endpoints.entries()) {
             const aliases = !options?.cursor ? legacy.flatMap(session => {
                 const binding = this.alias(session, namespace)
                 return binding?.endpoint === endpoint ? [{ session, threadId: binding.threadId }] : []
             }) : []
-            let available = true
-            let error: string | undefined
-            let page: NativeRecord = {}
-            try {
-                page = await endpoint.service.catalog({
-                    limit: options?.limit ?? 100,
-                    cursor: options?.cursor,
-                    projectId: options?.projectId,
-                    catalog: options?.catalog
-                })
-            } catch (failure) {
-                available = false
-                error = failure instanceof Error ? failure.message : String(failure)
-            }
+            const { page, available, error } = results[index]
             for (const thread of Array.isArray(page.data) ? page.data.map(record) : []) {
                 const alias = aliases.find(alias => alias.threadId === thread.id)
                 const session = nativeSession(endpoint.config, thread, true, undefined, alias?.session)

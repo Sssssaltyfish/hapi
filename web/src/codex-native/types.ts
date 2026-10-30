@@ -2,6 +2,23 @@
 export type NativeRecord = Record<string, unknown>
 
 export type NativeProject = { id: string; name: string; path: string }
+export type NativeEndpoint = {
+    id: string
+    label: string
+    displayName?: string
+    address: string
+    defaultCwd?: string
+    source: 'env' | 'settings'
+}
+export type NativeEndpointStatus = {
+    enabled: boolean
+    available: boolean
+    error?: string
+    platformOs?: string
+    platformFamily?: string
+    codexHome?: string
+    userAgent?: string
+}
 export type NativeStatus = {
     enabled: boolean
     available: boolean

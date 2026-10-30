@@ -131,7 +131,13 @@ export function desktopThreadSelection(
 
 export function createWorkspaceIdentityReader() {
     const cache = new Map<string, { expires: number; value: WorkspaceIdentity }>()
-    return async (path: string): Promise<WorkspaceIdentity> => {
+    return async (path: string, deadline?: number): Promise<WorkspaceIdentity> => {
+        const remaining = () => {
+            const budget = deadline === undefined ? 3000 : deadline - Date.now()
+            if (budget <= 0) throw new Error('Native directory operation timed out')
+            return Math.min(3000, budget)
+        }
+        remaining()
         const cached = cache.get(path)
         if (cached && cached.expires > Date.now()) return cached.value
         const value: WorkspaceIdentity = { path: normalize(path) }
@@ -142,7 +148,10 @@ export function createWorkspaceIdentityReader() {
         }
         const git = async (args: string[]) =>
             (
-                await execute('git', ['-C', path, ...args], { timeout: 3000, maxBuffer: 16_384 })
+                await execute('git', ['-C', path, ...args], {
+                    timeout: remaining(),
+                    maxBuffer: 16_384,
+                })
             ).stdout.trim()
         try {
             const [root, commonDir] = (
@@ -168,6 +177,7 @@ export function createWorkspaceIdentityReader() {
         } catch {
             /* Non-Git projects use exact cwd membership. */
         }
+        remaining()
         if (cache.size >= 512) cache.delete(cache.keys().next().value!)
         cache.set(path, { value, expires: Date.now() + (value.git ? 60_000 : 10_000) })
         return value

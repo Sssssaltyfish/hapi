@@ -6,6 +6,7 @@ import { NativeRegistry, nativeSession } from '../../codexNative/registry'
 import { nativeFilePath } from '../../codexNative/files'
 import { uploadAttachment, deleteAttachment, attachmentInputs } from '../../codexNative/attachments'
 import { record, type NativeRecord } from '../../codexNative/transport'
+import { createNativeMachinesRoutes, nativeMachineStatus } from './nativeMachines'
 
 const limit = (value: string | undefined) =>
     Math.min(100, Math.max(1, Number.parseInt(value ?? '50', 10) || 50))
@@ -77,6 +78,7 @@ export function createCodexNativeRoutes(
     }
     const app = new Hono<WebAppEnv>()
     app.use('/codex-native/*', async (c, next) => {
+        await registry.refresh()
         if (c.req.path.endsWith('/codex-native/status')) return next()
         if (c.req.path.endsWith('/codex-native/endpoints')) return next()
         if (!getEndpoint(c))
@@ -93,17 +95,7 @@ export function createCodexNativeRoutes(
                   : 502
         )
     )
-    app.get('/codex-native/endpoints', (c) =>
-        c.json({
-            endpoints: registry
-                .visible(c.get('namespace'))
-                .map(({ config }) => ({
-                    id: config.id,
-                    label: config.label,
-                    defaultCwd: config.defaultCwd,
-                })),
-        })
-    )
+    app.route('/', createNativeMachinesRoutes(registry))
     app.post('/codex-native/endpoints/:endpointId/threads', async (c) => {
         const parsed = createThreadSchema.safeParse(await c.req.json())
         if (!parsed.success) return c.json({ error: 'Invalid native thread options' }, 400)
@@ -180,28 +172,11 @@ export function createCodexNativeRoutes(
                 membership: 'fallback',
             })
         const desktop = await getService(c).desktop()
-        try {
-            await getService(c).call('thread/list', {
-                limit: 1,
-                archived: false,
-                sourceKinds: [],
-                useStateDbOnly: true,
-            })
-            return c.json({
-                enabled: true,
-                available: true,
-                projects: desktop.projects,
-                membership: desktop.membership,
-            })
-        } catch (error) {
-            return c.json({
-                enabled: true,
-                available: false,
-                projects: desktop.projects,
-                membership: desktop.membership,
-                error: error instanceof Error ? error.message : String(error),
-            })
-        }
+        return c.json({
+            ...await nativeMachineStatus(getEndpoint(c)!),
+            projects: desktop.projects,
+            membership: desktop.membership
+        })
     })
     app.get('/codex-native/threads', async (c) =>
         c.json(
