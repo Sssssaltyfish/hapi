@@ -281,13 +281,13 @@ export function NewSession(props: NewSessionProps) {
         setWorktreeName(draft.worktreeName)
         clearNewSessionFormDraft()
     }, [
+        isNative,
         props.initialDirectory,
         props.initialMachineId,
         machineId
     ])
 
     useEffect(() => {
-        if (isNative) return
         if (props.machines.length === 0) return
         if (machineId && props.machines.find((m) => m.id === machineId)) return
 
@@ -296,7 +296,7 @@ export function NewSession(props: NewSessionProps) {
 
         if (foundLast) {
             setMachineId(foundLast.id)
-            if (!props.initialDirectory) {
+            if (!isNative && !props.initialDirectory) {
                 const paths = getRecentPaths(foundLast.id)
                 if (paths[0]) setDirectory(paths[0])
             }
@@ -322,8 +322,15 @@ export function NewSession(props: NewSessionProps) {
     const agentAvailability = useAgentAvailability({
         api: props.api,
         machineId,
-        enabled: !isNative,
     })
+    // Keep the runner target and its availability alive while Native is selected.
+    // Selecting a provider must remain possible before a runner target is known;
+    // the actual Create action still requires a supported runner and directory.
+    const runnerAvailabilityKnown = Boolean(
+        machineId && props.machines.some(machine => machine.id === machineId)
+        && !props.isLoading && !agentAvailability.isLoading && !agentAvailability.error
+        && agentAvailability.agents.length > 0
+    )
     const availableAgents = useMemo(
         () => agentAvailability.agents
             .filter((entry) => entry.available && entry.agent !== 'gemini')
@@ -1860,7 +1867,7 @@ export function NewSession(props: NewSessionProps) {
                 agent={creationChoice}
                 agents={CREATION_CHOICES}
                 isDisabled={isCreating || isPending || isImportingCodexSession || isBulkImportingCodexSessions || isImportingPiSession || isBulkImportingPiSessions}
-                disabledAgents={disabledCreationChoices(!machineId || props.machines.length === 0 || props.isLoading || agentAvailability.isLoading || agentAvailability.error ? [] : availableAgents)}
+                disabledAgents={isNative && !runnerAvailabilityKnown ? [] : disabledCreationChoices(!machineId || props.machines.length === 0 || props.isLoading || agentAvailability.isLoading || agentAvailability.error ? [] : availableAgents)}
                 onAgentChange={handleAgentChange}
             />
             {isNative ? <NativeCodexTarget target={nativeTarget} isDisabled={isFormDisabled} /> : <MachineSelector
