@@ -47,6 +47,22 @@ const harness = vi.hoisted(() => ({
     agentActivityListener: null as ((thinking: boolean) => void) | null
 }));
 
+const runnerHarness = vi.hoisted(() => ({ client: null as ApiSessionClient | null }));
+vi.mock('@/agent/sessionFactory', () => ({
+    bootstrapSession: async () => ({ api: {}, session: runnerHarness.client, metadata: null }),
+    bootstrapExistingSession: async () => ({ api: {}, session: runnerHarness.client, metadata: null })
+}));
+vi.mock('@/agent/runnerLifecycle', () => ({
+    setControlledByUser: vi.fn(),
+    createModeChangeHandler: () => vi.fn(),
+    createRunnerLifecycle: (opts: { stopKeepAlive: () => void }) => ({
+        registerProcessHandlers: vi.fn(), markCrash: vi.fn(), setExitCode: vi.fn(),
+        setArchiveReason: vi.fn(), setSessionEndReason: vi.fn(), cleanupAndExit: async () => opts.stopKeepAlive()
+    })
+}));
+vi.mock('@/claude/registerKillSessionHandler', () => ({ registerKillSessionHandler: vi.fn() }));
+vi.mock('@/agent/localHandoff', () => ({ registerLocalHandoffHandler: vi.fn() }));
+
 const legacyLauncher = vi.hoisted(() => vi.fn());
 
 vi.mock('./cursorLegacyRemoteLauncher', () => ({
@@ -229,7 +245,7 @@ vi.mock('@/ui/ink/OpencodeDisplay', () => ({
 }));
 
 vi.mock('@/ui/logger', () => ({
-    logger: { debug: vi.fn(), warn: vi.fn(), info: vi.fn() }
+    logger: { debug: vi.fn(), warn: vi.fn(), info: vi.fn(), getLogPath: () => '/tmp/cursor-delivery-test.log' }
 }));
 
 import { classifyCursorAcpLoadError, cursorAcpRemoteLauncher } from './cursorAcpRemoteLauncher';
@@ -237,6 +253,7 @@ import { createCursorAcpBackend } from './utils/cursorAcpBackend';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
 import { CursorSession } from './session';
 import { ApiSessionClient } from '@/api/apiSession';
+import { runCursor } from './runCursor';
 import {
     _resetSharedCursorModelsCacheForTests,
     writeSharedCursorModelsCache
@@ -288,7 +305,8 @@ function makeClient() {
         setSteerDeliveryState: vi.fn(async () => true),
         sendClaudeSessionMessage: vi.fn(),
         keepAlive: vi.fn(),
-        emitSessionReady: vi.fn()
+        emitSessionReady: vi.fn(),
+        onUserMessage: vi.fn(), onCancelQueuedMessage: vi.fn(), onRetryQueuedMessage: vi.fn()
     } as unknown as ApiSessionClient;
 }
 
@@ -371,6 +389,58 @@ describe('cursorAcpRemoteLauncher', () => {
         session.queue.close();
         await runPromise;
     }, 10_000);
+
+    it.each([false, true])('routes an automatic runner send through the real ACP reservation path (generation changes: %s)', async (changesGeneration) => {
+        let releasePrompt!: () => void;
+        let releasePersist!: (saved: boolean) => void;
+        harness.deferPrompt = new Promise(resolve => { releasePrompt = resolve; });
+        const client = makeClient();
+        runnerHarness.client = client;
+        const autoSteer = vi.spyOn(CursorSession.prototype, 'steerQueuedMessage');
+        const running = runCursor({ startedBy: 'runner', workingDirectory: '/tmp/project' });
+        let wrapper: CursorSession | undefined;
+        try {
+            await vi.waitFor(() => expect(client.emitSessionReady).toHaveBeenCalled());
+            const onUserMessage = vi.mocked(client.onUserMessage).mock.calls[0][0];
+            onUserMessage({ role: 'user', content: { type: 'text', text: 'first' } } as never, 'first');
+            await vi.waitFor(() => expect(harness.promptCalls).toBe(1));
+            const backend = vi.mocked(createCursorAcpBackend).mock.results.at(-1)!.value;
+            vi.mocked(backend.getPromptGeneration).mockReturnValue(1);
+            vi.mocked(backend.getPromptGeneration).mockClear();
+            vi.mocked(client.setSteerDeliveryState).mockImplementationOnce(() => new Promise(resolve => { releasePersist = resolve; }));
+
+            onUserMessage({ role: 'user', content: { type: 'text', text: 'auto steer' }, meta: { deliveryMode: 'steer' } } as never, 'auto');
+            wrapper = autoSteer.mock.contexts[0] as CursorSession;
+            // These assertions run in the receipt stack, before persistence can
+            // finish and before the main prompt can release its queue waiter.
+            expect(backend.getPromptGeneration).toHaveBeenCalledTimes(1);
+            expect(wrapper.queue.cancelByLocalId('auto')).toBe('in-flight');
+            expect(backend.beginSoftSteerPrompt).not.toHaveBeenCalled();
+            if (changesGeneration) vi.mocked(backend.getPromptGeneration).mockReturnValue(2);
+            releasePersist(true);
+
+            if (changesGeneration) {
+                await vi.waitFor(() => expect(wrapper!.queue.peekByLocalId('auto')?.message).toBe('auto steer'));
+                expect(backend.beginSoftSteerPrompt).not.toHaveBeenCalled();
+                expect(client.emitMessagesConsumed).not.toHaveBeenCalledWith(['auto'], { steered: true });
+            } else {
+                await vi.waitFor(() => expect(client.emitMessagesConsumed).toHaveBeenCalledWith(['auto'], { steered: true }));
+                expect(backend.beginSoftSteerPrompt).toHaveBeenCalledExactlyOnceWith('new-acp-session', [{ type: 'text', text: 'auto steer' }]);
+                expect(vi.mocked(client.emitMessagesConsumed).mock.calls.filter(([ids]) => ids.includes('auto'))).toHaveLength(1);
+            }
+            onUserMessage({ role: 'user', content: { type: 'text', text: 'ordinary queued input' }, meta: { deliveryMode: 'queue' } } as never, 'queued');
+            expect(wrapper.queue.peekByLocalId('queued')?.message).toBe('ordinary queued input');
+            expect(autoSteer).toHaveBeenCalledTimes(1);
+        } finally {
+            releasePersist?.(true);
+            harness.deferPrompt = null;
+            releasePrompt();
+            wrapper?.queue.close();
+            await running;
+            autoSteer.mockRestore();
+            runnerHarness.client = null;
+        }
+    });
 
     it('restores a queued steer when ACP dispatch fails', async () => {
         let releasePrompt!: () => void;

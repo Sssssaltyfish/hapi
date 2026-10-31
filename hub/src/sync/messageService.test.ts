@@ -1428,10 +1428,15 @@ describe('MessageService.sendMessage deliveryMode', () => {
         ])
     })
 
-    it('downgrades forged steer intent for non-Pi sessions and defaults omitted intent to queue', async () => {
+    it.each([
+        ...['agy', 'claude', 'dsh', 'copilot', 'gemini', 'grok', 'kimi', 'opencode', 'future-provider'].map(flavor => ({ name: flavor, metadata: { flavor } })),
+        { name: 'Cursor stream-json', metadata: { flavor: 'cursor', cursorSessionProtocol: 'stream-json' as const } },
+        { name: 'Cursor before ACP', metadata: { flavor: 'cursor', cursorSessionId: 'pre-acp' } },
+    ])('downgrades unscheduled steer for unsupported $name and defaults omitted intent to queue', async ({ metadata }) => {
         const store = makeStore()
-        const session = makeSession(store, 'delivery-mode-non-pi')
-        const service = new MessageService(store, makeTrackingIo().io, makePublisher() as any)
+        const session = store.sessions.getOrCreateSession('delivery-mode-unsupported', { path: '/tmp/unsupported', host: 'localhost', ...metadata }, null, 'default')
+        const { io, cliEmitted } = makeTrackingIo()
+        const service = new MessageService(store, io, makePublisher() as any)
 
         await service.sendMessage(session.id, {
             text: 'forged steer',
@@ -1449,6 +1454,10 @@ describe('MessageService.sendMessage deliveryMode', () => {
             const content = row.content as { meta?: { deliveryMode?: unknown } }
             return content.meta?.deliveryMode
         })).toEqual(['queue', 'queue'])
+        expect(cliEmitted).toHaveLength(2)
+        for (const packet of cliEmitted) {
+            expect(packet).toMatchObject({ body: { message: { content: { meta: { deliveryMode: 'queue' } } } } })
+        }
     })
 
     it('normalizes direct scheduled steer requests to queue', async () => {
