@@ -2,17 +2,17 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
-import type { ConversationHistoryPage, ConversationOutlineItem, ConversationOutlinePage } from '@/chat/outline'
+import type { ConversationOutlineItem, ConversationOutlinePage } from '@/chat/outline'
 import { useConversationHistoryIndex } from './useConversationHistoryIndex'
 
 const empty: ConversationOutlineItem[] = []
 const session = (id: string) => ({ id, metadata: { nativeCodex: { endpointId: 'endpoint', threadId: id } } }) as Session
 const item = (id: string, at = 100, cursor: string | null = null): ConversationOutlineItem => ({
     id: `outline:user-text:native:${id}`, targetMessageId: `user-text:native:${id}`, kind: 'user', label: id, createdAt: at,
-    historyPage: { kind: 'native', cursor },
+    indexPage: { kind: 'native-turns', cursor }, nativeTurn: { turnId: `turn-${id}`, itemId: id },
 })
 const page = (items: ConversationOutlineItem[], cursor: string | null = null, overlapId?: string): ConversationOutlinePage => ({
-    items, next: cursor ? { kind: 'native', cursor } : null, scanned: 1, epoch: null, reachedHead: Boolean(overlapId), overlapId,
+    items, next: cursor ? { kind: 'native-turns', cursor } : null, scanned: 1, epoch: null, reachedHead: Boolean(overlapId), overlapId,
 })
 
 beforeEach(() => { vi.stubGlobal('indexedDB', undefined) })
@@ -24,12 +24,14 @@ describe('continuous prompt outline', () => {
             .mockResolvedValueOnce(page([], 'opaque-2'))
             .mockResolvedValueOnce(page(Array.from({ length: 1200 }, (_, n) => item(`old-${n}`, n, 'opaque-2'))))
         const api = { getConversationOutline } as unknown as ApiClient
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('continuous'), open: true, currentItems: empty, messagesVersion: 0 }))
+        const visibleSteer = [item('visible-steering-input')]
+        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('continuous'), open: true, currentItems: visibleSteer, messagesVersion: 0 }))
         await waitFor(() => expect(result.current.items).toHaveLength(1201))
         expect(result.current.hasEarlier).toBe(false)
         expect(result.current.capped).toBe(false)
+        expect(result.current.items.some(value => value.label === 'visible-steering-input')).toBe(false)
         expect(getConversationOutline.mock.calls.map(call => call[1])).toEqual([
-            { kind: 'native', cursor: null }, { kind: 'native', cursor: 'opaque-1' }, { kind: 'native', cursor: 'opaque-2' },
+            { kind: 'native-turns', cursor: null }, { kind: 'native-turns', cursor: 'opaque-1' }, { kind: 'native-turns', cursor: 'opaque-2' },
         ])
         unmount()
     })
@@ -47,7 +49,7 @@ describe('continuous prompt outline', () => {
         const second = renderHook(() => useConversationHistoryIndex(options))
         expect(second.result.current.items).toHaveLength(2)
         await waitFor(() => expect(second.result.current.items).toHaveLength(3))
-        expect(getConversationOutline).toHaveBeenLastCalledWith(s.id, { kind: 'native', cursor: null }, ['user-text:native:A2', 'user-text:native:A1'])
+        expect(getConversationOutline).toHaveBeenLastCalledWith(s.id, { kind: 'native-turns', cursor: null }, ['user-text:native:A2', 'user-text:native:A1'])
         second.unmount()
     })
 
@@ -65,7 +67,7 @@ describe('continuous prompt outline', () => {
         const second = renderHook(() => useConversationHistoryIndex(options))
         await waitFor(() => expect(second.result.current.items.map(value => value.label)).toEqual(['A1', 'A2', 'A3']))
         await waitFor(() => expect(second.result.current.loading).toBe(false))
-        expect(second.result.current.items.every(value => value.historyPage?.kind === 'native' && value.historyPage.cursor === null)).toBe(true)
+        expect(second.result.current.items.every(value => value.indexPage?.kind === 'native-turns' && value.indexPage.cursor === null)).toBe(true)
         expect(second.result.current.hasEarlier).toBe(false)
         second.unmount()
     })
@@ -96,23 +98,20 @@ describe('continuous prompt outline', () => {
         expect(result.current.items.map(value => value.label)).toEqual(['head'])
         expect(result.current.hasEarlier).toBe(true)
         await act(async () => { await result.current.loadEarlier() })
-        expect(getConversationOutline).toHaveBeenLastCalledWith('retry', { kind: 'native', cursor: 'resume-here' }, undefined)
+        expect(getConversationOutline).toHaveBeenLastCalledWith('retry', { kind: 'native-turns', cursor: 'resume-here' }, undefined)
         expect(result.current.items.map(value => value.label)).toEqual(['older', 'head'])
         unmount()
     })
 
-    it('repairs a drifting head locator continuously and seeks the actual full-thread page', async () => {
+    it('locates a summary user directly without treating the turn-page cursor as a body cursor', async () => {
         const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('target')]))
-            .mockResolvedValueOnce(page([item('new')], 'p1'))
-            .mockResolvedValueOnce(page([], 'p2')).mockResolvedValueOnce(page([], 'p3'))
-            .mockResolvedValueOnce(page([item('target', 100, 'p3')], null, 'user-text:native:target'))
-        const locate = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+        const locate = vi.fn().mockResolvedValueOnce(true)
         const api = { getConversationOutline } as unknown as ApiClient
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('locate'), open: true, currentItems: empty, messagesVersion: 0, onLocateNativePage: locate }))
+        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('locate'), open: true, currentItems: empty, messagesVersion: 0, onLocateNativeTurn: locate }))
         await waitFor(() => expect(result.current.items).toHaveLength(1))
         await act(async () => { expect(await result.current.locate(result.current.items[0])).toBe(true) })
-        expect(locate).toHaveBeenLastCalledWith('p3', 'user-text:native:target')
-        expect(getConversationOutline).toHaveBeenLastCalledWith('locate', { kind: 'native', cursor: 'p3' } satisfies ConversationHistoryPage, 'user-text:native:target')
+        expect(locate).toHaveBeenLastCalledWith('turn-target', 'target', 'user-text:native:target')
+        expect(getConversationOutline).toHaveBeenCalledTimes(1)
         unmount()
     })
 
@@ -154,8 +153,25 @@ describe('continuous prompt outline', () => {
         expect(second.result.current.items.map(value => value.label)).toEqual(['head'])
         await act(async () => { resolve(page([item('abandoned', 50)], 'obsolete-next')) })
         await waitFor(() => expect(second.result.current.items.map(value => value.label)).toEqual(['older', 'head']))
-        expect(getConversationOutline).toHaveBeenLastCalledWith('remount-pending', { kind: 'native', cursor: 'older-page' }, undefined)
+        expect(getConversationOutline).toHaveBeenLastCalledWith('remount-pending', { kind: 'native-turns', cursor: 'older-page' }, undefined)
         expect(second.result.current.hasEarlier).toBe(false)
         second.unmount()
+    })
+
+    it('does not restart an open head scan when a Native API wrapper changes for the same authenticated scope', async () => {
+        const getConversationOutline = vi.fn().mockResolvedValue(page([item('stable')]))
+        const wrapper = () => ({
+            getConversationOutline,
+            getConversationCacheScope: () => ({ key: 'stable-wrapper-scope', persistent: false }),
+        }) as unknown as ApiClient
+        const s = session('wrapper-churn')
+        const { result, rerender, unmount } = renderHook(({ api }) => useConversationHistoryIndex({
+            api, session: s, open: true, currentItems: empty, messagesVersion: 0,
+        }), { initialProps: { api: wrapper() } })
+        await waitFor(() => expect(result.current.items).toHaveLength(1))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        await act(async () => { rerender({ api: wrapper() }); await Promise.resolve() })
+        expect(getConversationOutline).toHaveBeenCalledTimes(1)
+        unmount()
     })
 })

@@ -24,7 +24,7 @@ it('preserves cache identity and reads the bound native outline through the real
     try {
         expect(adapter.getConversationCacheScope()).toEqual(client.getConversationCacheScope())
         expect(adapter.getConversationCacheScope().persistent).toBe(true)
-        await expect(adapter.getConversationOutline(session.id, { kind: 'native', cursor: 'opaque' }, ['known-user'])).resolves.toEqual(page)
+        await expect(adapter.getConversationOutline(session.id, { kind: 'native-turns', cursor: 'opaque' }, ['known-user'])).resolves.toEqual(page)
         const url = new URL(String(fetchMock.mock.calls[0][0]))
         expect(url.pathname).toBe('/api/codex-native/threads/thread/outline')
         expect(url.searchParams.get('endpointId')).toBe('windows')
@@ -32,8 +32,14 @@ it('preserves cache identity and reads the bound native outline through the real
         expect(url.searchParams.get('stopIds')).toBe('["known-user"]')
         await expect(adapter.getConversationOutline(session.id, {
             kind: 'runner', beforeAt: null, beforeSeq: null, epoch: null,
-        })).rejects.toThrow('native history locator')
-        expect(fetchMock).toHaveBeenCalledTimes(1)
+        })).rejects.toThrow('turn-summary continuation')
+        await adapter.getCodexNativeTurnContext('unbound-thread', 'turn-id', 'user-id')
+        const contextUrl = new URL(String(fetchMock.mock.calls[1][0]))
+        expect(contextUrl.pathname).toBe('/api/codex-native/threads/thread/outline-context')
+        expect(contextUrl.searchParams.get('endpointId')).toBe('windows')
+        expect(contextUrl.searchParams.get('turnId')).toBe('turn-id')
+        expect(contextUrl.searchParams.get('itemId')).toBe('user-id')
+        expect(fetchMock).toHaveBeenCalledTimes(2)
     } finally {
         globalThis.fetch = originalFetch
     }

@@ -592,7 +592,7 @@ type SessionChatProps = {
     onPrefetchHistory?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     conversationHistoryRevision?: number
     onCancelLoadMore: () => void
-    onLocateNativeHistoryPage?: (cursor: string | null, targetMessageId: string) => Promise<boolean>
+    onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
     // inactive-session resume failed. Composer state that should only be cleared on
@@ -1576,7 +1576,7 @@ function SessionChatInner(props: SessionChatProps) {
         currentItems: outlineItems,
         messagesVersion: props.messagesVersion,
         viewMode: props.viewMode,
-        onLocateNativePage: props.onLocateNativeHistoryPage,
+        onLocateNativeTurn: props.onLocateNativeHistoryTurn,
         conversationHistoryRevision: props.conversationHistoryRevision,
     })
 

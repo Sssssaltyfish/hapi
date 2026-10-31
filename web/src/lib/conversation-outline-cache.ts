@@ -1,4 +1,4 @@
-import type { ConversationHistoryPage, ConversationOutlineItem } from '@/chat/outline'
+import type { ConversationOutlineContinuation, ConversationOutlineItem } from '@/chat/outline'
 
 export const OUTLINE_ACTIVE_BYTES = 8 * 1024 * 1024
 export const OUTLINE_TOTAL_BYTES = 32 * 1024 * 1024
@@ -7,7 +7,7 @@ export const OUTLINE_REVALIDATE_MS = 5 * 60_000
 export type OutlineCache = {
     key: string
     items: ConversationOutlineItem[]
-    next: ConversationHistoryPage | null
+    next: ConversationOutlineContinuation | null
     initialized: boolean
     epoch: number | null
     checkedAt: number
@@ -41,8 +41,8 @@ const snapshots = new WeakMap<OutlineCache, {
 export function outlineBytes(value: unknown): number {
     return encoder.encode(JSON.stringify(value)).byteLength
 }
-export function firstOutlinePage(native: boolean): ConversationHistoryPage {
-    return native ? { kind: 'native', cursor: null } : {
+export function firstOutlinePage(native: boolean): ConversationOutlineContinuation {
+    return native ? { kind: 'native-turns', cursor: null } : {
         kind: 'runner',
         beforeAt: null,
         beforeSeq: null,
@@ -95,7 +95,9 @@ export function mergeOutlineItems(cache: OutlineCache, items: readonly Conversat
         const candidate = { ...item, historyPage: item.historyPage ?? previous?.historyPage }
         if (previous && previous.label === candidate.label && previous.createdAt === candidate.createdAt
             && previous.targetMessageId === candidate.targetMessageId
-            && JSON.stringify(previous.historyPage) === JSON.stringify(candidate.historyPage)) continue
+            && JSON.stringify(previous.historyPage) === JSON.stringify(candidate.historyPage)
+            && JSON.stringify(previous.indexPage) === JSON.stringify(candidate.indexPage)
+            && JSON.stringify(previous.nativeTurn) === JSON.stringify(candidate.nativeTurn)) continue
         const cost = outlineBytes(candidate) + (previous ? 0 : 1) - (previous ? outlineBytes(previous) : 0)
         if (bytes + cost > OUTLINE_ACTIVE_BYTES) {
             retainedAll = false

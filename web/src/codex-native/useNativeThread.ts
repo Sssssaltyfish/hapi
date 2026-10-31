@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '@/api/client'
-import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequest } from './types'
+import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequest, NativeTurnContextPage } from './types'
 import { mergeNativeItems, record } from './presentation'
 import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
@@ -47,12 +47,13 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const olderPreviousBrowsing = useRef<boolean | null>(null)
     const alive = useRef(true)
     const refreshing = useRef<symbol | null>(null)
+    const seekController = useRef<AbortController | null>(null)
     const historyPages = useRef(new HistoryPageCache<NativePage<NativeItemEntry>>({ items: 900, bytes: 6 * 1024 * 1024 }))
     const tailRevision = useRef(0)
     const latestTailId = useRef<string | undefined>(undefined)
     const pageTailVersions = useRef(new WeakMap<NativePage<NativeItemEntry>, number>())
     const boundaries = useRef(new Map<string, { older?: string | null; newer?: string | null }>())
-    const rememberPage = useCallback((page: NativePage<NativeItemEntry>, direction: HistoryDirection) => {
+    const rememberPage = useCallback((page: NativeTurnContextPage, direction: HistoryDirection) => {
         const first = direction === 'older' ? page.data.at(-1) : page.data[0]
         const last = direction === 'older' ? page.data[0] : page.data.at(-1)
         const remember = (entry: NativeItemEntry | undefined, side: HistoryDirection, value: string | null | undefined) => {
@@ -61,7 +62,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             boundaries.current.set(id, { ...boundaries.current.get(id), [side]: value })
         }
         remember(first, 'older', direction === 'older' ? page.nextCursor : page.backwardsCursor)
-        remember(last, 'newer', direction === 'newer' ? page.nextCursor ?? undefined : page.backwardsCursor)
+        remember(last, 'newer', direction === 'newer' ? page.nextCursor ?? undefined : page.backwardsCursor ?? page.newerResumeCursor)
         while (boundaries.current.size > 128) boundaries.current.delete(boundaries.current.keys().next().value!)
     }, [])
     const readPage = useCallback(async (direction: HistoryDirection, pageCursor: string) => {
@@ -120,6 +121,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             // Return to latest replaces the history window. An older page may
             // still arrive, but no longer owns this window or its loading state.
             historyGeneration.current += 1
+            seekController.current?.abort()
+            seekController.current = null
             olderRequest.current = null
             olderPreviousBrowsing.current = null
             browsingOlder.current = false
@@ -248,8 +251,14 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const older = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('older', beforeApply), [readHistory])
     const newer = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('newer', beforeApply), [readHistory])
 
-    const seek = useCallback(async (pageCursor: string | null, accepts: (entries: NativeItemEntry[]) => boolean) => {
+    const seekFrom = useCallback(async (
+        load: (signal: AbortSignal) => Promise<NativeTurnContextPage>,
+        accepts: (entries: NativeItemEntry[]) => boolean
+    ) => {
         historyGeneration.current += 1
+        seekController.current?.abort()
+        const controller = new AbortController()
+        seekController.current = controller
         historyPages.current.clear()
         boundaries.current.clear()
         olderRequest.current = null
@@ -262,28 +271,51 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         setOlderLoading(true)
         setLoading(false)
         try {
-            const page = await api.getCodexNativeItems(id, pageCursor ?? undefined)
-            if (!isCurrent()) return false
-            rememberPage(page, 'older')
+            const page = await load(controller.signal)
+            if (!isCurrent()) {
+                return false
+            }
             const entries = [...page.data].reverse().slice(0, 300)
-            if (!accepts(entries)) return false
+            if (!accepts(entries) || !isCurrent()) {
+                return false
+            }
+            rememberPage(page, 'older')
             browsingOlder.current = true
             setItems(entries)
             setCursor(page.nextCursor)
-            setNewerCursor(page.backwardsCursor ?? null)
+            setNewerCursor(page.backwardsCursor ?? page.newerResumeCursor ?? null)
             setHasNewer(Boolean(page.backwardsCursor))
             setError('')
             return true
+        } catch (error) {
+            if (controller.signal.aborted || !isCurrent()) {
+                return false
+            }
+            throw error
         } finally {
-            if (isCurrent()) { olderRequest.current = null; setOlderLoading(false) }
+            if (seekController.current === controller) {
+                seekController.current = null
+            }
+            if (isCurrent()) {
+                olderRequest.current = null
+                setOlderLoading(false)
+            }
         }
-    }, [api, id, rememberPage])
+    }, [rememberPage])
+    const seek = useCallback((pageCursor: string | null, accepts: (entries: NativeItemEntry[]) => boolean) => (
+        seekFrom(signal => api.getCodexNativeItems(id, pageCursor ?? undefined, 'desc', signal), accepts)
+    ), [api, id, seekFrom])
+    const seekTurn = useCallback((turnId: string, itemId: string, accepts: (entries: NativeItemEntry[]) => boolean) => (
+        seekFrom(signal => api.getCodexNativeTurnContext(id, turnId, itemId, signal), accepts)
+    ), [api, id, seekFrom])
 
     const cancelOlder = useCallback(() => {
         if (!olderRequest.current) return
         if (olderPreviousBrowsing.current !== null) browsingOlder.current = olderPreviousBrowsing.current
         olderPreviousBrowsing.current = null
         historyGeneration.current += 1
+        seekController.current?.abort()
+        seekController.current = null
         olderRequest.current = null
         refreshing.current = null
         setOlderLoading(false)
@@ -383,6 +415,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         return () => {
             alive.current = false
             historyGeneration.current += 1
+            seekController.current?.abort()
+            seekController.current = null
             historyPages.current.clear()
             boundaries.current.clear()
             olderRequest.current = null
@@ -393,5 +427,5 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
     }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
 
-    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
+    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }

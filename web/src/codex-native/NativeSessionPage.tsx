@@ -17,6 +17,13 @@ import { buildConversationOutline } from '@/chat/outline'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
+import type { NativeItemEntry } from './types'
+
+function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
+    const messages = projectNativeItems(entries, [], false).messages
+    const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
+}
 
 export function NativeSessionPage({
     api,
@@ -199,13 +206,11 @@ function NativeSessionChat({
                 setViewMode('history')
                 return { kind: 'applied', historyVersion: appliedVersion, hasMore: applied.hasMore, addedRenderableCount }
             }}
-            onLocateNativeHistoryPage={async (cursor, targetMessageId) => {
-                const found = await thread.seek(cursor, entries => {
-                    const messages = projectNativeItems(entries, [], false).messages
-                    const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-                    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
-                })
-                if (found) setViewMode('history')
+            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId) => {
+                const found = await thread.seekTurn(turnId, itemId, entries => containsOutlineTarget(entries, targetMessageId))
+                if (found) {
+                    setViewMode('history')
+                }
                 return found
             }}
             onLoadMore={async (beforeApply) => {

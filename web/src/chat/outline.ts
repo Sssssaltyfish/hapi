@@ -8,17 +8,27 @@ export type ConversationOutlineItem = {
     label: string
     createdAt: number
     historyPage?: ConversationHistoryPage
+    indexPage?: ConversationOutlineContinuation
+    nativeTurn?: { turnId: string; itemId: string }
     /** Failed optimistic input is visible only in its current viewport. */
     transient?: boolean
 }
 
-export type ConversationHistoryPage =
-    | { kind: 'native'; cursor: string | null }
-    | { kind: 'runner'; beforeAt: number | null; beforeSeq: number | null; epoch: number | null }
+export type ConversationHistoryPage = {
+    kind: 'runner'
+    beforeAt: number | null
+    beforeSeq: number | null
+    epoch: number | null
+}
+
+/** Index pagination belongs to its source, separate from a body navigation target. */
+export type ConversationOutlineContinuation =
+    | { kind: 'native-turns'; cursor: string | null }
+    | ConversationHistoryPage
 
 export type ConversationOutlinePage = {
     items: ConversationOutlineItem[]
-    next: ConversationHistoryPage | null
+    next: ConversationOutlineContinuation | null
     scanned: number
     epoch: number | null
     reachedHead: boolean

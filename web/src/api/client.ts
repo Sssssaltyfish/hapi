@@ -72,10 +72,11 @@ import type {
     NativePage,
     NativeRecord,
     NativeStatus,
-    NativeThreadPage
+    NativeThreadPage,
+    NativeTurnContextPage
 } from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
-import type { ConversationHistoryPage, ConversationOutlinePage } from '@/chat/outline'
+import type { ConversationOutlineContinuation, ConversationOutlinePage } from '@/chat/outline'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
 
@@ -398,6 +399,11 @@ export class ApiClient {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items?${params}`, { signal })
     }
 
+    async getCodexNativeTurnContext(id: string, turnId: string, itemId: string, signal?: AbortSignal): Promise<NativeTurnContextPage> {
+        const params = new URLSearchParams({ turnId, itemId })
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline-context?${params}`, { signal })
+    }
+
     /** Only a stable authenticated principal can own a persistent prompt index. */
     getConversationCacheScope(): { key: string; persistent: boolean } {
         const token = this.getToken?.() ?? this.token
@@ -415,11 +421,11 @@ export class ApiClient {
         return { key: this.outlineIdentityKey, persistent: false }
     }
 
-    async getConversationOutline(id: string, locator: ConversationHistoryPage, stopId?: string | string[]): Promise<ConversationOutlinePage> {
+    async getConversationOutline(id: string, locator: ConversationOutlineContinuation, stopId?: string | string[]): Promise<ConversationOutlinePage> {
         const params = new URLSearchParams()
         if (Array.isArray(stopId)) params.set('stopIds', JSON.stringify(stopId))
         else if (stopId) params.set('stopId', stopId)
-        if (locator.kind === 'native') {
+        if (locator.kind === 'native-turns') {
             if (locator.cursor) params.set('cursor', locator.cursor)
             return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline?${params}`)
         }

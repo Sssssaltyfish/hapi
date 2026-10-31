@@ -50,6 +50,10 @@ export type NativeItemEntry = NativeRecord & {
     completedAtMs?: number | null
     observedAtMs?: number
 }
+export type NativeTurnContextPage = NativePage<NativeItemEntry> & {
+    /** Actual global ascending request cursor retained for later tail reconciliation. */
+    newerResumeCursor?: string | null
+}
 export type NativeEvent = { method: string; params: NativeRecord }
 export type NativeRequest = {
     id: string | number

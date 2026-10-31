@@ -30,7 +30,7 @@ import { EventPublisher, type SyncEventListener } from './eventPublisher'
 import { MachineCache, type Machine } from './machineCache'
 import { MessageService, type RetryIndeterminateMessageResult } from './messageService'
 import { recoverPendingSteering } from './pendingSteering'
-import { runnerOutlinePage, type OutlineLocator } from './conversationOutline'
+import { runnerOutlinePage, type OutlineContinuation } from './conversationOutline'
 import { createTitleSuggestionService, type TitleSuggestionService } from './titleSuggestion'
 import { selectForkTranscriptPrefix } from './forkTranscript'
 import { buildForkSessionSummary } from './forkSessionSummary'
@@ -460,7 +460,7 @@ export class SyncEngine {
     getQueuedState(sessionId: string, localIds: string[]): QueuedStateResponse {
         return this.messageService.getQueuedState(sessionId, localIds)
     }
-    getConversationOutline(sessionId: string, locator: Extract<OutlineLocator, { kind: 'runner' }>, stopIds?: string[]) {
+    getConversationOutline(sessionId: string, locator: Extract<OutlineContinuation, { kind: 'runner' }>, stopIds?: string[]) {
         return runnerOutlinePage(page => this.messageService.getMessagesPage(sessionId, {
             limit: 100,
             before: page.beforeAt !== null && page.beforeSeq !== null ? { at: page.beforeAt, seq: page.beforeSeq } : null,

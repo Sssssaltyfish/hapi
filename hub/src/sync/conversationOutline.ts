@@ -4,9 +4,9 @@ import type { DecryptedMessage } from '@hapi/protocol/types'
 import type { MessagesResponse } from '@hapi/protocol/apiTypes'
 import { record, type NativeRecord } from '../codexNative/transport'
 
-export type OutlineLocator =
+export type OutlineContinuation =
     | {
-        kind: 'native'
+        kind: 'native-turns'
         cursor: string | null
     }
     | {
@@ -21,11 +21,13 @@ export type OutlineItem = {
     kind: 'user'
     label: string
     createdAt: number
-    historyPage: OutlineLocator
+    historyPage?: Extract<OutlineContinuation, { kind: 'runner' }>
+    indexPage?: OutlineContinuation
+    nativeTurn?: { turnId: string; itemId: string }
 }
 export type OutlinePage = {
     items: OutlineItem[]
-    next: OutlineLocator | null
+    next: OutlineContinuation | null
     scanned: number
     epoch: number | null
     reachedHead: boolean
@@ -40,14 +42,14 @@ function preview(value: string): string {
     const text = nativeQuestionReplyDisplayText(value).replace(/\s+/g, ' ').trim()
     return text.length > 96 ? `${text.slice(0, 93).trimEnd()}...` : text || 'Empty message'
 }
-function outlineItem(id: string, text: string, at: number, locator: OutlineLocator): OutlineItem {
+function outlineItem(id: string, text: string, at: number, locator: OutlineContinuation): OutlineItem {
     return {
         id: `outline:user-text:${id}`,
         targetMessageId: `user-text:${id}`,
         kind: 'user',
         label: preview(text),
         createdAt: at,
-        historyPage: locator
+        ...(locator.kind === 'runner' ? { historyPage: locator } : { indexPage: locator })
     }
 }
 function userText(message: DecryptedMessage): string | null {
@@ -57,7 +59,18 @@ function userText(message: DecryptedMessage): string | null {
     return typeof content === 'string' ? content : typeof record(content).text === 'string' ? record(content).text as string : null
 }
 
-/** Full native items are authoritative: turn summaries omit accepted steering input. */
+function turnTimestamp(turn: NativeRecord): number {
+    if (typeof turn.startedAt === 'number' && Number.isFinite(turn.startedAt)) return turn.startedAt * 1000
+    // Native Turn documents Codex-generated IDs as UUIDv7. RFC 9562 §5.7
+    // defines its first 48 bits as Unix milliseconds; other ID formats stay opaque.
+    const uuid = typeof turn.id === 'string'
+        ? /^([0-9a-f]{8})-([0-9a-f]{4})-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.exec(turn.id)
+        : null
+    if (uuid) return Number.parseInt(uuid[1] + uuid[2], 16)
+    return typeof turn.completedAt === 'number' && Number.isFinite(turn.completedAt) ? turn.completedAt * 1000 : 0
+}
+
+/** The Native directory follows turn summaries; steering input stays in the body. */
 export async function nativeOutlinePage(
     read: (params: NativeRecord) => Promise<unknown>,
     cursor: string | null,
@@ -65,22 +78,24 @@ export async function nativeOutlinePage(
 ): Promise<OutlinePage> {
     const scanUntil = Date.now() + MAX_SCAN_MS
     const items: OutlineItem[] = []
-    let next: OutlineLocator | null = { kind: 'native', cursor }
+    let next: OutlineContinuation | null = { kind: 'native-turns', cursor }
     let scanned = 0
     let bytes = 0
     let reachedHead = false
     let overlapId: string | undefined
     do {
-        const locator: OutlineLocator = { kind: 'native', cursor }
+        const locator: OutlineContinuation = { kind: 'native-turns', cursor }
         // A started page retains the normal RPC timeout. The scan budget only
         // decides whether to request another page after this one completes.
-        const page = record(await read({ cursor: cursor ?? undefined, limit: 50, sortDirection: 'desc' }))
+        const page = record(await read({ cursor: cursor ?? undefined, limit: 50, sortDirection: 'desc', itemsView: 'summary' }))
         bytes += Buffer.byteLength(JSON.stringify(page), 'utf8')
         scanned++
         for (const raw of Array.isArray(page.data) ? page.data : []) {
-            const entry = record(raw)
-            const item = record(entry.item)
-            if (item.type !== 'userMessage' && !(item.type === 'steeringUserMessage' && item.status === 'accepted')) continue
+            const turn = record(raw)
+            const item = record(Array.isArray(turn.items)
+                ? turn.items.find(value => record(value).type === 'userMessage')
+                : undefined)
+            if (typeof turn.id !== 'string' || typeof item.id !== 'string') continue
             const id = `native:${String(item.id)}`
             const content = item.content ?? item.input
             const text = Array.isArray(content) ? content.map(value => {
@@ -89,7 +104,13 @@ export async function nativeOutlinePage(
                 if (part.type === 'mention') return ''
                 return part.type === 'image' ? '[Image]' : part.type ? `[${String(part.type)}: ${String(part.path ?? part.name ?? '')}]` : ''
             }).filter(Boolean).join('\n') : typeof content === 'string' ? content : ''
-            if (text) items.push(outlineItem(id, text, Number(entry.startedAtMs ?? entry.completedAtMs ?? entry.observedAtMs ?? 0), locator))
+            if (text) {
+                const at = turnTimestamp(turn)
+                items.push({
+                    ...outlineItem(id, text, at, locator),
+                    nativeTurn: { turnId: turn.id, itemId: item.id }
+                })
+            }
             // Include the boundary so an accepted/edited user item can refresh its preview.
             if (stopIds.includes(`user-text:${id}`)) {
                 reachedHead = true; overlapId = `user-text:${id}`; break
@@ -98,7 +119,7 @@ export async function nativeOutlinePage(
         const after = typeof page.nextCursor === 'string' ? page.nextCursor : null
         if (after && after === cursor) throw new Error('Outline history cursor did not advance')
         cursor = after
-        next = !reachedHead && after ? { kind: 'native', cursor: after } : null
+        next = !reachedHead && after ? { kind: 'native-turns', cursor: after } : null
     } while (next && scanned < MAX_PAGES && bytes < MAX_SCAN_BYTES && Date.now() < scanUntil)
     return {
         items,
@@ -111,24 +132,24 @@ export async function nativeOutlinePage(
 }
 
 export function runnerOutlinePage(
-    read: (locator: Extract<OutlineLocator, {
+    read: (locator: Extract<OutlineContinuation, {
         kind: 'runner'
     }>) => MessagesResponse,
-    locator: Extract<OutlineLocator, {
+    locator: Extract<OutlineContinuation, {
         kind: 'runner'
     }>,
     stopIds: string[] = [],
 ): OutlinePage {
     const started = Date.now()
     const items: OutlineItem[] = []
-    let next: OutlineLocator | null = locator
+    let next: OutlineContinuation | null = locator
     let scanned = 0
     let bytes = 0
     let epoch = locator.epoch
     let reachedHead = false
     let overlapId: string | undefined
     do {
-        const current = next as Extract<OutlineLocator, {
+        const current = next as Extract<OutlineContinuation, {
             kind: 'runner'
         }>
         const page = read(current)

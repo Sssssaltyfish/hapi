@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
 import { useNativeThread } from './useNativeThread'
-import type { NativeEvent } from './types'
+import type { NativeEvent, NativePage } from './types'
 
 const entry = (id: string) => ({ turnId: 'turn', item: { id, type: 'agentMessage', text: id }, startedAtMs: 1234 })
 const deferredPage = () => {
@@ -103,6 +103,72 @@ describe('native thread window', () => {
         unmount()
     })
 
+    it('seeds a turn target with a full-thread context window and continues in both global directions', async () => {
+        const range = (start: number, end: number) => Array.from({ length: end - start + 1 }, (_, i) => entry(`n-${start + i}`))
+        const context = {
+            data: range(301, 400).reverse(),
+            nextCursor: 'opaque-before-301',
+            backwardsCursor: null,
+            newerResumeCursor: 'opaque-after-350',
+        }
+        let liveTail = 400
+        const older = new Map<string, NativePage<ReturnType<typeof entry>>>(Array.from({ length: 8 }, (_, index) => {
+            const first = 51 + index * 50
+            return [`opaque-before-${first}`, {
+                data: range(first - 50, first - 1).reverse(),
+                nextCursor: first > 51 ? `opaque-before-${first - 50}` : null,
+                backwardsCursor: `opaque-after-${first - 1}`,
+            }] as const
+        }))
+        const newer = new Map<string, () => NativePage<ReturnType<typeof entry>>>(Array.from({ length: 9 }, (_, index) => {
+            const after = 50 + index * 50
+            return [`opaque-after-${after}`, () => ({
+                data: range(after + 1, Math.min(after + 50, liveTail)),
+                nextCursor: after + 50 < liveTail ? `opaque-after-${after + 50}` : null,
+                backwardsCursor: `opaque-before-${after + 1}`,
+            })] as const
+        }))
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'turn-jump' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeTurnContext: vi.fn().mockResolvedValue(context),
+            getCodexNativeItems: vi.fn(async (_id: string, cursor?: string, direction = 'desc') => {
+                if (cursor === undefined) return { data: range(liveTail - 49, liveTail).reverse(), nextCursor: `opaque-before-${liveTail - 49}`, backwardsCursor: `opaque-after-${liveTail}` }
+                const page = direction === 'asc' ? newer.get(cursor)?.() : older.get(cursor)
+                if (!page) throw new Error(`Unexpected history cursor ${cursor}`)
+                return page
+            }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'turn-jump'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        await act(async () => {
+            expect(await result.current.seekTurn('selected-turn', 'n-350', entries => entries.some(value => value.item.id === 'n-350'))).toBe(true)
+        })
+        expect(api.getCodexNativeTurnContext).toHaveBeenCalledWith('turn-jump', 'selected-turn', 'n-350', expect.any(AbortSignal))
+        expect(result.current.items.map(value => value.item.id)).toEqual(range(301, 400).map(value => value.item.id))
+        expect(result.current.cursor).toBe('opaque-before-301')
+        expect(result.current.newerCursor).toBe('opaque-after-350')
+        expect(result.current.hasNewer).toBe(false)
+        liveTail = 450
+        await act(async () => { await result.current.latest() })
+        expect(result.current.hasNewer).toBe(true)
+        for (let page = 0; page < 5; page++) {
+            await act(async () => { await result.current.older() })
+        }
+        expect(result.current.items.map(value => value.item.id)).toEqual(range(51, 350).map(value => value.item.id))
+        await act(async () => { await result.current.newer() })
+        await act(async () => { await result.current.newer() })
+        expect(result.current.items.map(value => value.item.id)).toEqual(range(151, 450).map(value => value.item.id))
+        await act(async () => { await result.current.older() })
+        await act(async () => { await result.current.newer() })
+        expect(result.current.items.map(value => value.item.id)).toEqual(range(151, 450).map(value => value.item.id))
+        expect(api.getCodexNativeItems).toHaveBeenCalledWith('turn-jump', 'opaque-before-301', 'desc', expect.any(AbortSignal))
+        expect(api.getCodexNativeItems).toHaveBeenCalledWith('turn-jump', 'opaque-after-350', 'asc', expect.any(AbortSignal))
+        expect(api.getCodexNativeItems.mock.calls.filter(call => call[1] === undefined)).toHaveLength(2)
+        unmount()
+    })
+
     it('keeps forward reading available when a shared end-page request predates a live update', async () => {
         const page = deferredPage()
         let event!: (value: NativeEvent) => void
@@ -179,14 +245,17 @@ describe('native thread window', () => {
             getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'native' } }),
             getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
             getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('reading')], nextCursor: 'current-cursor' })
-                .mockReturnValueOnce(page.promise).mockResolvedValue({ data: [entry('fresh-tail')], nextCursor: 'tail-cursor' }),
+                .mockResolvedValue({ data: [entry('fresh-tail')], nextCursor: 'tail-cursor' }),
+            getCodexNativeTurnContext: vi.fn().mockReturnValue(page.promise),
             streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
         }
         const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'native'))
         await waitFor(() => expect(result.current.loading).toBe(false))
         let seeking!: Promise<boolean>
-        act(() => { seeking = result.current.seek('opaque-seek', accepts) })
+        act(() => { seeking = result.current.seekTurn('selected-turn', 'selected-item', accepts) })
+        const signal = api.getCodexNativeTurnContext.mock.calls[0][3] as AbortSignal
         act(() => { result.current.cancelOlder() })
+        expect(signal.aborted).toBe(true)
         expect(result.current.olderLoading).toBe(false)
         await act(async () => { page.resolve({ data: [entry('cancelled')], nextCursor: 'cancelled-cursor' }); expect(await seeking).toBe(false) })
         expect(accepts).not.toHaveBeenCalled()
