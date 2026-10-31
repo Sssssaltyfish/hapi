@@ -98,7 +98,8 @@ describe('SyncEngine.steerQueuedMessage', () => {
         store.messages.addMessage(session.id, { text: 'still unconfirmed' }, 'lost-worker')
         store.messages.setMessagesDeliveryState(session.id, ['lost-worker'], 'dispatching')
         engine.stop()
-        const restarted = new SyncEngine(store, { of: () => ({ to: () => ({ emit() {} }) }) } as never, new RpcRegistry(), { broadcast() {} } as never)
+        // The connection layer has not started accepting workers at this point.
+        const restarted = new SyncEngine(store, {} as never, new RpcRegistry(), { broadcast() {} } as never)
         try {
             expect(store.messages.getUninvokedLocalMessages(session.id)[0]).toMatchObject({ invokedAt: null, deliveryState: 'indeterminate' })
             expect(store.messages.getImmediateQueuedLocalMessages(session.id)).toHaveLength(0)

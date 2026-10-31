@@ -268,10 +268,10 @@ export class SyncEngine {
         this.titleSuggestionService = createTitleSuggestionService(store)
         this.rpcGateway = new RpcGateway(io, rpcRegistry)
         this.reloadAll()
+        // Cold startup precedes the HTTP listener and worker reattachment.
+        // Persisted dispatches belong to the previous Hub and are unconfirmed.
         for (const session of this.getSessions()) {
-            if (!this.io.of('/cli').adapter?.rooms.get(`session:${session.id}`)?.size) {
-                recoverPendingSteering(store, session.id, event => this.eventPublisher.emit(event))
-            }
+            recoverPendingSteering(store, session.id, event => this.eventPublisher.emit(event))
         }
         this.inactivityTimer = setInterval(() => this.expireInactive(), 5_000)
     }
