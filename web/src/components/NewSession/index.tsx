@@ -115,7 +115,11 @@ export function NewSession(props: NewSessionProps) {
     const [directory, setDirectory] = useState(props.initialDirectory ?? '')
     const [suppressSuggestions, setSuppressSuggestions] = useState(false)
     const [isDirectoryFocused, setIsDirectoryFocused] = useState(false)
-    const [creationChoice, setAgent] = useState<AgentSelection>(() => props.initialNativeEndpointId ? 'codex-native' : loadPreferredCreationChoice())
+    const [creationChoice, setAgent] = useState<AgentSelection>(() => {
+        if (props.initialNativeEndpointId) return 'codex-native'
+        const preferred = loadPreferredCreationChoice()
+        return props.initialMachineId ? creationChoiceFlavor(preferred) : preferred
+    })
     const agent = creationChoiceFlavor(creationChoice)
     const isNative = creationChoice === 'codex-native'
     const nativeTarget = useNativeCreationTarget(props.api, isNative, props.initialNativeEndpointId)

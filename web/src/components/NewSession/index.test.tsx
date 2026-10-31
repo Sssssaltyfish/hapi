@@ -563,6 +563,19 @@ describe('NewSession launch preferences', () => {
         expect(screen.getByDisplayValue('claude')).toBeDisabled()
     })
 
+    it('honors an explicit runner Browse target over a remembered Native preference without a form draft', async () => {
+        savePreferredCreationChoice('codex-native')
+        mocks.spawnSession.mockResolvedValue({ type: 'success', sessionId: 'runner-created' })
+        render(<NewSession api={api} machines={[machine]} initialMachineId="machine-1" initialDirectory="/home/igna" onSuccess={mocks.onSuccess} onCancel={vi.fn()} />)
+        expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeChecked()
+        expect(screen.getByRole('radio', { name: 'Codex Native' })).not.toBeChecked()
+        expect(screen.getByLabelText('machine-selector')).toHaveValue('machine-1')
+        await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+        fireEvent.click(screen.getByTestId('create'))
+        await waitFor(() => expect(mocks.spawnSession).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1', directory: '/home/igna', agent: 'codex' })))
+        expect(mocks.onSuccess).toHaveBeenCalledWith('runner-created')
+    })
+
     it('refuses a directory rejected by workspace-root validation', async () => {
         mocks.checkPathsExists.mockImplementation(async ([path]: string[]) => ({
             exists: { [path]: false },
