@@ -12,6 +12,9 @@ import { PermissionResult } from "./sdk/types";
 import { getHapiBlobsDir } from "@/constants/uploadPaths";
 import { getDefaultClaudeCodePath } from "./sdk/utils";
 import { filterCatalogAffectingClaudeArgs } from "./sdk/metadataExtractor";
+import { randomUUID } from 'node:crypto';
+import type { ClaudeInputLease } from './claudeSteering';
+import { ClaudeInputUnavailableError } from './sdk/types';
 
 // acceptEdits/bypassPermissions are emulated in canCallTool so they can change
 // mid-session. Launching Claude natively in them skips canCallTool, so a later
@@ -47,6 +50,9 @@ export async function claudeRemote(opts: {
     onFirstResult?: (initialMessage: string) => void,
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void
+    onInputLease?: (lease: ClaudeInputLease | null) => void,
+    waitForSteering?: (signal?: AbortSignal) => Promise<void>
+    hasPendingSteering?: () => boolean
 }) {
     const debugPrefix = '[claudeRemote][async-debug]';
 
@@ -112,6 +118,25 @@ export async function claudeRemote(opts: {
     let awaitingForkInit = forkSession;
 
     const messages = new PushableAsyncIterable<SDKUserMessage>();
+    let response: ReturnType<typeof query> | null = null;
+    let cliVersion = '';
+    let activeInputUuid: string | null = null;
+    let activeInputReady = false;
+    let inputLease: ClaudeInputLease | null = null;
+    const publishInputLease = () => {
+        if (!response || !activeInputUuid || !activeInputReady || !cliVersion) {
+            inputLease = null; opts.onInputLease?.(null); return;
+        }
+        const uuid = activeInputUuid;
+        const lease: ClaudeInputLease = { uuid, version: cliVersion, send: (text, inputUuid) => {
+            if (inputLease !== lease || activeInputUuid !== uuid || opts.signal?.aborted) {
+                return Promise.reject(new ClaudeInputUnavailableError('Active Claude turn changed'));
+            }
+            return response!.sendUserMessage({ type: 'user', uuid: inputUuid, priority: 'next',
+                origin: { kind: 'human' }, message: { role: 'user', content: text } });
+        } };
+        inputLease = lease; opts.onInputLease?.(lease);
+    };
 
     const applyInitialTurn = async (): Promise<{ message: string; mode: EnhancedMode } | null> => {
         let next: { message: string; mode: EnhancedMode } | null;
@@ -152,13 +177,18 @@ export async function claudeRemote(opts: {
         }
 
         mode = next.mode;
+        activeInputUuid = randomUUID();
+        activeInputReady = false;
         messages.push({
             type: 'user',
+            uuid: activeInputUuid,
+            priority: 'later',
             message: {
                 role: 'user',
                 content: next.message,
             },
         });
+        publishInputLease();
         return next;
     };
 
@@ -227,7 +257,7 @@ export async function claudeRemote(opts: {
     };
 
     // Start the loop
-    const response = query({
+    response = query({
         prompt: messages,
         options: sdkOptions,
     });
@@ -253,6 +283,8 @@ export async function claudeRemote(opts: {
         logger.debug(`${debugPrefix} scheduleNextMessage start fetchId=${fetchId}`);
         void (async () => {
             try {
+                await opts.waitForSteering?.(opts.signal);
+                if (inputEnded || opts.signal?.aborted) return;
                 const next = await opts.nextMessage();
                 if (!next) {
                     inputEnded = true;
@@ -263,7 +295,11 @@ export async function claudeRemote(opts: {
                     return;
                 }
                 mode = next.mode;
-                messages.push({ type: 'user', message: { role: 'user', content: next.message } });
+                activeInputUuid = randomUUID();
+                activeInputReady = false;
+                messages.push({ type: 'user', uuid: activeInputUuid, priority: 'later', message: { role: 'user', content: next.message } });
+                publishInputLease();
+                updateThinking(true);
                 logger.debug(
                     `${debugPrefix} nextMessage resolved fetchId=${fetchId} elapsedMs=${Date.now() - startedAt} ` +
                     `messageLength=${next.message.length} permissionMode=${next.mode.permissionMode}`
@@ -297,6 +333,15 @@ export async function claudeRemote(opts: {
             logger.debugLargeJson(`[claudeRemote] Message ${message.type}`, message);
 
             // Handle messages
+            if (message.type === 'system' && message.subtype === 'init') {
+                cliVersion = typeof message.claude_code_version === 'string' ? message.claude_code_version : '';
+            }
+            const answeredIds = Array.isArray(message.user_message_uuids) ? message.user_message_uuids : [];
+            if (!activeInputReady && activeInputUuid && message.type !== 'result'
+                && (message.user_message_uuid === activeInputUuid || answeredIds.includes(activeInputUuid))) {
+                activeInputReady = true; publishInputLease();
+            }
+            if (message.type === 'result') { activeInputUuid = null; activeInputReady = false; publishInputLease(); }
             opts.onMessage(message);
 
             // Handle special system messages
@@ -366,7 +411,7 @@ export async function claudeRemote(opts: {
             // Handle result messages
             if (message.type === 'result') {
                 resultSeq += 1;
-                updateThinking(false);
+                updateThinking(opts.hasPendingSteering?.() === true);
                 logger.debug(
                     `${debugPrefix} result #${resultSeq} received; scheduling next user message ` +
                     `(nextInFlight=${nextMessageFetchInFlight}, inputEnded=${inputEnded})`
@@ -420,6 +465,9 @@ export async function claudeRemote(opts: {
             throw e;
         }
     } finally {
+        inputEnded = true;
+        activeInputUuid = null;
+        publishInputLease();
         logger.debug(
             `${debugPrefix} finally ` +
             `(streamMessages=${streamMessageSeq}, results=${resultSeq}, nextFetches=${nextMessageFetchSeq}, inputEnded=${inputEnded})`

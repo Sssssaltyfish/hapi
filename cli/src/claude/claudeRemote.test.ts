@@ -69,6 +69,41 @@ async function waitFor(condition: () => boolean, timeoutMs = 300, intervalMs = 1
 }
 
 describe('claudeRemote async message handling', () => {
+    it('keeps pending native soft input busy without blocking later receipts or pulling normal queue input', async () => {
+        const querySpy = vi.spyOn(claudeSdk, 'query').mockImplementation(queryMock as typeof claudeSdk.query);
+        const { claudeRemote } = await import('./claudeRemote');
+        const accepted = deferred<void>();
+        let pending = true;
+        let thinking = false;
+        let nextCalls = 0;
+        const readyThinking: boolean[] = [];
+        queryMock.mockReturnValueOnce(createAsyncStream([
+            { type: 'result', user_message_uuids: ['first'] },
+            { type: 'assistant', user_message_uuids: ['soft'] },
+            { type: 'result', user_message_uuids: ['soft'] },
+        ]));
+        try {
+            await claudeRemote({
+                sessionId: 'session-1', path: process.cwd(), allowedTools: [], hookSettingsPath: '/tmp/hook.json',
+                canCallTool: async () => ({ behavior: 'allow', updatedInput: {} }),
+                nextMessage: async () => nextCalls++ === 0 ? { message: 'first', mode: { permissionMode: 'default' } } : null,
+                onThinkingChange: value => { thinking = value; },
+                hasPendingSteering: () => pending,
+                waitForSteering: () => pending ? accepted.promise : Promise.resolve(),
+                onReady: () => { readyThinking.push(thinking); },
+                isAborted: () => false, onSessionFound: () => {},
+                onMessage: message => {
+                    if (message.type === 'assistant') expect(nextCalls).toBe(1);
+                    if (message.type === 'result' && (message.user_message_uuids as string[]).includes('soft')) {
+                        pending = false; accepted.resolve();
+                    }
+                },
+            });
+            expect(readyThinking).toEqual([true, false]);
+        } finally {
+            accepted.resolve(); queryMock.mockReset(); querySpy.mockRestore();
+        }
+    });
     // CI occasionally exceeds the default 5s under load (unrelated to job work).
     it('reports the initial normal message once after the first result', { timeout: 15_000 }, async () => {
         const querySpy = vi.spyOn(claudeSdk, 'query').mockImplementation(queryMock as typeof claudeSdk.query);

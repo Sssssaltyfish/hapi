@@ -11,6 +11,7 @@ import {
     type QueryOptions,
     type QueryPrompt,
     type SDKMessage,
+    type SDKUserMessage,
     type ControlResponseHandler,
     type SDKControlRequest,
     type ControlRequest,
@@ -20,7 +21,8 @@ import {
     type CanUseToolControlResponse,
     type ControlCancelRequest,
     type PermissionResult,
-    AbortError
+    AbortError,
+    ClaudeInputUnavailableError
 } from './types'
 import { getDefaultClaudeCodePath, logDebug, streamToStdin } from './utils'
 import { withBunRuntimeEnv } from '@/utils/bunRuntime'
@@ -42,6 +44,7 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
     private inputStream = new Stream<SDKMessage>()
     private canCallTool?: CanCallToolCallback
     private promptFailure: Error | null = null
+    private inputClosed = false
 
     constructor(
         private childStdin: Writable | null,
@@ -52,12 +55,14 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
         this.canCallTool = canCallTool
         this.readMessages()
         this.sdkMessages = this.readSdkMessages()
+        void processExitPromise.then(() => { this.inputClosed = true }, () => { this.inputClosed = true })
     }
 
     /**
      * Set an error on the stream
      */
     setError(error: Error): void {
+        this.inputClosed = true
         this.inputStream.error(error)
     }
 
@@ -176,6 +181,17 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
         await this.request({
             subtype: 'interrupt'
         }, this.childStdin)
+    }
+
+    /** Write soft input on this process; native UUID receipts confirm acceptance. */
+    async sendUserMessage(message: SDKUserMessage): Promise<void> {
+        if (this.inputClosed || this.promptFailure || !this.childStdin?.writable || this.childStdin.destroyed || this.childStdin.writableEnded) {
+            throw new ClaudeInputUnavailableError('Claude input is closed')
+        }
+        const stdin = this.childStdin
+        await new Promise<void>((resolve, reject) => {
+            stdin.write(JSON.stringify(message) + '\n', error => { if (error) reject(error); else resolve() })
+        })
     }
 
     /**

@@ -28,6 +28,19 @@ export class Session extends AgentSessionBase<EnhancedMode> {
     /** Model the local TUI runs, "[1m]" suffix intact: launch seed, then PostModelSwitch. */
     localContextModel: string | null = null;
     private nativeSkillNames = new Set<string>();
+    private queuedSteerHandler: ((id: string) => Promise<{ steered: boolean; pending?: boolean; error?: string }>) | null = null;
+    private pendingSteer: ((id: string) => boolean) | null = null;
+
+    registerQueuedSteerHandler(handler: NonNullable<Session['queuedSteerHandler']>, pending: (id: string) => boolean): () => void {
+        this.queuedSteerHandler = handler; this.pendingSteer = pending;
+        return () => { if (this.queuedSteerHandler === handler) { this.queuedSteerHandler = null; this.pendingSteer = null; } };
+    }
+
+    steerQueuedMessage(id: string): Promise<{ steered: boolean; pending?: boolean; error?: string }> {
+        return this.queuedSteerHandler?.(id) ?? Promise.resolve({ steered: false, error: 'No active steerable Claude session' });
+    }
+
+    isSteeringPending(id: string): boolean { return this.pendingSteer?.(id) === true; }
 
     constructor(opts: {
         api: ApiClient;
