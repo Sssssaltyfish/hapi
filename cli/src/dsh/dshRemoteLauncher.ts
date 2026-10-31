@@ -13,6 +13,9 @@ import { AcpPermissionHandler } from '@/modules/common/permission/AcpPermissionH
 import { createDshBackend } from './utils/dshBackend'
 import { prepareDshPermissionBridge } from './utils/permissionBridge'
 import type { DshSession } from './session'
+import type { DshMode } from './types'
+import { isAcpIndeterminateError } from '@/agent/backends/acp/AcpStdioTransport'
+import { DSH_STEERING_CAPABILITY, DSH_STEERING_METHOD, hasDshSteeringCapability, isDshSteerReceipt } from './utils/steering'
 
 export class DshRemoteLauncher extends RemoteLauncherBase {
     private backend: ReturnType<typeof createDshBackend> | null = null
@@ -27,6 +30,88 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private cleanupBridge: (() => Promise<void>) | null = null
     private running: Promise<RemoteLauncherExitReason> | null = null
     private disconnecting: Promise<void> | null = null
+    private promptInFlight = false
+    private activePromptModeHash: string | null = null
+    private steerEpoch = 0
+    private unregisterQueuedSteer: (() => void) | null = null
+    private readonly steerRequests = new Set<Promise<unknown>>()
+
+    private publishSteeringActive(active: boolean): void {
+        this.session.client.updateAgentState?.(state => ({ ...state, steeringActive: active }))
+    }
+
+    private effectiveModeHash(requested?: DshMode): string {
+        const model = requested?.model === null ? this.initialBackendModel
+            : requested?.model ?? this.currentBackendModel
+        const configOptions = Object.fromEntries(this.permissionOptions()
+            .filter(option => option.currentValue !== undefined)
+            .map(option => [option.id, option.currentValue!]))
+        // Before discovery, ordinary messages omit preferences and use the
+        // initial presets. Compare those actual values with later snapshots.
+        if (requested) Object.assign(configOptions, requested.configOptions ?? this.initialConfigs)
+        return this.session.queue.modeHasher({ ...(model ? { model } : {}), configOptions })
+    }
+
+    private async steerQueuedMessage(payload: unknown): Promise<{ steered: boolean; error?: string }> {
+        const localId = typeof (payload as { localId?: unknown } | null)?.localId === 'string'
+            ? (payload as { localId: string }).localId : ''
+        const backend = this.backend
+        const sessionId = this.session.sessionId
+        if (!localId) return { steered: false, error: 'Missing localId' }
+        if (!backend || !sessionId || !this.promptInFlight || this.shouldExit
+            || !hasDshSteeringCapability(backend.getAgentExtensionCapability(DSH_STEERING_CAPABILITY))) {
+            return { steered: false, error: 'No active steerable DSH turn' }
+        }
+        const generation = backend.getPromptGeneration()
+        const epoch = this.steerEpoch
+        const queue = this.session.queue
+        const taken = queue.takeByLocalId(localId)
+        if (!taken) return { steered: false, error: 'Message not in queue' }
+        if (taken.item.isolate || this.effectiveModeHash(taken.item.mode) !== this.activePromptModeHash) {
+            queue.restoreReservation(taken)
+            return { steered: false, error: 'Queued message mode differs from the active turn' }
+        }
+        if (!queue.beginReservationDispatch(taken)) return { steered: false, error: 'Steer cancelled' }
+        const hold = () => {
+            queue.markReservationIndeterminate(taken)
+            this.session.client.emitSteerIndeterminate([localId])
+        }
+        if (!await this.session.client.setSteerDeliveryState([localId], 'dispatching')) {
+            hold()
+            return { steered: false, error: 'Steer state is indeterminate' }
+        }
+        const restore = async () => {
+            if (!taken.originIndeterminate && !await this.session.client.setSteerDeliveryState([localId], 'queued')) {
+                hold()
+                return
+            }
+            queue.restoreReservation(taken)
+        }
+        if (taken.state !== 'dispatching' || !this.promptInFlight || this.shouldExit || this.steerEpoch !== epoch
+            || this.backend !== backend || this.session.sessionId !== sessionId || backend.getPromptGeneration() !== generation) {
+            await restore()
+            return { steered: false, error: 'Active turn changed' }
+        }
+        try {
+            const result = await backend.sendExtensionRequest(DSH_STEERING_METHOD,
+                { sessionId, requestId: localId, text: taken.item.message }, { timeoutMs: 10_000 })
+            if (!isDshSteerReceipt(result, localId)) {
+                hold()
+                return { steered: false, error: 'DSH steering acknowledgement is indeterminate' }
+            }
+            queue.commitReservation(taken)
+            this.messageBuffer.addMessage(taken.item.message, 'user')
+            this.session.client.emitMessagesConsumed([localId], { steered: true })
+            return { steered: true }
+        } catch (error) {
+            if (isAcpIndeterminateError(error)) {
+                hold()
+                return { steered: false, error: 'DSH steering outcome is indeterminate' }
+            }
+            await restore()
+            return { steered: false, error: error instanceof Error ? error.message : 'DSH steering failed' }
+        }
+    }
 
     private disconnectBackend(): Promise<void> {
         if (!this.backend) return Promise.resolve()
@@ -76,6 +161,8 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     async kill(): Promise<void> {
         await this.requestExit('exit', async () => {
             this.abortController.abort()
+            this.steerEpoch++
+            this.publishSteeringActive(false)
             // Ending the session must also stop an unresponsive initialize,
             // session/new or prompt; cooperative session/cancel cannot do that.
             await this.disconnectBackend()
@@ -100,6 +187,8 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         if (this.shouldExit) return
         const backend = createDshBackend(process.env, bridge.args)
         this.backend = backend
+        this.publishSteeringActive(false)
+        this.session.client.updateMetadata(metadata => ({ ...metadata, capabilities: { ...metadata.capabilities, steering: false } }))
         backend.onStderrError((error) => {
             logger.debug('[dsh-acp] stderr error', error)
             this.session.sendSessionEvent({ type: 'message', message: error.message })
@@ -150,6 +239,8 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         let acpSessionId: string
         try {
             await backend.initialize()
+            const supported = hasDshSteeringCapability(backend.getAgentExtensionCapability(DSH_STEERING_CAPABILITY))
+            this.session.client.updateMetadata(metadata => ({ ...metadata, capabilities: { ...metadata.capabilities, steering: supported } }))
             if (this.shouldExit) {
                 markFailed(new Error('DSH session ended during initialization'))
                 return
@@ -204,6 +295,14 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             onAbort: () => this.handleAbort(),
             onSwitch: () => this.handleExitFromUi()
         })
+        const steerHandler = (payload: unknown) => {
+            const pending = this.steerQueuedMessage(payload)
+            this.steerRequests.add(pending)
+            void pending.finally(() => this.steerRequests.delete(pending)).catch(() => {})
+            return pending
+        }
+        this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SteerQueuedMessage, steerHandler)
+        this.unregisterQueuedSteer = this.session.registerQueuedSteerHandler(steerHandler)
 
         while (!this.shouldExit) {
             const batch = await this.session.queue.waitForMessagesAndGetAsString(this.abortController.signal)
@@ -273,7 +372,11 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             this.messageBuffer.addMessage(batch.message, 'user')
             const prompt: PromptContent[] = [{ type: 'text', text: batch.message }]
             try {
-                await backend.prompt(acpSessionId, prompt, (message) => this.handleAgentMessage(message))
+                this.promptInFlight = true
+                this.activePromptModeHash = this.effectiveModeHash()
+                const pending = backend.prompt(acpSessionId, prompt, (message) => this.handleAgentMessage(message))
+                this.publishSteeringActive(hasDshSteeringCapability(backend.getAgentExtensionCapability(DSH_STEERING_CAPABILITY)))
+                await pending
             } catch (error) {
                 if (this.shouldExit) break
                 const message = error instanceof Error ? error.message : String(error)
@@ -281,6 +384,10 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 this.session.sendSessionEvent({ type: 'message', message: `DSH prompt failed: ${message}` })
                 this.messageBuffer.addMessage(`DSH prompt failed: ${message}`, 'status')
             } finally {
+                this.promptInFlight = false
+                this.activePromptModeHash = null
+                this.publishSteeringActive(false)
+                await Promise.allSettled([...this.steerRequests])
                 this.session.onThinkingChange(false)
                 await this.permissionHandler?.cancelAll('Prompt finished')
                 if (this.session.queue.size() === 0 && !this.shouldExit) {
@@ -291,6 +398,11 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     protected async cleanup(): Promise<void> {
+        this.steerEpoch++
+        this.promptInFlight = false
+        this.publishSteeringActive(false)
+        this.unregisterQueuedSteer?.()
+        this.unregisterQueuedSteer = null
         this.clearAbortHandlers(this.session.client.rpcHandlerManager)
         await this.permissionHandler?.cancelAll('Session ended')
         this.permissionHandler = null
@@ -372,12 +484,15 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     private async handleAbort(): Promise<void> {
+        this.steerEpoch++
+        this.promptInFlight = false
+        this.publishSteeringActive(false)
         if (this.backend && this.session.sessionId) {
             await this.backend.cancelPrompt(this.session.sessionId)
         }
         await this.permissionHandler?.cancelAll('User aborted')
         this.session.sendSessionEvent({ type: 'message', message: 'Session aborted' })
-        this.session.queue.reset()
+        this.session.queue.reset({ preserveDispatchingReservations: true })
         this.session.onThinkingChange(false)
         this.abortController.abort()
         this.abortController = new AbortController()
