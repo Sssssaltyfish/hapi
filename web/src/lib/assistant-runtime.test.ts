@@ -7,10 +7,24 @@ import {
     findLatestCompletedBoundaryId,
     getBlockPresentationTimestamp,
     getResponseGroupTimestamps,
-    getResponseAnnotationTargets
+    getResponseAnnotationTargets,
+    getResponseAnnotations
 } from './assistant-runtime'
 import type { AgentEventBlock, AgentTextBlock, CliOutputBlock, ToolCallBlock, UserTextBlock } from '@/chat/types'
 import { buildVisibleChatBlocks, type ToolGroupBlock, type VisibleChatBlock } from '@/chat/toolGroups'
+import { serializeResponseAnnotations } from './responseAnnotations'
+
+it('attaches quote context to the joined response and clears it for the next ordinary prompt', () => {
+    const annotations = [{ text: 'Quoted passage', annotation: 'Please explain' }]
+    const user = userText('u', { text: serializeResponseAnnotations('Follow-up', annotations) })
+    const tool = toolCall('tool')
+    const reply = agentText('reply')
+    const later = agentText('later')
+    const result = getResponseAnnotations([user, tool, reply, userText('plain', { text: 'Next question' }), later])
+    expect(result.get(tool)).toEqual(annotations)
+    expect(result.get(reply)).toBeUndefined()
+    expect(result.get(later)).toBeUndefined()
+})
 
 it('preserves each verified native text source across joined assistant blocks', () => {
     const tool = toolCall('first-tool')
