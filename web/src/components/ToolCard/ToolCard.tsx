@@ -55,6 +55,12 @@ export function getToolTimingDetails(tool: ChatToolCall, now: number): {
         return { startedAt: null, completedAt: null, durationMs: null }
     }
 
+    // A paged agent history may contain only its completion/activity record.
+    // Its creation timestamp is not evidence of when the child run started.
+    if (tool.name === 'CodexAgent' && isObject(tool.input) && tool.input.startTimeKnown === false) {
+        return { startedAt: null, completedAt: tool.state === 'running' ? null : tool.completedAt, durationMs: null }
+    }
+
     const active = tool.state === 'running'
     const hasExecPair = tool.execStartedAt != null && tool.execCompletedAt != null
     const startedAt = active || !hasExecPair

@@ -7,7 +7,7 @@ const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((part): part is string => Boolean(text(part))) : []
 
 /** Desktop activity completion timestamps describe the record, not the child run. */
-export function nativeSubagentEvent(item: NativeRecord, previousStatus?: string): NativeRecord | null {
+export function nativeSubagentEvent(item: NativeRecord, previousStatus?: string, startTimeKnown = false): NativeRecord | null {
     const agentId = text(item.agentThreadId)
     if (!agentId) return null
     const kind = text(item.kind) ?? 'interacted'
@@ -27,6 +27,7 @@ export function nativeSubagentEvent(item: NativeRecord, previousStatus?: string)
         input: {
             agentId,
             summary,
+            startTimeKnown: kind === 'started' || startTimeKnown,
             ...(text(item.agentPath) ? { agentPath: item.agentPath } : {}),
             ...(text(item.model) ? { model: item.model } : {}),
             ...(text(item.reasoningEffort) ? { reasoning_effort: item.reasoningEffort } : {}),

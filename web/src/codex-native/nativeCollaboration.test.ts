@@ -3,6 +3,7 @@ import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import type { NormalizedMessage, ToolCallBlock } from '@/chat/types'
 import { getCodexAgentFieldRows } from '@/components/ToolCard/codexAgents'
+import { getToolTimingDetails } from '@/components/ToolCard/ToolCard'
 import { projectNativeItems } from './projectNativeItems'
 import type { NativeItemEntry } from './types'
 
@@ -50,6 +51,9 @@ it('renders a completed activity from a history window without requiring its spa
     expect(cards).toHaveLength(1)
     expect(cards[0].tool.state).toBe('completed')
     expect(cards[0].tool.input).toMatchObject({ agentId, summary: '/root/native_subagents' })
+    expect(getToolTimingDetails(cards[0].tool, 300)).toEqual({ startedAt: null, completedAt: 200, durationMs: null })
+    const fullHistory = tools([activity('spawn', 'started', 100), activity('send', 'interacted', 150), activity('done', 'completed', 200)])
+    expect(getToolTimingDetails(fullHistory[0].tool, 300)).toEqual({ startedAt: 100, completedAt: 200, durationMs: 100 })
 })
 
 it('maps collab lifecycle items to the runner tool cards', () => {

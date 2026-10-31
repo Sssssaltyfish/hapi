@@ -177,7 +177,7 @@ export function projectNativeItems(
             )
         } else if (item.type === 'subAgentActivity') {
             const agentId = String(item.agentThreadId ?? '')
-            const event = nativeSubagentEvent(item, subagentStatuses.get(agentId))
+            const event = nativeSubagentEvent(item, subagentStatuses.get(agentId), subagentInputs.get(agentId)?.startTimeKnown === true)
             if (event) {
                 subagentStatuses.set(agentId, String(event.status))
                 event.input = { ...subagentInputs.get(agentId), ...record(event.input) }

@@ -69,6 +69,20 @@ describe('ToolCard terminal display mode helpers', () => {
 })
 
 describe('getToolTimingDetails', () => {
+    it('omits unknown child start and duration while preserving its known completion', () => {
+        const tool = {
+            ...makeToolCallChild().tool,
+            name: 'CodexAgent',
+            input: { startTimeKnown: false },
+            createdAt: 4_000,
+            startedAt: null,
+            completedAt: 4_000,
+        }
+        expect(getToolTimingDetails(tool, 10_000)).toEqual({ startedAt: null, completedAt: 4_000, durationMs: null })
+        expect(getToolTimingDetails({ ...tool, state: 'running' }, 10_000)).toEqual({ startedAt: null, completedAt: null, durationMs: null })
+        expect(getToolTimingDetails({ ...tool, name: 'Bash' }, 10_000)).toEqual({ startedAt: 4_000, completedAt: 4_000, durationMs: 0 })
+    })
+
     it('shows start, finish, and duration for completed tools', () => {
         const tool = makeToolCallChild({
             tool: {
