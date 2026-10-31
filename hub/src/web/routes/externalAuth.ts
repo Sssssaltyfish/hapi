@@ -1,11 +1,11 @@
 import { Hono } from 'hono'
-import { deleteCookie } from 'hono/cookie'
+import { deleteCookie, getCookie } from 'hono/cookie'
 import { bodyLimit } from 'hono/body-limit'
-import { SignJWT } from 'jose'
+import { SignJWT, jwtVerify } from 'jose'
 import { getOrCreateOwnerId } from '../../config/ownerId'
 import { verifyWebToken } from '../../passkeys/config'
 import { exchangeExternalCookie, ExternalAuthError, externalPasskeyRequest, parseExternalSession,
-    logoutExternalSession, type ExternalAuthConfig, type ExternalSession } from '../../passkeys/external'
+    logoutExternalSession, requireExternalSession, type ExternalAuthConfig, type ExternalSession } from '../../passkeys/external'
 import type { WebAppEnv } from '../middleware/auth'
 
 export function createExternalAuthRoutes(jwtSecret: Uint8Array, config: ExternalAuthConfig): Hono<WebAppEnv> {
@@ -21,7 +21,7 @@ export function createExternalAuthRoutes(jwtSecret: Uint8Array, config: External
     })
     const authenticate = async (external: ExternalSession) => {
         const uid = await getOrCreateOwnerId()
-        const expiresAt = Math.min(external.expiresAt, Date.now() + 4 * 60 * 60_000)
+        const expiresAt = Math.min(external.expiresAt, Date.now() + 30 * 60_000)
         const token = await new SignJWT({ uid, ns: config.namespace, amr: 'external-passkey', sid: external.sessionId })
             .setSubject(external.subject).setProtectedHeader({ alg: 'HS256' }).setIssuedAt()
             .setExpirationTime(Math.floor(expiresAt / 1000)).sign(jwtSecret)
@@ -61,10 +61,14 @@ export function createExternalAuthRoutes(jwtSecret: Uint8Array, config: External
     }
     app.get('/passkey/session', async c => {
         try {
+            // The persistent HttpOnly session remains usable after a browser sleeps past JWT expiry.
+            if (getCookie(c, '__Host-seia_session')) {
+                return c.json(await authenticate(await exchangeExternalCookie(config, c.req.header('Cookie') ?? '')))
+            }
             const bearer = c.req.header('Authorization')?.replace(/^Bearer /, '')
             if (bearer) {
-                const { payload } = await verifyWebToken(bearer, jwtSecret)
-                return c.json({ token: bearer, user: { id: payload.uid as number, firstName: 'HAPI Owner' }, expiresAt: payload.exp! * 1000 })
+                const { payload } = await jwtVerify(bearer, jwtSecret, { algorithms: ['HS256'] })
+                return c.json(await authenticate(await requireExternalSession(config, payload)))
             }
             const external = await exchangeExternalCookie(config, c.req.header('Cookie') ?? '')
             return c.json(await authenticate(external))
@@ -76,9 +80,9 @@ export function createExternalAuthRoutes(jwtSecret: Uint8Array, config: External
     app.post('/passkey/logout', async c => {
         try {
             const bearer = c.req.header('Authorization')?.replace(/^Bearer /, '')
-            const sessionId = bearer
-                ? (await verifyWebToken(bearer, jwtSecret)).payload.sid as string
-                : (await exchangeExternalCookie(config, c.req.header('Cookie') ?? '')).sessionId
+            const sessionId = getCookie(c, '__Host-seia_session')
+                ? (await exchangeExternalCookie(config, c.req.header('Cookie') ?? '')).sessionId
+                : (await verifyWebToken(bearer ?? '', jwtSecret)).payload.sid as string
             await logoutExternalSession(config, sessionId)
         } catch (error) {
             if (error instanceof ExternalAuthError && error.status === 503) {

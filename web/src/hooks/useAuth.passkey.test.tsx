@@ -3,7 +3,9 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useAuth, type AuthSource } from './useAuth'
 
 const state = vi.hoisted(() => ({ exchange: vi.fn() }))
-vi.mock('@/api/client', () => ({ ApiError: class extends Error {}, ApiClient: class {
+vi.mock('@/api/client', () => ({ ApiError: class extends Error {
+    constructor(message: string, readonly status: number) { super(message) }
+}, ApiClient: class {
     authenticate = state.exchange
     constructor(_token: string, readonly options: { onUnauthorized?: () => Promise<unknown> }) {}
 } }))
@@ -22,7 +24,7 @@ it('validates the Passkey session without exchanging machine credentials, and cl
 })
 
 it('returns to login after a revoked Passkey session and never falls back to token auth', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ token: 'session', user: { id: 1 } }) }).mockResolvedValue({ ok: false })
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ token: 'session', user: { id: 1 } }) }).mockResolvedValue({ ok: false, status: 401 })
     vi.stubGlobal('fetch', fetchMock)
     const source: AuthSource = { type: 'passkey', token: 'session' }
     const { result } = renderHook(() => useAuth(source, 'https://hapi.test'))

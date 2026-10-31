@@ -35,10 +35,12 @@ function getAuthPayload(source: AuthSource): { initData: string } | { accessToke
     return { accessToken: source.token }
 }
 
-async function authenticateSource(source: AuthSource, baseUrl: string): Promise<AuthResponse> {
+async function authenticateSource(source: AuthSource, baseUrl: string, currentToken?: string | null): Promise<AuthResponse> {
     if (source.type !== 'passkey') return new ApiClient('', { baseUrl }).authenticate(getAuthPayload(source))
-    const response = await fetch(`${baseUrl}/api/passkey/session`, { cache: 'no-store', headers: { Authorization: `Bearer ${source.token}` } })
-    if (!response.ok) throw new Error('登录已过期或已撤销，请重新使用 Passkey 登录。')
+    const response = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', headers: { Authorization: `Bearer ${currentToken ?? source.token}` } })
+    if (!response.ok) throw new ApiError(response.status === 401
+        ? '登录已过期或已撤销，请重新使用 Passkey 登录。'
+        : '认证服务暂时不可用，请稍后重试。', response.status)
     return response.json() as Promise<AuthResponse>
 }
 
@@ -109,7 +111,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             lastRefreshAttemptRef.current = now
 
             try {
-                const auth = await authenticateSource(currentSource, baseUrl)
+                const auth = await authenticateSource(currentSource, baseUrl, currentToken)
                 tokenRef.current = auth.token
                 setToken(auth.token)
                 setUser(auth.user)
@@ -126,7 +128,8 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
                     return null
                 }
                 const isExpired = expMs ? Date.now() >= expMs : false
-                if (options?.hardFail || isExpired || currentSource.type === 'passkey') {
+                const sessionRejected = error instanceof ApiError && error.status === 401
+                if (options?.hardFail || (currentSource.type === 'passkey' ? sessionRejected : isExpired)) {
                     tokenRef.current = null
                     setToken(null)
                     setUser(null)
@@ -277,12 +280,13 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             if (isCancelled) return
             const refreshed = await refreshAuth({ force: true })
             if (isCancelled) return
-            if (!refreshed && Date.now() < expMs) {
+            if (!refreshed && tokenRef.current) {
                 schedule(15_000)
             }
         }
 
-        schedule(expMs - (authSource.type === 'passkey' ? 0 : 60_000) - Date.now())
+        // Near the shared session's fixed expiry, renewal may return the same expiry.
+        schedule(Math.max(15_000, expMs - 60_000 - Date.now()))
 
         return () => {
             isCancelled = true
