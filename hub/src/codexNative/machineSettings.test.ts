@@ -96,6 +96,20 @@ test('invalid stored native machine config is explicit and never replaces enviro
     }
 })
 
+test('server settings preserve file access policy without exposing it in machine summaries', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'hapi-native-file-access-'))
+    try {
+        await writeFile(join(dataDir, 'settings.json'), JSON.stringify({ nativeCodexEndpoints: [{ id: 'host', namespace: 'owner', endpoint: 'unix:///daemon.sock', fileAccess: 'host' }] }))
+        const registry = new NativeRegistry([], undefined, { dataDir })
+        await registry.refresh()
+        const endpoint = registry.get('owner', 'host')!
+        expect(endpoint.config.fileAccess).toBe('host')
+        expect(registry.summary(endpoint.config)).not.toHaveProperty('fileAccess')
+    } finally {
+        await rm(dataDir, { recursive: true, force: true })
+    }
+})
+
 test('stalled earlier machines cannot starve a later healthy machine within the shared budget', async () => {
     const configs = Array.from({ length: 6 }, (_, index) => ({
         id: `machine-${index}`,

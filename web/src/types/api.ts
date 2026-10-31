@@ -91,6 +91,7 @@ export type {
 } from '@hapi/protocol/sessionExport'
 
 export type SessionMetadataSummary = {
+    nativeCodex?: NonNullable<Session['metadata']>['nativeCodex']
     path: string
     host: string
     version?: string

@@ -7,6 +7,7 @@ import { encodeBase64 } from '@/lib/utils'
 
 const mocks = vi.hoisted(() => ({
     navigate: vi.fn(),
+    metadata: undefined as undefined | { nativeCodex: { endpointId: string; threadId: string } },
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -14,7 +15,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 vi.mock('@/components/AssistantChat/context', () => ({
-    useOptionalHappyChatContext: () => ({ sessionId: 'session-1' }),
+    useOptionalHappyChatContext: () => ({ sessionId: 'session-1', metadata: mocks.metadata }),
 }))
 
 const AnchorComponent = (defaultComponents as Record<string, unknown>).a as React.ComponentType<
@@ -35,9 +36,23 @@ function renderFileAnchor(filePath: string) {
 
 beforeEach(() => {
     mocks.navigate.mockReset()
+    mocks.metadata = undefined
 })
 
 describe('chat file anchors', () => {
+    it('routes Windows archive candidates for Native aliases and preserves line locations', () => {
+        mocks.metadata = { nativeCodex: { endpointId: 'endpoint-1', threadId: 'thread-1' } }
+        const filePath = 'C:\\exports\\handoff.zip'
+        render(<I18nProvider><UriConfirmProvider>
+            <AnchorComponent href={`hapi-file-candidate:${encodeURIComponent(`${filePath}#L12`)}`}>Download</AnchorComponent>
+        </UriConfirmProvider></I18nProvider>)
+        const link = screen.getByRole('link', { name: 'Download' })
+        fireEvent.click(link)
+        expect(mocks.navigate).toHaveBeenCalledWith({
+            to: '/sessions/$sessionId/file', params: { sessionId: 'session-1' },
+            search: { path: encodeBase64(filePath), origin: 'chat', line: 12 }, resetScroll: false,
+        })
+    })
     it('marks file previews as originating from chat for deterministic back navigation', () => {
         const filePath = 'docs/guide.md'
         renderFileAnchor(filePath)

@@ -228,12 +228,11 @@ function rewriteFileLinkNode(node: MarkdownNode): void {
 
     const target = stripLineSuffix(withoutMeta)
 
-    // Absolute paths (POSIX or Windows) need chat workspace metadata for
-    // containment — leave POSIX for <A>; encode Windows as candidate so
+    // Absolute paths (POSIX or Windows) need the chat file policy —
+    // leave POSIX for <A>; encode Windows as candidate so
     // backslashes survive mdast→hast URI normalization.
     if (isWindowsAbsolutePath(target)) {
-        if (!hasKnownFileExtension(target)) return
-        node.url = createFileCandidateHref(target)
+        node.url = createFileCandidateHref(url)
         return
     }
     if (target.startsWith('/') && !target.startsWith('//')) return

@@ -537,7 +537,8 @@ function FilePathAnchor(props: ComponentPropsWithoutRef<'a'> & { filePath: strin
     const { filePath, sessionId, ...anchorProps } = props
     const navigate = useNavigate()
     const rel = anchorProps.target === '_blank' ? (anchorProps.rel ?? 'noreferrer') : anchorProps.rel
-    const location = parseFileReferenceLocation(typeof anchorProps.href === 'string' && !anchorProps.href.startsWith('hapi-file') ? anchorProps.href : filePath)
+    const sourceHref = typeof anchorProps.href === 'string' ? anchorProps.href : filePath
+    const location = parseFileReferenceLocation(decodeFilePathCandidateHref(sourceHref) ?? (sourceHref.startsWith('hapi-file') ? filePath : sourceHref))
     const search = new URLSearchParams({ path: encodeBase64(filePath), origin: 'chat', ...(location.line ? { line: String(location.line) } : {}) }).toString()
     const href = `/sessions/${encodeURIComponent(sessionId)}/file?${search}`
 
@@ -695,7 +696,7 @@ function A(props: ComponentPropsWithoutRef<'a'>) {
     if (windowsPathFromHref || (href && !hasScheme(href))) {
         const decision = classifyNoSchemeHref(windowsPathFromHref ?? href!, {
             workspacePath: chat?.metadata?.path ?? null,
-            nativeFiles: Boolean(chat && parseCodexNativeSessionId(chat.sessionId)),
+            nativeFiles: Boolean(chat && (parseCodexNativeSessionId(chat.sessionId) || chat.metadata?.nativeCodex)),
         })
         if (decision.action === 'file') {
             if (!chat) {

@@ -11,6 +11,7 @@ export type NativeEndpointConfig = NativeConfig & {
     source?: 'env' | 'settings'
     defaultCwd?: string
     allowedRoots?: string[]
+    fileAccess?: 'workspace' | 'host'
     legacyMachineIds?: string[]
     legacyHosts?: string[]
 }
@@ -24,6 +25,7 @@ const EndpointSchema = z.object({
     desktopHostId: z.string().optional(),
     defaultCwd: z.string().optional(),
     allowedRoots: z.array(z.string()).max(32).optional(),
+    fileAccess: z.enum(['workspace', 'host']).optional(),
     legacyMachineIds: z.array(z.string()).optional(),
     legacyHosts: z.array(z.string()).optional()
 })
@@ -44,6 +46,7 @@ export function configuredNativeEndpoints(): NativeEndpointConfig[] {
         id: 'default',
         label: 'Codex',
         defaultCwd: process.env.HAPI_CODEX_NATIVE_CWD,
+        fileAccess: z.enum(['workspace', 'host']).optional().parse(process.env.HAPI_CODEX_NATIVE_FILE_ACCESS),
         legacyMachineIds: process.env.HAPI_CODEX_NATIVE_LEGACY_MACHINE_IDS?.split(',').map(value => value.trim()).filter(Boolean),
         legacyHosts: process.env.HAPI_CODEX_NATIVE_LEGACY_HOSTS?.split(',').map(value => value.trim()).filter(Boolean)
     }] : []

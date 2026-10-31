@@ -2,7 +2,8 @@
  * Fail-closed policy for scheme-less markdown hrefs in chat.
  *
  * Product rule (#1452): never paint a clickable control that SPA-404s.
- * Prefer session file preview when the target looks like a workspace file;
+ * Prefer session file preview when the target looks like a workspace file
+ * (or an explicit host file in Native sessions);
  * known in-app routes stay navigable; everything else path-like is inert text.
  */
 
@@ -190,6 +191,21 @@ export function classifyNoSchemeHref(
     const path = stripLineSuffix(decodedPath)
     const workspacePath = options.workspacePath ?? null
 
+    // Explicit Native file links may refer to artifacts anywhere on the daemon
+    // host, including formats that the prose autolinker does not recognize.
+    if (options.nativeFiles && !path.includes('://')) {
+        if (isWindowsAbsolutePath(path) || path.startsWith('/')) {
+            return { action: 'file', path }
+        }
+        if (path.startsWith('~/')) {
+            const expanded = expandTildePath(path, workspacePath)
+            return expanded ? { action: 'file', path: expanded } : { action: 'inert' }
+        }
+        if (!path.includes(':') && (path.includes('/') || path.includes('\\') || /\.[^./\\]+$/.test(path))) {
+            return { action: 'file', path }
+        }
+    }
+
     if (isRepoRelativeCandidate(path)) {
         return { action: 'file', path }
     }
@@ -204,7 +220,6 @@ export function classifyNoSchemeHref(
     }
 
     if (path.startsWith('/') && hasKnownFileExtension(path)) {
-        if (options.nativeFiles) return { action: 'file', path }
         if (!workspacePath || !isWithinWorkspace(path, workspacePath)) {
             return { action: 'inert' }
         }

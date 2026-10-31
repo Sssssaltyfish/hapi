@@ -81,6 +81,27 @@ describe('expandTildePath', () => {
 describe('classifyNoSchemeHref — fail-closed (#1452)', () => {
     const workspace = '/home/ada/coding/hapi'
 
+    it.each([
+        ['C:/Users/Igna/codex-temp/handoff.zip', 'C:/Users/Igna/codex-temp/handoff.zip'],
+        ['D:\\exports\\handoff.zip#L12', 'D:\\exports\\handoff.zip'],
+        ['/tmp/handoff.sha256', '/tmp/handoff.sha256'],
+        ['/etc/hosts', '/etc/hosts'],
+        ['../exports/handoff.zip', '../exports/handoff.zip'],
+        ['./exports/README', './exports/README'],
+        ['handoff.zip', 'handoff.zip'],
+        ['../My%20Files/handoff.zip', '../My Files/handoff.zip'],
+    ])('opens Native file target %s without extension or workspace restrictions', (href, path) => {
+        expect(classifyNoSchemeHref(href, { nativeFiles: true, workspacePath: workspace })).toEqual({ action: 'file', path })
+    })
+
+    it('keeps Native app routes, web URLs and bare tokens out of file routing', () => {
+        expect(classifyNoSchemeHref('/settings', { nativeFiles: true })).toEqual({ action: 'navigate' })
+        expect(classifyNoSchemeHref('//example.com/a.zip', { nativeFiles: true })).toEqual({ action: 'navigate' })
+        expect(classifyNoSchemeHref('https://example.com/a.zip', { nativeFiles: true })).toEqual({ action: 'inert' })
+        expect(classifyNoSchemeHref('javascript:alert.zip', { nativeFiles: true })).toEqual({ action: 'inert' })
+        expect(classifyNoSchemeHref('hello', { nativeFiles: true })).toEqual({ action: 'inert' })
+    })
+
     it('keeps allowlisted relative file targets as file preview', () => {
         expect(classifyNoSchemeHref('docs/foo.md')).toEqual({
             action: 'file',

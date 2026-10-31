@@ -30,7 +30,8 @@ const endpointSchema = z.object({
     endpoint: nativeAddressSchema,
     displayName: nativeDisplayNameSchema.optional(),
     token: z.string().optional(),
-    defaultCwd: z.string().min(1).max(4096).optional()
+    defaultCwd: z.string().min(1).max(4096).optional(),
+    fileAccess: z.enum(['workspace', 'host']).optional()
 }).strict()
 const nameSchema = z.object({
     id: z.string(),
