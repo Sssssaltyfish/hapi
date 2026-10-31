@@ -130,6 +130,24 @@ describe('buildAgyHeadlessArgs', () => {
 });
 
 describe('AgyHeadlessDriver', () => {
+    it.each([true, false])('does not repeat aggregated replies after hook continuation (final DONE=%s)', async (done) => {
+        const { session, queue, sent } = createSession();
+        const lines = [
+            '{"event":"init","conversation_id":"conv-hooks"}',
+            '{"event":"step_update","step_update":{"conversation_id":"conv-hooks","step_index":0,"state":"DONE","step_type":"user_input"}}',
+            '{"event":"step_update","step_update":{"step_index":1,"state":"DONE","step_type":"agent_response","text_delta":"original\\n"}}',
+            '{"event":"step_update","step_update":{"step_index":2,"state":"DONE","step_type":"user_input"}}',
+            JSON.stringify({ event: 'step_update', step_update: { step_index: 3, state: done ? 'DONE' : 'ACTIVE', step_type: 'agent_response', text_delta: done ? 'steered\n' : 'steer' } }),
+            '{"event":"result","result":{"conversation_id":"conv-hooks","status":"SUCCESS","response":"original\\nsteered\\n"}}',
+        ];
+        const driver = new AgyHeadlessDriver({ session, spawnAgy: () => fakeAgyProcess(lines) });
+        queue.push('original', { permissionMode: 'request-review' }, 'original');
+        const running = driver.launch();
+        await vi.waitFor(() => expect(sent.length).toBe(2));
+        queue.close(); session.stopKeepAlive(); await running;
+        expect(sent.map(args => (args as any[])[0].content.trim())).toEqual(['original', 'steered']);
+    });
+
     it('maps a full NDJSON turn onto the transcript-entry channel and adopts the conversation id', async () => {
         const { session, queue, client, sent } = createSession();
         const driver = new AgyHeadlessDriver({

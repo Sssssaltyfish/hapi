@@ -109,9 +109,16 @@ export async function runAgy(opts: {
                 effort: sessionEffort,
             };
             messageQueue.push(formattedText, mode, localId);
+            if (message.meta?.deliveryMode === 'steer' && localId) {
+                void sessionWrapperRef.current?.steerQueuedMessage(localId).then((result: { steered: boolean; pending?: boolean; error?: string }) => {
+                    if (!result.steered && !result.pending) session.sendSessionEvent({ type: 'message', message: `AGY steer was not confirmed: ${result.error ?? 'Unavailable'}. Inspect the queue before retrying.` });
+                }).catch((error: unknown) => logger.debug('[agy] automatic steer was not confirmed', error));
+            }
         });
 
         session.onCancelQueuedMessage((localId) => {
+            const steering = sessionWrapperRef.current?.cancelSteeringDelivery?.(localId) ?? false;
+            if (steering !== false) return steering;
             // A batch held in the driver's retry backoff is outside MessageQueue2;
             // the driver-owned cancel handles it (returns true when removed).
             const retryRemoved = sessionWrapperRef.current?.cancelRetryDelivery?.(localId) ?? false;

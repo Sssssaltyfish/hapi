@@ -15,6 +15,7 @@ import { grokCommand } from './grok'
 import { opencodeCommand } from './opencode'
 import { piCommand } from './pi'
 import { hookForwarderCommand } from './hookForwarder'
+import { agyHookCommand } from './agyHook'
 import { mcpCommand } from './mcp'
 import { mcpProxyCommand } from './mcpProxy'
 import { notifyCommand } from './notify'
@@ -58,6 +59,7 @@ const COMMANDS: CommandDefinition[] = [
     hubCommand,
     { ...hubCommand, name: 'server' },
     hookForwarderCommand,
+    agyHookCommand,
     doctorCommand,
     resumeCommand,
     runnerCommand,
