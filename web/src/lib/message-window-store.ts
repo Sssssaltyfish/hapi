@@ -1211,6 +1211,11 @@ export function getMessageWindowState(sessionId: string): MessageWindowState {
     return getState(sessionId)
 }
 
+export function hasNewerMessagesOutsideWindow(sessionId: string): boolean {
+    const state = getState(sessionId)
+    return state.viewMode === 'history' && state.requiresLatestReset
+}
+
 export function subscribeMessageWindow(sessionId: string, listener: () => void): () => void {
     const subscribers = listeners.get(sessionId) ?? new Set()
     subscribers.add(listener)

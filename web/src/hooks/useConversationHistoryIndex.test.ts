@@ -34,15 +34,42 @@ describe('conversation prompt history index', () => {
     })
 
     it('does not scan an unbounded history when a page contains no user prompt', async () => {
-        const getCodexNativeItems = vi.fn().mockResolvedValue({ data: [], nextCursor: 'still-older' })
+        let page = 0
+        const getCodexNativeItems = vi.fn(async () => ({ data: [], nextCursor: `opaque-older-${++page}` }))
         const nativeSession = session('outline-empty-page')
         const { result, unmount } = renderHook(() => useConversationHistoryIndex({
             api: { getCodexNativeItems } as unknown as ApiClient,
             session: nativeSession, open: true, currentItems: empty, messagesVersion: 0,
         }))
         await waitFor(() => expect(result.current.loading).toBe(false))
-        expect(getCodexNativeItems).toHaveBeenCalledTimes(1)
+        expect(getCodexNativeItems).toHaveBeenCalledTimes(8)
+        expect(result.current.scannedPages).toBe(8)
         expect(result.current.hasEarlier).toBe(true)
+        unmount()
+    })
+
+    it('keeps loading across empty tool pages and a live invalidation until the refreshed index commits', async () => {
+        let resolveStale!: (page: unknown) => void
+        let resolveFresh!: (page: unknown) => void
+        const getCodexNativeItems = vi.fn()
+            .mockReturnValueOnce(new Promise(resolve => { resolveStale = resolve }))
+            .mockReturnValueOnce(new Promise(resolve => { resolveFresh = resolve }))
+            .mockResolvedValueOnce({ data: [user('earlier', 'Earlier prompt')], nextCursor: null })
+        const nativeSession = session('outline-loading-rebase')
+        const api = { getCodexNativeItems } as unknown as ApiClient
+        const { result, rerender, unmount } = renderHook(({ items, version }) => useConversationHistoryIndex({
+            api, session: nativeSession, open: true, currentItems: items, messagesVersion: version,
+        }), { initialProps: { items: empty, version: 0 } })
+        await waitFor(() => expect(result.current.loading).toBe(true))
+        rerender({ items: [outline('live')], version: 1 })
+        expect(result.current.loading).toBe(true)
+        await act(async () => { resolveStale({ data: [], nextCursor: 'obsolete-cursor' }) })
+        expect(result.current.loading).toBe(true)
+        expect(getCodexNativeItems).toHaveBeenNthCalledWith(2, nativeSession.id, undefined)
+        await act(async () => { resolveFresh({ data: [], nextCursor: 'opaque-tools-before-prompt' }) })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        expect(result.current.items.map(item => item.label)).toContain('Earlier prompt')
+        expect(getCodexNativeItems).toHaveBeenLastCalledWith(nativeSession.id, 'opaque-tools-before-prompt')
         unmount()
     })
 

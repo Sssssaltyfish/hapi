@@ -38,6 +38,7 @@ import { useTransientScrollbar } from '@/hooks/useTransientScrollbar'
 import { queryKeys } from '@/lib/query-keys'
 import { matchesSearchQuery } from '@hapi/protocol'
 import { getConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
+import { revealConversationMessage } from '@/lib/revealConversationMessage'
 
 type ScrollAnchor = {
     id: string
@@ -374,6 +375,7 @@ export function ConversationOutlinePanel(props: {
     onClose: () => void
     error?: string | null
     capped?: boolean
+    scannedPages?: number
 }) {
     const { t, locale } = useTranslation()
     const [searchQuery, setSearchQuery] = useState('')
@@ -421,7 +423,7 @@ export function ConversationOutlinePanel(props: {
                             className="h-9 w-full rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] py-2 pl-9 pr-3 text-sm text-[var(--app-fg)] outline-none placeholder:text-[var(--app-hint)] focus:border-[var(--app-link)] focus:ring-1 focus:ring-[var(--app-link)]"
                         />
                     </div>
-                    {props.hasMoreMessages ? (
+                    {props.hasMoreMessages || props.isLoadingMoreMessages ? (
                         <Button
                             variant="outline"
                             onClick={props.onLoadMore}
@@ -460,6 +462,7 @@ export function ConversationOutlinePanel(props: {
             </div>
 
             <div className="border-b border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-hint)]" role="status">
+                {props.isLoadingMoreMessages ? <div>{t('misc.loadingMessages')}</div> : props.scannedPages ? <div>{t('session.outline.indexedPages', { n: props.scannedPages })}</div> : null}
                 {props.error || t(props.capped ? 'session.outline.indexLimit' : props.hasMoreMessages ? 'session.outline.partialIndex' : 'session.outline.indexComplete')}
             </div>
             <div className="app-scroll-y min-h-0 flex-1 p-2">
@@ -523,6 +526,7 @@ export function HappyThread(props: {
     isSyncingTail: boolean
     messagesWarning: string | null
     hasMoreMessages: boolean
+    hasNewerMessages?: boolean
     isLoadingMoreMessages: boolean
     onLoadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     onCancelLoadMore: () => void
@@ -540,6 +544,7 @@ export function HappyThread(props: {
     outlineLoading?: boolean
     outlineError?: string | null
     outlineCapped?: boolean
+    outlineScannedPages?: number
     onLoadEarlierOutline?: () => Promise<void>
     onLocateOutlineItem?: (item: ConversationOutlineItem, isCurrent?: () => boolean) => Promise<boolean>
 }) {
@@ -610,6 +615,8 @@ export function HappyThread(props: {
     const contentRef = useRef<HTMLDivElement | null>(null)
     const [pullToLoadState, setPullToLoadState] = useState<PullToLoadState>('idle')
     const [showScrollToBottom, setShowScrollToBottom] = useState(false)
+    const [outlineNavigating, setOutlineNavigating] = useState(false)
+    const [outlineNavigationError, setOutlineNavigationError] = useState<string | null>(null)
     const pullToLoadStateRef = useRef<PullToLoadState>('idle')
     const shareTurnIdRef = useRef(0)
     const topSentinelRef = useRef<HTMLDivElement | null>(null)
@@ -669,6 +676,11 @@ export function HappyThread(props: {
     const pendingReadingPositionRef = useRef(getConversationReadingPosition(props.sessionId))
     const outlineNavigationRef = useRef(0)
     const outlineSeekPendingRef = useRef(false)
+    const closingOutlineNavigationRef = useRef<number | null>(null)
+    const outlineOpenRef = useRef(props.outlineOpen)
+    outlineOpenRef.current = props.outlineOpen
+    const hasNewerMessagesRef = useRef(Boolean(props.hasNewerMessages))
+    hasNewerMessagesRef.current = Boolean(props.hasNewerMessages)
 
     // Smart scroll state: enabled only while the user is intentionally at the bottom.
     const autoScrollEnabledRef = useRef(true)
@@ -889,7 +901,19 @@ export function HappyThread(props: {
             }
 
             if (intent.isNearBottom) {
+                if (tailScrollInProgressRef.current && hasNewerMessagesRef.current) {
+                    // The explicit Latest action is still fetching a new window;
+                    // this is only the end of the previous history page.
+                    setShowScrollToBottom(false)
+                    return
+                }
                 tailScrollInProgressRef.current = false
+                if (hasNewerMessagesRef.current || outlineSeekPendingRef.current) {
+                    setShowScrollToBottom(true)
+                    setAutoScrollMode(false)
+                    setAtBottomMode(false)
+                    return
+                }
                 setShowScrollToBottom(false)
                 setAutoScrollMode(true)
                 setAtBottomMode(true)
@@ -1167,6 +1191,9 @@ export function HappyThread(props: {
     const scrollToBottom = useCallback(() => {
         outlineNavigationRef.current += 1
         stopHistoryForNavigation()
+        outlineSeekPendingRef.current = false
+        closingOutlineNavigationRef.current = null
+        setOutlineNavigating(false)
         pendingReadingPositionRef.current = null
         const viewport = viewportRef.current
         setShowScrollToBottom(false)
@@ -1563,36 +1590,54 @@ export function HappyThread(props: {
         clearInitialScrollTimers()
         stopHistoryForNavigation()
         autoScrollEnabledRef.current = false
+        tailScrollInProgressRef.current = false
         atBottomRef.current = false
         onViewModeChangeRef.current('history')
-        let target = findTarget()
-        if (!target && props.onLocateOutlineItem) {
-            outlineSeekPendingRef.current = true
-            const loaded = await props.onLocateOutlineItem(item, isCurrent)
-            if (isCurrent()) outlineSeekPendingRef.current = false
-            if (!loaded || !isCurrent()) return
-            // Runtime messages publish in a following effect. Wait only for this
-            // selected page; never load intervening transcript pages to find it.
-            const deadline = Date.now() + 2000
-            while (!target && isCurrent() && Date.now() < deadline) {
-                await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
-                target = findTarget()
+        outlineSeekPendingRef.current = true
+        closingOutlineNavigationRef.current = null
+        setOutlineNavigating(true)
+        setOutlineNavigationError(null)
+        try {
+            if (!findTarget() && (!props.onLocateOutlineItem || !await props.onLocateOutlineItem(item, isCurrent))) return
+            if (!isCurrent()) return
+            const target = await revealConversationMessage({ targetMessageId: item.targetMessageId, viewport: () => viewportRef.current, isCurrent })
+            if (!isCurrent()) return
+            if (!target) { setOutlineNavigationError(t('session.outline.locateFailed')); return }
+            // Closing a mobile outline restores the composer and changes the
+            // chat height. Confirm visibility again in that final layout.
+            closingOutlineNavigationRef.current = runId
+            props.onOutlineOpenChange(false)
+            const visible = await revealConversationMessage({
+                targetMessageId: item.targetMessageId,
+                viewport: () => viewportRef.current,
+                isCurrent,
+                ready: () => !outlineOpenRef.current,
+            })
+            if (visible && isCurrent()) {
+                setShowScrollToBottom(true)
+                lastScrollTopRef.current = viewportRef.current?.scrollTop ?? 0
+                props.onOutlineItemClick?.(item)
+            } else if (isCurrent()) {
+                setOutlineNavigationError(t('session.outline.locateFailed'))
+                props.onOutlineOpenChange(true)
+            }
+        } catch (error) {
+            if (isCurrent()) setOutlineNavigationError(error instanceof Error ? error.message : String(error))
+        } finally {
+            if (isCurrent()) {
+                outlineSeekPendingRef.current = false
+                closingOutlineNavigationRef.current = null
+                setOutlineNavigating(false)
             }
         }
-        if (!isCurrent()) return
-        if (target) {
-            target.scrollIntoView({ block: 'start', behavior: 'smooth' })
-            autoScrollEnabledRef.current = false
-            setShowScrollToBottom(true)
-            props.onOutlineItemClick?.(item)
-            props.onOutlineOpenChange(false)
-        }
-    }, [clearInitialScrollTimers, stopHistoryForNavigation, props.sessionId, props.onLocateOutlineItem, props.onOutlineItemClick, props.onOutlineOpenChange])
+    }, [clearInitialScrollTimers, stopHistoryForNavigation, props.sessionId, props.onLocateOutlineItem, props.onOutlineItemClick, props.onOutlineOpenChange, t])
 
     useEffect(() => {
         if (!props.outlineOpen) {
+            if (closingOutlineNavigationRef.current === outlineNavigationRef.current) return
             outlineNavigationRef.current += 1
             if (outlineSeekPendingRef.current) { outlineSeekPendingRef.current = false; stopHistoryForNavigation() }
+            setOutlineNavigating(false)
         }
     }, [props.outlineOpen, stopHistoryForNavigation])
 
@@ -1811,18 +1856,18 @@ export function HappyThread(props: {
         }}>
             <ThreadPrimitive.Root className="flex min-h-0 flex-1 flex-col relative">
                 {!props.isSyncingTail && (
-                    props.isLoadingMoreMessages || pullToLoadState !== 'idle'
+                    props.isLoadingMoreMessages || outlineNavigating || pullToLoadState !== 'idle'
                 ) ? (
                     <div
                         role="status"
                         aria-live="polite"
                         className="pointer-events-none absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--app-border)] bg-[var(--app-bg)]/90 px-2.5 py-1 text-xs text-[var(--app-hint)] shadow-sm backdrop-blur"
                     >
-                        {props.isLoadingMoreMessages ? (
+                        {props.isLoadingMoreMessages || outlineNavigating ? (
                             <Spinner size="sm" label={null} className="text-current" />
                         ) : null}
                         <span>
-                            {props.isLoadingMoreMessages
+                            {props.isLoadingMoreMessages || outlineNavigating
                                 ? t('misc.loading')
                                 : pullToLoadState === 'ready'
                                     ? t('misc.releaseToLoadOlder')
@@ -1883,9 +1928,10 @@ export function HappyThread(props: {
                         <ConversationOutlinePanel
                             items={props.outlineItems}
                             hasMoreMessages={props.outlineHasEarlier ?? props.hasMoreMessages}
-                            isLoadingMoreMessages={props.outlineLoading ?? props.isLoadingMoreMessages}
-                            error={props.outlineError}
+                            isLoadingMoreMessages={Boolean(props.outlineLoading ?? props.isLoadingMoreMessages) || outlineNavigating}
+                            error={outlineNavigationError || props.outlineError}
                             capped={props.outlineCapped}
+                            scannedPages={props.outlineScannedPages}
                             onLoadMore={() => {
                                 if (props.onLoadEarlierOutline) void props.onLoadEarlierOutline()
                                 else void loadOlderFromConsumer()

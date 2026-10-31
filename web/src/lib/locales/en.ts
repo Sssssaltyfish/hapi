@@ -288,6 +288,8 @@ export default {
   'session.outline.searchLabel': 'Search outline items',
   'session.outline.searchResults': '{matched} of {total} items',
   'session.outline.noSearchResults': 'No matching outline items',
+  'session.outline.locateFailed': 'The message could not be displayed. Please select it again to retry.',
+  'session.outline.indexedPages': 'Checked {n} history pages. Continue loading earlier pages if the prompt is still outside this index.',
   'session.outline.partialIndex': 'Search covers indexed prompts. Use ↑ to index an earlier page without loading it into the conversation.',
   'session.outline.indexComplete': 'All history pages have been indexed.',
   'session.outline.indexLimit': 'Search covers a bounded cache of prompt previews. When ↑ is available, continue to earlier pages; previous cache entries are replaced.',

@@ -281,6 +281,8 @@ export default {
   'session.outline.searchLabel': 'Поиск элементов плана',
   'session.outline.searchResults': '{matched} из {total} элементов',
   'session.outline.noSearchResults': 'Нет подходящих элементов плана',
+  'session.outline.locateFailed': 'Не удалось отобразить сообщение. Выберите его ещё раз.',
+  'session.outline.indexedPages': 'Проверено страниц истории: {n}. Продолжите загрузку, если нужный запрос ещё не найден.',
   'session.outline.partialIndex': 'Поиск по индексированным запросам. Нажмите ↑, чтобы добавить более раннюю страницу без загрузки диалога.',
   'session.outline.indexComplete': 'Все страницы истории проиндексированы.',
   'session.outline.indexLimit': 'Поиск по ограниченному кешу запросов. Если доступна ↑, можно искать более ранние страницы; прежние записи кеша заменяются.',

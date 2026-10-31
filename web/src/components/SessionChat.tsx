@@ -62,7 +62,7 @@ import {
 import type { MessageDeliveryMode } from '@hapi/protocol'
 import { isSteeringSupportedForSession } from '@hapi/protocol'
 import { createAttachmentAdapter } from '@/lib/attachmentAdapter'
-import { rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
+import { hasNewerMessagesOutsideWindow, rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
 import { ShareSeedConsumer } from '@/components/ShareSeedConsumer'
 import {
     createScratchlistAttachmentAdapter,
@@ -574,6 +574,7 @@ type SessionChatProps = {
     messages: DecryptedMessage[]
     messagesWarning: string | null
     hasMoreMessages: boolean
+    hasNewerMessages?: boolean
     isSyncingTail: boolean
     isLoadingMoreMessages: boolean
     isSending: boolean
@@ -2015,6 +2016,7 @@ function SessionChatInner(props: SessionChatProps) {
                         isSyncingTail={props.isSyncingTail}
                         messagesWarning={props.messagesWarning}
                         hasMoreMessages={props.hasMoreMessages}
+                        hasNewerMessages={props.hasNewerMessages ?? hasNewerMessagesOutsideWindow(props.session.id)}
                         isLoadingMoreMessages={props.isLoadingMoreMessages}
                         onLoadMore={props.onLoadMore}
                         onCancelLoadMore={props.onCancelLoadMore}
@@ -2030,6 +2032,7 @@ function SessionChatInner(props: SessionChatProps) {
                         outlineLoading={historyIndex.loading}
                         outlineError={historyIndex.error}
                         outlineCapped={historyIndex.capped}
+                        outlineScannedPages={historyIndex.scannedPages}
                         onLoadEarlierOutline={historyIndex.loadEarlier}
                         onLocateOutlineItem={historyIndex.locate}
                         onOutlineOpenChange={setOutlineOpen}

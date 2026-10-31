@@ -32,6 +32,7 @@ import { HappyThread } from '@/components/AssistantChat/HappyThread'
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
 import { clearConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
+import type { ConversationOutlineItem } from '@/chat/outline'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -48,10 +49,16 @@ class TestResizeObserver {
     disconnect() {}
 }
 
-function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
+function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessages = false, outline: {
+    item?: ConversationOutlineItem
+    locate?: () => Promise<boolean>
+    onOpenChange?: (open: boolean) => void
+} = {}) {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } }
     })
+    let outlineOpen = Boolean(outline.item)
+    let result: ReturnType<typeof render>
     const renderHappyThread = (forceScrollToken: number, messagesVersion = 1) => (
         <QueryClientProvider client={queryClient}>
             <I18nProvider>
@@ -66,6 +73,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
                     isSyncingTail={false}
                     messagesWarning={null}
                     hasMoreMessages={false}
+                    hasNewerMessages={hasNewerMessages}
                     isLoadingMoreMessages={false}
                     onLoadMore={vi.fn().mockResolvedValue({ status: 'exhausted' })}
                     onCancelLoadMore={vi.fn()}
@@ -75,14 +83,19 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
                     messagesVersion={messagesVersion}
                     historyVersion={0}
                     forceScrollToken={forceScrollToken}
-                    outlineOpen={false}
-                    outlineItems={[]}
-                    onOutlineOpenChange={vi.fn()}
+                    outlineOpen={outlineOpen}
+                    outlineItems={outline.item ? [outline.item] : []}
+                    onLocateOutlineItem={outline.locate}
+                    onOutlineOpenChange={open => {
+                        outlineOpen = open
+                        outline.onOpenChange?.(open)
+                        result.rerender(renderHappyThread(forceScrollToken, messagesVersion))
+                    }}
                 />
             </I18nProvider>
         </QueryClientProvider>
     )
-    const result = render(renderHappyThread(0))
+    result = render(renderHappyThread(0))
     const viewport = result.container.querySelector<HTMLElement>('.chat-scroll-y')
     if (!viewport) {
         throw new Error('Chat viewport was not rendered')
@@ -144,6 +157,53 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('keeps navigation loading through delayed DOM mounting and reveals a page-end prompt after the composer returns', async () => {
+        let height = 500
+        const item: ConversationOutlineItem = { id: 'outline:user-text:native:page-end', targetMessageId: 'user-text:native:page-end', kind: 'user', label: 'Historical page-end prompt', createdAt: 1000 }
+        const { container, viewport, onViewModeChange } = renderThread(vi.fn(), 0, true, {
+            item, locate: vi.fn(async () => true), onOpenChange: open => { if (!open) height = 200 },
+        })
+        Object.defineProperties(viewport, {
+            scrollHeight: { configurable: true, value: 700 },
+            clientHeight: { configurable: true, get: () => height },
+        })
+        vi.spyOn(viewport, 'getBoundingClientRect').mockImplementation(() => ({ top: 0, bottom: height, height } as DOMRect))
+        await act(async () => { vi.advanceTimersByTime(2000) })
+        onViewModeChange.mockClear()
+        await act(async () => { fireEvent.click(container.querySelector('aside button.group')!) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+        expect(container.querySelector('aside button[aria-busy="true"]')).not.toBeNull()
+        expect(container.querySelector('aside')).not.toBeNull()
+        const target = document.createElement('div')
+        target.id = 'hapi-message-user-text:native:page-end'
+        vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => ({ top: 650 - viewport.scrollTop, bottom: 690 - viewport.scrollTop, height: 40 } as DOMRect))
+        container.querySelector('.happy-thread-messages')!.append(target)
+        await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+        expect(container.querySelector('aside')).toBeNull()
+        expect(container.querySelector('[role="status"].pointer-events-none')).not.toBeNull()
+        await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+        expect(target.getBoundingClientRect().top).toBeLessThan(height)
+        expect(target.getBoundingClientRect().bottom).toBeGreaterThan(0)
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).not.toHaveBeenCalledWith('tail')
+    })
+
+    it('does not replace an older window with latest when a historical page-end prompt reaches its bottom', () => {
+        const { viewport, onViewModeChange, container } = renderThread(vi.fn(), 0, true)
+        act(() => { vi.advanceTimersByTime(2000) })
+        onViewModeChange.mockClear()
+        viewport.scrollTop = 702
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).not.toHaveBeenCalledWith('tail')
+        expect(onViewModeChange).toHaveBeenCalledWith('history')
+        expect(container.querySelector('button[aria-label="Scroll to bottom"]')).not.toBeNull()
+        onViewModeChange.mockClear()
+        fireEvent.click(container.querySelector('button[aria-label="Scroll to bottom"]')!)
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).toHaveBeenCalledWith('tail')
+        expect(onViewModeChange).not.toHaveBeenCalledWith('history')
+    })
+
     it('restores a reading anchor after returning from a preview without settling back to the bottom', () => {
         saveConversationReadingPosition('mobile-scroll-session', {
             anchor: { id: 'restored-message', topOffset: 20 }, scrollTop: 300, atBottom: false,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { DecryptedMessage, Session } from '@/types/api'
 import { buildConversationOutline, type ConversationHistoryPage, type ConversationOutlineItem } from '@/chat/outline'
@@ -55,16 +55,27 @@ export function useConversationHistoryIndex(options: {
         cacheRef.current = cached
     }
     const [, render] = useState(0)
-    const [loading, setLoading] = useState(false)
+    const [pageLoading, setPageLoading] = useState(false)
+    const [locating, setLocating] = useState(false)
+    const [scannedPages, setScannedPages] = useState(0)
     const [error, setError] = useState<string | null>(null)
     const requestRef = useRef<symbol | null>(null)
     const locateRequestRef = useRef<symbol | null>(null)
+    const pageLoadingTokenRef = useRef<symbol | null>(null)
+    const pendingPageCommitRef = useRef<symbol | null>(null)
     const observedVersion = useRef(messagesVersion)
     const alive = useRef(true)
     useEffect(() => {
         alive.current = true
         return () => { alive.current = false; requestRef.current = null }
     }, [])
+    useLayoutEffect(() => {
+        const pending = pendingPageCommitRef.current
+        if (pending && pending === pageLoadingTokenRef.current && requestRef.current === null) {
+            pendingPageCommitRef.current = null
+            setPageLoading(false)
+        }
+    })
 
     const invalidateHead = useCallback(() => {
         const cache = cacheRef.current!
@@ -77,8 +88,8 @@ export function useConversationHistoryIndex(options: {
         // repeatedly restart an automatic scan while someone searches history.
         cache.initialized = true
         cache.updatedAt = Date.now()
-        requestRef.current = null
-        setLoading(false)
+        // An in-flight user operation rebases onto this head after its current
+        // response. It retains ownership of the loading indicator throughout.
         render(value => value + 1)
     }, [Boolean(native)])
 
@@ -111,62 +122,80 @@ export function useConversationHistoryIndex(options: {
         const epoch = getMessageWindowState(session.id).epoch
         const cache = cacheRef.current!
         if (cache.epoch !== null && epoch !== null && epoch !== cache.epoch) {
-            Object.assign(cache, newCache(false))
-            requestRef.current = null
-            setLoading(false)
+            Object.assign(cache, newCache(false), { generation: cache.generation + 1, initialized: true })
             render(value => value + 1)
         }
     }, [native, session.id, messagesVersion])
 
-    const loadEarlier = useCallback(async () => {
+    const loadEarlier = useCallback(async (pageBudget = 8) => {
         const cache = cacheRef.current!
         if (requestRef.current || !cache.next) return
         const token = Symbol('outline-page')
-        const generation = cache.generation
         requestRef.current = token
-        setLoading(true)
+        pageLoadingTokenRef.current = token
+        pendingPageCommitRef.current = null
+        setPageLoading(true)
+        setScannedPages(0)
         setError(null)
-        const locator = cache.next
+        let published = false
+        let failed = false
         try {
-            let messages: DecryptedMessage[]
-            let next: ConversationHistoryPage | null
-            let epoch = cache.epoch
-            if (locator.kind === 'native' && native) {
-                const page = await api.getCodexNativeItems(native.threadId, locator.cursor ?? undefined)
-                messages = projectNativeItems([...page.data].reverse(), [], false).messages
-                if (page.nextCursor !== null && page.nextCursor === locator.cursor) throw new Error('History cursor did not advance')
-                next = page.nextCursor ? { kind: 'native', cursor: page.nextCursor } : null
-            } else if (locator.kind === 'runner') {
-                const page = await api.getMessages(session.id, { beforeAt: locator.beforeAt, beforeSeq: locator.beforeSeq, limit: 200 })
-                messages = page.messages
-                if (locator.epoch !== null && locator.epoch !== page.page.epoch) {
-                    if (alive.current && requestRef.current === token) Object.assign(cache, newCache(false))
-                    throw new Error('Conversation history changed. Load the outline again to refresh.')
-                }
-                epoch = page.page.epoch
-                next = page.page.hasMore && page.page.nextBeforeAt !== null && page.page.nextBeforeSeq !== null
-                    ? { kind: 'runner', beforeAt: page.page.nextBeforeAt, beforeSeq: page.page.nextBeforeSeq, epoch: page.page.epoch }
-                    : null
-                if (next?.kind === 'runner' && next.beforeAt === locator.beforeAt && next.beforeSeq === locator.beforeSeq) throw new Error('History cursor did not advance')
-            } else return
-            if (!alive.current || requestRef.current !== token || cache.generation !== generation) return
-            cache.epoch = epoch
-            const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-            const stableLocator = locator.kind === 'runner' ? { ...locator, epoch: cache.epoch } : locator
-            const items = buildConversationOutline(reduceChatBlocks(normalized, null).blocks).map(item => ({ ...item, historyPage: stableLocator }))
-            const merged = new Map([...cache.items, ...items].map(item => [item.id, item]))
-            // Retain the most recently scanned entries when this bounded cache fills.
-            cache.items = [...merged.values()].slice(-MAX_INDEX_ITEMS)
-            cache.next = next
-            cache.initialized = true
-            cache.updatedAt = Date.now()
-            render(value => value + 1)
+            for (let scanned = 0; scanned < pageBudget && cache.next; scanned++) {
+                const locator: ConversationHistoryPage = cache.next
+                const generation = cache.generation
+                let messages: DecryptedMessage[]
+                let next: ConversationHistoryPage | null
+                let epoch = cache.epoch
+                if (locator.kind === 'native' && native) {
+                    const page = await api.getCodexNativeItems(native.threadId, locator.cursor ?? undefined)
+                    messages = projectNativeItems([...page.data].reverse(), [], false).messages
+                    if (page.nextCursor !== null && page.nextCursor === locator.cursor) throw new Error('History cursor did not advance')
+                    next = page.nextCursor ? { kind: 'native', cursor: page.nextCursor } : null
+                } else if (locator.kind === 'runner') {
+                    const page = await api.getMessages(session.id, { beforeAt: locator.beforeAt, beforeSeq: locator.beforeSeq, limit: 200 })
+                    messages = page.messages
+                    if (locator.epoch !== null && locator.epoch !== page.page.epoch) {
+                        if (alive.current && requestRef.current === token) Object.assign(cache, newCache(false))
+                        throw new Error('Conversation history changed. Load the outline again to refresh.')
+                    }
+                    epoch = page.page.epoch
+                    next = page.page.hasMore && page.page.nextBeforeAt !== null && page.page.nextBeforeSeq !== null
+                        ? { kind: 'runner', beforeAt: page.page.nextBeforeAt, beforeSeq: page.page.nextBeforeSeq, epoch: page.page.epoch }
+                        : null
+                    if (next?.kind === 'runner' && next.beforeAt === locator.beforeAt && next.beforeSeq === locator.beforeSeq) throw new Error('History cursor did not advance')
+                } else return
+                if (!alive.current || requestRef.current !== token) return
+                setScannedPages(scanned + 1)
+                if (cache.generation !== generation) continue
+                cache.epoch = epoch
+                const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+                const stableLocator = locator.kind === 'runner' ? { ...locator, epoch: cache.epoch } : locator
+                const items = buildConversationOutline(reduceChatBlocks(normalized, null).blocks).map(item => ({ ...item, historyPage: stableLocator }))
+                const known = new Map(cache.items.map(item => [item.id, item]))
+                const added = items.some(item => !known.has(item.id) || known.get(item.id)?.label !== item.label)
+                const merged = new Map([...cache.items, ...items].map(item => [item.id, item]))
+                cache.items = [...merged.values()].slice(-MAX_INDEX_ITEMS)
+                cache.next = next
+                cache.initialized = true
+                cache.updatedAt = Date.now()
+                published = true
+                render(value => value + 1)
+                // Native pages often contain only tools. Continue to an actual
+                // prompt update, with a fixed per-click request budget.
+                if (added || next === null) break
+            }
+            if (!published) {
+                failed = true
+                if (alive.current && requestRef.current === token) setError('Conversation history changed while loading. Please retry.')
+            }
         } catch (error) {
+            failed = true
             if (alive.current && requestRef.current === token) setError(String(error))
         } finally {
             if (alive.current && requestRef.current === token) {
                 requestRef.current = null
-                setLoading(false)
+                if (published && !failed) { pendingPageCommitRef.current = token; render(value => value + 1) }
+                else setPageLoading(false)
             }
         }
     }, [api, native?.threadId, session.id])
@@ -179,7 +208,7 @@ export function useConversationHistoryIndex(options: {
         const request = Symbol('outline-locate')
         locateRequestRef.current = request
         setError(null)
-        setLoading(true)
+        setLocating(true)
         const current = () => alive.current && isCurrent() && locateRequestRef.current === request
         const seek = (candidate: ConversationOutlineItem) => candidate.historyPage?.kind === 'native'
             ? onLocateNativePage?.(candidate.historyPage.cursor, candidate.targetMessageId) ?? Promise.resolve(false)
@@ -197,10 +226,9 @@ export function useConversationHistoryIndex(options: {
             for (let page = 0; page < 3 && current() && cacheRef.current!.next; page++) {
                 const beforeItems = cacheRef.current!.items
                 const beforeNext = cacheRef.current!.next
-                await loadEarlier()
+                await loadEarlier(1)
                 if (!current()) return false
                 candidate = cacheRef.current!.items.find(value => value.id === item.id) ?? { ...item, historyPage: undefined }
-                setLoading(true)
                 if (candidate.historyPage && await seek(candidate)) return current()
                 if (beforeItems === cacheRef.current!.items && beforeNext === cacheRef.current!.next) break
             }
@@ -212,7 +240,7 @@ export function useConversationHistoryIndex(options: {
             if (current()) { invalidateHead(); setError(String(error)) }
             return false
         } finally {
-            if (alive.current && locateRequestRef.current === request) { locateRequestRef.current = null; setLoading(false) }
+            if (alive.current && locateRequestRef.current === request) { locateRequestRef.current = null; setLocating(false) }
         }
     }, [api, onLocateNativePage, session.id, invalidateHead, loadEarlier])
     const cache = cacheRef.current
@@ -222,5 +250,5 @@ export function useConversationHistoryIndex(options: {
         for (const item of cache.items) if (merged.has(item.id)) merged.set(item.id, { ...merged.get(item.id)!, historyPage: item.historyPage })
         return [...merged.values()].sort((a, b) => a.createdAt - b.createdAt)
     }, [cache.items, currentItems])
-    return { items, hasEarlier: Boolean(cache.next), loading, error, loadEarlier, locate, capped: cache.items.length >= MAX_INDEX_ITEMS }
+    return { items, hasEarlier: Boolean(cache.next), loading: pageLoading || locating, error, scannedPages, loadEarlier, locate, capped: cache.items.length >= MAX_INDEX_ITEMS }
 }

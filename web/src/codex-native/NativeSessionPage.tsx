@@ -162,6 +162,7 @@ function NativeSessionChat({
             messages={projected.messages}
             messagesWarning={settingsError || (native.error ?? thread.error) || null}
             hasMoreMessages={Boolean(thread.cursor)}
+            hasNewerMessages={thread.hasNewer}
             isSyncingTail={thread.loading}
             isLoadingMoreMessages={thread.olderLoading}
             isSending={sending}
