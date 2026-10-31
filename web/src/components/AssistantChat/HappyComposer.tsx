@@ -2318,6 +2318,10 @@ export function HappyComposer(props: {
                         }`}>
                             {annotationDraft.annotations.length > 0 ? <div className="px-4 pt-3">
                                 <ResponseAnnotationCards annotations={annotationDraft.annotations}
+                                    onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
+                                        handleUserEdit()
+                                        annotationDraft.setAnnotation(index, annotation)
+                                    }}
                                     onRemove={controlsDisabled ? undefined : (index) => {
                                         handleUserEdit()
                                         annotationDraft.remove(index)

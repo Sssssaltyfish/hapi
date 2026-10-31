@@ -54,6 +54,8 @@ export default {
   'message.copy': '复制',
   'message.quoteSelection': '引用所选文字',
   'message.removeQuote': '移除引用',
+  'message.quoteNotes': '引用 {index} 的备注',
+  'message.quoteNotesPlaceholder': '为这段引用添加评论或问题…',
   'message.copied': '已复制',
   'message.info': '消息详情',
   'message.fork': '分叉',

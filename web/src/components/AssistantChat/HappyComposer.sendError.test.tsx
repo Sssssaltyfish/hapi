@@ -311,7 +311,7 @@ function setError(controls: { current: HarnessControls | null }, error: Composer
 }
 
 function input(): HTMLTextAreaElement {
-    return screen.getByRole('textbox') as HTMLTextAreaElement
+    return screen.getByRole('textbox', { name: '' }) as HTMLTextAreaElement
 }
 
 describe('HappyComposer send-error atomic restore', () => {
@@ -320,21 +320,25 @@ describe('HappyComposer send-error atomic restore', () => {
         runtime.setSnapshot = null
     })
 
-    it('renders clean annotation drafts and sends, restores and removes the original quoted context', () => {
+    it('edits individual quote notes and preserves them with native sources through send failure and removal', () => {
         const annotations = [{ text: 'Quoted native response', source: { messageId: 'native-item', startOffset: 3, endOffset: 25 } }]
         const raw = serializeResponseAnnotations('Explain this', annotations)
         const controls = renderComposer(raw, null)
         expect(input().value).toBe('Explain this')
         expect(screen.getByText('Quoted native response')).toBeInTheDocument()
+        const notes = screen.getByRole('textbox', { name: 'Notes for quote 1' })
+        fireEvent.change(notes, { target: { value: 'Please clarify this part\n保留备注' } })
+        const annotated = [{ ...annotations[0], annotation: 'Please clarify this part\n保留备注' }]
         fireEvent.change(input(), { target: { value: 'Please explain this' } })
-        expect(splitResponseAnnotations(runtime.snapshot.composer.text)).toEqual({ body: 'Please explain this', annotations })
+        expect(splitResponseAnnotations(runtime.snapshot.composer.text)).toEqual({ body: 'Please explain this', annotations: annotated })
         send()
         const rejectedText = runtime.sentTexts.at(-1)!
-        expect(splitResponseAnnotations(rejectedText)).toEqual({ body: 'Please explain this', annotations })
+        expect(splitResponseAnnotations(rejectedText)).toEqual({ body: 'Please explain this', annotations: annotated })
         expect(input().value).toBe('')
         setError(controls, fail(201, rejectedText, null))
         expect(input().value).toBe('Please explain this')
         expect(screen.getByText('Quoted native response')).toBeInTheDocument()
+        expect(screen.getByRole('textbox', { name: 'Notes for quote 1' })).toHaveValue('Please clarify this part\n保留备注')
         fireEvent.click(screen.getByRole('button', { name: 'Remove quote' }))
         expect(input().value).toBe('Please explain this')
         expect(runtime.snapshot.composer.text).toBe('Please explain this')

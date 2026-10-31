@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom'
 import { useAui, useAuiState } from '@assistant-ui/react'
 import { useTranslation } from '@/lib/use-translation'
 import { useOptionalHappyChatContext } from './context'
-import { appendBlockquote, appendResponseAnnotation, responseAnnotationFromRange, type ResponseAnnotation } from '@/lib/responseAnnotations'
+import { responseAnnotationFromRange, type ResponseAnnotation } from '@/lib/responseAnnotations'
+import { appendSelectionQuote, resolveQuoteInputCapability } from '@/lib/quoteInputCapabilities'
 
 type QuoteSelection = { annotation: ResponseAnnotation; left: number; top: number }
 
@@ -49,10 +50,7 @@ export function SelectedTextQuote({ scope }: { scope: RefObject<HTMLElement | nu
         onPointerDown={event => event.preventDefault()}
         onMouseDown={event => event.preventDefault()}
         onClick={() => {
-            const codex = ctx?.metadata?.flavor === 'codex' || Boolean(ctx?.metadata?.nativeCodex)
-            api.composer().setText(codex
-                ? appendResponseAnnotation(draft, selected.annotation)
-                : appendBlockquote(draft, selected.annotation.text))
+            api.composer().setText(appendSelectionQuote(draft, selected.annotation, resolveQuoteInputCapability(ctx?.metadata)))
             window.getSelection()?.removeAllRanges()
             setSelected(null)
         }}>

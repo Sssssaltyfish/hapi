@@ -21,5 +21,16 @@ export function useResponseAnnotationDraft(
         latest.current = next
         writeText(next)
     }, [writeText])
-    return { ...projected, setBody, remove }
+    const setAnnotation = useCallback((index: number, annotation: string) => {
+        const current = splitResponseAnnotations(latest.current)
+        if (!current.annotations[index]) return
+        const next = serializeResponseAnnotations(current.body, current.annotations.map((entry, position) => {
+            if (position !== index) return entry
+            const { annotation: _previousNote, ...selection } = entry
+            return annotation ? { ...selection, annotation } : selection
+        }))
+        latest.current = next
+        writeText(next)
+    }, [writeText])
+    return { ...projected, setBody, remove, setAnnotation }
 }

@@ -54,6 +54,8 @@ export default {
   'message.copy': 'Copy',
   'message.quoteSelection': 'Quote selected text',
   'message.removeQuote': 'Remove quote',
+  'message.quoteNotes': 'Notes for quote {index}',
+  'message.quoteNotesPlaceholder': 'Add a comment or question about this selection…',
   'message.copied': 'Copied',
   'message.info': 'Message details',
   'message.fork': 'Fork',

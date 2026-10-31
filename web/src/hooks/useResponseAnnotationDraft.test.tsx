@@ -22,3 +22,18 @@ it('keeps native annotation payload in persisted text while body edits and faile
     act(() => result.current.remove(0))
     expect(write).toHaveBeenLastCalledWith('Edited draft')
 })
+
+it('edits notes independently while preserving every source and clears only the chosen note', () => {
+    const source = { messageId: 'opaque-native-id', startOffset: 4, endOffset: 12 }
+    const annotations = [{ text: 'Selected', source }, { text: 'Another selection', annotation: 'Existing note' }]
+    const write = vi.fn()
+    const { result } = renderHook(() => useResponseAnnotationDraft(serializeResponseAnnotations('Keep body', annotations), write))
+    act(() => {
+        result.current.setAnnotation(0, 'Explain this\n中文 note')
+        result.current.setAnnotation(1, '')
+    })
+    expect(splitResponseAnnotations(write.mock.calls.at(-1)![0])).toEqual({
+        body: 'Keep body',
+        annotations: [{ text: 'Selected', source, annotation: 'Explain this\n中文 note' }, { text: 'Another selection' }],
+    })
+})
