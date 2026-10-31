@@ -12,6 +12,72 @@ const deferredPage = () => {
 }
 
 describe('native thread window', () => {
+    it('keeps a bounded reading window across file-preview remounts and can still return to latest', async () => {
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'cached-native' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('tail')], nextCursor: 'opaque-older' })
+                .mockResolvedValueOnce({ data: [entry('reading')], nextCursor: 'opaque-before-reading' })
+                .mockResolvedValue({ data: [entry('new-tail')], nextCursor: 'new-cursor' }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const first = renderHook(() => useNativeThread(api as unknown as ApiClient, 'cached-native', true, 'native-cache-test'))
+        await waitFor(() => expect(first.result.current.items).toHaveLength(1))
+        await act(async () => { await first.result.current.older() })
+        first.unmount()
+        const second = renderHook(() => useNativeThread(api as unknown as ApiClient, 'cached-native', true, 'native-cache-test', true))
+        await waitFor(() => expect(second.result.current.loading).toBe(false))
+        expect(second.result.current.items.map(value => value.item.id)).toEqual(['reading', 'tail'])
+        expect(second.result.current.cursor).toBe('opaque-before-reading')
+        await act(async () => { await second.result.current.latest(true) })
+        expect(second.result.current.items.map(value => value.item.id)).toEqual(['new-tail'])
+        second.unmount()
+    })
+
+    it('prevents an obsolete seek from replacing a newer Return latest request', async () => {
+        const page = deferredPage()
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'native' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('initial')], nextCursor: 'older' })
+                .mockReturnValueOnce(page.promise).mockResolvedValue({ data: [entry('latest')], nextCursor: null }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'native'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        let seeking!: Promise<boolean>
+        act(() => { seeking = result.current.seek('opaque-seek', () => true) })
+        await act(async () => { await result.current.latest(true) })
+        await act(async () => { page.resolve({ data: [entry('obsolete')], nextCursor: 'obsolete' }); expect(await seeking).toBe(false) })
+        expect(result.current.items.map(value => value.item.id)).toEqual(['latest'])
+        unmount()
+    })
+
+    it('keeps the current window when closing the outline cancels a pending seek', async () => {
+        const page = deferredPage()
+        const accepts = vi.fn(() => true)
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'native' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('reading')], nextCursor: 'current-cursor' })
+                .mockReturnValueOnce(page.promise).mockResolvedValue({ data: [entry('fresh-tail')], nextCursor: 'tail-cursor' }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'native'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        let seeking!: Promise<boolean>
+        act(() => { seeking = result.current.seek('opaque-seek', accepts) })
+        act(() => { result.current.cancelOlder() })
+        expect(result.current.olderLoading).toBe(false)
+        await act(async () => { page.resolve({ data: [entry('cancelled')], nextCursor: 'cancelled-cursor' }); expect(await seeking).toBe(false) })
+        expect(accepts).not.toHaveBeenCalled()
+        expect(result.current.items.map(value => value.item.id)).toEqual(['reading'])
+        expect(result.current.cursor).toBe('current-cursor')
+        await act(async () => { await result.current.latest() })
+        expect(result.current.items.map(value => value.item.id)).toEqual(['fresh-tail'])
+        expect(result.current.loading).toBe(false)
+        unmount()
+    })
     it('discards an older page that finishes after Return latest replaces the window', async () => {
         const olderPage = deferredPage()
         const latestPage = deferredPage()

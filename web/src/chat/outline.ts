@@ -1,4 +1,5 @@
 import type { ChatBlock, UserTextBlock } from '@/chat/types'
+import { nativeQuestionReplyDisplayText } from '@/lib/nativeQuestionReply'
 
 export type ConversationOutlineItem = {
     id: string
@@ -6,7 +7,12 @@ export type ConversationOutlineItem = {
     kind: 'user'
     label: string
     createdAt: number
+    historyPage?: ConversationHistoryPage
 }
+
+export type ConversationHistoryPage =
+    | { kind: 'native'; cursor: string | null }
+    | { kind: 'runner'; beforeAt: number | null; beforeSeq: number | null; epoch: number | null }
 
 const MAX_OUTLINE_LABEL_LENGTH = 96
 
@@ -23,7 +29,7 @@ export function truncateOutlineLabel(value: string, maxLength = MAX_OUTLINE_LABE
 }
 
 function userBlockToOutlineItem(block: UserTextBlock): ConversationOutlineItem {
-    const label = truncateOutlineLabel(block.text) || 'Empty message'
+    const label = truncateOutlineLabel(nativeQuestionReplyDisplayText(block.text)) || 'Empty message'
     return {
         id: `outline:user-text:${block.id}`,
         targetMessageId: `user-text:${block.id}`,

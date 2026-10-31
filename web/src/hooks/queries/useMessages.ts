@@ -61,7 +61,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
     }, [sessionId])
 
     useEffect(() => {
-        if (api && sessionId) {
+        if (api && sessionId && getMessageWindowState(sessionId).viewMode !== 'history') {
             void syncTailMessages(api, sessionId)
         }
     }, [api, sessionId])

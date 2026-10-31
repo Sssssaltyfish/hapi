@@ -2,24 +2,49 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { NativeEvent, NativeItemEntry, NativeRecord, NativeRequest } from './types'
 import { mergeNativeItems, record } from './presentation'
+import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
 
-export function useNativeThread(api: ApiClient, id: string, enabled = true) {
+type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; browsingOlder: boolean; savedAt: number }
+const windowCache = new Map<string, NativeWindowSnapshot>()
+const MAX_CACHED_WINDOWS = 12
+const WINDOW_TTL_MS = 30 * 60 * 1000
+
+function readCachedWindow(key?: string): NativeWindowSnapshot | null {
+    if (!key) return null
+    const cached = windowCache.get(key)
+    if (cached && Date.now() - cached.savedAt <= WINDOW_TTL_MS) return cached
+    windowCache.delete(key)
+    return null
+}
+
+export function useNativeThread(api: ApiClient, id: string, enabled = true, cacheKey?: string, preserveHistory = false) {
+    const cached = useRef(readCachedWindow(cacheKey))
     const [detail, setDetail] = useState<NativeRecord>({})
-    const [items, setItems] = useState<NativeItemEntry[]>([])
+    const [items, setItems] = useState<NativeItemEntry[]>(() => {
+        if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
+        return cached.current?.items ?? []
+    })
     const itemsRef = useRef(items)
     itemsRef.current = items
-    const [cursor, setCursor] = useState<string | null>(null)
+    const [cursor, setCursor] = useState<string | null>(cached.current?.cursor ?? null)
     const [loading, setLoading] = useState(true)
     const [olderLoading, setOlderLoading] = useState(false)
     const [error, setError] = useState('')
     const [connected, setConnected] = useState(false)
     const [requests, setRequests] = useState<NativeRequest[]>([])
     const [hasNewer, setHasNewer] = useState(false)
-    const browsingOlder = useRef(false)
+    const browsingOlder = useRef(Boolean(cached.current && preserveHistory))
     const historyGeneration = useRef(0)
     const olderRequest = useRef<symbol | null>(null)
+    const olderPreviousBrowsing = useRef<boolean | null>(null)
     const alive = useRef(true)
     const refreshing = useRef<symbol | null>(null)
+    useEffect(() => {
+        if (!cacheKey || items.length === 0) return
+        windowCache.delete(cacheKey)
+        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, browsingOlder: browsingOlder.current, savedAt: Date.now() })
+        while (windowCache.size > MAX_CACHED_WINDOWS) windowCache.delete(windowCache.keys().next().value!)
+    }, [cacheKey, items, cursor])
     const applySettings = useCallback((settings: NativeRecord) => {
         // This is a confirmed daemon response, also used when SSE is reconnecting.
         setDetail(current => ({ ...current, threadSettings: settings }))
@@ -42,6 +67,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true) {
             // still arrive, but no longer owns this window or its loading state.
             historyGeneration.current += 1
             olderRequest.current = null
+            olderPreviousBrowsing.current = null
             browsingOlder.current = false
             setOlderLoading(false)
             setLoading(true)
@@ -82,6 +108,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true) {
         olderRequest.current = request
         const isCurrent = () => alive.current && generation === historyGeneration.current && olderRequest.current === request
         const wasBrowsingOlder = browsingOlder.current
+        olderPreviousBrowsing.current = wasBrowsingOlder
         browsingOlder.current = true
         setOlderLoading(true)
         try {
@@ -105,17 +132,56 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true) {
         } finally {
             if (isCurrent()) {
                 olderRequest.current = null
+                olderPreviousBrowsing.current = null
                 setOlderLoading(false)
             }
         }
     }, [api, id, cursor])
+
+    const seek = useCallback(async (pageCursor: string | null, accepts: (entries: NativeItemEntry[]) => boolean) => {
+        historyGeneration.current += 1
+        olderRequest.current = null
+        olderPreviousBrowsing.current = null
+        refreshing.current = null
+        const generation = historyGeneration.current
+        const request = Symbol('seek-page')
+        olderRequest.current = request
+        const isCurrent = () => alive.current && generation === historyGeneration.current && olderRequest.current === request
+        setOlderLoading(true)
+        setLoading(false)
+        try {
+            const page = await api.getCodexNativeItems(id, pageCursor ?? undefined)
+            if (!isCurrent()) return false
+            const entries = [...page.data].reverse().slice(0, 300)
+            if (!accepts(entries)) return false
+            browsingOlder.current = true
+            setItems(entries)
+            setCursor(page.nextCursor)
+            setHasNewer(true)
+            setError('')
+            return true
+        } finally {
+            if (isCurrent()) { olderRequest.current = null; setOlderLoading(false) }
+        }
+    }, [api, id])
+
+    const cancelOlder = useCallback(() => {
+        if (!olderRequest.current) return
+        if (olderPreviousBrowsing.current !== null) browsingOlder.current = olderPreviousBrowsing.current
+        olderPreviousBrowsing.current = null
+        historyGeneration.current += 1
+        olderRequest.current = null
+        refreshing.current = null
+        setOlderLoading(false)
+        setLoading(false)
+    }, [])
 
     useEffect(() => {
         if (!enabled) { setLoading(false); return }
         alive.current = true
         void refreshDetail().catch(error => setError(String(error)))
         void refreshActiveTurn().catch(error => setError(String(error)))
-        void latest(true)
+        void latest(!(cached.current && preserveHistory))
         const controller = new AbortController()
         let retry: ReturnType<typeof setTimeout> | undefined
         let refreshTimer: ReturnType<typeof setTimeout> | undefined
@@ -203,5 +269,5 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true) {
         }
     }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
 
-    return { detail, items, cursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, latest, refreshDetail, applySettings }
+    return { detail, items, cursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, seek, cancelOlder, latest, refreshDetail, applySettings }
 }

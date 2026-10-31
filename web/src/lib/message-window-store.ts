@@ -6,6 +6,8 @@ import { buildVisibleChatBlocks, isEligibleForToolGrouping } from '@/chat/toolGr
 import type { NormalizedMessage } from '@/chat/types'
 import type { DecryptedMessage, MessageStatus, MessagesResponse } from '@/types/api'
 import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
+import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
+import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
 
 export type MessageViewMode = 'tail' | 'history'
 
@@ -922,6 +924,10 @@ function enterTailMode(previous: InternalState): InternalState {
 }
 
 export function activateMessageWindow(sessionId: string): void {
+    // A file preview remounts the conversation. Preserve the bounded history
+    // window while its saved anchor is being read instead of replacing it.
+    if (getState(sessionId).viewMode === 'history'
+        && getConversationReadingPosition(sessionId)?.atBottom === false) return
     let requestedLatest = false
     updateState(sessionId, (previous) => {
         const { kept } = trimPreservingQueued(previous.messages, VISIBLE_WINDOW_SIZE, 'append')
@@ -966,6 +972,47 @@ export function activateMessageWindow(sessionId: string): void {
         if (controller?.running) {
             controller.trailingRequested = true
         }
+    }
+}
+
+export async function seekMessageWindow(
+    api: ApiClient,
+    sessionId: string,
+    locator: Extract<ConversationHistoryPage, { kind: 'runner' }>,
+    targetMessageId: string
+): Promise<boolean> {
+    const initial = getState(sessionId)
+    const generation = initial.olderGeneration + 1
+    updateState(sessionId, previous => buildState(previous, {
+        olderGeneration: generation,
+        syncGeneration: previous.syncGeneration + 1,
+        isLoadingMore: true,
+        isSyncingTail: false,
+    }), true)
+    try {
+        const response = await api.getMessages(sessionId, { beforeAt: locator.beforeAt, beforeSeq: locator.beforeSeq, limit: PAGE_SIZE })
+        if (getState(sessionId).olderGeneration !== generation) return false
+        if (locator.epoch !== null && response.page.epoch !== locator.epoch) return false
+        const normalized = response.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+        if (!buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)) return false
+        updateState(sessionId, previous => buildState(previous, {
+            messages: mergeMessages(response.messages, previous.messages.filter(isQueuedForInvocation)),
+            viewMode: 'history',
+            hasMore: response.page.hasMore,
+            epoch: response.page.epoch,
+            oldestPositionAt: response.page.nextBeforeAt,
+            oldestPositionSeq: response.page.nextBeforeSeq,
+            // Returning to latest must fetch an authoritative tail after a seek.
+            requiresLatestReset: true,
+            preferLatestOnActivation: false,
+            historyVersion: previous.historyVersion + 1,
+            warning: null,
+        }), true)
+        return true
+    } finally {
+        updateState(sessionId, previous => previous.olderGeneration === generation
+            ? buildState(previous, { isLoadingMore: false })
+            : previous, true)
     }
 }
 
@@ -1179,6 +1226,7 @@ export function subscribeMessageWindow(sessionId: string, listener: () => void):
 }
 
 export function clearMessageWindow(sessionId: string): void {
+    clearConversationReadingPosition(sessionId)
     tailSyncControllers.delete(sessionId)
     clearPersistedState(sessionId)
     const previous = states.get(sessionId)

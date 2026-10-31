@@ -12,6 +12,7 @@ import {
     VISIBLE_WINDOW_SIZE,
     activateMessageWindow,
     appendOptimisticMessage,
+    cancelOlderMessageLoad,
     clearMessageWindow,
     fetchOlderMessages,
     getMessageWindowState,
@@ -22,10 +23,12 @@ import {
     reconcileQueuedLocalIds,
     removeOptimisticMessage,
     rewindMessageWindow,
+    seekMessageWindow,
     setMessageViewMode,
     syncTailMessages,
     updateMessageStatus,
 } from '@/lib/message-window-store'
+import { saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 
 const touchedSessions = new Set<string>()
 
@@ -1284,6 +1287,44 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('retains a history window on preview re-entry when its reading position is saved', () => {
+        const id = sessionId('preview-reading-window')
+        ingestIncomingMessages(id, [makeUserMessage({ id: 'reading', seq: 1, invokedAt: 1000 })])
+        setMessageViewMode(id, 'history')
+        saveConversationReadingPosition(id, { anchor: { id: 'hapi-message-user-text:reading', topOffset: 10 }, scrollTop: 200, atBottom: false })
+        const messages = getMessageWindowState(id).messages
+        activateMessageWindow(id)
+        expect(getMessageWindowState(id).viewMode).toBe('history')
+        expect(getMessageWindowState(id).messages).toBe(messages)
+    })
+
+    it('seeks a known prompt page directly and rejects stale epoch locators', async () => {
+        const id = sessionId('outline-direct-seek')
+        const getMessages = vi.fn().mockResolvedValue(beforeResponse([makeUserMessage({ id: 'indexed', seq: 10, invokedAt: 1000 })], { epoch: 4, hasMore: true, nextBeforeAt: 1000, nextBeforeSeq: 10 }))
+        const api = createApi(getMessages)
+        const locator = { kind: 'runner' as const, beforeAt: 2000, beforeSeq: 20, epoch: 4 }
+        expect(await seekMessageWindow(api, id, locator, 'user-text:indexed')).toBe(true)
+        expect(getMessages).toHaveBeenCalledTimes(1)
+        expect(getMessages).toHaveBeenCalledWith(id, { beforeAt: 2000, beforeSeq: 20, limit: 200 })
+        expect(getMessageWindowState(id).viewMode).toBe('history')
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['indexed'])
+        expect(await seekMessageWindow(api, id, { ...locator, epoch: 3 }, 'user-text:indexed')).toBe(false)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['indexed'])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+    })
+
+    it('does not publish an outline seek after navigation cancels its request', async () => {
+        const id = sessionId('outline-cancelled-seek')
+        ingestIncomingMessages(id, [makeUserMessage({ id: 'current', seq: 30, invokedAt: 1000 })])
+        const response = deferred<MessagesResponse>()
+        const api = createApi(vi.fn(() => response.promise))
+        const seek = seekMessageWindow(api, id, { kind: 'runner', beforeAt: 2000, beforeSeq: 20, epoch: 4 }, 'user-text:indexed')
+        cancelOlderMessageLoad(id)
+        response.resolve(beforeResponse([makeUserMessage({ id: 'indexed', seq: 10, invokedAt: 1000 })], { epoch: 4, nextBeforeAt: null, nextBeforeSeq: null }))
+        expect(await seek).toBe(false)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['current'])
+    })
+
     it('appends while reading history, then compacts at the tail', () => {
         const id = sessionId('history-unseen')
         const initial = Array.from({ length: VISIBLE_WINDOW_SIZE }, (_, index) =>

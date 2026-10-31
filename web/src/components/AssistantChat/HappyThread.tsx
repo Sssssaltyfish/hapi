@@ -37,6 +37,7 @@ import { useMinuteTick } from '@/hooks/useMinuteTick'
 import { useTransientScrollbar } from '@/hooks/useTransientScrollbar'
 import { queryKeys } from '@/lib/query-keys'
 import { matchesSearchQuery } from '@hapi/protocol'
+import { getConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 
 type ScrollAnchor = {
     id: string
@@ -162,13 +163,6 @@ type ScrollIntent = {
     isScrollingDown: boolean
 }
 
-type LocateOutlineTargetOptions = {
-    targetMessageId: string
-    findTarget: (anchorId: string) => HTMLElement | null
-    hasMoreMessages: () => boolean
-    loadOlderPreservingScroll: () => Promise<boolean>
-}
-
 export function getScrollIntent(params: {
     scrollTop: number
     scrollHeight: number
@@ -187,20 +181,14 @@ export function getScrollIntent(params: {
 }
 
 export function shouldShowScrollToBottomButton(intent: ScrollIntent): boolean {
-    return intent.isScrollingDown && !intent.isNearBottom
+    return !intent.isNearBottom
 }
 
 export function getScrollToBottomButtonVisibility(
-    wasVisible: boolean,
+    _wasVisible: boolean,
     intent: ScrollIntent
 ): boolean {
-    if (intent.isNearBottom || intent.isScrollingUp) {
-        return false
-    }
-    if (intent.isScrollingDown) {
-        return true
-    }
-    return wasVisible
+    return !intent.isNearBottom
 }
 
 export function shouldRenderScrollToBottomButton(
@@ -250,19 +238,6 @@ export function hasAppliedHistoryVersion(
     appliedHistoryVersion: number
 ): boolean {
     return appliedHistoryVersion > pendingHistoryVersion
-}
-
-export async function locateOutlineTargetMessage(options: LocateOutlineTargetOptions): Promise<HTMLElement | null> {
-    const anchorId = getConversationMessageAnchorId(options.targetMessageId)
-    let target = options.findTarget(anchorId)
-    while (!target && options.hasMoreMessages()) {
-        const loaded = await options.loadOlderPreservingScroll()
-        if (!loaded) {
-            break
-        }
-        target = options.findTarget(anchorId)
-    }
-    return target
 }
 
 export function shouldLoadOlderForViewport(params: {
@@ -397,6 +372,8 @@ export function ConversationOutlinePanel(props: {
     onLoadMore: () => void
     onSelect: (item: ConversationOutlineItem) => void
     onClose: () => void
+    error?: string | null
+    capped?: boolean
 }) {
     const { t, locale } = useTranslation()
     const [searchQuery, setSearchQuery] = useState('')
@@ -482,6 +459,9 @@ export function ConversationOutlinePanel(props: {
                 ) : null}
             </div>
 
+            <div className="border-b border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-hint)]" role="status">
+                {props.error || t(props.capped ? 'session.outline.indexLimit' : props.hasMoreMessages ? 'session.outline.partialIndex' : 'session.outline.indexComplete')}
+            </div>
             <div className="app-scroll-y min-h-0 flex-1 p-2">
                 {props.items.length === 0 ? (
                     <div className="px-2 py-8 text-center text-sm text-[var(--app-hint)]">
@@ -556,6 +536,12 @@ export function HappyThread(props: {
     outlineItems: readonly ConversationOutlineItem[]
     onOutlineOpenChange: (open: boolean) => void
     onOutlineItemClick?: (item: ConversationOutlineItem) => void
+    outlineHasEarlier?: boolean
+    outlineLoading?: boolean
+    outlineError?: string | null
+    outlineCapped?: boolean
+    onLoadEarlierOutline?: () => Promise<void>
+    onLocateOutlineItem?: (item: ConversationOutlineItem, isCurrent?: () => boolean) => Promise<boolean>
 }) {
     const { t, locale } = useTranslation()
     const { preferences: headerMetadata } = useSessionHeaderMetadata()
@@ -680,6 +666,9 @@ export function HappyThread(props: {
     const initialScrollSessionRef = useRef<string | null>(null)
     const initialScrollDeadlineRef = useRef(0)
     const initialScrollTimersRef = useRef<number[]>([])
+    const pendingReadingPositionRef = useRef(getConversationReadingPosition(props.sessionId))
+    const outlineNavigationRef = useRef(0)
+    const outlineSeekPendingRef = useRef(false)
 
     // Smart scroll state: enabled only while the user is intentionally at the bottom.
     const autoScrollEnabledRef = useRef(true)
@@ -762,6 +751,15 @@ export function HappyThread(props: {
             failureCount: 0,
             autoPaused: true
         }
+        settlePendingLoad('transient-stop')
+    }, [clearCoverageCheckTimer, clearFailureRetryTimer, settlePendingLoad])
+
+    const stopHistoryForNavigation = useCallback(() => {
+        onCancelLoadMoreRef.current()
+        pendingScrollRef.current = null
+        clearCoverageCheckTimer()
+        clearFailureRetryTimer()
+        historyLoaderRef.current = { runId: historyLoaderRef.current.runId + 1, phase: 'idle', source: null, failureCount: 0, autoPaused: true }
         settlePendingLoad('transient-stop')
     }, [clearCoverageCheckTimer, clearFailureRetryTimer, settlePendingLoad])
 
@@ -863,6 +861,7 @@ export function HappyThread(props: {
             if (isInitialScrollSettling()) {
                 setShowScrollToBottom(false)
                 if (shouldCancelInitialScrollSettling(intent, hadExplicitUpwardIntent)) {
+                    setShowScrollToBottom(true)
                     initialScrollDeadlineRef.current = 0
                     clearInitialScrollTimers()
                     setAutoScrollMode(false)
@@ -883,7 +882,7 @@ export function HappyThread(props: {
 
             if (intent.isScrollingUp && intent.distanceFromBottom > MANUAL_SCROLL_EPSILON_PX) {
                 tailScrollInProgressRef.current = false
-                setShowScrollToBottom(false)
+                setShowScrollToBottom(true)
                 setAutoScrollMode(false)
                 setAtBottomMode(false)
                 return
@@ -1166,6 +1165,9 @@ export function HappyThread(props: {
 
     // Scroll to bottom handler for the indicator button
     const scrollToBottom = useCallback(() => {
+        outlineNavigationRef.current += 1
+        stopHistoryForNavigation()
+        pendingReadingPositionRef.current = null
         const viewport = viewportRef.current
         setShowScrollToBottom(false)
         if (viewport) {
@@ -1182,16 +1184,20 @@ export function HappyThread(props: {
             atBottomRef.current = true
             onViewModeChangeRef.current('tail')
         }
-    }, [scrollToBottomSmooth])
+    }, [scrollToBottomSmooth, stopHistoryForNavigation])
 
     // Reset state when session changes
     useLayoutEffect(() => {
-        setShowScrollToBottom(false)
-        autoScrollEnabledRef.current = true
+        const saved = getConversationReadingPosition(props.sessionId)
+        const restoringHistory = saved?.atBottom === false
+        pendingReadingPositionRef.current = restoringHistory ? saved : null
+        outlineNavigationRef.current += 1
+        setShowScrollToBottom(restoringHistory)
+        autoScrollEnabledRef.current = !restoringHistory
         tailScrollInProgressRef.current = false
         lastScrollTopRef.current = viewportRef.current?.scrollTop ?? 0
-        atBottomRef.current = true
-        onViewModeChangeRef.current('tail')
+        atBottomRef.current = !restoringHistory
+        onViewModeChangeRef.current(restoringHistory ? 'history' : 'tail')
         forceScrollTokenRef.current = props.forceScrollToken
         pendingScrollRef.current = null
         pullToLoadStateRef.current = 'idle'
@@ -1218,12 +1224,39 @@ export function HappyThread(props: {
     ])
 
     useLayoutEffect(() => {
+        const viewport = viewportRef.current
+        if (!viewport) return
+        const save = () => {
+            if (pendingReadingPositionRef.current) return
+            saveConversationReadingPosition(props.sessionId, {
+                anchor: captureScrollAnchor(viewport),
+                scrollTop: viewport.scrollTop,
+                atBottom: atBottomRef.current && autoScrollEnabledRef.current,
+            })
+        }
+        viewport.addEventListener('scroll', save, { passive: true })
+        return () => { save(); viewport.removeEventListener('scroll', save) }
+    }, [props.sessionId])
+
+    useLayoutEffect(() => {
         if (
             initialScrollSessionRef.current === props.sessionId
             || props.isSyncingTail
             || props.rawMessagesCount === 0
             || pendingScrollRef.current
         ) {
+            return
+        }
+
+        const saved = pendingReadingPositionRef.current
+        if (saved && !saved.atBottom) {
+            const viewport = viewportRef.current
+            if (!viewport || viewport.querySelector(MESSAGE_ANCHOR_SELECTOR) === null) return
+            if (!saved.anchor || !restoreScrollAnchor(viewport, saved.anchor)) viewport.scrollTop = saved.scrollTop
+            pendingReadingPositionRef.current = null
+            initialScrollSessionRef.current = props.sessionId
+            lastScrollTopRef.current = viewport.scrollTop
+            setShowScrollToBottom(true)
             return
         }
 
@@ -1250,12 +1283,14 @@ export function HappyThread(props: {
         props.isSyncingTail,
         props.rawMessagesCount,
         props.messagesVersion,
+        appliedMessagesVersion,
         scrollToBottomInstant,
         clearInitialScrollTimers
     ])
 
     useEffect(() => {
         return () => {
+            outlineNavigationRef.current += 1
             historyLoaderRef.current.runId += 1
             clearInitialScrollTimers()
             clearCoverageCheckTimer()
@@ -1516,24 +1551,50 @@ export function HappyThread(props: {
         return requestOlder('consumer')
     }, [requestOlder])
 
-    const loadOlderForOutline = useCallback(async (): Promise<boolean> => {
-        return await loadOlderFromConsumer() === 'loaded'
-    }, [loadOlderFromConsumer])
-
     const handleOutlineSelect = useCallback(async (item: ConversationOutlineItem) => {
-        const target = await locateOutlineTargetMessage({
-            targetMessageId: item.targetMessageId,
-            findTarget: (anchorId) => document.getElementById(anchorId),
-            hasMoreMessages: () => hasMoreMessagesRef.current,
-            loadOlderPreservingScroll: loadOlderForOutline
-        })
+        const runId = ++outlineNavigationRef.current
+        const sessionId = props.sessionId
+        const isCurrent = () => outlineNavigationRef.current === runId && sessionIdRef.current === sessionId
+        const findTarget = () => {
+            const target = document.getElementById(getConversationMessageAnchorId(item.targetMessageId))
+            return target && viewportRef.current?.contains(target) ? target : null
+        }
+        initialScrollDeadlineRef.current = 0
+        clearInitialScrollTimers()
+        stopHistoryForNavigation()
+        autoScrollEnabledRef.current = false
+        atBottomRef.current = false
+        onViewModeChangeRef.current('history')
+        let target = findTarget()
+        if (!target && props.onLocateOutlineItem) {
+            outlineSeekPendingRef.current = true
+            const loaded = await props.onLocateOutlineItem(item, isCurrent)
+            if (isCurrent()) outlineSeekPendingRef.current = false
+            if (!loaded || !isCurrent()) return
+            // Runtime messages publish in a following effect. Wait only for this
+            // selected page; never load intervening transcript pages to find it.
+            const deadline = Date.now() + 2000
+            while (!target && isCurrent() && Date.now() < deadline) {
+                await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+                target = findTarget()
+            }
+        }
+        if (!isCurrent()) return
         if (target) {
             target.scrollIntoView({ block: 'start', behavior: 'smooth' })
             autoScrollEnabledRef.current = false
+            setShowScrollToBottom(true)
+            props.onOutlineItemClick?.(item)
+            props.onOutlineOpenChange(false)
         }
-        props.onOutlineItemClick?.(item)
-        props.onOutlineOpenChange(false)
-    }, [loadOlderForOutline, props.onOutlineItemClick, props.onOutlineOpenChange])
+    }, [clearInitialScrollTimers, stopHistoryForNavigation, props.sessionId, props.onLocateOutlineItem, props.onOutlineItemClick, props.onOutlineOpenChange])
+
+    useEffect(() => {
+        if (!props.outlineOpen) {
+            outlineNavigationRef.current += 1
+            if (outlineSeekPendingRef.current) { outlineSeekPendingRef.current = false; stopHistoryForNavigation() }
+        }
+    }, [props.outlineOpen, stopHistoryForNavigation])
 
     useEffect(() => {
         if (
@@ -1821,10 +1882,13 @@ export function HappyThread(props: {
                         />
                         <ConversationOutlinePanel
                             items={props.outlineItems}
-                            hasMoreMessages={props.hasMoreMessages}
-                            isLoadingMoreMessages={props.isLoadingMoreMessages}
+                            hasMoreMessages={props.outlineHasEarlier ?? props.hasMoreMessages}
+                            isLoadingMoreMessages={props.outlineLoading ?? props.isLoadingMoreMessages}
+                            error={props.outlineError}
+                            capped={props.outlineCapped}
                             onLoadMore={() => {
-                                void loadOlderFromConsumer()
+                                if (props.onLoadEarlierOutline) void props.onLoadEarlierOutline()
+                                else void loadOlderFromConsumer()
                             }}
                             onSelect={handleOutlineSelect}
                             onClose={() => props.onOutlineOpenChange(false)}

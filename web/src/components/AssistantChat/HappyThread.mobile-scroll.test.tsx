@@ -31,6 +31,7 @@ vi.mock('@assistant-ui/react', async (importOriginal) => {
 import { HappyThread } from '@/components/AssistantChat/HappyThread'
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
+import { clearConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -51,7 +52,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } }
     })
-    const renderHappyThread = (forceScrollToken: number) => (
+    const renderHappyThread = (forceScrollToken: number, messagesVersion = 1) => (
         <QueryClientProvider client={queryClient}>
             <I18nProvider>
                 <HappyThread
@@ -71,7 +72,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
                     unseenCount={unseenCount}
                     rawMessagesCount={1}
                     normalizedMessagesCount={1}
-                    messagesVersion={1}
+                    messagesVersion={messagesVersion}
                     historyVersion={0}
                     forceScrollToken={forceScrollToken}
                     outlineOpen={false}
@@ -97,11 +98,13 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
         ...result,
         viewport,
         onViewModeChange,
-        rerenderThread: (forceScrollToken: number) => result.rerender(renderHappyThread(forceScrollToken))
+        rerenderThread: (forceScrollToken: number) => result.rerender(renderHappyThread(forceScrollToken)),
+        rerenderMessages: (version: number) => result.rerender(renderHappyThread(0, version))
     }
 }
 
 beforeEach(() => {
+    clearConversationReadingPosition('mobile-scroll-session')
     vi.useFakeTimers()
     resizeCallbacks = []
     Object.defineProperty(globalThis, 'ResizeObserver', {
@@ -141,6 +144,23 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('restores a reading anchor after returning from a preview without settling back to the bottom', () => {
+        saveConversationReadingPosition('mobile-scroll-session', {
+            anchor: { id: 'restored-message', topOffset: 20 }, scrollTop: 300, atBottom: false,
+        })
+        const { container, viewport, rerenderMessages, onViewModeChange } = renderThread()
+        const message = document.createElement('div')
+        message.id = 'restored-message'
+        container.querySelector('.happy-thread-messages')!.append(message)
+        vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530 } as DOMRect)
+        vi.spyOn(message, 'getBoundingClientRect').mockImplementation(() => ({ top: 450 - viewport.scrollTop, bottom: 510 - viewport.scrollTop } as DOMRect))
+        rerenderMessages(2)
+        act(() => { vi.advanceTimersByTime(2000) })
+        expect(viewport.scrollTop).toBe(430)
+        expect(onViewModeChange).toHaveBeenCalledWith('history')
+        expect(container.querySelector('button[aria-label="Scroll to bottom"]')).not.toBeNull()
+    })
+
     it('checks the final keyboard position before clearing intent at scrollend', () => {
         const { container, viewport } = renderThread()
         const sentinel = container.querySelector('.chat-scroll-content > [aria-hidden="true"]')!
