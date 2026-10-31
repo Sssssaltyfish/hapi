@@ -6,10 +6,26 @@ import {
     assignThreadMessageIdsWithStableWrappers,
     findLatestCompletedBoundaryId,
     getBlockPresentationTimestamp,
-    getResponseGroupTimestamps
+    getResponseGroupTimestamps,
+    getResponseAnnotationTargets
 } from './assistant-runtime'
 import type { AgentEventBlock, AgentTextBlock, CliOutputBlock, ToolCallBlock, UserTextBlock } from '@/chat/types'
 import { buildVisibleChatBlocks, type ToolGroupBlock, type VisibleChatBlock } from '@/chat/toolGroups'
+
+it('preserves each verified native text source across joined assistant blocks', () => {
+    const tool = toolCall('first-tool')
+    const a = agentText('a', { text: 'First native response', meta: { nativeCodexResponseItemId: 'opaque-a' } })
+    const b = agentText('b', { text: 'Second native response', meta: { nativeCodexResponseItemId: 'opaque-b' } })
+    const runner = agentText('runner', { text: 'Runner', localId: 'native:lookalike' })
+    const later = agentText('later', { text: 'Later', meta: { nativeCodexResponseItemId: 'opaque-c' } })
+    const targets = getResponseAnnotationTargets([tool, a, b, runner, userText('u'), later])
+    expect(targets.get(tool)).toEqual([
+        { messageId: 'opaque-a', text: a.text },
+        { messageId: 'opaque-b', text: b.text },
+    ])
+    expect(targets.get(a)).toBeUndefined()
+    expect(targets.get(later)).toEqual([{ messageId: 'opaque-c', text: 'Later' }])
+})
 
 // Minimal builders for VisibleChatBlock fixtures. Tests focus on metadata
 // aggregation behavior across response groups; non-metadata fields default to

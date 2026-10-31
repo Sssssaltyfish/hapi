@@ -6,6 +6,7 @@ import { I18nProvider } from '@/lib/i18n-context'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import type { ComposerSendIntent } from '@/lib/messageDelivery'
 import { HappyComposer, type ComposerSendError } from './HappyComposer'
+import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
 
 /**
  * HappyComposer owns the recovery guard, while assistant-ui owns the live
@@ -32,6 +33,7 @@ const runtime = vi.hoisted(() => ({
     setSnapshot: null as null | ((updater: (current: FakeRuntimeState) => FakeRuntimeState) => void),
     pendingSendIntentRef: null as null | { current: ComposerSendIntent },
     sentIntents: [] as ComposerSendIntent[],
+    sentTexts: [] as string[],
     modelChanges: [] as Array<{ provider: string; modelId: string } | string | null>,
 }))
 
@@ -47,6 +49,7 @@ vi.mock('@assistant-ui/react', async () => {
                     }))
                 },
                 send: () => {
+                    runtime.sentTexts.push(runtime.snapshot.composer.text)
                     const intent = runtime.pendingSendIntentRef?.current ?? 'default'
                     runtime.sentIntents.push(intent)
                     if (runtime.pendingSendIntentRef) runtime.pendingSendIntentRef.current = 'default'
@@ -263,6 +266,7 @@ function renderComposer(
 ) {
     const controls: { current: HarnessControls | null } = { current: null }
     runtime.sentIntents = []
+    runtime.sentTexts = []
     runtime.modelChanges = []
     render(<ComposerHarness initialText={initialText} initialSchedule={initialSchedule} piRunning={piRunning} controls={controls} />)
     return controls
@@ -314,6 +318,26 @@ describe('HappyComposer send-error atomic restore', () => {
     afterEach(() => {
         cleanup()
         runtime.setSnapshot = null
+    })
+
+    it('renders clean annotation drafts and sends, restores and removes the original quoted context', () => {
+        const annotations = [{ text: 'Quoted native response', source: { messageId: 'native-item', startOffset: 3, endOffset: 25 } }]
+        const raw = serializeResponseAnnotations('Explain this', annotations)
+        const controls = renderComposer(raw, null)
+        expect(input().value).toBe('Explain this')
+        expect(screen.getByText('Quoted native response')).toBeInTheDocument()
+        fireEvent.change(input(), { target: { value: 'Please explain this' } })
+        expect(splitResponseAnnotations(runtime.snapshot.composer.text)).toEqual({ body: 'Please explain this', annotations })
+        send()
+        const rejectedText = runtime.sentTexts.at(-1)!
+        expect(splitResponseAnnotations(rejectedText)).toEqual({ body: 'Please explain this', annotations })
+        expect(input().value).toBe('')
+        setError(controls, fail(201, rejectedText, null))
+        expect(input().value).toBe('Please explain this')
+        expect(screen.getByText('Quoted native response')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Remove quote' }))
+        expect(input().value).toBe('Please explain this')
+        expect(runtime.snapshot.composer.text).toBe('Please explain this')
     })
 
     it('collapses an expanded composer only after an accepted send succeeds', async () => {

@@ -16,6 +16,7 @@ import type { ToolGroupBlock, VisibleChatBlock } from '@/chat/toolGroups'
 import { visibleBlockRole } from '@/chat/toolGroups'
 import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session } from '@/types/api'
 import { orderItemsById } from '@/lib/attachmentOrder'
+import type { ResponseAnnotationTarget } from '@/lib/responseAnnotations'
 
 /**
  * Aggregated metadata for a multi-turn response group, surfaced on the
@@ -36,6 +37,7 @@ export type HappyChatMessageMetadata = {
     status?: HappyMessageStatus
     localId?: string | null
     originalText?: string
+    responseAnnotationTargets?: ResponseAnnotationTarget[]
     toolCallId?: string
     event?: AgentEvent
     source?: CliOutputBlock['source']
@@ -396,6 +398,25 @@ export function assignThreadMessageIds(
     blocks: readonly VisibleChatBlock[]
 ): BlockWithThreadMessageId[] {
     return assignThreadMessageIdsWithStableWrappers(blocks, new WeakMap())
+}
+
+/** Custom metadata on the first block survives assistant-ui's assistant join. */
+export function getResponseAnnotationTargets(blocks: readonly VisibleChatBlock[]): Map<VisibleChatBlock, ResponseAnnotationTarget[]> {
+    const targets = new Map<VisibleChatBlock, ResponseAnnotationTarget[]>()
+    let first: VisibleChatBlock | undefined
+    let group: ResponseAnnotationTarget[] = []
+    for (const block of blocks) {
+        if (visibleBlockRole(block) !== 'assistant') {
+            first = undefined
+            group = []
+            continue
+        }
+        if (!first) { first = block; targets.set(first, group) }
+        if (block.kind !== 'agent-text' || !block.meta || typeof block.meta !== 'object') continue
+        const id = (block.meta as Record<string, unknown>).nativeCodexResponseItemId
+        if (typeof id === 'string' && id.length > 0) group.push({ messageId: id, text: block.text })
+    }
+    return targets
 }
 
 /**
@@ -903,6 +924,7 @@ export function useHappyRuntime(props: {
         () => getResponseGroupTimestamps(props.blocks),
         [props.blocks]
     )
+    const responseAnnotationTargets = useMemo(() => getResponseAnnotationTargets(props.blocks), [props.blocks])
 
     const convertBlock = useCallback(
         ({ block, threadMessageId }: BlockWithThreadMessageId): ThreadMessageLike => {
@@ -912,7 +934,8 @@ export function useHappyRuntime(props: {
                 responseGroupTimestamps.get(block) ?? getBlockPresentationTimestamp(block)
             )
             const aggregate = aggregates.get(block.id)
-            if (!aggregate) return message
+            const annotationTargets = responseAnnotationTargets.get(block)
+            if (!aggregate && !annotationTargets?.length) return message
             const existing = message.metadata?.custom as HappyChatMessageMetadata | undefined
             return {
                 ...message,
@@ -920,17 +943,20 @@ export function useHappyRuntime(props: {
                     ...message.metadata,
                     custom: {
                         ...(existing ?? { kind: 'assistant' }),
-                        usage: aggregate.usage,
-                        model: aggregate.model,
-                        invokedAt: aggregate.invokedAt,
-                        durationMs: aggregate.durationMs,
-                        turnCount: aggregate.turnCount,
-                        roundSummary: aggregate.roundSummary
+                        ...(aggregate ? {
+                            usage: aggregate.usage,
+                            model: aggregate.model,
+                            invokedAt: aggregate.invokedAt,
+                            durationMs: aggregate.durationMs,
+                            turnCount: aggregate.turnCount,
+                            roundSummary: aggregate.roundSummary
+                        } : {}),
+                        ...(annotationTargets?.length ? { responseAnnotationTargets: annotationTargets } : {}),
                     } satisfies HappyChatMessageMetadata
                 }
             }
         },
-        [aggregates, responseGroupTimestamps]
+        [aggregates, responseGroupTimestamps, responseAnnotationTargets]
     )
 
     // Use cached message converter for performance optimization

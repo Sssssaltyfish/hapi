@@ -31,7 +31,11 @@ export function projectNativeItems(
                 : {
                       role: 'agent',
                       content: { type: 'codex', data: { ...body, id } },
-                      meta: { sentFrom: 'cli' },
+                      meta: {
+                          sentFrom: 'cli',
+                          ...(typeof body.nativeResponseItemId === 'string'
+                              ? { nativeCodexResponseItemId: body.nativeResponseItemId } : {}),
+                      },
                   },
         })
     }
@@ -85,7 +89,7 @@ export function projectNativeItems(
             if (text) add(id, at, { text }, true)
         } else if (item.type === 'agentMessage') {
             const text = nativeText(item.text)
-            if (text) add(id, at, { type: 'message', message: text, turn_id: entry.turnId })
+            if (text) add(id, at, { type: 'message', message: text, turn_id: entry.turnId, nativeResponseItemId: item.id })
             if (Array.isArray(item.questions)) {
                 const questions = item.questions.map((value, index) => {
                     const question = record(value)

@@ -14,6 +14,8 @@ vi.mock('@/components/LazyRainbowText', () => ({
 }))
 
 import { UserBubbleContent, extractLeadingDirectives, formatDirectiveLabel, getUserBubbleClassName } from '@/components/AssistantChat/messages/user-bubble'
+import { serializeResponseAnnotations } from '@/lib/responseAnnotations'
+import { I18nProvider } from '@/lib/i18n-context'
 
 describe('extractLeadingDirectives', () => {
     it('extracts leading skill and command directives', () => {
@@ -39,6 +41,25 @@ describe('extractLeadingDirectives', () => {
 })
 
 describe('UserBubbleContent', () => {
+    it('shows native async answers as questions and answers without protocol syntax', () => {
+        const text = `<send_user_message_question_reply>\n${JSON.stringify([
+            { questionItemId: 'id1', question: 'Which option?', answer: 'Custom answer\nDetails' },
+            { questionItemId: 'id2', question: 'Ready?', answer: 'Yes' },
+        ])}\n</send_user_message_question_reply>`
+        const { container } = render(<UserBubbleContent text={text} />)
+        expect(screen.getByText('Which option?')).toBeInTheDocument()
+        expect(screen.getByText('Ready?')).toBeInTheDocument()
+        expect(screen.getByText('Custom answer Details')).toBeInTheDocument()
+        expect(container.textContent).not.toContain('questionItemId')
+        expect(container.textContent).not.toContain('send_user_message_question_reply')
+    })
+
+    it('shows response annotation cards and ordinary body without serialization instructions', () => {
+        const { container } = render(<I18nProvider><UserBubbleContent text={serializeResponseAnnotations('Explain this', [{ text: 'Selected response' }])} /></I18nProvider>)
+        expect(screen.getByText('Selected response')).toBeInTheDocument()
+        expect(screen.getByText('Explain this')).toBeInTheDocument()
+        expect(container.textContent).not.toContain('response-annotations')
+    })
     it('renders directive chips inline with the remaining single-line message body', () => {
         render(<UserBubbleContent text="$ralplan polish the user bubble" />)
 
