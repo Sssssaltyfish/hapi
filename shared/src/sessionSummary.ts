@@ -36,6 +36,8 @@ export type SessionSummaryMetadata = {
     name?: string
     path: string
     machineId?: string
+    /** Native targets have no runner Machine row; preserve their configured label. */
+    host?: string
     summary?: { text: string }
     flavor?: string | null
     worktree?: WorktreeMetadata
@@ -199,6 +201,7 @@ export function toSessionSummaryMetadata(metadata: Metadata | null | undefined):
         name: metadata.name,
         path: metadata.path,
         machineId: metadata.machineId ?? undefined,
+        ...(metadata.nativeCodex ? { host: metadata.host } : {}),
         summary: metadata.summary ? { text: metadata.summary.text } : undefined,
         flavor: metadata.flavor ?? null,
         worktree: metadata.worktree,

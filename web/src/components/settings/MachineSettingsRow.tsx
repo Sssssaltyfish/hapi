@@ -31,7 +31,7 @@ export function MachineSettingsRow(props: {
     function save() {
         if (saving.current) return
         const next = draft.trim()
-        if (next === (props.displayName ?? '')) {
+        if (next === (props.displayName ?? props.label)) {
             setEditing(false)
             return
         }
@@ -73,7 +73,7 @@ export function MachineSettingsRow(props: {
                         <button
                             type="button"
                             onClick={() => {
-                                setDraft(props.displayName ?? '')
+                                setDraft(props.displayName ?? props.label)
                                 setError(null)
                                 setEditing(true)
                             }}

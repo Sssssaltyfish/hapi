@@ -77,7 +77,7 @@ describe('native identities integrated into original sessions', () => {
         const app = new Hono<WebAppEnv>()
         app.use('*', (c, next) => { c.set('namespace', 'owner'); return next() })
         app.route('/api', createCodexNativeRoutes(registry))
-        expect(await (await app.request('/api/codex-native/endpoints')).json()).toEqual({ endpoints: [{ id: 'local', label: 'Configured daemon', address: 'unix:///existing.sock', source: 'env' }] })
+        expect(await (await app.request('/api/codex-native/endpoints')).json()).toEqual({ endpoints: [{ id: 'local', label: 'Configured daemon', baseLabel: 'Configured daemon', address: 'unix:///existing.sock', source: 'env' }] })
         expect((await app.request('/api/codex-native/endpoints/foreign/threads/fork/file?path=README.md')).status).toBe(404)
         expect((await app.request('/api/codex-native/endpoints/foreign/threads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"cwd":"/repo"}' })).status).toBe(404)
         expect(native.calls).toHaveLength(0)

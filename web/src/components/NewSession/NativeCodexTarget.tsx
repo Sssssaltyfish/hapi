@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import { nativeModelSummaries } from '@/codex-native/nativeModels'
-import { useTranslation } from '@/lib/use-translation'
 import { MachineSelectionField } from './MachineSelector'
 
 export function useNativeCreationTarget(api: ApiClient, enabled: boolean) {
@@ -16,7 +15,7 @@ export function useNativeCreationTarget(api: ApiClient, enabled: boolean) {
     const configured = useMemo(() => endpoints.data?.endpoints ?? [], [endpoints.data])
     const selected = configured.find((endpoint) => endpoint.id === endpointId)
     useEffect(() => {
-        if (!endpointId && configured.length === 1) setEndpointId(configured[0].id)
+        if (configured.length && !configured.some(endpoint => endpoint.id === endpointId)) setEndpointId(configured[0].id)
     }, [configured, endpointId])
     const models = useQuery({
         queryKey: ['codex-native', endpointId, 'models'],
@@ -53,7 +52,6 @@ export function NativeCodexTarget(props: {
     target: ReturnType<typeof useNativeCreationTarget>
     isDisabled: boolean
 }) {
-    const { t } = useTranslation()
     const { target } = props
     return (
         <>
@@ -67,7 +65,6 @@ export function NativeCodexTarget(props: {
                         ? { platform: target.status.data.platformOs }
                         : {}),
                 }))}
-                placeholder={t('newSession.machine')}
                 isLoading={target.endpoints.isPending}
                 isDisabled={props.isDisabled}
                 onChange={target.setEndpointId}

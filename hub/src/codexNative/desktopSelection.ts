@@ -52,6 +52,25 @@ export function isDesktopThread(thread: Record<string, unknown>): boolean {
     )
 }
 
+/** A deleted or ChatGPT-owned chat must not reappear through the Native catalog. */
+export function desktopHidesThread(value: unknown, thread: Record<string, unknown>): boolean {
+    const state = record(value), id = string(thread.id)
+    const assignment = record(record(state['thread-project-assignments'])[id ?? ''])
+    return Boolean(id && (
+        record(state['electron-persisted-atom-state'])[`codex-writing-block-deleted-thread-v1:${id}`] === true
+        || (assignment.projectKind === 'local' && assignment.projectOrigin === 'chatgpt')
+    ))
+}
+
+/** Projectless evidence blocks assignment, but a HAPI projectless chat stays visible. */
+export function desktopExcludesThread(value: unknown, thread: Record<string, unknown>): boolean {
+    const state = record(value), id = string(thread.id)
+    return desktopHidesThread(value, thread) || Boolean(id && (
+        thread.workspaceKind === 'projectless'
+        || (Array.isArray(state['projectless-thread-ids']) && state['projectless-thread-ids'].includes(id))
+    ))
+}
+
 export function needsDesktopIdentity(value: unknown, thread: Record<string, unknown>): boolean {
     const state = record(value), id = string(thread.id)
     const assignment = record(record(state['thread-project-assignments'])[id ?? ''])

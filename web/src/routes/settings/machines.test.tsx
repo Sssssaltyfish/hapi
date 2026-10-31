@@ -89,10 +89,10 @@ describe('SettingsMachinesPage', () => {
         fireEvent.change(screen.getByLabelText('Connection address'), { target: { value: ' wss://mac.example ' } })
         fireEvent.change(screen.getByLabelText('Name (optional)'), { target: { value: 'Remote Mac' } })
         fireEvent.change(screen.getByLabelText('Authentication token (optional)'), { target: { value: 'test-upload-token' } })
-        fireEvent.change(screen.getByLabelText('Default directory (optional)'), { target: { value: '/Users/me/project' } })
+        expect(screen.queryByLabelText('Default directory (optional)')).toBeNull()
         fireEvent.click(screen.getByRole('button', { name: 'Save' }))
         await screen.findByRole('button', { name: 'Rename Remote Mac' })
-        expect(createEndpointMock).toHaveBeenCalledExactlyOnceWith({ address: 'wss://mac.example', displayName: 'Remote Mac', token: 'test-upload-token', defaultCwd: '/Users/me/project' })
+        expect(createEndpointMock).toHaveBeenCalledExactlyOnceWith({ address: 'wss://mac.example', displayName: 'Remote Mac', token: 'test-upload-token' })
         expect(screen.queryByDisplayValue('test-upload-token')).toBeNull()
     })
 
@@ -123,10 +123,10 @@ describe('SettingsMachinesPage', () => {
         expect((startEditing('Workstation') as HTMLInputElement).value).toBe('Workstation')
     })
 
-    it('leaves the input empty when no custom name is set', () => {
+    it('seeds the input with the current machine name when no custom name is set', () => {
         renderPage()
 
-        expect((startEditing('workstation.local') as HTMLInputElement).value).toBe('')
+        expect((startEditing('workstation.local') as HTMLInputElement).value).toBe('workstation.local')
     })
 
     it('saves a trimmed name on Enter', async () => {

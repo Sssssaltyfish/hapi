@@ -1,9 +1,12 @@
 import { readFile, stat } from 'node:fs/promises'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
+import { listDaemonProjects, projectMemberships } from './projects'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
+    desktopExcludesThread,
+    desktopHidesThread,
     desktopThreadSelection,
     needsDesktopIdentity,
     type DesktopProject,
@@ -252,6 +255,7 @@ export class NativeService {
         }
         checkBudget()
         const background = params.catalog === 'background'
+        const canonicalProjects = listDaemonProjects(this, deadline).catch(() => [])
         const page = record(
             await this.call(
                 'thread/list',
@@ -284,6 +288,17 @@ export class NativeService {
         const desktop = await this.desktop(deadline)
         checkBudget()
         const threads = Array.isArray(page.data) ? page.data.map(record) : []
+        // Empty newly-started threads are not in app-server's durable catalog until
+        // their first input. Keep its authoritative start response while HAPI owns
+        // the creating connection so changing launch/workspace modes is visible.
+        if (!params.cursor) {
+            const creating = await Promise.all([...this.subscriptions.values()].filter(entry => entry.creating && entry.empty).map(async entry => {
+                try { return record(record(await entry.attached).thread) } catch { return {} }
+            }))
+            for (const thread of creating) {
+                if (text(thread.id) && !threads.some(existing => existing.id === thread.id)) threads.unshift(thread)
+            }
+        }
         // State-db catalog rows omit provenance on some daemon versions. Resolve only this
         // page, four requests at a time, without loading any conversation items.
         if (desktop.membership === 'fallback' || background) {
@@ -350,27 +365,38 @@ export class NativeService {
             )
         }
         if (!windowsDesktop || !desktop.state) checkBudget()
+        const canonical = projectMemberships(await canonicalProjects, desktop, this.config.desktopHostId)
+        const isHapiThread = (thread: NativeRecord) => thread.originator === 'hapi-native' && thread.threadSource === 'user'
+            && thread.ephemeral !== true && !thread.parentThreadId && !thread.parent_thread_id
+            && !desktopHidesThread(desktop.state, thread)
+        for (const thread of threads) {
+            if (isHapiThread(thread) && !text(thread.projectId)) selected.delete(String(thread.id))
+            const project = canonical.get(String(thread.projectId))
+            if (project && !desktopExcludesThread(desktop.state, thread) && (fallbackThread(thread) || isHapiThread(thread))) selected.set(String(thread.id), project)
+        }
+        const projects = [...new Map([...desktop.projects, ...canonical.values()].map(project => [project.id, project])).values()]
         const data = threads
             .filter((thread) => {
                 const membership = selected.get(String(thread.id))
                 const ordinary =
-                    desktop.membership === 'desktop' ? Boolean(membership) : fallbackThread(thread)
+                    desktop.membership === 'desktop' ? Boolean(membership) || isHapiThread(thread) : fallbackThread(thread) || isHapiThread(thread)
                 if (background)
                     return (
                         !membership &&
+                        !isHapiThread(thread) &&
                         (Boolean(thread.parentThreadId) ||
                             Boolean(thread.parent_thread_id) ||
                             (thread.source !== 'cli' && thread.source !== 'vscode') ||
                             thread.threadSource === 'agent_created_thread')
                     )
-                return ordinary && (!params.projectId || membership?.id === params.projectId)
+                return ordinary && (!params.projectId || membership?.id === params.projectId || thread.projectId === params.projectId)
             })
             .map((thread) => ({
                 ...thread,
                 desktopProjectId: selected.get(String(thread.id))?.id ?? null,
                 desktopProject: selected.get(String(thread.id)) ?? null,
             }))
-        return { ...page, data, projects: desktop.projects, membership: desktop.membership }
+        return { ...page, data, projects, membership: desktop.membership }
     }
     private acquire(threadId: string): Subscription {
         let entry = this.subscriptions.get(threadId)

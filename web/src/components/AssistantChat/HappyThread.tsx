@@ -551,7 +551,7 @@ export function HappyThread(props: {
     const { t, locale } = useTranslation()
     const { preferences: headerMetadata } = useSessionHeaderMetadata()
     const { machines } = useMachines(props.api, true)
-    const machineLabelsById = useMachineLabels(machines)
+    const machineLabelsById = useMachineLabels(machines, [props.session])
     const [shareTurn, setShareTurn] = useState<ShareTurnState>(null)
     const shareDialogOpen = shareTurn !== null
     const shareTitle = shareTurn ? getSessionTitle(props.session) : ''

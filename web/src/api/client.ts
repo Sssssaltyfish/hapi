@@ -65,6 +65,8 @@ import { fetchThroughAuthProxy } from '@/api/authProxy'
 import type {
     NativeEndpoint,
     NativeEndpointStatus,
+    NativeDaemonProject,
+    NativeDirectory,
     NativeEvent,
     NativeItemEntry,
     NativePage,
@@ -334,7 +336,21 @@ export class ApiClient {
         )
     }
 
-    async createCodexNativeThread(endpointId: string, payload: { cwd: string; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
+    async listCodexNativeProjects(endpointId: string, cursor?: string): Promise<NativePage<NativeDaemonProject>> {
+        const query = cursor ? `?${new URLSearchParams({ cursor })}` : ''
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects${query}`)
+    }
+
+    async createCodexNativeProject(endpointId: string, payload: { name: string; path: string; idempotencyKey: string }): Promise<{ project: NativeDaemonProject }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects`, { method: 'POST', body: JSON.stringify(payload) })
+    }
+
+    async listCodexNativeDirectory(endpointId: string, path: string, includeHidden = false): Promise<NativeDirectory> {
+        const query = new URLSearchParams({ path, includeHidden: String(includeHidden) })
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/directory?${query}`)
+    }
+
+    async createCodexNativeThread(endpointId: string, payload: { cwd: string; projectId?: string | null; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads`, { method: 'POST', body: JSON.stringify(payload) })
     }
 

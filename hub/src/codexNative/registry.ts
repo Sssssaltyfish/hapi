@@ -83,7 +83,8 @@ export function nativeSession(endpoint: NativeEndpointConfig, thread: NativeReco
                 threadId: id,
                 available,
                 ...(error ? { error } : {}),
-                ...(text(project.id) ? { projectId: text(project.id), projectName: text(project.name), projectPath: text(project.path) } : {})
+                ...(text(project.id) ? { projectId: text(project.id), projectName: text(project.name), projectPath: text(project.path) }
+                    : thread.desktopProject === undefined && text(thread.projectId) ? { projectId: text(thread.projectId) } : {})
             },
             lifecycleState: active ? 'running' : 'idle',
             capabilities: { concurrentClients: true, terminal: false, permissionModes: [] }
@@ -152,6 +153,7 @@ export class NativeRegistry {
         return {
             id: config.id,
             label: config.label,
+            baseLabel: this.configs.find(endpoint => endpoint.id === config.id && endpoint.namespace === config.namespace)?.label ?? 'Codex Native',
             ...(config.displayName ? { displayName: config.displayName } : {}),
             address: nativeDisplayAddress(config.endpoint!),
             ...(config.defaultCwd ? { defaultCwd: config.defaultCwd } : {}),

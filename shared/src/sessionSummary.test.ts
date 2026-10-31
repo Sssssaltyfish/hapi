@@ -69,6 +69,12 @@ describe('getPendingRequestKinds', () => {
 })
 
 describe('toSessionSummary', () => {
+    it('carries the current Native machine label through list projection and after rename', () => {
+        const metadata = { path: '/repo', host: 'Windows Native', machineId: 'codex-native:windows', nativeCodex: { endpointId: 'windows', threadId: 'thread', available: true } }
+        expect(toSessionSummary(makeSession({ metadata })).metadata?.host).toBe('Windows Native')
+        expect(toSessionSummary(makeSession({ metadata: { ...metadata, host: 'Work PC' } })).metadata?.host).toBe('Work PC')
+        expect(toSessionSummary(makeSession()).metadata).not.toHaveProperty('host')
+    })
     it('carries createdAt for the fixed-order list sort', () => {
         expect(toSessionSummary(makeSession({ createdAt: 1_234 })).createdAt).toBe(1_234)
     })

@@ -326,10 +326,11 @@ it('uses one set of launch fields to create native Codex without a runner and re
     const nativeApi = { getCodexNativeEndpoints: endpoints,
         getCodexNativeEndpointStatus: async () => ({ available: true, platformOs: 'linux' }),
         createCodexNativeThread: create,
+        listCodexNativeProjects: async () => ({ data: [], nextCursor: null }),
         withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [{ model: 'gpt-5.6-terra', displayName: 'Terra', supportedReasoningEfforts: [{ reasoningEffort: 'max' }] }] }) }) } as unknown as ApiClient
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    render(<QueryClientProvider client={queryClient}><NewSession api={nativeApi} machines={[]} onSuccess={success} onCancel={vi.fn()} /></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><NewSession api={nativeApi} machines={[]} initialDirectory="/repo" onSuccess={success} onCancel={vi.fn()} /></QueryClientProvider>)
     expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeDisabled()
     fireEvent.click(screen.getByRole('radio', { name: 'Codex Native' }))
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Codex Native' })).toBeChecked())
@@ -346,7 +347,7 @@ it('uses one set of launch fields to create native Codex without a runner and re
     expect(endpoints).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() => expect(success).toHaveBeenCalledWith('codex-native:native-host:new-thread'))
-    expect(create).toHaveBeenCalledExactlyOnceWith('native-host', { cwd: '/repo', model: 'gpt-5.6-terra', effort: 'max' })
+    expect(create).toHaveBeenCalledExactlyOnceWith('native-host', { cwd: '/repo', projectId: null, model: 'gpt-5.6-terra', effort: 'max' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['sessions'] })
     expect(mocks.spawnSession).not.toHaveBeenCalled()
 })

@@ -429,7 +429,9 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
     sessions.forEach(session => {
         const path = session.metadata?.nativeCodex?.projectPath ?? session.metadata?.worktree?.basePath ?? session.metadata?.path ?? 'Other'
         const machineId = session.metadata?.machineId ?? null
-        const key = `${machineId ?? UNKNOWN_MACHINE_ID}::${path}`
+        const native = session.metadata?.nativeCodex
+        const identity = native ? (native.projectId ? `project:${native.projectId}` : `projectless:${path}`) : path
+        const key = `${machineId ?? UNKNOWN_MACHINE_ID}::${identity}`
         if (!groups.has(key)) {
             groups.set(key, {
                 directory: path,

@@ -162,7 +162,7 @@ function SessionsPage() {
         })()
     }, [addToast, refetch, t])
 
-    const machineLabelsById = useMachineLabels(machines)
+    const machineLabelsById = useMachineLabels(machines, sessions)
     const machinesById = useMemo(() => {
         const byId: Record<string, typeof machines[number]> = {}
         for (const machine of machines) {
@@ -663,7 +663,7 @@ function HapiSessionPage() {
     // Mention pool is stricter than sidebar (#1506): titled sessions only; match via sessionMatchesQuery.
     const { sessions: allSessions } = useSessions(api)
     const { machines: mentionMachines } = useMachines(api, true)
-    const mentionMachineLabelsById = useMachineLabels(mentionMachines)
+    const mentionMachineLabelsById = useMachineLabels(mentionMachines, allSessions)
     // Same fallbacks as share picker / SessionList search.
     const resolveMentionMachineLabel = useCallback((machineId: string | null) => {
         if (machineId && mentionMachineLabelsById[machineId]) {

@@ -30,7 +30,7 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
         <MachineSettingsRow
             label={props.endpoint.label}
             displayName={props.endpoint.displayName}
-            fallbackName={props.endpoint.address}
+            fallbackName={props.endpoint.baseLabel ?? props.endpoint.label}
             subtitle={[
                 props.endpoint.address,
                 status.data?.platformOs ?? status.data?.platformFamily,
@@ -52,11 +52,6 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
                 </button>
             }
         >
-            {props.endpoint.defaultCwd ? (
-                <div className="mt-1 break-all text-xs text-[var(--app-hint)]">
-                    {t('settings.native.directory')} {props.endpoint.defaultCwd}
-                </div>
-            ) : null}
             {error ? (
                 <div role="status" className="mt-1 break-words text-xs text-[var(--app-hint)]">
                     {error}
@@ -73,21 +68,18 @@ function AddNativeMachine({ api }: { api: ApiClient }) {
     const [address, setAddress] = useState('')
     const [displayName, setDisplayName] = useState('')
     const [token, setToken] = useState('')
-    const [defaultCwd, setDefaultCwd] = useState('')
     const submitting = useRef(false)
     const add = useMutation({
         mutationFn: () => api.createCodexNativeEndpoint({
             address: address.trim(),
             ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
             ...(token ? { token } : {}),
-            ...(defaultCwd.trim() ? { defaultCwd: defaultCwd.trim() } : {}),
         }),
         onSuccess: () => {
             setOpen(false)
             setAddress('')
             setDisplayName('')
             setToken('')
-            setDefaultCwd('')
             void queryClient.invalidateQueries({ queryKey: endpointsKey })
             void queryClient.invalidateQueries({ queryKey: queryKeys.sessions })
         },
@@ -150,15 +142,6 @@ function AddNativeMachine({ api }: { api: ApiClient }) {
                             value={token}
                             disabled={add.isPending}
                             onChange={(event) => setToken(event.target.value)}
-                            className={fieldClass}
-                        />
-                    </label>
-                    <label className="block space-y-1 text-xs text-[var(--app-hint)]">
-                        <span>{t('settings.native.defaultCwd')}</span>
-                        <input
-                            value={defaultCwd}
-                            disabled={add.isPending}
-                            onChange={(event) => setDefaultCwd(event.target.value)}
                             className={fieldClass}
                         />
                     </label>
