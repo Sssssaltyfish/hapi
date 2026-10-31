@@ -1,4 +1,13 @@
 export default {
+  'settings.chat.sendMode': 'Default send behavior',
+  'settings.chat.sendMode.queue': 'Queue',
+  'settings.chat.sendMode.steer': 'Steer when supported',
+  'settings.chat.sendMode.description': 'While a turn is running, steer is available for Codex, Cursor ACP and Pi. Other agents, scheduled messages and retries use the queue.',
+  'queuedMessages.title': 'Queued',
+  'nativeQueue.disconnected': 'Showing the last known queue while reconnecting.',
+  'nativeQueue.cancel': 'Cancel queued message',
+  'nativeQueue.quotes': '{count} quoted selections',
+  'nativeQueue.attachments': '{count} attachments',
   'sessionConfig.unavailable': 'Unavailable',
   'sessionConfig.nextMessages': 'Applies to messages sent after this selection. Queued messages keep their selected permissions.',
   'nativeApproval.settings': 'Approval settings',

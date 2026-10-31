@@ -36,6 +36,7 @@ it('renders native content after the native model catalogue reaches the existing
         withCodexNativeEndpoint: () => api,
         getCodexNativeThread: async () => ({ thread: { id: 'native-thread', name: 'Native chat', status: { type: 'idle' } } }),
         getCodexNativeActiveTurn: async () => ({ activeTurn: null }),
+        getCodexNativeQueue: async () => ({ data: [], nextCursor: null }),
         getCodexNativeItems: async () => ({ data: [{ turnId: 'turn', item: { id: 'response', type: 'agentMessage', text: 'Native message renders here' }, startedAtMs: 2000, completedAtMs: 2001 }], nextCursor: null }),
         getCodexNativeModels: async () => ({ data: [{ id: 'gpt-6-astra', model: 'gpt-6-astra', displayName: 'Astra', isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Medium' }, { reasoningEffort: 'ultra', description: 'Ultra' }] }] }),
         streamCodexNativeEvents: (_id: string, _signal: AbortSignal, onEvent: (event: unknown) => void) => {

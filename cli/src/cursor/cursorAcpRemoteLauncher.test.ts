@@ -343,7 +343,7 @@ describe('cursorAcpRemoteLauncher', () => {
         _resetSharedCursorModelsCacheForTests();
     });
 
-    it('ends the launcher when a soft steer outlives an abort', async () => {
+    it('ends the launcher when a default-send soft steer outlives an abort', async () => {
         let releasePrompt!: () => void;
         harness.deferPrompt = new Promise((resolve) => { releasePrompt = resolve; });
         // Soft-steer completion never settles — simulates Cursor keeping the
@@ -360,7 +360,7 @@ describe('cursorAcpRemoteLauncher', () => {
         }).rpcHandlerManager.handlers;
 
         session.queue.push('soft steer', mode, 'steer');
-        await handlers.get(RPC_METHODS.SteerQueuedMessage)!({ localId: 'steer' });
+        await session.steerQueuedMessage('steer');
         harness.deferPrompt = null;
         releasePrompt();
         await handlers.get(RPC_METHODS.Abort)!();

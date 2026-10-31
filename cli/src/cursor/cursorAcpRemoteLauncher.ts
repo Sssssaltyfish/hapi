@@ -59,6 +59,7 @@ const CURSOR_ABORT_DRAIN_TIMEOUT_MS = 5_000;
 class CursorAcpRemoteLauncher extends RemoteLauncherBase {
     private readonly session: CursorSession;
     private backend: ReturnType<typeof createCursorAcpBackend> | null = null;
+    private unregisterQueuedSteer: (() => void) | null = null;
     private acpSessionId: string | null = null;
     private permissionAdapter: PermissionAdapter | null = null;
     private extensionAdapter: CursorExtensionAdapter | null = null;
@@ -431,9 +432,7 @@ class CursorAcpRemoteLauncher extends RemoteLauncherBase {
         // Soft steer = Cursor GUI "Send" (next-opportune / soft inject): fire a
         // concurrent session/prompt without canceling the in-flight turn. Abort
         // remains the hard stop path (GUI "Stop & send").
-        session.client.rpcHandlerManager.registerHandler(
-            RPC_METHODS.SteerQueuedMessage,
-            async (payload: unknown) => {
+        const steerQueuedMessage = async (payload: unknown) => {
                 const localId = typeof (payload as { localId?: unknown } | null)?.localId === 'string'
                     ? (payload as { localId: string }).localId
                     : '';
@@ -575,8 +574,9 @@ class CursorAcpRemoteLauncher extends RemoteLauncherBase {
                     });
                 });
                 return { steered: true };
-            }
-        );
+            };
+        session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SteerQueuedMessage, steerQueuedMessage);
+        this.unregisterQueuedSteer = session.registerQueuedSteerHandler(steerQueuedMessage);
 
         const sendReady = () => {
             session.sendSessionEvent({ type: 'ready' });
@@ -729,6 +729,8 @@ class CursorAcpRemoteLauncher extends RemoteLauncherBase {
 
         try {
             this.clearAbortHandlers(this.session.client.rpcHandlerManager);
+            this.unregisterQueuedSteer?.();
+            this.unregisterQueuedSteer = null;
             this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SteerQueuedMessage, async () => ({
                 steered: false,
                 error: 'Session ending'

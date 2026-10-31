@@ -38,6 +38,16 @@ describe('resolveMessageDeliveryMode', () => {
         intent: 'default' as const,
     }
 
+    it('only applies the saved steer default to a supported live turn', () => {
+        for (const agentFlavor of ['codex', 'cursor', 'pi']) {
+            expect(resolveMessageDeliveryMode({ ...base, agentFlavor, defaultMode: 'steer' })).toBe('steer')
+        }
+        for (const override of [{ agentFlavor: 'claude' }, { steeringSupported: false }, { isSessionThinking: false },
+            { intent: 'queue' as const }, { scheduledAt: Date.now() + 1000 }, { routesToScratchlist: true }]) {
+            expect(resolveMessageDeliveryMode({ ...base, defaultMode: 'steer', ...override })).toBe('queue')
+        }
+    })
+
     // Every composer submission queues — mid-turn delivery happens only via
     // the explicit per-queued-message Steer action (issue #1466). The old Pi
     // automatic steer while thinking was removed.

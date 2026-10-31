@@ -99,6 +99,17 @@ function routes(service: NativeService, namespace: string) {
     return app
 }
 describe('native bridge boundaries', () => {
+    test('reads and cancels the daemon queue directly with namespace isolation', async () => {
+        const { service, clients } = fixture()
+        const app = routes(service, 'owner')
+        expect((await app.request('/api/codex-native/threads/thread/queue?cursor=page-two&limit=100')).status).toBe(200)
+        expect(clients[0].calls).toEqual([{ method: 'thread/queue/list', params: { threadId: 'thread', cursor: 'page-two', limit: 100 } }])
+        const response = await app.request('/api/codex-native/threads/thread/queue/delete', { method: 'POST',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ queuedSubmissionId: 'native-queued-id' }) })
+        expect(response.status).toBe(200)
+        expect(clients[1].calls).toEqual([{ method: 'thread/queue/delete', params: { threadId: 'thread', queuedSubmissionId: 'native-queued-id' } }])
+        expect((await routes(service, 'other').request('/api/codex-native/threads/thread/queue')).status).toBe(404)
+    })
     test('Windows exact membership skips Git and optional Git timeout preserves known membership', async () => {
         const state = { 'local-projects': { p: { id: 'p', name: 'Project', rootPaths: ['C:/Repo'] } }, 'projectless-thread-ids': ['manual'] }
         for (const unresolved of [false, true]) {

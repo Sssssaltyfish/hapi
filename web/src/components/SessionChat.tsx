@@ -36,6 +36,7 @@ import {
 import { createSerialAsyncQueue } from '@/lib/serialAsyncQueue'
 import { HappyComposer, type ComposerSendError } from '@/components/AssistantChat/HappyComposer'
 import { SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
+import { useComposerSendMode } from '@/hooks/useComposerSendMode'
 import {
     isDictateHotkeyBlockedTarget,
     isDictateToggleHotkey,
@@ -566,7 +567,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -642,6 +643,7 @@ export function SessionChat(props: SessionChatProps) {
 
 function SessionChatInner(props: SessionChatProps) {
     const native = props.nativeCapabilities
+    const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
     const { t } = useTranslation()
     const { codexExplorationCollapsed } = useCodexExplorationCollapse()
@@ -1834,6 +1836,9 @@ function SessionChatInner(props: SessionChatProps) {
             // Do not use assistant-ui's broader `isRunning` here: a
             // child-agent run is not the Pi main session's steer target.
             isSessionThinking: props.session.thinking,
+            defaultMode: composerSendMode,
+            steeringSupported: isSteeringSupportedForSession(props.session.metadata) && !controlledByUser
+                && (agentFlavor === 'pi' || props.session.agentState?.steeringActive === true),
             intent,
             scheduledAt,
             routesToScratchlist: routedToScratchlist,
@@ -1852,7 +1857,8 @@ function SessionChatInner(props: SessionChatProps) {
             updatePendingSchedule(null)
             setForceScrollToken((token) => token + 1)
         }
-    }, [agentFlavor, onSendForComposer, props.session.thinking, scratchlistMode, updatePendingSchedule])
+    }, [agentFlavor, onSendForComposer, props.session.thinking, props.session.metadata, props.session.agentState?.steeringActive,
+        controlledByUser, composerSendMode, scratchlistMode, updatePendingSchedule])
 
     const nativeAttachmentAdapterRef = useRef<ReturnType<typeof createAttachmentAdapter> | null>(null)
     const attachmentAdapter = useMemo(() => {
@@ -2084,6 +2090,7 @@ function SessionChatInner(props: SessionChatProps) {
                                     disabled={props.isSending || isScratchlistParking}
                                 />
                             ) : null}
+                            {native?.queueContent}
                             {!native && <QueuedMessagesBar
                                 sessionId={props.session.id}
                                 compactionPendingMessageIds={agentFlavor === 'codex' && props.session.active

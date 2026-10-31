@@ -13,6 +13,7 @@ import { useTranslation } from '@/lib/use-translation'
 import { useToast } from '@/lib/toast-context'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import { formatScheduledTime } from '@/lib/scheduledTime'
+import { QueuedMessagesFrame } from './QueuedMessagesFrame'
 import {
     beginQueuedOperation,
     clearQueuedEditRecovery,
@@ -333,20 +334,7 @@ export function QueuedMessagesBar({
     }
 
     return (
-        <div
-            role="status"
-            aria-label={`${queued.length} queued message${queued.length === 1 ? '' : 's'} pending invocation`}
-            className="mx-auto w-full max-w-content"
-        >
-            <div className="px-3 pb-0 pt-2 text-sm text-[var(--app-fg-muted)]">
-                <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-[var(--app-hint)]">
-                    <ClockIcon />
-                    <span>Queued</span>
-                </div>
-                <ul
-                    className="flex flex-col gap-1.5 max-h-32 sm:max-h-48 overflow-y-auto"
-                    aria-label="Queued messages"
-                >
+        <QueuedMessagesFrame count={queued.length}>
                     {queued.map((msg) => {
                         const preview = getQueuedMessagePreview(msg)
                         const { text, attachmentNames } = preview
@@ -626,8 +614,6 @@ export function QueuedMessagesBar({
                             </li>
                         )
                     })}
-                </ul>
-            </div>
-        </div>
+        </QueuedMessagesFrame>
     )
 }

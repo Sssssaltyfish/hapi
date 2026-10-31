@@ -108,6 +108,16 @@ export async function runCursor(opts: {
         };
         const formattedText = formatMessageWithAttachments(message.content.text, message.content.attachments);
         enqueueCursorUserMessage(messageQueue, formattedText, enhancedMode, localId);
+        if (message.meta?.deliveryMode === 'steer' && localId) {
+            // Invoke in the same receipt stack: the existing handler captures
+            // the active ACP generation before its first asynchronous step.
+            void sessionWrapperRef.current?.steerQueuedMessage(localId).then(result => {
+                if (!result.steered) session.sendSessionEvent({ type: 'message', message: `Message delivery was not confirmed: ${result.error ?? 'Steer unavailable'}. Inspect the queue before retrying.` });
+            }).catch(error => {
+                logger.debug('[cursor] automatic steer was not confirmed', error);
+                session.sendSessionEvent({ type: 'message', message: 'Message delivery was not confirmed. Inspect the queue before retrying.' });
+            });
+        }
     });
 
     session.onCancelQueuedMessage((localId) => {

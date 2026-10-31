@@ -1,4 +1,12 @@
 export default {
+  'settings.chat.sendMode': 'Отправка по умолчанию',
+  'settings.chat.sendMode.queue': 'В очередь',
+  'settings.chat.sendMode.steer': 'Направлять, если поддерживается',
+  'settings.chat.sendMode.description': 'Codex, Cursor ACP и Pi поддерживают ввод в текущий ход. Остальные агенты, отложенные сообщения и повторы используют очередь.',
+  'nativeQueue.disconnected': 'Показана последняя очередь до восстановления соединения.',
+  'nativeQueue.cancel': 'Отменить сообщение в очереди',
+  'nativeQueue.quotes': 'Цитат: {count}',
+  'nativeQueue.attachments': 'Вложений: {count}',
   'sessionConfig.unavailable': 'Недоступно',
   'sessionConfig.nextMessages': 'Применяется к новым сообщениям. Сообщения в очереди сохраняют выбранные разрешения.',
   'nativeApproval.settings': 'Настройки разрешений',

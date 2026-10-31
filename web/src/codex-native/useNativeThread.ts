@@ -33,6 +33,11 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const [error, setError] = useState('')
     const [connected, setConnected] = useState(false)
     const [requests, setRequests] = useState<NativeRequest[]>([])
+    const eventListeners = useRef(new Set<(event: NativeEvent) => void>())
+    const subscribeEvents = useCallback((listener: (event: NativeEvent) => void) => {
+        eventListeners.current.add(listener)
+        return () => { eventListeners.current.delete(listener) }
+    }, [])
     const [hasNewer, setHasNewer] = useState(Boolean(cached.current && preserveHistory && (cached.current.hasNewer ?? true)))
     const browsingOlder = useRef(Boolean(cached.current && preserveHistory))
     const historyGeneration = useRef(0)
@@ -240,6 +245,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
         const onEvent = (event: NativeEvent) => {
             if (!alive.current) return
+            for (const listener of eventListeners.current) listener(event)
             if (event.method === 'hapi/heartbeat') return
             if (event.method === 'hapi/ready') {
                 setConnected(true)
@@ -313,5 +319,5 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
     }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
 
-    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, newer, seek, cancelOlder, browseHistory, latest, refreshDetail, applySettings }
+    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, newer, seek, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }

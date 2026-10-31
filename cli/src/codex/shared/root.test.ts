@@ -15,6 +15,7 @@ vi.mock('../codexAppServerClient', () => ({
         thread = { id: 'thread', turns: [] as NativeTurn[] };
         settings: Record<string, unknown> = { model: 'mock', collaborationMode: { mode: 'default' } };
         queue: Array<{ id: string; clientUserMessageId: unknown; input: unknown }> = [];
+        steers: Record<string, unknown>[] = [];
         notify?: (method: string, params: unknown) => void;
         abandoned?: () => void;
         setNotificationHandler(handler: typeof this.notify) { this.notify = handler; }
@@ -38,6 +39,11 @@ vi.mock('../codexAppServerClient', () => ({
                 this.queue.push(entry);
                 return { queuedSubmission: entry };
             }
+            if (method === 'thread/queue/delete') {
+                this.queue = this.queue.filter(entry => entry.id !== params.queuedSubmissionId);
+                return { deleted: true };
+            }
+            if (method === 'turn/steer') { this.steers.push(params); return {}; }
             throw new Error(`Unexpected request: ${method}`);
         }
     },
@@ -62,6 +68,8 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
     const rpc = new Map<string, (raw: unknown) => Promise<unknown>>();
     const send = vi.fn();
     const consumed = vi.fn();
+    const events = vi.fn();
+    let userMessage: ((message: { content: { text: string }; meta?: { deliveryMode?: 'steer' | 'queue' } }, localId: string) => void) | undefined;
     const uncertain = vi.fn();
     const hubArchivedListeners: Array<() => void> = [];
     const session = {
@@ -69,13 +77,13 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         hubArchived: opts?.hubArchived ?? false,
         updateMetadata: (fn: (value: Metadata) => Metadata) => { metadata = fn(metadata); },
         updateAgentState: updateState, keepAlive() {},
-        onUserMessage() {}, onCancelQueuedMessage() {}, onRetryQueuedMessage() {},
+        onUserMessage(handler: typeof userMessage) { userMessage = handler; }, onCancelQueuedMessage() {}, onRetryQueuedMessage() {},
         onReconnect: (fn: (() => void) | null) => { reconnect = fn; },
         on(event: string, listener: () => void) {
             if (event === 'hub-archived') hubArchivedListeners.push(listener);
         },
         rpcHandlerManager: { registerHandler: (name: string, handler: (raw: unknown) => Promise<unknown>) => rpc.set(name, handler) },
-        sendSessionEvent() {}, sendAgentMessage: send, emitSessionReady() {},
+        sendSessionEvent: events, sendAgentMessage: send, emitSessionReady() {},
         sendUserMessage() {}, emitMessagesConsumed: consumed, emitSteerIndeterminate: uncertain, syncNativeQueuedMessage() {},
         sendSessionDeath() {}, async flush() {}, close() {}
     } as unknown as ApiSessionClient;
@@ -92,16 +100,18 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         initialized: boolean;
         thread: { id: string; name?: string; preview?: string; turns: NativeTurn[] };
         queue: Array<{ id: string; clientUserMessageId: string; input: unknown }>;
+        steers: Record<string, unknown>[];
         notify(method: string, params: unknown): void;
         abandoned(): void;
     };
     return {
-        root, native, rpc, send, consumed, uncertain, metadata: () => metadata, state: () => state, updateState,
+        root, native, rpc, send, events, consumed, uncertain, metadata: () => metadata, state: () => state, updateState,
         drain: () => (root as unknown as { notifications: Promise<void> }).notifications,
         reconnect: () => reconnect?.(),
         emitHubArchived: () => { for (const listener of hubArchivedListeners) listener(); },
         hubArchivedListenerCount: () => hubArchivedListeners.length,
         end,
+        userMessage: (text: string, localId: string, mode: 'steer' | 'queue') => userMessage?.({ content: { text }, meta: { deliveryMode: mode } }, localId),
     };
 }
 
@@ -118,6 +128,101 @@ async function startCompaction(f: Awaited<ReturnType<typeof fixture>>, id = 'inp
     f.native.notify('item/started', { threadId: 'thread', turnId, item: { id: 'compact', type: 'contextCompaction' } });
     return turn;
 }
+
+describe('default steer delivery', () => {
+    it('steers a live send into the captured turn through the existing native queue', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.thread.turns = [{ id: 'active-at-receipt', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        f.userMessage('adjust this turn', 'direct-steer', 'steer');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['direct-steer'], { steered: true }));
+        expect(f.native.steers).toEqual([expect.objectContaining({ expectedTurnId: 'active-at-receipt', clientUserMessageId: 'direct-steer' })]);
+        expect(f.native.queue).toEqual([]);
+    });
+    it('keeps the message queued when the active turn changes during enqueue', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.thread.turns = [{ id: 'original', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        const request = f.root.client.request.bind(f.root.client);
+        let release!: () => void;
+        let started!: () => void;
+        const enqueuing = new Promise<void>(resolve => { started = resolve; });
+        vi.spyOn(f.root.client, 'request').mockImplementation(async (method, params) => {
+            if (method === 'thread/queue/add') {
+                started();
+                await new Promise<void>(resolve => { release = resolve; });
+            }
+            return request(method, params);
+        });
+        f.userMessage('for the original turn', 'generation-race', 'steer');
+        await enqueuing;
+        f.native.notify('turn/started', { threadId: 'thread', turn: { id: 'replacement', status: 'inProgress', items: [] } });
+        release();
+        await vi.waitFor(() => expect(f.native.queue).toHaveLength(1));
+        await (f.root as unknown as { work: Promise<void> }).work;
+        expect(f.native.steers).toEqual([]);
+        expect(f.consumed).not.toHaveBeenCalled();
+        expect(f.native.queue[0].clientUserMessageId).toBe('generation-race');
+    });
+    it('restores the same message after a definite steer rejection', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.thread.turns = [{ id: 'active', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        const request = f.root.client.request.bind(f.root.client);
+        vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => {
+            if (method === 'turn/steer') return Promise.reject(new Error('Turn already completed'));
+            return request(method, params);
+        });
+        f.userMessage('preserve this input', 'rejected-steer', 'steer');
+        await vi.waitFor(() => expect(f.native.queue).toHaveLength(1));
+        await (f.root as unknown as { work: Promise<void> }).work;
+        expect(f.native.queue).toEqual([expect.objectContaining({ clientUserMessageId: 'rejected-steer', input: [{ type: 'text', text: 'preserve this input' }] })]);
+        expect(f.consumed).not.toHaveBeenCalled();
+    });
+    it('does not report a queued failure when native consumption wins before steer', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.thread.turns = [{ id: 'active', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        const request = f.root.client.request.bind(f.root.client);
+        vi.spyOn(f.root.client, 'request').mockImplementation(async (method, params) => {
+            const response = await request(method, params);
+            if (method === 'thread/queue/add') {
+                f.native.queue = [];
+                f.native.notify('item/started', { threadId: 'thread', turnId: 'active',
+                    item: { id: 'native-input', type: 'userMessage', clientId: 'consumed-first', content: [] } });
+                await f.drain();
+            }
+            return response;
+        });
+        f.userMessage('already accepted input', 'consumed-first', 'steer');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['consumed-first'], { steered: undefined }));
+        await (f.root as unknown as { work: Promise<void> }).work;
+        expect(f.native.steers).toEqual([]);
+        expect(f.events).not.toHaveBeenCalled();
+    });
+    it('reports uncertainty when a rejected steer cannot be restored to the native queue', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.thread.turns = [{ id: 'active', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        const request = f.root.client.request.bind(f.root.client);
+        let adds = 0;
+        vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => {
+            if (method === 'turn/steer') return Promise.reject(new Error('Turn completed'));
+            if (method === 'thread/queue/add' && ++adds > 1) return Promise.reject(new Error('Connection lost'));
+            return request(method, params);
+        });
+        f.userMessage('preserve uncertain input', 'restore-failed', 'steer');
+        await vi.waitFor(() => expect(f.uncertain).toHaveBeenCalledWith(['restore-failed']));
+        await (f.root as unknown as { work: Promise<void> }).work;
+        expect(f.consumed).not.toHaveBeenCalled();
+        expect(f.events).toHaveBeenCalledWith({ type: 'message', message: 'Message delivery was not confirmed. Inspect the queue before retrying.' });
+    });
+});
 
 describe('native title inheritance', () => {
     it('does not mistake stale historical turns for a currently running native thread', async () => {
