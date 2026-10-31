@@ -3,6 +3,7 @@ import type { ApiClient } from '@/api/client'
 import { markMessagesConsumed } from '@/lib/message-window-store'
 import { useTranslation } from '@/lib/use-translation'
 import { useToast } from '@/lib/toast-context'
+import { reconcileQueuedStateAfterConnect } from '@/lib/queued-state-reconciliation'
 
 type SteerQueuedMessageInput = {
     sessionId: string
@@ -10,7 +11,7 @@ type SteerQueuedMessageInput = {
 }
 
 /**
- * Mutation: deliver one queued message into the active Pi turn (native steer).
+ * Mutation: request delivery of one queued message into the active agent turn.
  *
  * Non-optimistic on purpose: the CLI acknowledges the steer via the existing
  * `messages-consumed` event, which flips the row to invoked and removes it from
@@ -30,7 +31,13 @@ export function useSteerQueuedMessage(api: ApiClient | null) {
             }
             return api.steerMessage(input.sessionId, input.messageId)
         },
-        onSuccess: (result, input) => {
+        onSuccess: async (result, input) => {
+            if (result.status === 'pending') {
+                // State comes from ordered SSE or queued-state reconciliation.
+                // A late HTTP acknowledgement must not undo a newer requeue.
+                if (api) await reconcileQueuedStateAfterConnect(api, input.sessionId, { syncTail: false }).catch(() => {})
+                return
+            }
             if (result.status === 'failed') {
                 addToast({
                     title: t('queuedMessages.steerFailed'),
@@ -47,7 +54,7 @@ export function useSteerQueuedMessage(api: ApiClient | null) {
                 // stale actionable row (mirrors useCancelQueuedMessage).
                 markMessagesConsumed(input.sessionId, [result.message.localId], result.message.invokedAt)
             }
-            // status === 'steered': the messages-consumed SSE will remove the row.
+            // Accepted requests retain their row until messages-consumed arrives.
         },
         onError: (error, input) => {
             addToast({

@@ -516,6 +516,9 @@ export function registerSessionHandlers(socket: CliSocketWithData, deps: Session
             if (ok && data.state === 'queued') {
                 onWebappEvent?.({ type: 'messages-requeued', sessionId: data.sid, localIds })
             }
+            if (ok && data.state === 'dispatching') {
+                onWebappEvent?.({ type: 'messages-dispatching', sessionId: data.sid, localIds })
+            }
         } catch (err) {
             console.error('recordSteerDeliveryState failed', err)
             reply({ ok: false })

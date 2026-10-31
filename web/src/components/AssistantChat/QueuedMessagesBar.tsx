@@ -343,7 +343,7 @@ export function QueuedMessagesBar({
                         const localId = msg.localId ?? msg.id
                         const waitingForCompaction = msg.deliveryState === 'indeterminate'
                             && compactionPendingMessageIds?.includes(localId) === true
-                        const isPending = cancelMutation.isPending || queuedOperationPending
+                        const isPending = cancelMutation.isPending || queuedOperationPending || msg.deliveryState === 'dispatching'
                         const canCancel = computeCanCancel({ id: msg.id, localId: msg.localId, isPending })
 
                         const handleCancel = () => {
@@ -362,7 +362,7 @@ export function QueuedMessagesBar({
                             })
                         }
 
-                        // Steer delivers this message into the active Pi turn. Gated
+                        // Steer delivers this message into the active agent turn. Gated
                         // on the same server-echo + no-pending-op conditions as
                         // Edit/Cancel, and never offered for future-scheduled rows
                         // (the hub rejects those).
@@ -514,6 +514,9 @@ export function QueuedMessagesBar({
                                         <div className={`mt-1 text-xs ${waitingForCompaction ? 'text-[var(--app-hint)]' : 'text-[var(--app-warning-text)]'}`}>
                                             {t(waitingForCompaction ? 'queuedMessages.compactionPending' : 'queuedMessages.steerOutcomeUnknown')}
                                         </div>
+                                    ) : null}
+                                    {msg.deliveryState === 'dispatching' ? (
+                                        <div className="mt-1 text-xs text-[var(--app-hint)]">{t('queuedMessages.steerPending')}</div>
                                     ) : null}
                                     {hasAttachments ? (
                                         <div className={text ? 'mt-1 flex flex-wrap gap-1' : 'flex flex-wrap gap-1'}>

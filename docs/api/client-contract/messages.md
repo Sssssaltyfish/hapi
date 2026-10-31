@@ -17,7 +17,7 @@ type DecryptedMessage = {
   createdAt: number           // hub receive time (epoch ms)
   invokedAt?: number | null   // when the agent consumed it (null = still queued)
   scheduledAt?: number | null // future-scheduled sends
-  deliveryState?: 'indeterminate' // steer dispatched, outcome unproven; explicit retry/cancel required
+  deliveryState?: 'dispatching' | 'indeterminate' // awaiting native receipt, or outcome unknown
 }
 ```
 
@@ -25,6 +25,12 @@ type DecryptedMessage = {
 never crash on unfamiliar content. Use stringified fallbacks for unknown
 envelopes, and follow the family-specific skip/validation rules below for
 known transport records (see [Fallback rules](#fallback-rules)).
+
+`dispatching` stays in the queue with `invokedAt: null`: show waiting for agent
+confirmation and disable duplicate queue actions. It is not a failure or a
+consumption receipt. `indeterminate` requires explicit resolution. Only
+`messages-consumed` moves either state into invoked history. A lost worker
+connection or Hub restart changes abandoned dispatches to `indeterminate`.
 
 ---
 

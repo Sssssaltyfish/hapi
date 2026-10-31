@@ -232,7 +232,7 @@ export function getCodexCollaborationModeOptions(): CodexCollaborationModeOption
  *   stream-json Cursor sessions are NOT steerable — gate with
  *   {@link isSteeringSupportedForSession}.
  *
- * Claude / others: not supported (no reachable soft-steer path) — UI hides Steer.
+ * Other adapters advertise verified runtime support through session capabilities.
  */
 export const STEERING_SUPPORTED_FLAVORS = ['codex', 'cursor', 'pi'] as const
 
@@ -252,12 +252,13 @@ export function isSteeringSupportedForSession(metadata?: {
     flavor?: string | null
     cursorSessionId?: string | null
     cursorSessionProtocol?: 'acp' | 'stream-json' | null
+    capabilities?: { steering?: boolean }
 } | null): boolean {
     if (metadata?.flavor === 'codex' || metadata?.flavor === 'pi') {
         return true
     }
     if (metadata?.flavor !== 'cursor') {
-        return false
+        return metadata?.capabilities?.steering === true
     }
     if (metadata.cursorSessionProtocol === 'stream-json') {
         return false

@@ -38,7 +38,7 @@ export type StoredMachine = {
     seq: number
 }
 
-export type MessageDeliveryState = 'indeterminate'
+export type MessageDeliveryState = 'dispatching' | 'indeterminate'
 
 export type StoredMessage = {
     id: string
@@ -49,7 +49,7 @@ export type StoredMessage = {
     localId: string | null
     invokedAt: number | null
     scheduledAt: number | null
-    /** Omitted for ordinary queued/delivered rows; set when steer outcome is unknown. */
+    /** Omitted for ordinary rows; native delivery is pending or unconfirmed. */
     deliveryState?: MessageDeliveryState
 }
 

@@ -43,6 +43,10 @@ describe('resolveMessageDeliveryMode', () => {
         for (const agentFlavor of ['codex', 'cursor', 'pi']) {
             expect(resolveMessageDeliveryMode({ ...base, agentFlavor, defaultMode: 'steer' })).toBe('steer')
         }
+        for (const agentFlavor of ['claude', 'dsh', 'agy', 'future-provider']) {
+            for (const steering of [true, false]) expect(resolveMessageDeliveryMode({ ...base, agentFlavor, defaultMode: 'steer',
+                steeringSupported: isSteeringSupportedForSession({ flavor: agentFlavor, capabilities: { steering } }) })).toBe(steering ? 'steer' : 'queue')
+        }
         for (const agentFlavor of ['agy', 'claude', 'dsh', 'copilot', 'gemini', 'grok', 'kimi', 'opencode', 'future-provider', null, undefined]) {
             expect(resolveMessageDeliveryMode({ ...base, agentFlavor, defaultMode: 'steer' })).toBe('queue')
         }

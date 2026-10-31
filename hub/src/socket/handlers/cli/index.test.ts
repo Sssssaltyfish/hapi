@@ -38,6 +38,29 @@ const anyRegistry = new Proxy({}, { get: () => () => {} }) as never
 const fakeIo = { of: () => ({ to: () => ({ emit: () => {} }) }) } as never
 
 describe('cli handler session-access memo', () => {
+    it.each([false, true])('recovers pending dispatch only after the last worker disconnects (another worker: %s)', (anotherWorker) => {
+        const store = new Store(':memory:')
+        const session = store.sessions.getOrCreateSession('pending-disconnect', null, null, 'default')
+        store.messages.addMessage(session.id, { text: 'pending' }, 'pending-local')
+        store.messages.setMessagesDeliveryState(session.id, ['pending-local'], 'dispatching')
+        const rooms = new Map<string, Set<string>>()
+        if (anotherWorker) rooms.set(`session:${session.id}`, new Set(['other-worker']))
+        const socket = new FakeCliSocket()
+        socket.data = { namespace: 'default' }
+        socket.handshake.auth = { sessionId: session.id }
+        const events = mock()
+        registerCliHandlers(socket as unknown as CliSocketWithData, {
+            io: { of: () => ({ adapter: { rooms }, to: () => ({ emit() {} }) }) } as never,
+            store, rpcRegistry: anyRegistry,
+            terminalRegistry: { removeByCliSocket: () => [] } as never, onWebappEvent: events,
+        })
+        socket.trigger('disconnect', undefined)
+        expect(store.messages.getUninvokedLocalMessages(session.id)[0]).toMatchObject({
+            invokedAt: null, deliveryState: anotherWorker ? 'dispatching' : 'indeterminate'
+        })
+        expect(events).toHaveBeenCalledTimes(anotherWorker ? 0 : 1)
+        store.close()
+    })
     it('serves repeated events for one session from the per-socket cache', () => {
         const store = new Store(':memory:')
         const session = store.sessions.getOrCreateSession('memo-burst', null, null, 'default')

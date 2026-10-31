@@ -113,6 +113,13 @@ sealed interface SyncEvent {
     ) : SyncEvent
 
     @Serializable
+    data class MessagesDispatching(
+        override val namespace: String? = null,
+        val sessionId: String,
+        val localIds: List<String>,
+    ) : SyncEvent
+
+    @Serializable
     data class MessagesRequeued(
         override val namespace: String? = null,
         val sessionId: String,
@@ -198,6 +205,7 @@ object SyncEvents {
             "toast" -> SyncEvent.Toast.serializer()
             "messages-consumed" -> SyncEvent.MessagesConsumed.serializer()
             "messages-indeterminate" -> SyncEvent.MessagesIndeterminate.serializer()
+            "messages-dispatching" -> SyncEvent.MessagesDispatching.serializer()
             "messages-requeued" -> SyncEvent.MessagesRequeued.serializer()
             "message-cancelled" -> SyncEvent.MessageCancelled.serializer()
             "heartbeat" -> SyncEvent.Heartbeat.serializer()

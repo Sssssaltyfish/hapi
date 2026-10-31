@@ -32,6 +32,7 @@ enum class MessageStatus(val wire: String) {
     Sent("sent"),
     Failed("failed"),
     Indeterminate("indeterminate"),
+    Dispatching("dispatching"),
     ;
 
     companion object {
@@ -73,16 +74,24 @@ data class WindowMessage(
      */
     val isQueuedForInvocation: Boolean
         get() = wire.isUserMessage && wire.hasExplicitNullInvokedAt && status != MessageStatus.Failed
+    val isDispatching: Boolean
+        get() = wire.hasExplicitNullInvokedAt && (wire.deliveryState == "dispatching" || (wire.deliveryState == null && status == MessageStatus.Dispatching))
+    val isDeliveryIndeterminate: Boolean
+        get() = wire.hasExplicitNullInvokedAt && (wire.deliveryState == "indeterminate" || (wire.deliveryState == null && status == MessageStatus.Indeterminate))
 
     /** Copy with `invokedAt` stamped to an explicit number. */
     fun withInvokedAt(invokedAt: Long): WindowMessage =
-        copy(wire = wire.copy(invokedAt = OptionalField.Present(invokedAt)))
+        copy(wire = wire.copy(invokedAt = OptionalField.Present(invokedAt), deliveryState = null))
 }
 
 fun DecryptedMessage.asWindowMessage(status: MessageStatus? = null): WindowMessage =
     WindowMessage(
         this,
-        status ?: if (deliveryState == "indeterminate") MessageStatus.Indeterminate else null,
+        status ?: when (deliveryState) {
+            "dispatching" -> MessageStatus.Dispatching
+            "indeterminate" -> MessageStatus.Indeterminate
+            else -> null
+        },
     )
 
 /**
@@ -98,10 +107,8 @@ internal object WindowMessageSerializer : KSerializer<WindowMessage> {
             ?: throw SerializationException("WindowMessage supports JSON only")
         val obj = input.decodeJsonElement() as? JsonObject
             ?: throw SerializationException("WindowMessage must be a JSON object")
-        return WindowMessage(
-            wire = input.json.decodeFromJsonElement(DecryptedMessage.serializer(), obj),
-            status = MessageStatus.fromWire(obj["status"].stringOrNull),
-        )
+        return input.json.decodeFromJsonElement(DecryptedMessage.serializer(), obj)
+            .asWindowMessage(MessageStatus.fromWire(obj["status"].stringOrNull))
     }
 
     override fun serialize(encoder: Encoder, value: WindowMessage) {

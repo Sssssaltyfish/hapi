@@ -29,6 +29,7 @@ import { CursorLegacyMigrator, type CursorLegacyMigratorOptions } from '../curso
 import { EventPublisher, type SyncEventListener } from './eventPublisher'
 import { MachineCache, type Machine } from './machineCache'
 import { MessageService, type RetryIndeterminateMessageResult } from './messageService'
+import { recoverPendingSteering } from './pendingSteering'
 import { createTitleSuggestionService, type TitleSuggestionService } from './titleSuggestion'
 import { selectForkTranscriptPrefix } from './forkTranscript'
 import { buildForkSessionSummary } from './forkSessionSummary'
@@ -267,6 +268,11 @@ export class SyncEngine {
         this.titleSuggestionService = createTitleSuggestionService(store)
         this.rpcGateway = new RpcGateway(io, rpcRegistry)
         this.reloadAll()
+        for (const session of this.getSessions()) {
+            if (!this.io.of('/cli').adapter?.rooms.get(`session:${session.id}`)?.size) {
+                recoverPendingSteering(store, session.id, event => this.eventPublisher.emit(event))
+            }
+        }
         this.inactivityTimer = setInterval(() => this.expireInactive(), 5_000)
     }
 
@@ -1120,10 +1126,8 @@ export class SyncEngine {
 
     /**
      * Ask the CLI to deliver one waiting-queue message into the active turn
-     * (native steer). Supported for Pi, Codex, and Cursor ACP sessions; the
-     * CLI's `steer-queued-message` handler is registered per flavor. Legacy
-     * stream-json Cursor sessions and other flavors are rejected by the
-     * capability gate.
+     * (native steer). Adapters register a verified native path through session
+     * capabilities; Pi, Codex and Cursor ACP retain their existing provider gates.
      */
     async steerQueuedMessage(
         sessionId: string,
@@ -1134,7 +1138,7 @@ export class SyncEngine {
             return { status: 'failed', error: 'Session not found', localId: null }
         }
         if (!isSteeringSupportedForSession(session.metadata)) {
-            return { status: 'failed', error: 'Steering is only supported for Pi, Codex, and Cursor ACP sessions', localId: null }
+            return { status: 'failed', error: 'The active agent adapter has not advertised steering support', localId: null }
         }
         if (session.agentState?.controlledByUser === true && !session.metadata?.capabilities?.concurrentClients) {
             return { status: 'failed', error: 'Steering is only available for remote sessions', localId: null }
@@ -1169,9 +1173,11 @@ export class SyncEngine {
         if (scheduledAt != null) {
             return { status: 'failed', error: 'Scheduled messages cannot be steered', localId }
         }
+        if (lookup.status === 'dispatching') return { status: 'pending', localId }
 
         try {
             const result = await this.rpcGateway.steerQueuedMessage(sessionId, localId)
+            if (result.pending) return { status: 'pending', localId }
             if (result.steered) {
                 return { status: 'steered', localId }
             }

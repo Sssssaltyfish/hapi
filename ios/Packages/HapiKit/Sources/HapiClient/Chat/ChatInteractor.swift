@@ -467,7 +467,7 @@ public final class ChatInteractor {
         }.map(\.element)
         return sorted.map { row in
             let preview = Self.queuedPreview(row)
-            let canAct = Self.hasServerEcho(row) && !queuedOpPending
+            let canAct = Self.hasServerEcho(row) && !queuedOpPending && !row.isDispatching
             return QueuedMessageRow(
                 id: row.id,
                 localId: row.localId,
@@ -475,8 +475,8 @@ public final class ChatInteractor {
                 attachmentNames: preview.attachmentNames,
                 scheduledAt: row.scheduledAt,
                 canAct: canAct,
-                canSteer: canAct && thinking && row.scheduledAt == nil && row.status != .indeterminate,
-                indeterminate: row.status == .indeterminate
+                canSteer: canAct && thinking && row.scheduledAt == nil && !row.isDeliveryIndeterminate,
+                indeterminate: row.isDeliveryIndeterminate
             )
         }
     }
@@ -500,7 +500,7 @@ public final class ChatInteractor {
     private func cancelQueuedInternal(_ messageId: String) async -> CancelVerdict? {
         let store = await windowController()
         guard let row = await store.state.messages.first(where: { $0.id == messageId }),
-              Self.hasServerEcho(row), !queuedOpPending else {
+              row.isQueuedForInvocation, !row.isDispatching, Self.hasServerEcho(row), !queuedOpPending else {
             return nil
         }
         queuedOpPending = true
@@ -591,6 +591,7 @@ public final class ChatInteractor {
             guard let self else { return }
             let store = await self.windowController()
             guard let row = await store.state.messages.first(where: { $0.id == messageId }),
+                  row.isQueuedForInvocation, !row.isDispatching, !row.isDeliveryIndeterminate,
                   Self.hasServerEcho(row), row.scheduledAt == nil, !self.queuedOpPending else {
                 return
             }
@@ -598,6 +599,11 @@ public final class ChatInteractor {
             defer { self.queuedOpPending = false }
             do {
                 switch try await self.api.steerMessage(sessionId: self.sessionId, messageId: messageId) {
+                case .pending:
+                    // Acceptance is not a delivery receipt. Refresh authority;
+                    // an older HTTP response must not relock a requeued row.
+                    try? await store.reconcileQueuedState(syncTailFirst: false)
+                    self.windowState = await store.state
                 case .failed(let error, _):
                     self.emit(.notice(error))
                 case .invoked(let message):

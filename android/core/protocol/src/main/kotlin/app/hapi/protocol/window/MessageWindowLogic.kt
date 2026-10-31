@@ -567,11 +567,11 @@ object MessageWindowLogic {
         val ids = localIds.toSet()
         var changed = false
         val messages = previous.messages.map { message ->
-            if (message.localId == null || message.localId !in ids || message.status == MessageStatus.Indeterminate) {
+            if (message.localId == null || message.localId !in ids || !message.isQueuedForInvocation || message.isDeliveryIndeterminate) {
                 message
             } else {
                 changed = true
-                message.copy(status = MessageStatus.Indeterminate)
+                message.copy(status = MessageStatus.Indeterminate, wire = message.wire.copy(deliveryState = "indeterminate"))
             }
         }
         return if (changed) previous.withMessages(messages) else previous
@@ -582,11 +582,26 @@ object MessageWindowLogic {
         val ids = localIds.toSet()
         var changed = false
         val messages = previous.messages.map { message ->
-            if (message.localId == null || message.localId !in ids || message.status != MessageStatus.Indeterminate) {
+            if (message.localId == null || message.localId !in ids || !message.isQueuedForInvocation) {
                 message
             } else {
                 changed = true
-                message.copy(status = MessageStatus.Queued)
+                message.copy(status = MessageStatus.Queued, wire = message.wire.copy(deliveryState = null))
+            }
+        }
+        return if (changed) previous.withMessages(messages) else previous
+    }
+
+    /** Accepted for delivery; only the consumed receipt invokes this row. */
+    fun markDispatching(previous: MessageWindowState, localIds: List<String>): MessageWindowState {
+        val ids = localIds.toSet()
+        var changed = false
+        val messages = previous.messages.map { message ->
+            if (message.localId == null || message.localId !in ids || !message.isQueuedForInvocation ||
+                message.isDispatching || message.isDeliveryIndeterminate) message
+            else {
+                changed = true
+                message.copy(status = MessageStatus.Dispatching, wire = message.wire.copy(deliveryState = "dispatching"))
             }
         }
         return if (changed) previous.withMessages(messages) else previous
@@ -619,7 +634,7 @@ object MessageWindowLogic {
             if (!needsStatus && !needsInvokedAt) return@map message
             changed = true
             var next = message
-            if (needsStatus) next = next.copy(status = MessageStatus.Sent)
+            if (needsStatus) next = next.copy(status = MessageStatus.Sent, wire = next.wire.copy(deliveryState = null))
             if (needsInvokedAt) next = next.withInvokedAt(invokedAt)
             next
         }
@@ -635,7 +650,7 @@ object MessageWindowLogic {
     private fun isQueuedReconcileCandidate(message: WindowMessage): Boolean {
         if (message.localId == null || !message.isQueuedForInvocation) return false
         if (!message.isOptimistic) return true
-        return message.status == MessageStatus.Queued || message.status == MessageStatus.Sent
+        return message.status == MessageStatus.Queued || message.status == MessageStatus.Sent || message.isDispatching || message.isDeliveryIndeterminate
     }
 
     /** Candidate localIds for the queued-state round trip, in window order. */

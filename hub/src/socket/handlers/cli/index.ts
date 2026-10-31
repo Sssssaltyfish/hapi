@@ -10,6 +10,7 @@ import { registerRpcHandlers } from './rpcHandlers'
 import { registerSessionHandlers } from './sessionHandlers'
 import { cleanupTerminalHandlers, registerTerminalHandlers } from './terminalHandlers'
 import { sessionDeletionEpoch } from '../../../store/sessionInvalidation'
+import { recoverPendingSteering } from '../../../sync/pendingSteering'
 
 type SessionAlivePayload = {
     sid: string
@@ -205,5 +206,10 @@ export function registerCliHandlers(socket: CliSocketWithData, deps: CliHandlers
     socket.on('disconnect', () => {
         rpcRegistry.unregisterAll(socket)
         cleanupTerminalHandlers(socket, { terminalRegistry, terminalNamespace })
+        const sessionIds = new Set([...sessionAccessCache.keys(), ...(sessionId ? [sessionId] : [])])
+        for (const id of sessionIds) {
+            if (io.of('/cli').adapter?.rooms.get(`session:${id}`)?.size || !resolveSessionAccess(id, { fresh: true }).ok) continue
+            recoverPendingSteering(store, id, event => onWebappEvent?.(event))
+        }
     })
 }

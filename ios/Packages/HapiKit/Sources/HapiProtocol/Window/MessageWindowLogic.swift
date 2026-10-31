@@ -628,11 +628,11 @@ public enum MessageWindowLogic {
         let idSet = Set(localIds)
         var changed = false
         let messages = previous.messages.map { message -> WindowMessage in
-            guard let localId = message.localId, idSet.contains(localId), message.status != .indeterminate else {
+            guard let localId = message.localId, idSet.contains(localId), message.isQueuedForInvocation, !message.isDeliveryIndeterminate else {
                 return message
             }
             changed = true
-            return message.withStatus(.indeterminate)
+            return message.withDeliveryState("indeterminate")
         }
         return changed ? settingMessages(previous, messages) : previous
     }
@@ -645,11 +645,26 @@ public enum MessageWindowLogic {
         let idSet = Set(localIds)
         var changed = false
         let messages = previous.messages.map { message -> WindowMessage in
-            guard let localId = message.localId, idSet.contains(localId), message.status == .indeterminate else {
+            guard let localId = message.localId, idSet.contains(localId), message.isQueuedForInvocation else {
                 return message
             }
             changed = true
-            return message.withStatus(.queued)
+            // Publish the authoritative transition even if already queued so
+            // older in-flight recovery responses cannot overwrite it.
+            return message.withDeliveryState(nil).withStatus(.queued)
+        }
+        return changed ? settingMessages(previous, messages) : previous
+    }
+
+    /// Accepted for delivery; only a later consumed receipt invokes the row.
+    public static func markDispatching(_ previous: MessageWindowState, localIds: [String]) -> MessageWindowState {
+        let ids = Set(localIds)
+        var changed = false
+        let messages = previous.messages.map { message -> WindowMessage in
+            guard let localId = message.localId, ids.contains(localId), message.isQueuedForInvocation,
+                  !message.isDispatching, !message.isDeliveryIndeterminate else { return message }
+            changed = true
+            return message.withDeliveryState("dispatching")
         }
         return changed ? settingMessages(previous, messages) : previous
     }
@@ -705,7 +720,7 @@ public enum MessageWindowLogic {
     private static func isQueuedReconcileCandidate(_ message: WindowMessage) -> Bool {
         guard message.localId != nil, message.isQueuedForInvocation else { return false }
         if !message.isOptimistic { return true }
-        return message.status == .queued || message.status == .sent
+        return message.status == .queued || message.status == .sent || message.isDispatching || message.isDeliveryIndeterminate
     }
 
     /// Candidate localIds for the queued-state round trip, in window order.

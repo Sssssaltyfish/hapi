@@ -518,6 +518,18 @@ describe('MessageService message pagination', () => {
 })
 
 describe('MessageService.getQueuedState', () => {
+    it('preserves active dispatches as queued without relabeling them as unknown', () => {
+        const store = makeStore()
+        const session = makeSession(store, 'pending-queued-state')
+        store.messages.addMessage(session.id, 'waiting for receipt', 'pending')
+        store.messages.addMessage(session.id, 'outcome unknown', 'unknown')
+        store.messages.setMessagesDeliveryState(session.id, ['pending'], 'dispatching')
+        store.messages.markMessagesIndeterminate(session.id, ['unknown'])
+        const service = new MessageService(store, makeIo(() => {}), makePublisher() as any)
+        expect(service.getQueuedState(session.id, ['pending', 'unknown'])).toEqual({
+            queuedLocalIds: ['pending'], dispatchingLocalIds: ['pending'], indeterminateLocalIds: ['unknown'], invokedLocalMessages: []
+        })
+    })
     it('returns requested queued and invoked local IDs from the requested session', () => {
         const store = makeStore()
         const session = makeSession(store, 'queued-state')
@@ -1458,6 +1470,18 @@ describe('MessageService.sendMessage deliveryMode', () => {
         for (const packet of cliEmitted) {
             expect(packet).toMatchObject({ body: { message: { content: { meta: { deliveryMode: 'queue' } } } } })
         }
+    })
+
+    it.each(['claude', 'dsh', 'agy', 'future-provider'])('preserves unscheduled %s steer only after the adapter advertises support', async (flavor) => {
+        const store = makeStore()
+        const session = store.sessions.getOrCreateSession('advertised-steer', {
+            path: '/tmp/advertised', host: 'localhost', flavor, capabilities: { steering: true }
+        }, null, 'default')
+        const { io, cliEmitted } = makeTrackingIo()
+        const service = new MessageService(store, io, makePublisher() as any)
+        await service.sendMessage(session.id, { text: 'adjust active task', localId: 'advertised', deliveryMode: 'steer' })
+        expect(store.messages.getUninvokedLocalMessages(session.id)[0]?.content).toMatchObject({ meta: { deliveryMode: 'steer' } })
+        expect(cliEmitted[0]).toMatchObject({ body: { message: { content: { meta: { deliveryMode: 'steer' } } } } })
     })
 
     it('normalizes direct scheduled steer requests to queue', async () => {

@@ -207,6 +207,7 @@ extension CancelMessageResponse: Decodable {
 /// Body of `POST /api/sessions/:id/messages/:messageId/steer`, discriminated
 /// on `status`.
 public enum SteerQueuedMessageResponse: Equatable, Sendable {
+    case pending(localId: String)
     case steered(localId: String)
     case invoked(message: DecryptedMessage)
     case failed(error: String, localId: String?)
@@ -224,6 +225,8 @@ extension SteerQueuedMessageResponse: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let status = try container.decode(String.self, forKey: .status)
         switch status {
+        case "pending":
+            self = .pending(localId: try container.decode(String.self, forKey: .localId))
         case "steered":
             self = .steered(localId: try container.decode(String.self, forKey: .localId))
         case "invoked":
@@ -259,15 +262,18 @@ public struct QueuedStateResponse: Codable, Equatable, Sendable {
     public var queuedLocalIds: [String]
     public var invokedLocalMessages: [InvokedLocalMessage]
     public var indeterminateLocalIds: [String]?
+    public var dispatchingLocalIds: [String]?
 
     public init(
         queuedLocalIds: [String],
         invokedLocalMessages: [InvokedLocalMessage],
-        indeterminateLocalIds: [String]? = nil
+        indeterminateLocalIds: [String]? = nil,
+        dispatchingLocalIds: [String]? = nil
     ) {
         self.queuedLocalIds = queuedLocalIds
         self.invokedLocalMessages = invokedLocalMessages
         self.indeterminateLocalIds = indeterminateLocalIds
+        self.dispatchingLocalIds = dispatchingLocalIds
     }
 }
 

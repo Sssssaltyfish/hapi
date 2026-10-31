@@ -159,7 +159,7 @@ After a reconnect whose handshake said `resume: 'gap'` (an `ok` resume replayed 
 1. Finish a tail sync.
 2. Collect candidate `localId`s: user rows with `invokedAt === null`, excluding optimistic rows still `sending`/`failed`.
 3. `POST /api/sessions/:id/messages/queued-state` with `{"localIds": […]}` (max 1000 per call; batch above that) → `{queuedLocalIds: string[], indeterminateLocalIds: string[], invokedLocalMessages: [{localId, invokedAt}]}`.
-4. Apply `invokedLocalMessages` exactly like `messages-consumed`; mark `indeterminateLocalIds` as unresolved delivery. Retain both queued and indeterminate rows; drop only candidates absent from **all three** result groups. An in-flight native dispatch is reported as indeterminate, not as a deleted message.
+4. Apply `invokedLocalMessages` exactly like `messages-consumed`; mark `indeterminateLocalIds` as unresolved delivery. Retain both queued and indeterminate rows; drop only candidates absent from the result groups. `queuedLocalIds` includes active dispatches; optional `dispatchingLocalIds` identifies that subset, so a missed SSE can be recovered even when an old queued row is outside tail pagination. Clear holds for ordinary queued IDs and set `dispatching` for the explicit subset. Apply non-invoked verdicts only to rows unchanged since the request began, preserving newer SSE transitions.
 
 ---
 
@@ -173,7 +173,7 @@ After a reconnect whose handshake said `resume: 'gap'` (an `ok` resume replayed 
 | `localId` | string | Optional but **required for `scheduledAt`**. When omitted the hub mints one; send your own to reconcile an optimistic row with its stored copy. |
 | `attachments` | `AttachmentMetadata[]` | Optional. Not allowed with `scheduledAt`. |
 | `scheduledAt` | epoch ms | Optional. Must be ≤ now + **7 days**; requires `localId`; no attachments; never `steer`. |
-| `deliveryMode` | `'queue'` \| `'steer'` | Optional, default `queue`. `steer` is honored only for **Pi-flavor** sessions and never for scheduled sends — the hub silently normalizes everything else to `queue`, and deferred/replayed delivery (reconnect backfill, retries, scheduled release) always degrades `steer` to `queue`. |
+| `deliveryMode` | `'queue'` \| `'steer'` | Optional, default `queue`. `steer` requires session-aware provider support or an adapter's advertised `capabilities.steering`. Scheduled sends and deferred/replayed delivery (reconnect backfill, retries, scheduled release) always use `queue`. |
 
 Response `{"ok": true}`. Sending to an inactive session returns `409 {"error":"Session is inactive","code":"session_inactive"}` — resume/reopen first, and note the resumed session **may have a different id** (migrate drafts and re-target, see [rest](./rest.md)).
 
@@ -191,10 +191,11 @@ Response `{"ok": true}`. Sending to an inactive session returns `409 {"error":"S
 
 Other subscribers learn the same outcome via `message-cancelled` / `messages-consumed` SSE events.
 
-**Steer a queued message into the current turn**: `POST /api/sessions/:id/messages/:messageId/steer` → `SteerQueuedMessageResponseSchema`. Unlike the send-time `deliveryMode` option above, this endpoint supports Pi, Codex, and Cursor ACP sessions (`isSteeringSupportedForSession` in `shared/src/modes.ts`). It rejects all scheduled messages, and rejects terminal-controlled sessions unless they advertise `concurrentClients`.
+**Steer a queued message into the current turn**: `POST /api/sessions/:id/messages/:messageId/steer` → `SteerQueuedMessageResponseSchema`. This endpoint uses the same `isSteeringSupportedForSession` capability gate as live sends. It rejects all scheduled messages, and rejects terminal-controlled sessions unless they advertise `concurrentClients`.
 
 | Response | Client action |
 |---|---|
+| `{"status":"pending","localId"}` | Keep the row uninvoked, show waiting for native confirmation, and disable duplicate queue actions. Only a later native receipt produces `messages-consumed`. |
 | `{"status":"steered","localId"}` | Keep the row queued-side; it is being injected into the live turn. |
 | `{"status":"invoked","message"}` | Already consumed — ingest the message. |
 | `{"status":"failed","error","localId":string\|null}` | Surface the error. Do not infer delivery state from this alone; reconcile before retrying when the native outcome is unknown. |

@@ -1471,17 +1471,28 @@ export function removeOptimisticMessage(sessionId: string, localId: string): voi
     }, true)
 }
 
+export function markMessagesDispatching(sessionId: string, localIds: string[]): void {
+    markMessagesDeliveryState(sessionId, localIds, 'dispatching')
+}
+
 export function markMessagesIndeterminate(sessionId: string, localIds: string[]): void {
+    markMessagesDeliveryState(sessionId, localIds, 'indeterminate')
+}
+
+function markMessagesDeliveryState(sessionId: string, localIds: string[], state: 'dispatching' | 'indeterminate'): void {
     if (localIds.length === 0) return
     const idSet = new Set(localIds)
     updateState(sessionId, (previous) => {
         let changed = false
         const messages = previous.messages.map((message) => {
-            if (!message.localId || !idSet.has(message.localId) || message.deliveryState === 'indeterminate') {
+            if (!message.localId || !idSet.has(message.localId) || message.invokedAt != null || message.deliveryState === state) {
                 return message
             }
+            // A delayed pending HTTP response or duplicated SSE must not undo
+            // an already observed unknown outcome. Explicit requeue clears it.
+            if (state === 'dispatching' && message.deliveryState === 'indeterminate') return message
             changed = true
-            return { ...message, deliveryState: 'indeterminate' as const }
+            return { ...message, deliveryState: state }
         })
         return changed ? buildState(previous, { messages }) : previous
     }, true)
@@ -1496,10 +1507,12 @@ export function markMessagesRequeued(sessionId: string, localIds: string[]): voi
             if (
                 !message.localId
                 || !idSet.has(message.localId)
-                || (message.deliveryState === undefined && message.queueDismissed !== true)
+                || message.invokedAt != null
             ) {
                 return message
             }
+            // Also replace an already queued row: a requeue receipt is a state
+            // transition that invalidates older in-flight reconciliation reads.
             changed = true
             const {
                 deliveryState: _deliveryState,

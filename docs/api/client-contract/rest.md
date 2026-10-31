@@ -71,11 +71,22 @@ Source: `hub/src/web/routes/messages.ts`; schemas `MessagesQuerySchema`, `SendMe
 | `GET /api/sessions/:id/messages` | Query: `limit?` (1–200, default 50), cursor pairs `beforeSeq+beforeAt` \| `afterSeq+afterAt` (+ optional `untilSeq+untilAt`, `epoch` with `after`) | `MessagesResponse` `{messages: DecryptedMessage[], page: {direction, limit, epoch, reset, nextBefore*/nextAfter*, snapshotHead*, hasMore}}` — full cursor semantics in [Pagination](./pagination.md) |
 | `POST /api/sessions/:id/messages` | `{text, localId?, attachments?, scheduledAt?, deliveryMode?: 'queue'\|'steer'}` — text or attachments required; `scheduledAt` requires `localId`, must be ≤ 7 days out, excludes attachments and steer | `{ok: true}` — the message itself arrives via SSE (`message-received`), reconciled by `localId` |
 | `DELETE /api/sessions/:id/messages/:messageId` | — | `{status: 'cancelled', localId}` \| `{status: 'invoked', message}` \| `{status: 'busy', localId}` (cancel; `busy` = native delivery/removal is unresolved) |
-| `POST /api/sessions/:id/messages/:messageId/steer` | — | `{status: 'steered', localId}` \| `{status: 'invoked', message}` \| `{status: 'failed', error, localId}` |
+| `POST /api/sessions/:id/messages/:messageId/steer` | — | `{status: 'pending', localId}` \| `{status: 'steered', localId}` \| `{status: 'invoked', message}` \| `{status: 'failed', error, localId}` |
 | `POST /api/sessions/:id/messages/:messageId/retry` | — | `{status: 'retried', localId}` \| `{status: 'already-queued', localId}` \| `{status: 'retry-unavailable', localId}` \| `{status: 'invoked', message}` \| `{status: 'not-found'}` — explicit retry only; never automatic replay |
 | `POST /api/sessions/:id/messages/queued-state` | `{localIds: string[]}` (≤ 1000, deduped) | `{queuedLocalIds: string[], indeterminateLocalIds: string[], invokedLocalMessages: [{localId, invokedAt}]}` — resync after reconnect; preserve indeterminate rows without auto-replaying them |
 
 The hub stamps `sentFrom: 'webapp'` on REST-sent messages server-side; the request body has no such field.
+
+`pending` acknowledges a reserved request while the agent reaches its input
+boundary. Keep the row queued-side and wait for `messages-consumed`; do not
+report a timeout failure or stamp invocation. Runtime adapters advertise
+verified native input support with `metadata.capabilities.steering: true`;
+`agentState.steeringActive` separately identifies a currently steerable turn.
+Codex, Pi, and Cursor ACP retain their existing session-aware provider gates.
+
+The HTTP acknowledgement never overwrites a newer delivery state. Refresh
+queued-state directly if needed, without tail-syncing message history; optional
+`dispatchingLocalIds` identifies active requests inside `queuedLocalIds`.
 
 ### Permissions
 

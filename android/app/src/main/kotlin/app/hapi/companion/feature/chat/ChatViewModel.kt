@@ -1298,11 +1298,18 @@ class ChatViewModel(
         scope.launch {
             val store = awaitWindowStore()
             val row = store.state.value.messages.firstOrNull { it.id == messageId } ?: return@launch
-            if (!canActOnQueuedRow(row) || row.wire.scheduledAt != null) return@launch
+            if (!canActOnQueuedRow(row) || row.isDeliveryIndeterminate || row.wire.scheduledAt != null) return@launch
             if (!queuedOpPending.compareAndSet(expect = false, update = true)) return@launch
             try {
                 val response = api.steerMessage(sessionId, messageId)
                 when (response.status) {
+                    "pending" -> try {
+                        store.reconcileQueuedState(syncTailFirst = false)
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (_: Exception) {
+                        // Acceptance is known; SSE or reconnect will settle it.
+                    }
                     "failed" -> _events.tryEmit(
                         ChatEvent.Notice(ChatNotice.SteerFailed(response.error)),
                     )
@@ -1328,7 +1335,7 @@ class ChatViewModel(
 
     private fun canActOnQueuedRow(row: WindowMessage): Boolean {
         val hasServerEcho = row.localId == null || row.id != row.localId
-        return hasServerEcho && !queuedOpPending.value
+        return row.isQueuedForInvocation && hasServerEcho && !queuedOpPending.value && !row.isDispatching
     }
 
     private class QueuedPreview(val text: String, val attachmentNames: List<String>)
@@ -1357,7 +1364,7 @@ class ChatViewModel(
         return sorted.map { row ->
             val preview = queuedPreview(row)
             val hasServerEcho = row.localId == null || row.id != row.localId
-            val canAct = hasServerEcho && !opPending
+            val canAct = hasServerEcho && !opPending && !row.isDispatching
             QueuedRowUi(
                 id = row.id,
                 localId = row.localId,
@@ -1366,8 +1373,8 @@ class ChatViewModel(
                 scheduledAt = row.wire.scheduledAt,
                 canAct = canAct,
                 canSteer = canAct && thinking && row.wire.scheduledAt == null
-                    && row.status != MessageStatus.Indeterminate,
-                indeterminate = row.status == MessageStatus.Indeterminate,
+                    && !row.isDeliveryIndeterminate,
+                indeterminate = row.isDeliveryIndeterminate,
             )
         }
     }
