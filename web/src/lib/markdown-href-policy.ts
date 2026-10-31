@@ -188,8 +188,14 @@ export function classifyNoSchemeHref(
     } catch {
         return { action: 'inert' }
     }
-    const path = stripLineSuffix(decodedPath)
     const workspacePath = options.workspacePath ?? null
+    // A leading URL slash is not part of a Windows drive path. Keep it when
+    // the thread uses POSIX paths, where /C:/... can be a real directory.
+    const path = stripLineSuffix(
+        workspacePath && isWindowsAbsolutePath(workspacePath) && /^\/[A-Za-z]:[\\/]/.test(decodedPath)
+            ? decodedPath.slice(1)
+            : decodedPath
+    )
 
     // Explicit Native file links may refer to artifacts anywhere on the daemon
     // host, including formats that the prose autolinker does not recognize.

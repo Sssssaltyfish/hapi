@@ -200,6 +200,13 @@ describe('classifyNoSchemeHref — fail-closed (#1452)', () => {
         })
     })
 
+    it('normalizes URL-rooted drives only for Windows workspaces', () => {
+        expect(classifyNoSchemeHref('/C:/repo/main.ts:42:3', { workspacePath: 'C:\\repo' })).toEqual({ action: 'file', path: 'C:/repo/main.ts' })
+        expect(classifyNoSchemeHref('/C:/exports/handoff.zip', { nativeFiles: true, workspacePath: 'C:\\repo' })).toEqual({ action: 'file', path: 'C:/exports/handoff.zip' })
+        expect(classifyNoSchemeHref('/C:/private/main.ts', { workspacePath: 'C:\\repo' })).toEqual({ action: 'inert' })
+        expect(classifyNoSchemeHref('/C:/repo/main.ts', { workspacePath: '/C:/repo' })).toEqual({ action: 'file', path: '/C:/repo/main.ts' })
+    })
+
     it('renders absolute paths without workspace metadata as inert (fail closed)', () => {
         expect(classifyNoSchemeHref('/home/ada/coding/hapi/docs/a.md')).toEqual({ action: 'inert' })
     })

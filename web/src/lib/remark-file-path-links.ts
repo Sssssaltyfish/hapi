@@ -228,6 +228,14 @@ function rewriteFileLinkNode(node: MarkdownNode): void {
 
     const target = stripLineSuffix(withoutMeta)
 
+    // Preserve Windows file URIs through the URI deny policy, then let the
+    // chat anchor apply the same workspace policy as ordinary drive paths.
+    // POSIX file URIs retain their existing URI policy.
+    if (/^file:\/\/(?:localhost)?\/[A-Za-z]:[\\/]/i.test(target)) {
+        node.url = createFileCandidateHref(url.replace(/^file:\/\/(?:localhost)?\//i, ''))
+        return
+    }
+
     // Absolute paths (POSIX or Windows) need the chat file policy —
     // leave POSIX for <A>; encode Windows as candidate so
     // backslashes survive mdast→hast URI normalization.

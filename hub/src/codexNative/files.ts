@@ -1,4 +1,5 @@
 import { posix, win32 } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { NativeEndpointConfig } from './registry'
 import type { NativeService } from './service'
 import { record, text } from './transport'
@@ -16,7 +17,19 @@ export async function nativeFilePath(
     if (!cwd) throw new Error('Native thread has no workspace root')
     const paths = /^[A-Za-z]:[\\/]/.test(cwd) || cwd.startsWith('\\\\') ? win32 : posix
     if (requested.includes('\0') || requested.length > 4096) throw new Error('Invalid file path')
-    const path = paths.resolve(cwd, requested)
+    let target = requested
+    if (/^file:/i.test(target)) {
+        try {
+            target = fileURLToPath(target, { windows: paths === win32 })
+        } catch {
+            throw new Error('Invalid file path')
+        }
+    }
+    // Markdown absolute hrefs can add a URL root before a Windows drive.
+    // Only strip it for Windows daemons: /C:/... is a valid POSIX path.
+    if (paths === win32 && /^\/[A-Za-z]:[\\/]/.test(target)) target = target.slice(1)
+    if (target.includes('\0')) throw new Error('Invalid file path')
+    const path = paths.resolve(cwd, target)
     if (config.fileAccess !== 'host') {
         const compare = (value: string) => (paths === win32 ? value.toLowerCase() : value)
         const roots = [cwd, ...(config.allowedRoots ?? [])].map((root) => paths.resolve(root))

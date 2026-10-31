@@ -177,14 +177,23 @@ describe('native identities integrated into original sessions', () => {
     test('Windows file links preserve drive and UNC paths outside the thread workspace', async () => {
         const { native } = fixture()
         native.readThread = async () => ({ thread: { cwd: 'C:\\repo' } })
-        for (const [requested, expected] of [['src/file.ts', 'C:\\repo\\src\\file.ts'], ['C:\\Users\\owner\\handoff.zip', 'C:\\Users\\owner\\handoff.zip'], ['D:/exports/handoff.zip', 'D:\\exports\\handoff.zip'], ['\\\\server\\share\\handoff.zip', '\\\\server\\share\\handoff.zip']]) {
+        for (const [requested, expected] of [['src/file.ts', 'C:\\repo\\src\\file.ts'], ['C:\\Users\\owner\\handoff.zip', 'C:\\Users\\owner\\handoff.zip'], ['D:/exports/handoff.zip', 'D:\\exports\\handoff.zip'], ['/D:/exports/handoff.zip', 'D:\\exports\\handoff.zip'], ['file:///D:/My%20Files/handoff.zip', 'D:\\My Files\\handoff.zip'], ['\\\\server\\share\\handoff.zip', '\\\\server\\share\\handoff.zip']]) {
             expect((await nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', requested)).path).toBe(expected)
             expect(native.calls.at(-1)).toEqual({ method: 'fs/getMetadata', params: { path: expected } })
         }
     })
+    test('Windows URL normalization keeps workspace containment and POSIX paths intact', async () => {
+        const { native } = fixture()
+        expect((await nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', '/C:/exports/handoff.zip')).path).toBe('/C:/exports/handoff.zip')
+        native.readThread = async () => ({ thread: { cwd: 'C:\\repo' } })
+        expect((await nativeFilePath(native, config, 'fork', '/C:/repo/src/file.ts')).path).toBe('C:\\repo\\src\\file.ts')
+        for (const requested of ['/C:/repo/../private/file.ts', 'file:///C:/private/file.ts']) {
+            await expect(nativeFilePath(native, config, 'fork', requested)).rejects.toThrow('outside')
+        }
+    })
     test('remote file links reject malformed paths and pass through daemon failures', async () => {
         const { native } = fixture()
-        for (const requested of ['bad\0path', 'a'.repeat(4097)]) {
+        for (const requested of ['bad\0path', 'a'.repeat(4097), 'file:///tmp/bad%00path', 'file:///tmp/bad%2Fpath']) {
             await expect(nativeFilePath(native, config, 'fork', requested)).rejects.toThrow('Invalid file path')
         }
         expect(native.calls.some(call => call.method.startsWith('fs/'))).toBe(false)
