@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { nativeOutlinePage } from './conversationOutline'
 import { Store } from '../store'
 import { SyncEngine } from './syncEngine'
@@ -30,6 +30,27 @@ describe('user-only conversation outline', () => {
         expect(calls).toBe(4)
         expect(page.items).toHaveLength(4)
         expect(page.next).toEqual({ kind: 'native', cursor: 'opaque-4' })
+    })
+
+    it('finishes a page that crosses the scan time budget and returns all progress without starting another page', async () => {
+        let now = 0
+        const clock = spyOn(Date, 'now').mockImplementation(() => now)
+        let calls = 0
+        try {
+            const page = await nativeOutlinePage(async (...args) => {
+                expect(args).toHaveLength(1)
+                calls++
+                // Page two starts with 100 ms of scan budget remaining but
+                // finishes 200 ms later under its ordinary RPC timeout.
+                now = calls === 1 ? 1400 : 1600
+                return { data: [user(String(calls))], nextCursor: `after-${calls}` }
+            }, null)
+            expect(calls).toBe(2)
+            expect(page.items.map(item => item.label)).toEqual(['prompt 1', 'prompt 2'])
+            expect(page.next).toEqual({ kind: 'native', cursor: 'after-2' })
+        } finally {
+            clock.mockRestore()
+        }
     })
 
     it('stops at the first surviving cached user boundary after an offline rewind', async () => {

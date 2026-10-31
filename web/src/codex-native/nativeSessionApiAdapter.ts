@@ -9,6 +9,7 @@ import type { projectNativeItems } from './projectNativeItems'
 
 type SupportedOperation =
     | 'getSessionCodexModels'
+    | 'getConversationOutline'
     | 'renameSession'
     | 'archiveSession'
     | 'uploadFile'
@@ -74,6 +75,7 @@ const GLOBAL_OPERATIONS = [
     'fetchVoices',
     'sendVoiceTelemetry',
     'getAuthToken',
+    'getConversationCacheScope',
     'fetchVoiceBackend',
     'fetchTranscriptionProviders',
     'fetchTranscriptionCredentials',
@@ -220,6 +222,12 @@ export function createNativeSessionApiAdapter(
         }
     }
     const operations = {
+        getConversationOutline: async (_id, page, stopIds) => {
+            if (page.kind !== 'native') {
+                throw new Error('Native conversations require a native history locator')
+            }
+            return target.getConversationOutline(native.threadId, page, stopIds)
+        },
         setNativeApprovalSettings: async (patch) => {
             setSettingsError(null)
             try {

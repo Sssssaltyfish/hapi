@@ -59,11 +59,11 @@ function userText(message: DecryptedMessage): string | null {
 
 /** Full native items are authoritative: turn summaries omit accepted steering input. */
 export async function nativeOutlinePage(
-    read: (params: NativeRecord, deadline: number) => Promise<unknown>,
+    read: (params: NativeRecord) => Promise<unknown>,
     cursor: string | null,
     stopIds: string[] = [],
 ): Promise<OutlinePage> {
-    const deadline = Date.now() + MAX_SCAN_MS
+    const scanUntil = Date.now() + MAX_SCAN_MS
     const items: OutlineItem[] = []
     let next: OutlineLocator | null = { kind: 'native', cursor }
     let scanned = 0
@@ -72,7 +72,9 @@ export async function nativeOutlinePage(
     let overlapId: string | undefined
     do {
         const locator: OutlineLocator = { kind: 'native', cursor }
-        const page = record(await read({ cursor: cursor ?? undefined, limit: 50, sortDirection: 'desc' }, deadline))
+        // A started page retains the normal RPC timeout. The scan budget only
+        // decides whether to request another page after this one completes.
+        const page = record(await read({ cursor: cursor ?? undefined, limit: 50, sortDirection: 'desc' }))
         bytes += Buffer.byteLength(JSON.stringify(page), 'utf8')
         scanned++
         for (const raw of Array.isArray(page.data) ? page.data : []) {
@@ -97,7 +99,7 @@ export async function nativeOutlinePage(
         if (after && after === cursor) throw new Error('Outline history cursor did not advance')
         cursor = after
         next = !reachedHead && after ? { kind: 'native', cursor: after } : null
-    } while (next && scanned < MAX_PAGES && bytes < MAX_SCAN_BYTES && Date.now() < deadline)
+    } while (next && scanned < MAX_PAGES && bytes < MAX_SCAN_BYTES && Date.now() < scanUntil)
     return {
         items,
         next,
