@@ -178,6 +178,8 @@ function NativeSessionChat({
             onBack={onBack}
             onRefresh={refresh}
             onCancelLoadMore={thread.cancelOlder}
+            onPrefetchHistory={thread.prefetch}
+            conversationHistoryRevision={thread.historyResetRevision}
             onLoadNewer={async (beforeApply) => {
                 let appliedVersion = revision.current.value
                 let addedRenderableCount = 0
@@ -195,7 +197,7 @@ function NativeSessionChat({
                 })
                 if (!applied) return { kind: 'stopped', reason: 'exhausted' }
                 setViewMode('history')
-                return { kind: 'applied', historyVersion: appliedVersion, hasMore: Boolean(applied.nextCursor), addedRenderableCount }
+                return { kind: 'applied', historyVersion: appliedVersion, hasMore: applied.hasMore, addedRenderableCount }
             }}
             onLocateNativeHistoryPage={async (cursor, targetMessageId) => {
                 const found = await thread.seek(cursor, entries => {

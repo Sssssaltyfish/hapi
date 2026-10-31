@@ -39,6 +39,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { matchesSearchQuery } from '@hapi/protocol'
 import { getConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { revealConversationMessage } from '@/lib/revealConversationMessage'
+import { HistoryScrollPrefetch } from '@/lib/history-page-cache'
 
 type ScrollAnchor = {
     id: string
@@ -532,6 +533,7 @@ export function HappyThread(props: {
     isLoadingMoreMessages: boolean
     onLoadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     onLoadNewer?: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    onPrefetchHistory?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     onCancelLoadMore: () => void
     unseenCount: number
     rawMessagesCount: number
@@ -630,6 +632,9 @@ export function HappyThread(props: {
     const onLoadMoreRef = useRef(props.onLoadMore)
     const onLoadNewerRef = useRef(props.onLoadNewer)
     onLoadNewerRef.current = props.onLoadNewer
+    const prefetchHistoryRef = useRef(props.onPrefetchHistory)
+    prefetchHistoryRef.current = props.onPrefetchHistory
+    const scrollPrefetchRef = useRef(new HistoryScrollPrefetch())
     const onCancelLoadMoreRef = useRef(props.onCancelLoadMore)
     const pendingLoadPromiseRef = useRef<Promise<OlderHistoryLoadResult> | null>(null)
     const pendingLoadResolveRef = useRef<((value: OlderHistoryLoadResult) => void) | null>(null)
@@ -891,6 +896,13 @@ export function HappyThread(props: {
                     }
                 }
                 return
+            }
+
+            if (!pending && !outlineSeekPendingRef.current && !tailScrollInProgressRef.current && !isSyncingTailRef.current) {
+                const plan = scrollPrefetchRef.current.sample(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, Date.now())
+                if (plan && (plan.direction === 'older' ? hasMoreMessagesRef.current : hasNewerMessagesRef.current)) {
+                    void prefetchHistoryRef.current?.(plan.direction, plan.pages)
+                }
             }
 
             // Scroll position is the source of truth. The loader controller
@@ -1245,6 +1257,7 @@ export function HappyThread(props: {
     // Reset state when session changes
     useLayoutEffect(() => {
         const saved = getConversationReadingPosition(props.sessionId)
+        scrollPrefetchRef.current = new HistoryScrollPrefetch()
         const restoringHistory = saved?.atBottom === false
         pendingReadingPositionRef.current = restoringHistory ? saved : null
         outlineNavigationRef.current += 1

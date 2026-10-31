@@ -55,6 +55,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
     locate?: () => Promise<boolean>
     onOpenChange?: (open: boolean) => void
     loadNewer?: (beforeApply?: (version: number) => boolean) => Promise<OlderLoadOutcome>
+    prefetch?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
 } = {}) {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } }
@@ -79,6 +80,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
                     isLoadingMoreMessages={false}
                     onLoadMore={vi.fn().mockResolvedValue({ status: 'exhausted' })}
                     onLoadNewer={outline.loadNewer}
+                    onPrefetchHistory={outline.prefetch}
                     onCancelLoadMore={vi.fn()}
                     unseenCount={unseenCount}
                     rawMessagesCount={1}
@@ -160,6 +162,22 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('looks ahead during fast scrolling before foreground edge loading is needed', () => {
+        const prefetch = vi.fn().mockResolvedValue(undefined)
+        const loadNewer = vi.fn()
+        const { viewport } = renderThread(vi.fn(), 0, true, { prefetch, loadNewer })
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 5000 })
+        act(() => { vi.advanceTimersByTime(2000) })
+        viewport.scrollTop = 3000
+        fireEvent.scroll(viewport)
+        act(() => { vi.advanceTimersByTime(16) })
+        viewport.scrollTop = 3600
+        fireEvent.scroll(viewport)
+        expect(prefetch).toHaveBeenCalledWith('newer', 2)
+        expect(loadNewer).not.toHaveBeenCalled()
+        expect(viewport.scrollTop).toBe(3600)
+    })
+
     it('loads forward on a downward edge gesture and restores the visible anchor after head eviction', async () => {
         let position = 800
         let scrollHeight = 1232

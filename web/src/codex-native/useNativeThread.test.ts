@@ -57,22 +57,77 @@ describe('native thread window', () => {
         expect(result.current.items.at(-1)?.item.id).toBe('n-350')
         const beforeApply = vi.fn(() => true)
         await act(async () => { await result.current.newer(beforeApply) })
-        expect(api.getCodexNativeItems).toHaveBeenCalledWith('bidirectional', 'opaque-forward-100', 'asc')
+        expect(api.getCodexNativeItems).toHaveBeenCalledWith('bidirectional', 'opaque-forward-350', 'asc', expect.any(AbortSignal))
+        expect(api.getCodexNativeItems.mock.calls.filter(call => call[1] === 'opaque-forward-350')).toHaveLength(1)
         expect(beforeApply).toHaveBeenCalledTimes(1)
         expect(result.current.items.map(value => value.item.id)).toEqual(range(100, 399).map(value => value.item.id))
         expect(result.current.hasNewer).toBe(true)
         await act(async () => { await result.current.newer() })
         expect(result.current.items.map(value => value.item.id)).toEqual(range(101, 400).map(value => value.item.id))
         expect(result.current.hasNewer).toBe(false)
-        expect(result.current.cursor).toBe('opaque-reverse-400')
+        expect(result.current.cursor).toBe('opaque-older-6')
         pages.set('latest', { data: range(352, 401).reverse(), nextCursor: 'older-live', backwardsCursor: 'forward-live' })
         pages.set('opaque-forward-400', { data: range(400, 401), nextCursor: null, backwardsCursor: 'opaque-reverse-400' })
         await act(async () => { await result.current.latest() })
         expect(result.current.hasNewer).toBe(true)
         expect(result.current.items.at(-1)?.item.id).toBe('n-400')
         await act(async () => { await result.current.newer() })
-        expect(api.getCodexNativeItems).toHaveBeenLastCalledWith('bidirectional', 'opaque-forward-400', 'asc')
+        expect(api.getCodexNativeItems.mock.calls.filter(call => call[1] === 'opaque-forward-400')).toHaveLength(2)
         expect(result.current.items.at(-1)?.item.id).toBe('n-401')
+        unmount()
+    })
+
+    it('shares a slow prefetched page with boundary demand without publishing it early', async () => {
+        const page = deferredPage()
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'prefetch-native' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('current')], nextCursor: 'opaque-neighbor' }).mockReturnValue(page.promise),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'prefetch-native'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        let speculative!: Promise<void>
+        act(() => { speculative = result.current.prefetch('older') })
+        expect(result.current.items.map(value => value.item.id)).toEqual(['current'])
+        expect(result.current.olderLoading).toBe(false)
+        let demand!: ReturnType<typeof result.current.older>
+        act(() => { demand = result.current.older() })
+        await act(async () => {
+            page.resolve({ data: [entry('neighbor')], nextCursor: null })
+            await speculative
+            expect(await demand).not.toBeNull()
+        })
+        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(2)
+        expect(result.current.items.map(value => value.item.id)).toEqual(['neighbor', 'current'])
+        unmount()
+    })
+
+    it('keeps forward reading available when a shared end-page request predates a live update', async () => {
+        const page = deferredPage()
+        let event!: (value: NativeEvent) => void
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'moving-end' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('current')], nextCursor: null, backwardsCursor: 'opaque-after-current' })
+                .mockReturnValueOnce(page.promise).mockResolvedValue({ data: [entry('arrived')], nextCursor: null }),
+            streamCodexNativeEvents: vi.fn((_id: string, _signal: AbortSignal, onEvent: typeof event) => { event = onEvent; return new Promise<void>(() => {}) }),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'moving-end'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        let warm!: Promise<void>
+        let demand!: ReturnType<typeof result.current.newer>
+        act(() => { warm = result.current.prefetch('newer'); demand = result.current.newer() })
+        act(() => event({ method: 'item/completed', params: { item: entry('arrived').item } }))
+        await act(async () => {
+            page.resolve({ data: [], nextCursor: null })
+            await warm
+            expect((await demand)?.hasMore).toBe(true)
+        })
+        expect(result.current.hasNewer).toBe(true)
+        await act(async () => { expect((await result.current.newer())?.hasMore).toBe(false) })
+        expect(result.current.items.at(-1)?.item.id).toBe('arrived')
+        expect(result.current.hasNewer).toBe(false)
         unmount()
     })
 
@@ -214,7 +269,7 @@ describe('native thread window', () => {
         expect(result.current.loading).toBe(true)
         await act(async () => resolveItems({ data: [entry('latest')], nextCursor: 'opaque-cursor' }))
         await act(async () => { await result.current.older() })
-        expect(api.getCodexNativeItems).toHaveBeenLastCalledWith('native', 'opaque-cursor')
+        expect(api.getCodexNativeItems).toHaveBeenLastCalledWith('native', 'opaque-cursor', 'desc', expect.any(AbortSignal))
         expect(result.current.items.map(value => value.item.id)).toEqual(['older', 'latest'])
         unmount()
         expect(signal[0].aborted).toBe(true)

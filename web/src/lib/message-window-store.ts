@@ -8,6 +8,7 @@ import type { DecryptedMessage, MessageStatus, MessagesResponse } from '@/types/
 import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
 import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
+import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 
 export type MessageViewMode = 'tail' | 'history'
 
@@ -90,6 +91,48 @@ const states = new Map<string, InternalState>()
 const listeners = new Map<string, Set<() => void>>()
 const tailSyncControllers = new Map<string, TailSyncController>()
 const appliedRewindLocalIds = new Map<string, Set<string>>()
+// Shared across inactive sessions as well: transport pages cannot accumulate
+// another unbounded transcript alongside the existing visible-window store.
+const historyPages = new HistoryPageCache<MessagesResponse>({ items: 2400, bytes: 12 * 1024 * 1024 })
+const apiCacheIds = new WeakMap<ApiClient, number>()
+const historyPageTailVersions = new WeakMap<MessagesResponse, number>()
+let nextApiCacheId = 0
+
+function readHistoryPage(api: ApiClient, sessionId: string, direction: HistoryDirection, position: MessagePosition, epoch: number | null): Promise<MessagesResponse> {
+    let client = apiCacheIds.get(api)
+    if (client === undefined) { client = ++nextApiCacheId; apiCacheIds.set(api, client) }
+    const key = JSON.stringify([client, api.getConversationCacheScope?.().key, sessionId, epoch, direction, position.at, position.seq, PAGE_SIZE])
+    const tailRevision = getState(sessionId).tailRevision
+    return historyPages.read(key, signal => api.getMessages(sessionId, direction === 'older'
+        ? { beforeAt: position.at, beforeSeq: position.seq, limit: PAGE_SIZE }
+        : { afterAt: position.at, afterSeq: position.seq, epoch, limit: PAGE_SIZE }, signal).then(response => {
+            historyPageTailVersions.set(response, tailRevision)
+            return response
+        }),
+    response => response.messages.length,
+    response => !response.page.reset && (epoch === null || response.page.epoch === epoch) && !response.messages.some(isQueuedForInvocation),
+    response => direction === 'older' || response.page.hasMore || historyPageTailVersions.get(response) === getState(sessionId).tailRevision,
+    sessionId)
+}
+
+/** Fetch neighboring transport pages without publishing a message-window change. */
+export async function prefetchMessageHistory(api: ApiClient, sessionId: string, direction: HistoryDirection, pages = 1): Promise<void> {
+    const initial = getState(sessionId)
+    if (initial.isSyncingTail || (direction === 'older' ? !initial.hasMore : !initial.requiresLatestReset)) return
+    let position = direction === 'older' ? pagePosition(initial.oldestPositionAt, initial.oldestPositionSeq) : getNewestCursor(initial)
+    try {
+        for (let count = 0; position && count < Math.min(2, pages); count++) {
+            const response = await readHistoryPage(api, sessionId, direction, position, initial.epoch)
+            const current = getState(sessionId)
+            if (current.epoch !== initial.epoch || current.syncGeneration !== initial.syncGeneration || response.page.epoch !== initial.epoch || response.page.reset || !response.page.hasMore) break
+            const next = direction === 'older'
+                ? pagePosition(response.page.nextBeforeAt, response.page.nextBeforeSeq)
+                : pagePosition(response.page.nextAfterAt, response.page.nextAfterSeq)
+            if (!next || comparePosition(next, position) === 0) break
+            position = next
+        }
+    } catch { /* A speculative read does not own visible loading or warnings. */ }
+}
 
 const NOTIFY_THROTTLE_MS = 150
 const PERSIST_THROTTLE_MS = 200
@@ -986,6 +1029,7 @@ export async function seekMessageWindow(
     locator: Extract<ConversationHistoryPage, { kind: 'runner' }>,
     targetMessageId: string
 ): Promise<boolean> {
+    historyPages.clear(sessionId)
     const initial = getState(sessionId)
     const generation = initial.olderGeneration + 1
     updateState(sessionId, previous => buildState(previous, {
@@ -1084,11 +1128,7 @@ export async function fetchOlderMessages(
     }))
 
     try {
-        const response = await api.getMessages(sessionId, {
-            beforeAt: before.at,
-            beforeSeq: before.seq,
-            limit: PAGE_SIZE
-        })
+        const response = await readHistoryPage(api, sessionId, 'older', before, initial.epoch)
         if (getState(sessionId).olderGeneration !== generation) {
             return { kind: 'stopped', reason: 'invalidated' }
         }
@@ -1144,6 +1184,8 @@ export async function fetchOlderMessages(
         if (applyRejected || historyVersion === 0) {
             return { kind: 'stopped', reason: 'invalidated' }
         }
+        const afterApply = getState(sessionId)
+        if (getNewestCursor(afterApply)?.seq !== getNewestCursor(initial)?.seq) void prefetchMessageHistory(api, sessionId, 'newer')
         return {
             kind: 'applied',
             historyVersion,
@@ -1195,7 +1237,7 @@ export async function fetchNewerMessages(
     const generation = initial.olderGeneration + 1
     updateState(sessionId, previous => buildState(previous, { olderGeneration: generation, isLoadingMore: true, warning: null }))
     try {
-        const response = await api.getMessages(sessionId, { afterAt: after.at, afterSeq: after.seq, epoch: initial.epoch, limit: PAGE_SIZE })
+        const response = await readHistoryPage(api, sessionId, 'newer', after, initial.epoch)
         if (getState(sessionId).olderGeneration !== generation) return { kind: 'stopped', reason: 'invalidated' }
         if (response.page.reset || (initial.epoch !== null && response.page.epoch !== initial.epoch)) {
             invalidateMessageWindow(sessionId)
@@ -1204,6 +1246,7 @@ export async function fetchNewerMessages(
         }
         let historyVersion = 0
         let addedRenderableCount = 0
+        let hasMore = response.page.hasMore
         updateState(sessionId, previous => {
             if (previous.olderGeneration !== generation) return previous
             const nextVersion = previous.historyVersion + 1
@@ -1211,10 +1254,14 @@ export async function fetchNewerMessages(
             addedRenderableCount = countNewRenderableMessages(previous, response.messages)
             const merged = mergeIntoWindow(previous, response.messages, { mode: 'append', regularLimit: OLDER_LOAD_WINDOW_SIZE })
             const newest = pagePosition(response.page.nextAfterAt, response.page.nextAfterSeq) ?? after
+            // A speculative end response may have started before an SSE tail
+            // update. It can extend this window, but cannot exhaust that newer
+            // observed tail; the next gesture can read it without a retry loop.
+            hasMore = response.page.hasMore || historyPageTailVersions.get(response) !== previous.tailRevision
             historyVersion = nextVersion
             return buildState(merged, {
                 viewMode: 'history',
-                requiresLatestReset: response.page.hasMore,
+                requiresLatestReset: hasMore,
                 newestPositionAt: newest?.at ?? previous.newestPositionAt,
                 newestPositionSeq: newest?.seq ?? previous.newestPositionSeq,
                 epoch: response.page.epoch,
@@ -1223,8 +1270,9 @@ export async function fetchNewerMessages(
                 warning: null,
             })
         }, true)
+        if (historyVersion && getState(sessionId).oldestPositionSeq !== initial.oldestPositionSeq) void prefetchMessageHistory(api, sessionId, 'older')
         return historyVersion
-            ? { kind: 'applied', historyVersion, hasMore: response.page.hasMore, addedRenderableCount }
+            ? { kind: 'applied', historyVersion, hasMore, addedRenderableCount }
             : { kind: 'stopped', reason: 'invalidated' }
     } catch (error) {
         const failure = error instanceof Error ? error : new Error('Failed to load newer messages')
@@ -1234,6 +1282,7 @@ export async function fetchNewerMessages(
 }
 
 export function setMessageViewMode(sessionId: string, mode: MessageViewMode): void {
+    if (mode === 'tail' && getState(sessionId).viewMode !== 'tail') historyPages.clear(sessionId)
     updateState(sessionId, (previous) => {
         if (previous.viewMode === mode) {
             return previous
@@ -1308,6 +1357,7 @@ export function subscribeMessageWindow(sessionId: string, listener: () => void):
 }
 
 export function clearMessageWindow(sessionId: string): void {
+    historyPages.clear(sessionId)
     clearConversationReadingPosition(sessionId)
     tailSyncControllers.delete(sessionId)
     clearPersistedState(sessionId)
@@ -1321,6 +1371,7 @@ export function clearMessageWindow(sessionId: string): void {
 }
 
 function markMessageWindowForLatestReset(sessionId: string, messages: DecryptedMessage[]): void {
+    historyPages.clear(sessionId)
     const previous = states.get(sessionId)
     if (!previous) return
 
