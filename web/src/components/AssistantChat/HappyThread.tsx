@@ -51,6 +51,7 @@ type PendingScrollRestore = {
     scrollTop: number
     scrollHeight: number
     targetHistoryVersion: number | null
+    direction?: 'older' | 'newer'
 }
 
 type HistoryLoadSource = 'coverage' | 'user' | 'consumer'
@@ -62,6 +63,7 @@ type HistoryLoaderState = {
     source: HistoryLoadSource | null
     failureCount: number
     autoPaused: boolean
+    direction?: 'older' | 'newer'
 }
 
 type ShareTurnState = {
@@ -529,6 +531,7 @@ export function HappyThread(props: {
     hasNewerMessages?: boolean
     isLoadingMoreMessages: boolean
     onLoadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    onLoadNewer?: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     onCancelLoadMore: () => void
     unseenCount: number
     rawMessagesCount: number
@@ -625,6 +628,8 @@ export function HappyThread(props: {
     const hasMoreMessagesRef = useRef(props.hasMoreMessages)
     const isSyncingTailRef = useRef(props.isSyncingTail)
     const onLoadMoreRef = useRef(props.onLoadMore)
+    const onLoadNewerRef = useRef(props.onLoadNewer)
+    onLoadNewerRef.current = props.onLoadNewer
     const onCancelLoadMoreRef = useRef(props.onCancelLoadMore)
     const pendingLoadPromiseRef = useRef<Promise<OlderHistoryLoadResult> | null>(null)
     const pendingLoadResolveRef = useRef<((value: OlderHistoryLoadResult) => void) | null>(null)
@@ -663,8 +668,10 @@ export function HappyThread(props: {
     const requestOlderRef = useRef<(source: HistoryLoadSource) => Promise<OlderHistoryLoadResult>>(
         () => Promise.resolve('transient-stop')
     )
+    const requestNewerRef = useRef<(source: HistoryLoadSource) => Promise<OlderHistoryLoadResult>>(() => Promise.resolve('transient-stop'))
     const startHistoryLoadAttemptRef = useRef<(runId: number) => void>(() => {})
     const needsViewportCoverageRef = useRef<() => boolean>(() => false)
+    const needsNewerCoverageRef = useRef<() => boolean>(() => false)
     const atBottomRef = useRef(true)
     const onViewModeChangeRef = useRef(props.onViewModeChange)
     const forceScrollTokenRef = useRef(props.forceScrollToken)
@@ -857,7 +864,8 @@ export function HappyThread(props: {
             }
 
             const needsCoverage = needsViewportCoverageRef.current()
-            if (!needsCoverage) {
+            const needsNewerCoverage = needsNewerCoverageRef.current()
+            if (historyLoaderRef.current.direction === 'newer' ? !needsNewerCoverage : !needsCoverage) {
                 // Older pages retain the oldest side of the bounded window.
                 // Once the user reverses toward newer history, applying this
                 // request could evict their new anchor. Invalidate it instead;
@@ -888,8 +896,11 @@ export function HappyThread(props: {
             // Scroll position is the source of truth. The loader controller
             // decides whether this demand may start a request; programmatic
             // scroll events cannot bypass backoff or a paused coverage run.
-            if (needsCoverage) {
+            if (needsCoverage && !(intent.isScrollingDown && needsNewerCoverage && hasNewerMessagesRef.current)) {
                 void requestOlderRef.current(explicitUpwardIntent ? 'user' : 'coverage')
+            }
+            if (intent.isScrollingDown && needsNewerCoverage && hasNewerMessagesRef.current && !outlineSeekPendingRef.current && !tailScrollInProgressRef.current) {
+                void requestNewerRef.current('user')
             }
 
             if (intent.isScrollingUp && intent.distanceFromBottom > MANUAL_SCROLL_EPSILON_PX) {
@@ -938,6 +949,7 @@ export function HappyThread(props: {
         // touch users progressive feedback, then load only when they release
         // after crossing the threshold.
         let pullStartY: number | null = null
+        let lastTouchY: number | null = null
 
         const updatePullToLoadState = (state: PullToLoadState) => {
             if (pullToLoadStateRef.current === state) {
@@ -949,6 +961,11 @@ export function HappyThread(props: {
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (isNestedScrollEvent(event)) return
+            if (['ArrowDown', 'PageDown', 'End', ' '].includes(event.key)
+                && !event.defaultPrevented && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey
+                && !(event.target instanceof HTMLInputElement) && !(event.target instanceof HTMLTextAreaElement)
+                && !(event.target instanceof HTMLElement && event.target.isContentEditable)
+                && hasNewerMessagesRef.current && needsNewerCoverageRef.current()) void requestNewerRef.current('user')
             if (!UPWARD_SCROLL_KEYS.has(event.key)) {
                 keyboardResumeActive = false
             }
@@ -1040,6 +1057,14 @@ export function HappyThread(props: {
             keyboardResumeActive = false
             if (event.deltaY >= 0) {
                 wheelIntentUntil = 0
+                if (event.deltaY > 0 && !outlineSeekPendingRef.current && !tailScrollInProgressRef.current && needsNewerCoverageRef.current()) {
+                    if (historyLoaderRef.current.direction !== 'newer') cancelActiveHistoryLoad()
+                    if (hasNewerMessagesRef.current) void requestNewerRef.current('user')
+                    else if (viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= AUTO_SCROLL_RESUME_THRESHOLD_PX) {
+                        setAutoScrollMode(true)
+                        setAtBottomMode(true)
+                    }
+                }
                 return
             }
             // One trigger per gesture: a trackpad swipe is a burst of wheel
@@ -1052,7 +1077,7 @@ export function HappyThread(props: {
             }
             lastWheelAt = now
             wheelIntentUntil = now + WHEEL_GESTURE_GAP_MS
-            if (!needsViewportCoverageRef.current() || wheelLatched) {
+            if (!needsViewportCoverageRef.current() || (wheelLatched && historyLoaderRef.current.phase !== 'idle')) {
                 return
             }
             wheelLatched = true
@@ -1062,6 +1087,7 @@ export function HappyThread(props: {
         const handleTouchStart = (event: TouchEvent) => {
             if (isNestedScrollEvent(event)) return
             keyboardResumeActive = false
+            lastTouchY = event.touches[0]?.clientY ?? null
             updatePullToLoadState('idle')
             pullStartY = (
                 viewport.scrollTop <= 0
@@ -1076,6 +1102,9 @@ export function HappyThread(props: {
 
         const handleTouchMove = (event: TouchEvent) => {
             if (isNestedScrollEvent(event)) return
+            const y = event.touches[0]?.clientY
+            if (y !== undefined && lastTouchY !== null && y < lastTouchY - 1 && hasNewerMessagesRef.current && needsNewerCoverageRef.current()) void requestNewerRef.current('user')
+            lastTouchY = y ?? null
             if (pullStartY === null) {
                 return
             }
@@ -1351,6 +1380,12 @@ export function HappyThread(props: {
         })
     }, [])
     needsViewportCoverageRef.current = needsViewportCoverage
+    const needsNewerCoverage = useCallback(() => {
+        const viewport = viewportRef.current
+        return Boolean(viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= HISTORY_PRELOAD_MARGIN_PX)
+    }, [])
+    needsNewerCoverageRef.current = needsNewerCoverage
+    const needsHistoryCoverage = useCallback((direction?: 'older' | 'newer') => direction === 'newer' ? needsNewerCoverage() : needsViewportCoverage(), [needsNewerCoverage, needsViewportCoverage])
 
     const scheduleCoverageAfterSettling = useCallback(() => {
         clearCoverageCheckTimer()
@@ -1395,7 +1430,7 @@ export function HappyThread(props: {
             }
         }
 
-        if (state.source !== 'consumer' && !needsViewportCoverage()) {
+        if (state.source !== 'consumer' && !needsHistoryCoverage(state.direction)) {
             finishStoppedAttempt(state, 'transient-stop')
             return
         }
@@ -1403,7 +1438,7 @@ export function HappyThread(props: {
             finishStoppedAttempt(state, 'transient-stop')
             return
         }
-        if (!hasMoreMessagesRef.current) {
+        if (state.direction === 'newer' ? !hasNewerMessagesRef.current || !onLoadNewerRef.current : !hasMoreMessagesRef.current) {
             finishStoppedAttempt(state, 'terminal-stop', true)
             return
         }
@@ -1420,7 +1455,8 @@ export function HappyThread(props: {
             anchor: captureScrollAnchor(viewport),
             scrollTop: viewport.scrollTop,
             scrollHeight: viewport.scrollHeight,
-            targetHistoryVersion: null
+            targetHistoryVersion: null,
+            direction: state.direction
         }
         autoScrollEnabledRef.current = false
         historyLoaderRef.current = { ...state, phase: 'loading' }
@@ -1428,7 +1464,8 @@ export function HappyThread(props: {
         void (async () => {
             let outcome: OlderLoadOutcome
             try {
-                outcome = await onLoadMoreRef.current((historyVersion) => {
+                const load = state.direction === 'newer' ? onLoadNewerRef.current! : onLoadMoreRef.current
+                outcome = await load((historyVersion) => {
                     const current = historyLoaderRef.current
                     const pending = pendingScrollRef.current
                     if (
@@ -1439,7 +1476,7 @@ export function HappyThread(props: {
                     ) {
                         return false
                     }
-                    if (current.source !== 'consumer' && !needsViewportCoverage()) {
+                    if (current.source !== 'consumer' && !needsHistoryCoverage(current.direction)) {
                         return false
                     }
                     pending.targetHistoryVersion = historyVersion
@@ -1507,13 +1544,13 @@ export function HappyThread(props: {
         })()
     }, [
         clearFailureRetryTimer,
-        needsViewportCoverage,
+        needsHistoryCoverage,
         scheduleCoverageAfterSettling,
         settlePendingLoad
     ])
     startHistoryLoadAttemptRef.current = startHistoryLoadAttempt
 
-    const requestOlder = useCallback((source: HistoryLoadSource): Promise<OlderHistoryLoadResult> => {
+    const requestOlder = useCallback((source: HistoryLoadSource, direction: 'older' | 'newer' = 'older'): Promise<OlderHistoryLoadResult> => {
         if (pendingLoadPromiseRef.current) {
             return pendingLoadPromiseRef.current
         }
@@ -1523,7 +1560,7 @@ export function HappyThread(props: {
             if (state.autoPaused) {
                 return Promise.resolve('terminal-stop')
             }
-            if (isInitialScrollSettling() || !needsViewportCoverage()) {
+            if (isInitialScrollSettling() || !needsHistoryCoverage(direction)) {
                 return Promise.resolve('transient-stop')
             }
         } else {
@@ -1545,7 +1582,7 @@ export function HappyThread(props: {
         ) {
             return Promise.resolve('transient-stop')
         }
-        if (!hasMoreMessagesRef.current) {
+        if (direction === 'newer' ? !hasNewerMessagesRef.current || !onLoadNewerRef.current : !hasMoreMessagesRef.current) {
             return Promise.resolve('terminal-stop')
         }
 
@@ -1556,6 +1593,7 @@ export function HappyThread(props: {
             runId,
             phase: 'loading',
             source,
+            direction,
             failureCount: 0,
             autoPaused: source === 'user' ? false : state.autoPaused
         }
@@ -1570,9 +1608,10 @@ export function HappyThread(props: {
         clearFailureRetryTimer,
         clearInitialScrollTimers,
         isInitialScrollSettling,
-        needsViewportCoverage
+        needsHistoryCoverage
     ])
     requestOlderRef.current = requestOlder
+    requestNewerRef.current = source => requestOlder(source, 'newer')
 
     const loadOlderFromConsumer = useCallback((): Promise<OlderHistoryLoadResult> => {
         return requestOlder('consumer')
@@ -1726,7 +1765,7 @@ export function HappyThread(props: {
             }
             const restoredByAnchor = pending.anchor ? restoreScrollAnchor(viewport, pending.anchor) : false
             if (!restoredByAnchor) {
-                const delta = viewport.scrollHeight - pending.scrollHeight
+                const delta = pending.direction === 'newer' ? 0 : viewport.scrollHeight - pending.scrollHeight
                 viewport.scrollTop = pending.scrollTop + delta
             }
             const loaderState = historyLoaderRef.current

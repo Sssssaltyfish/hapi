@@ -587,6 +587,7 @@ type SessionChatProps = {
     onBack: () => void
     onRefresh: () => void | Promise<void>
     onLoadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    onLoadNewer?: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     onCancelLoadMore: () => void
     onLocateNativeHistoryPage?: (cursor: string | null, targetMessageId: string) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
@@ -2020,6 +2021,7 @@ function SessionChatInner(props: SessionChatProps) {
                         hasNewerMessages={props.hasNewerMessages ?? hasNewerMessagesOutsideWindow(props.session.id)}
                         isLoadingMoreMessages={props.isLoadingMoreMessages}
                         onLoadMore={props.onLoadMore}
+                        onLoadNewer={props.onLoadNewer}
                         onCancelLoadMore={props.onCancelLoadMore}
                         unseenCount={unseenCount}
                         rawMessagesCount={visibleMessages.length}

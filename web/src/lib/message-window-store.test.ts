@@ -15,6 +15,8 @@ import {
     cancelOlderMessageLoad,
     clearMessageWindow,
     fetchOlderMessages,
+    fetchNewerMessages,
+    hasNewerMessagesOutsideWindow,
     getMessageWindowState,
     getQueuedReconcileCandidateLocalIds,
     ingestIncomingMessages,
@@ -1287,6 +1289,49 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('keeps the continuous forward cursor separate from retained queue and isolated SSE tail rows', async () => {
+        const id = sessionId('forward-boundary-isolation')
+        ingestIncomingMessages(id, [makeUserMessage({ id: 'queued-tail', seq: 100, createdAt: 100000, invokedAt: null, status: 'queued' })])
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([makeUserMessage({ id: 'middle', seq: 10, createdAt: 10000, invokedAt: 10000 })], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(afterResponse([makeUserMessage({ id: 'next', seq: 11, createdAt: 11000, invokedAt: 11000 })], { epoch: 1, hasMore: true, nextAfterAt: 11000, nextAfterSeq: 11, snapshotHeadAt: 101000, snapshotHeadSeq: 101 }))
+            .mockResolvedValueOnce(afterResponse([makeUserMessage({ id: 'next-again', seq: 12, createdAt: 12000, invokedAt: 12000 })], { epoch: 1, hasMore: true, nextAfterAt: 12000, nextAfterSeq: 12, snapshotHeadAt: 101000, snapshotHeadSeq: 101 }))
+        const api = createApi(getMessages)
+        expect(await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 20000, beforeSeq: 20, epoch: 1 }, 'user-text:middle')).toBe(true)
+        ingestIncomingMessages(id, [makeAgentMessage({ id: 'isolated-live-tail', seq: 101, at: 101000 })])
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['middle', 'queued-tail'])
+        expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 10000, afterSeq: 10, epoch: 1, limit: 200 })
+        ingestIncomingMessages(id, [makeUserMessage({ id: 'queued-tail', seq: 100, createdAt: 100000, invokedAt: 100000 })])
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['middle', 'next'])
+        expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 11000, afterSeq: 11, epoch: 1, limit: 200 })
+    })
+
+    it('reads newer records back after older pagination evicts the tail, preserving a bounded continuous window', async () => {
+        const id = sessionId('bidirectional-window')
+        const range = (start: number, end: number) => Array.from({ length: end - start + 1 }, (_, i) => {
+            const seq = start + i
+            return makeUserMessage({ id: `m-${seq}`, seq, createdAt: seq * 1000, invokedAt: seq * 1000 })
+        })
+        ingestIncomingMessages(id, range(1, 1200))
+        setMessageViewMode(id, 'history')
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse(range(601, 800), { epoch: 1, hasMore: true, nextBeforeAt: 601000, nextBeforeSeq: 601 }))
+            .mockResolvedValueOnce(beforeResponse(range(401, 600), { epoch: 1, hasMore: true, nextBeforeAt: 401000, nextBeforeSeq: 401 }))
+            .mockResolvedValueOnce(beforeResponse(range(201, 400), { epoch: 1, hasMore: true, nextBeforeAt: 201000, nextBeforeSeq: 201 }))
+            .mockResolvedValueOnce(afterResponse(range(1001, 1200), { epoch: 1, nextAfterAt: 1200000, nextAfterSeq: 1200, snapshotHeadAt: 1200000, snapshotHeadSeq: 1200 }))
+        const api = createApi(getMessages)
+        for (let i = 0; i < 3; i++) expect((await fetchOlderMessages(api, id)).kind).toBe('applied')
+        expect(getMessageWindowState(id).messages.at(-1)?.id).toBe('m-1000')
+        expect(hasNewerMessagesOutsideWindow(id)).toBe(true)
+        expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 1000000, afterSeq: 1000, epoch: 1, limit: 200 })
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(range(401, 1200).map(message => message.id))
+        expect(hasNewerMessagesOutsideWindow(id)).toBe(false)
+        expect(getMessageWindowState(id).hasMore).toBe(true)
+    })
+
     it('retains a history window on preview re-entry when its reading position is saved', () => {
         const id = sessionId('preview-reading-window')
         ingestIncomingMessages(id, [makeUserMessage({ id: 'reading', seq: 1, invokedAt: 1000 })])

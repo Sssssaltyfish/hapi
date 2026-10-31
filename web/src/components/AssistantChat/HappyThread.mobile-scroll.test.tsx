@@ -33,6 +33,7 @@ import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
 import { clearConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 import type { ConversationOutlineItem } from '@/chat/outline'
+import type { OlderLoadOutcome } from '@/lib/message-window-store'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -53,6 +54,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
     item?: ConversationOutlineItem
     locate?: () => Promise<boolean>
     onOpenChange?: (open: boolean) => void
+    loadNewer?: (beforeApply?: (version: number) => boolean) => Promise<OlderLoadOutcome>
 } = {}) {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } }
@@ -76,12 +78,13 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
                     hasNewerMessages={hasNewerMessages}
                     isLoadingMoreMessages={false}
                     onLoadMore={vi.fn().mockResolvedValue({ status: 'exhausted' })}
+                    onLoadNewer={outline.loadNewer}
                     onCancelLoadMore={vi.fn()}
                     unseenCount={unseenCount}
                     rawMessagesCount={1}
                     normalizedMessagesCount={1}
                     messagesVersion={messagesVersion}
-                    historyVersion={0}
+                    historyVersion={messagesVersion - 1}
                     forceScrollToken={forceScrollToken}
                     outlineOpen={outlineOpen}
                     outlineItems={outline.item ? [outline.item] : []}
@@ -157,6 +160,40 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('loads forward on a downward edge gesture and restores the visible anchor after head eviction', async () => {
+        let position = 800
+        let scrollHeight = 1232
+        let apply!: () => void
+        let publish = () => {}
+        const loadNewer = vi.fn((beforeApply?: (version: number) => boolean) => new Promise<OlderLoadOutcome>(resolve => {
+            apply = () => {
+                expect(beforeApply?.(1)).toBe(true)
+                position = 400
+                scrollHeight = 1432
+                publish()
+                resolve({ kind: 'applied', historyVersion: 1, hasMore: true, addedRenderableCount: 5 })
+            }
+        }))
+        const result = renderThread(vi.fn(), 0, true, { loadNewer })
+        publish = () => result.rerenderMessages(2)
+        const { viewport, container } = result
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+        vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530, height: 530 } as DOMRect)
+        const anchor = document.createElement('div')
+        anchor.id = 'hapi-message-user-text:forward-anchor'
+        vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(() => ({ top: position - viewport.scrollTop, bottom: position + 40 - viewport.scrollTop, height: 40 } as DOMRect))
+        container.querySelector('.happy-thread-messages')!.append(anchor)
+        act(() => { vi.advanceTimersByTime(2000) })
+        viewport.scrollTop = 702
+        fireEvent.scroll(viewport)
+        const before = anchor.getBoundingClientRect().top
+        fireEvent.wheel(viewport, { deltaY: 200 })
+        expect(loadNewer).toHaveBeenCalledTimes(1)
+        await act(async () => { apply() })
+        expect(anchor.getBoundingClientRect().top).toBe(before)
+        expect(viewport.scrollTop).toBe(302)
+    })
+
     it('keeps navigation loading through delayed DOM mounting and reveals a page-end prompt after the composer returns', async () => {
         let height = 500
         const item: ConversationOutlineItem = { id: 'outline:user-text:native:page-end', targetMessageId: 'user-text:native:page-end', kind: 'user', label: 'Historical page-end prompt', createdAt: 1000 }

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '@/api/client'
-import type { NativeEvent, NativeItemEntry, NativeRecord, NativeRequest } from './types'
+import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequest } from './types'
 import { mergeNativeItems, record } from './presentation'
 import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
 
-type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; browsingOlder: boolean; savedAt: number }
+type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; newerCursor: string | null; hasNewer: boolean; browsingOlder: boolean; savedAt: number }
 const windowCache = new Map<string, NativeWindowSnapshot>()
 const MAX_CACHED_WINDOWS = 12
 const WINDOW_TTL_MS = 30 * 60 * 1000
@@ -27,12 +27,13 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const itemsRef = useRef(items)
     itemsRef.current = items
     const [cursor, setCursor] = useState<string | null>(cached.current?.cursor ?? null)
+    const [newerCursor, setNewerCursor] = useState<string | null>(cached.current?.newerCursor ?? null)
     const [loading, setLoading] = useState(true)
     const [olderLoading, setOlderLoading] = useState(false)
     const [error, setError] = useState('')
     const [connected, setConnected] = useState(false)
     const [requests, setRequests] = useState<NativeRequest[]>([])
-    const [hasNewer, setHasNewer] = useState(Boolean(cached.current && preserveHistory))
+    const [hasNewer, setHasNewer] = useState(Boolean(cached.current && preserveHistory && (cached.current.hasNewer ?? true)))
     const browsingOlder = useRef(Boolean(cached.current && preserveHistory))
     const historyGeneration = useRef(0)
     const olderRequest = useRef<symbol | null>(null)
@@ -42,9 +43,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     useEffect(() => {
         if (!cacheKey || items.length === 0) return
         windowCache.delete(cacheKey)
-        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, browsingOlder: browsingOlder.current, savedAt: Date.now() })
+        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now() })
         while (windowCache.size > MAX_CACHED_WINDOWS) windowCache.delete(windowCache.keys().next().value!)
-    }, [cacheKey, items, cursor])
+    }, [cacheKey, items, cursor, newerCursor, hasNewer])
     const applySettings = useCallback((settings: NativeRecord) => {
         // This is a confirmed daemon response, also used when SSE is reconnecting.
         setDetail(current => ({ ...current, threadSettings: settings }))
@@ -84,11 +85,13 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setHasNewer(false)
                 setItems([...page.data].reverse())
                 setCursor(page.nextCursor)
+                setNewerCursor(page.backwardsCursor ?? null)
             } else if (browsingOlder.current) {
-                setHasNewer(true)
+                if (page.data[0]?.item.id !== itemsRef.current.at(-1)?.item.id) setHasNewer(true)
             } else {
                 setItems([...page.data].reverse())
                 setCursor(page.nextCursor)
+                setNewerCursor(page.backwardsCursor ?? null)
             }
             setError('')
         } catch (error) {
@@ -101,10 +104,11 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
     }, [api, id])
 
-    const older = useCallback(async (beforeApply?: (entries: NativeItemEntry[]) => boolean) => {
-        if (!cursor || olderRequest.current) return null
+    const readHistory = useCallback(async (direction: 'older' | 'newer', beforeApply?: (entries: NativeItemEntry[]) => boolean) => {
+        const initialCursor = direction === 'older' ? cursor : newerCursor
+        if (!initialCursor || olderRequest.current) return null
         const generation = historyGeneration.current
-        const request = Symbol('older-page')
+        const request = Symbol(`${direction}-page`)
         olderRequest.current = request
         const isCurrent = () => alive.current && generation === historyGeneration.current && olderRequest.current === request
         const wasBrowsingOlder = browsingOlder.current
@@ -112,17 +116,53 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         browsingOlder.current = true
         setOlderLoading(true)
         try {
-            const page = await api.getCodexNativeItems(id, cursor)
-            if (!isCurrent()) return null
-            const nextItems = mergeNativeItems(itemsRef.current, [...page.data].reverse(), 'older')
+            const currentItems = itemsRef.current
+            const known = new Set(currentItems.map(entry => entry.item.id))
+            let pageCursor: string | null = initialCursor
+            let lastRequestedCursor = initialCursor
+            let oppositeCursor: string | null = null
+            let nextItems = currentItems
+            for (let pages = 0; pages < 8 && pageCursor; pages++) {
+                lastRequestedCursor = pageCursor
+                const page: NativePage<NativeItemEntry> = direction === 'older'
+                    ? await api.getCodexNativeItems(id, pageCursor)
+                    : await api.getCodexNativeItems(id, pageCursor, 'asc')
+                if (!isCurrent()) return null
+                if (page.nextCursor === pageCursor) throw new Error('Native history cursor did not advance')
+                const incoming = direction === 'older' ? [...page.data].reverse() : page.data
+                const added = incoming.some(entry => !known.has(entry.item.id))
+                if (added) nextItems = mergeNativeItems(nextItems, incoming, direction === 'older' ? 'older' : 'latest')
+                else {
+                    const updates = new Map(incoming.map(entry => [entry.item.id, entry]))
+                    nextItems = nextItems.map(entry => updates.get(entry.item.id) ?? entry)
+                }
+                pageCursor = page.nextCursor
+                oppositeCursor = page.backwardsCursor ?? null
+                // A reverse cursor may overlap the retained window. Advance
+                // through that overlap without exposing empty paging steps.
+                if (added) break
+            }
             const accepted = beforeApply ? beforeApply(nextItems) : true
             if (!isCurrent()) return null
             if (!accepted) { browsingOlder.current = wasBrowsingOlder; return null }
             setItems(nextItems)
-            setCursor(page.nextCursor)
-            setHasNewer(true)
+            if (direction === 'older') {
+                setCursor(pageCursor)
+                const previousEnd = currentItems.at(-1)?.item.id
+                if (previousEnd && !nextItems.some(entry => entry.item.id === previousEnd)) {
+                    setNewerCursor(oppositeCursor)
+                    setHasNewer(Boolean(oppositeCursor))
+                }
+            } else {
+                // Keep the server-issued end cursor reusable if new messages
+                // arrive while this reader remains in history mode.
+                setNewerCursor(pageCursor ?? lastRequestedCursor)
+                setHasNewer(Boolean(pageCursor))
+                const previousStart = currentItems[0]?.item.id
+                if (previousStart && !nextItems.some(entry => entry.item.id === previousStart)) setCursor(oppositeCursor)
+            }
             setError('')
-            return { items: nextItems, nextCursor: page.nextCursor }
+            return { items: nextItems, nextCursor: pageCursor }
         } catch (error) {
             if (isCurrent()) {
                 browsingOlder.current = wasBrowsingOlder
@@ -136,7 +176,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setOlderLoading(false)
             }
         }
-    }, [api, id, cursor])
+    }, [api, id, cursor, newerCursor])
+    const older = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('older', beforeApply), [readHistory])
+    const newer = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('newer', beforeApply), [readHistory])
 
     const seek = useCallback(async (pageCursor: string | null, accepts: (entries: NativeItemEntry[]) => boolean) => {
         historyGeneration.current += 1
@@ -157,7 +199,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             browsingOlder.current = true
             setItems(entries)
             setCursor(page.nextCursor)
-            setHasNewer(true)
+            setNewerCursor(page.backwardsCursor ?? null)
+            setHasNewer(Boolean(page.backwardsCursor))
             setError('')
             return true
         } finally {
@@ -175,6 +218,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         setOlderLoading(false)
         setLoading(false)
     }, [])
+    const browseHistory = useCallback(() => { browsingOlder.current = true }, [])
 
     useEffect(() => {
         if (!enabled) { setLoading(false); return }
@@ -269,5 +313,5 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
     }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
 
-    return { detail, items, cursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, seek, cancelOlder, latest, refreshDetail, applySettings }
+    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, requests, setRequests, hasNewer, older, newer, seek, cancelOlder, browseHistory, latest, refreshDetail, applySettings }
 }

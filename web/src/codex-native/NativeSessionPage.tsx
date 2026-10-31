@@ -174,6 +174,25 @@ function NativeSessionChat({
             onBack={onBack}
             onRefresh={refresh}
             onCancelLoadMore={thread.cancelOlder}
+            onLoadNewer={async (beforeApply) => {
+                let appliedVersion = revision.current.value
+                let addedRenderableCount = 0
+                const blocks = (messages: typeof projected.messages) => reduceChatBlocks(
+                    messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null),
+                    { requests: projected.requests }
+                ).blocks
+                const previousIds = new Set(blocks(projected.messages).map(block => block.id))
+                const applied = await thread.newer(entries => {
+                    appliedVersion = revision.current.value + 1
+                    if (beforeApply && !beforeApply(appliedVersion)) return false
+                    addedRenderableCount = blocks(projectNativeItems(entries, thread.requests, turnStateKnown, observedReplies.current).messages)
+                        .filter(block => !previousIds.has(block.id)).length
+                    return true
+                })
+                if (!applied) return { kind: 'stopped', reason: 'exhausted' }
+                setViewMode('history')
+                return { kind: 'applied', historyVersion: appliedVersion, hasMore: Boolean(applied.nextCursor), addedRenderableCount }
+            }}
             onLocateNativeHistoryPage={async (cursor, targetMessageId) => {
                 const found = await thread.seek(cursor, entries => {
                     const messages = projectNativeItems(entries, [], false).messages
@@ -219,6 +238,7 @@ function NativeSessionChat({
             onViewModeChange={(mode) => {
                 setViewMode(mode)
                 if (mode === 'tail') void thread.latest(true)
+                else thread.browseHistory()
             }}
             onSend={async (text, attachments, scheduledAt, deliveryMode) => {
                 if (sending || unavailable) return false

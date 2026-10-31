@@ -38,7 +38,7 @@ export type NativeThread = NativeRecord & {
     status?: unknown
     updatedAt?: number
 }
-export type NativePage<T> = { data: T[]; nextCursor: string | null }
+export type NativePage<T> = { data: T[]; nextCursor: string | null; backwardsCursor?: string | null }
 export type NativeThreadPage = NativePage<NativeThread> & {
     membership: 'desktop' | 'fallback'
     projects: NativeProject[]

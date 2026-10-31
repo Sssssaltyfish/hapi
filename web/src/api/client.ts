@@ -388,9 +388,10 @@ export class ApiClient {
         })
     }
 
-    async getCodexNativeItems(id: string, cursor?: string): Promise<NativePage<NativeItemEntry>> {
+    async getCodexNativeItems(id: string, cursor?: string, sortDirection: 'asc' | 'desc' = 'desc'): Promise<NativePage<NativeItemEntry>> {
         const params = new URLSearchParams({ limit: '50' })
         if (cursor) params.set('cursor', cursor)
+        if (sortDirection === 'asc') params.set('sortDirection', sortDirection)
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items?${params}`)
     }
 

@@ -363,6 +363,7 @@ function HapiSessionPage() {
         isLoadingMore: messagesLoadingMore,
         hasMore: messagesHasMore,
         loadMore: loadMoreMessages,
+        loadNewer: loadNewerMessages,
         cancelLoadMore: cancelLoadMoreMessages,
         refetch: refetchMessages,
         viewMode: messagesViewMode,
@@ -808,6 +809,7 @@ function HapiSessionPage() {
             onBack={goBack}
             onRefresh={refreshSelectedSession}
             onLoadMore={loadMoreMessages}
+            onLoadNewer={loadNewerMessages}
             onCancelLoadMore={cancelLoadMoreMessages}
             onSend={sendMessage}
             resolveSessionIdForUpload={async (id) => (await resolveSessionId(id)).sessionId}

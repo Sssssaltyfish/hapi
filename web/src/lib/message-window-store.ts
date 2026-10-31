@@ -572,14 +572,19 @@ function mergeIntoWindow(
         return next
     }
     if (mode === 'append') {
-        const oldest = derivePosition(kept, 'oldest')
+        const oldest = derivePosition(kept.filter(message => !isQueuedForInvocation(message)), 'oldest')
         return buildState(next, {
             hasMore: true,
             oldestPositionAt: oldest?.at ?? next.oldestPositionAt,
             oldestPositionSeq: oldest?.seq ?? next.oldestPositionSeq
         })
     }
-    const newest = derivePosition(kept, 'newest')
+    const previousBoundary = getNewestCursor(previous)
+    const newest = derivePosition(kept.filter(message => {
+        if (isQueuedForInvocation(message)) return false
+        const position = messagePosition(message)
+        return !previousBoundary || !position || comparePosition(position, previousBoundary) <= 0
+    }), 'newest')
     next = buildState(next, {
         requiresLatestReset: true,
         newestPositionAt: newest?.at ?? null,
@@ -995,6 +1000,7 @@ export async function seekMessageWindow(
         if (locator.epoch !== null && response.page.epoch !== locator.epoch) return false
         const normalized = response.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
         if (!buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)) return false
+        const newest = derivePosition(response.messages.filter(message => !isQueuedForInvocation(message)), 'newest')
         updateState(sessionId, previous => buildState(previous, {
             messages: mergeMessages(response.messages, previous.messages.filter(isQueuedForInvocation)),
             viewMode: 'history',
@@ -1002,6 +1008,8 @@ export async function seekMessageWindow(
             epoch: response.page.epoch,
             oldestPositionAt: response.page.nextBeforeAt,
             oldestPositionSeq: response.page.nextBeforeSeq,
+            newestPositionAt: newest?.at ?? null,
+            newestPositionSeq: newest?.seq ?? null,
             // Returning to latest must fetch an authoritative tail after a seek.
             requiresLatestReset: true,
             preferLatestOnActivation: false,
@@ -1173,6 +1181,58 @@ export function cancelOlderMessageLoad(sessionId: string): void {
     }, true)
 }
 
+/** Read forward from this bounded window, without replacing it with latest. */
+export async function fetchNewerMessages(
+    api: ApiClient,
+    sessionId: string,
+    options: { onBeforeApply?: (historyVersion: number) => boolean } = {}
+): Promise<OlderLoadOutcome> {
+    const initial = getState(sessionId)
+    if (initial.isSyncingTail || initial.isLoadingMore) return { kind: 'stopped', reason: 'busy' }
+    if (!initial.requiresLatestReset) return { kind: 'stopped', reason: 'exhausted' }
+    const after = getNewestCursor(initial) ?? derivePosition(initial.messages.filter(message => !isQueuedForInvocation(message)), 'newest')
+    if (!after) return { kind: 'stopped', reason: 'unavailable' }
+    const generation = initial.olderGeneration + 1
+    updateState(sessionId, previous => buildState(previous, { olderGeneration: generation, isLoadingMore: true, warning: null }))
+    try {
+        const response = await api.getMessages(sessionId, { afterAt: after.at, afterSeq: after.seq, epoch: initial.epoch, limit: PAGE_SIZE })
+        if (getState(sessionId).olderGeneration !== generation) return { kind: 'stopped', reason: 'invalidated' }
+        if (response.page.reset || (initial.epoch !== null && response.page.epoch !== initial.epoch)) {
+            invalidateMessageWindow(sessionId)
+            await syncTailMessages(api, sessionId, { ensureAfterCurrent: true })
+            return { kind: 'stopped', reason: 'epoch-reset' }
+        }
+        let historyVersion = 0
+        let addedRenderableCount = 0
+        updateState(sessionId, previous => {
+            if (previous.olderGeneration !== generation) return previous
+            const nextVersion = previous.historyVersion + 1
+            if (options.onBeforeApply && !options.onBeforeApply(nextVersion)) return buildState(previous, { isLoadingMore: false })
+            addedRenderableCount = countNewRenderableMessages(previous, response.messages)
+            const merged = mergeIntoWindow(previous, response.messages, { mode: 'append', regularLimit: OLDER_LOAD_WINDOW_SIZE })
+            const newest = pagePosition(response.page.nextAfterAt, response.page.nextAfterSeq) ?? after
+            historyVersion = nextVersion
+            return buildState(merged, {
+                viewMode: 'history',
+                requiresLatestReset: response.page.hasMore,
+                newestPositionAt: newest?.at ?? previous.newestPositionAt,
+                newestPositionSeq: newest?.seq ?? previous.newestPositionSeq,
+                epoch: response.page.epoch,
+                isLoadingMore: false,
+                historyVersion,
+                warning: null,
+            })
+        }, true)
+        return historyVersion
+            ? { kind: 'applied', historyVersion, hasMore: response.page.hasMore, addedRenderableCount }
+            : { kind: 'stopped', reason: 'invalidated' }
+    } catch (error) {
+        const failure = error instanceof Error ? error : new Error('Failed to load newer messages')
+        updateState(sessionId, previous => previous.olderGeneration === generation ? buildState(previous, { isLoadingMore: false, warning: failure.message }) : previous)
+        return { kind: 'failed', error: failure }
+    }
+}
+
 export function setMessageViewMode(sessionId: string, mode: MessageViewMode): void {
     updateState(sessionId, (previous) => {
         if (previous.viewMode === mode) {
@@ -1188,6 +1248,23 @@ export function setMessageViewMode(sessionId: string, mode: MessageViewMode): vo
 export function ingestIncomingMessages(sessionId: string, incoming: DecryptedMessage[]): void {
     if (incoming.length === 0) return
     updateState(sessionId, (previous) => {
+        if (previous.viewMode === 'history' && previous.requiresLatestReset) {
+            // A detached history window has a continuous forward boundary.
+            // A fresh SSE tail row is beyond that range and must not create a
+            // gap or move the cursor past records that have not been read yet.
+            const boundary = getNewestCursor(previous)
+            const existing = new Set(previous.messages.map(message => message.id))
+            const moved = new Set(incoming.filter(message => {
+                const position = messagePosition(message)
+                return !isQueuedForInvocation(message) && position && boundary && comparePosition(position, boundary) > 0
+            }).map(message => message.id))
+            const retained = previous.messages.filter(message => !moved.has(message.id))
+            const base = retained.length === previous.messages.length ? previous : buildState(previous, { messages: retained })
+            const updates = incoming.filter(message => isQueuedForInvocation(message) || (existing.has(message.id) && !moved.has(message.id)))
+            return updates.length > 0
+                ? mergeIntoWindow(base, updates, { advanceTailRevision: true })
+                : buildState(base, { tailRevision: base.tailRevision + 1 })
+        }
         let merged = mergeIntoWindow(previous, incoming, {
             advanceTailRevision: true
         })
