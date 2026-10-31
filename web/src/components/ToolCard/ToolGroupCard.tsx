@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/use-translation'
 import { formatDuration } from '@/chat/presentation'
+import { getMinimalToolPreview } from './toolPreview'
 
 const TIMING_INTERVAL_MS = 1000
 
@@ -96,7 +97,7 @@ function formatActionSummary(block: ToolGroupBlock, t: (key: string, params?: Re
     return parts.length > 0 ? parts.join(' · ') : null
 }
 
-function RowLabel(props: { block: ToolCallBlock; metadata: SessionMetadataSummary | null }) {
+function RowLabel(props: { block: ToolCallBlock; metadata: SessionMetadataSummary | null; minimal?: boolean }) {
     const { t } = useTranslation()
     const presentation = useMemo(() => getToolPresentation({
         toolName: props.block.tool.name,
@@ -106,6 +107,11 @@ function RowLabel(props: { block: ToolCallBlock; metadata: SessionMetadataSummar
         description: props.block.tool.nativeTitle ?? props.block.tool.description,
         metadata: props.metadata
     }, t), [props.block, props.metadata, t])
+
+    if (props.minimal) {
+        const preview = getMinimalToolPreview(props.block.tool, presentation)
+        return <span className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-xs text-[var(--app-fg)]" title={preview}>{preview}</span>
+    }
 
     return (
         <div className="min-w-0 flex-1">
@@ -192,6 +198,7 @@ export function ToolGroupCard(props: {
 }) {
     const { t } = useTranslation()
     const ctx = useHappyChatContext()
+    const minimal = ctx.terminalToolDisplayMode === 'minimal'
     const [open, setOpen] = useState(props.block.defaultOpen)
     const [selectedToolId, setSelectedToolId] = useState<string | null>(null)
     const [isHydratingHistory, setIsHydratingHistory] = useState(false)
@@ -286,6 +293,14 @@ export function ToolGroupCard(props: {
     }, [selectedTool, props.metadata, t])
 
     const primaryTitle = formatGroupedHeaderTitle(props.block, t)
+    const minimalPreview = useMemo(() => minimal ? props.block.tools.map(block => getMinimalToolPreview(block.tool, getToolPresentation({
+        toolName: block.tool.name, input: block.tool.input, result: block.tool.result,
+        childrenCount: block.children.length, description: block.tool.nativeTitle ?? block.tool.description,
+        metadata: props.metadata,
+    }, t))).join(' · ') : '', [minimal, props.block.tools, props.metadata, t])
+    const minimalState = props.block.summary.errorCount > 0 ? 'error'
+        : props.block.summary.pendingCount > 0 ? 'pending'
+            : groupTiming.running ? 'running' : 'completed'
     const subtitle = props.block.presentationMode === 'codex-exploration'
         ? null
         : formatGroupedHeaderSubtitle(props.block, t) ?? formatActionSummary(props.block, t)
@@ -296,7 +311,7 @@ export function ToolGroupCard(props: {
 
     return (
         <Card className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
-            <CardHeader className={cn('space-y-0 p-3', subtitle ? 'pb-2' : null)}>
+            <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
                 <button
                     type="button"
                     onClick={() => setOpen((value) => !value)}
@@ -309,19 +324,21 @@ export function ToolGroupCard(props: {
                                 <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
                                     <DetailsIcon open={open} />
                                 </div>
-                                <CardTitle className="min-w-0 truncate whitespace-nowrap text-sm font-medium leading-tight text-[var(--app-fg)]">
-                                    {primaryTitle}
+                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'font-mono text-xs font-normal' : 'text-sm font-medium')} title={minimal ? minimalPreview : undefined}>
+                                    {minimal ? minimalPreview : primaryTitle}
                                 </CardTitle>
                             </div>
-                            <ToolTimingSummary
+                            {!minimal ? <ToolTimingSummary
                                 startedAt={groupTiming.startedAt}
                                 completedAt={groupTiming.completedAt}
                                 durationMs={groupTiming.durationMs}
                                 typography="group"
-                            />
+                            /> : null}
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
+                        {minimal ? <span className={cn('shrink-0', toolStatusColorClass(minimalState))}>
+                            <ToolStatusIcon state={minimalState} />
+                        </span> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
                             {groupTiming.running ? (
                                 <span className={toolStatusColorClass('running')} aria-label={t('toolGroup.rowStatus.running')}>
                                     <ToolStatusIcon state="running" />
@@ -357,7 +374,7 @@ export function ToolGroupCard(props: {
                                     text={t('toolGroup.badge.fileTargets', { n: fileCount })}
                                 />
                             ) : null}
-                        </div>
+                        </div>}
                     </div>
                 </button>
             </CardHeader>
@@ -365,7 +382,7 @@ export function ToolGroupCard(props: {
             {open ? (
                 <CardContent className="px-3 pb-3 pt-1">
                     <div className="flex flex-col gap-2">
-                        {props.block.presentationMode === 'codex-exploration' ? (
+                        {props.block.presentationMode === 'codex-exploration' && !minimal ? (
                             <CodexExplorationRows tools={props.block.tools} onSelect={setSelectedToolId} />
                         ) : props.block.tools.map((tool) => {
                             const timing = getToolTimingDetails(tool.tool, now)
@@ -373,21 +390,21 @@ export function ToolGroupCard(props: {
                                 <button
                                     key={tool.id}
                                     type="button"
-                                    className="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                                    className="flex min-w-0 items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                                     onClick={() => setSelectedToolId(tool.id)}
                                 >
                                     <span className={cn('shrink-0', toolStatusColorClass(tool.tool.state))}>
                                         <ToolStatusIcon state={tool.tool.state} />
                                     </span>
-                                    <RowLabel block={tool} metadata={props.metadata} />
-                                    <div className="flex shrink-0 items-center gap-2">
+                                    <RowLabel block={tool} metadata={props.metadata} minimal={minimal} />
+                                    {!minimal ? <div className="flex shrink-0 items-center gap-2">
                                         {timing.durationMs != null ? (
                                             <span className="font-mono text-xs text-[var(--app-hint)]">
                                                 {formatDuration(timing.durationMs)}
                                             </span>
                                         ) : null}
                                         <RowStatusBadge block={tool} />
-                                    </div>
+                                    </div> : null}
                                 </button>
                             )
                         })}

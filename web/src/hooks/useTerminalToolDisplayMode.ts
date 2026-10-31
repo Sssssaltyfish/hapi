@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type TerminalToolDisplayMode = 'compact' | 'detailed'
+export type TerminalToolDisplayMode = 'minimal' | 'compact' | 'detailed'
 
 export const DEFAULT_TERMINAL_TOOL_DISPLAY_MODE: TerminalToolDisplayMode = 'compact'
 
 export function getTerminalToolDisplayModeOptions(): ReadonlyArray<{ value: TerminalToolDisplayMode; labelKey: string }> {
     return [
+        { value: 'minimal', labelKey: 'settings.chat.terminalToolDisplay.minimal' },
         { value: 'compact', labelKey: 'settings.chat.terminalToolDisplay.compact' },
         { value: 'detailed', labelKey: 'settings.chat.terminalToolDisplay.detailed' },
     ]
@@ -53,7 +54,7 @@ function safeRemoveItem(key: string): void {
 }
 
 function parseTerminalToolDisplayMode(raw: string | null): TerminalToolDisplayMode {
-    if (raw === 'compact' || raw === 'detailed') {
+    if (raw === 'minimal' || raw === 'compact' || raw === 'detailed') {
         return raw
     }
     return DEFAULT_TERMINAL_TOOL_DISPLAY_MODE

@@ -9,6 +9,7 @@ import {
 } from '@/components/AssistantChat/context'
 import { getToolGroupTiming, ToolGroupCard } from '@/components/ToolCard/ToolGroupCard'
 import { I18nProvider } from '@/lib/i18n-context'
+import type { TerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
 
 function makeToolBlock(id: string, name: string, input: unknown = {}): ToolCallBlock {
     return {
@@ -79,6 +80,7 @@ function renderCard(block: ToolGroupBlock, options?: {
     hasMore?: boolean
     isSyncingTail?: boolean
     isLoadingMore?: boolean
+    displayMode?: TerminalToolDisplayMode
 }) {
     const loadOlderMessagesPreservingScroll = options?.loadOlder
         ?? vi.fn(async () => 'terminal-stop' as const)
@@ -88,7 +90,7 @@ function renderCard(block: ToolGroupBlock, options?: {
                 api: {} as never,
                 sessionId: 'session-1',
                 metadata: { path: 'repo', host: 'local' },
-                terminalToolDisplayMode: 'detailed',
+                terminalToolDisplayMode: options?.displayMode ?? 'detailed',
                 showSessionSummaryInChat: false,
                 disabled: false,
                 onRefresh: vi.fn(),
@@ -119,6 +121,23 @@ describe('ToolGroupCard', () => {
         expect(screen.queryByText('bun test')).not.toBeInTheDocument()
 
         expect(view.container.innerHTML).toContain('bg-[var(--app-tool-group-bg)]')
+    })
+
+    it('uses actual single-line command previews for minimal exploration groups and their expanded rows', () => {
+        renderCard(makeGroup({ presentationMode: 'codex-exploration', tools: [
+            makeToolBlock('read', 'CodexBash', { command: ['cat', 'README.md'], parsed_cmd: [{ type: 'read', path: 'README.md', name: 'README.md' }] }),
+            makeToolBlock('test', 'Bash', { command: 'bun test' }),
+        ] }), { displayMode: 'minimal' })
+        const header = screen.getByRole('button', { expanded: false })
+        expect(header).toHaveTextContent('cat README.md · bun test')
+        expect(screen.getByText('cat README.md · bun test')).toHaveClass('truncate', 'whitespace-nowrap')
+        expect(screen.queryByText('Duration')).not.toBeInTheDocument()
+        fireEvent.click(header)
+        const command = screen.getByText('bun test')
+        expect(command).toHaveClass('truncate', 'whitespace-nowrap')
+        fireEvent.click(command.closest('button')!)
+        expect(screen.getByRole('dialog')).toHaveTextContent('bun test')
+        expect(screen.getByRole('dialog')).toHaveTextContent('done')
     })
 
     it('derives completed group wall-clock timing from the earliest start and latest finish', () => {
