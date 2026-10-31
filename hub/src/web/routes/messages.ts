@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { MessagesQuerySchema, QueuedStateRequestSchema, SendMessageRequestSchema } from '@hapi/protocol'
 import type { SyncEngine } from '../../sync/syncEngine'
 import type { WebAppEnv } from '../middleware/auth'
@@ -41,6 +42,26 @@ export function createMessagesRoutes(getSyncEngine: () => SyncEngine | null): Ho
             until,
             epoch: parsed.data.epoch ?? null
         }))
+    })
+
+    app.get('/sessions/:id/outline', (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const session = requireSessionFromParam(c, engine)
+        if (session instanceof Response) return session
+        const query = z.object({
+            beforeAt: z.coerce.number().nonnegative().optional(), beforeSeq: z.coerce.number().int().nonnegative().optional(),
+            epoch: z.coerce.number().int().nonnegative().optional(), stopId: z.string().max(1000).optional(), stopIds: z.string().max(64_000).optional(),
+        }).safeParse(c.req.query())
+        if (!query.success || (query.data.beforeAt === undefined) !== (query.data.beforeSeq === undefined)) return c.json({ error: 'Invalid outline cursor' }, 400)
+        let boundaries: unknown
+        try { boundaries = query.data.stopIds ? JSON.parse(query.data.stopIds) : query.data.stopId ? [query.data.stopId] : [] }
+        catch { return c.json({ error: 'Invalid outline boundary' }, 400) }
+        const stopIds = z.array(z.string().max(1000)).max(64).safeParse(boundaries)
+        if (!stopIds.success) return c.json({ error: 'Invalid outline boundary' }, 400)
+        return c.json(engine.getConversationOutline(session.sessionId, {
+            kind: 'runner', beforeAt: query.data.beforeAt ?? null, beforeSeq: query.data.beforeSeq ?? null, epoch: query.data.epoch ?? null,
+        }, stopIds.data))
     })
 
     app.delete('/sessions/:id/messages/:messageId', async (c) => {

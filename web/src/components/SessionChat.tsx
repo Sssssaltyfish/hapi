@@ -1577,6 +1577,7 @@ function SessionChatInner(props: SessionChatProps) {
         messagesVersion: props.messagesVersion,
         viewMode: props.viewMode,
         onLocateNativePage: props.onLocateNativeHistoryPage,
+        conversationHistoryRevision: props.conversationHistoryRevision,
     })
 
     // Permission mode change handler

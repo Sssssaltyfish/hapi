@@ -8,11 +8,22 @@ export type ConversationOutlineItem = {
     label: string
     createdAt: number
     historyPage?: ConversationHistoryPage
+    /** Failed optimistic input is visible only in its current viewport. */
+    transient?: boolean
 }
 
 export type ConversationHistoryPage =
     | { kind: 'native'; cursor: string | null }
     | { kind: 'runner'; beforeAt: number | null; beforeSeq: number | null; epoch: number | null }
+
+export type ConversationOutlinePage = {
+    items: ConversationOutlineItem[]
+    next: ConversationHistoryPage | null
+    scanned: number
+    epoch: number | null
+    reachedHead: boolean
+    overlapId?: string
+}
 
 const MAX_OUTLINE_LABEL_LENGTH = 96
 
@@ -35,7 +46,8 @@ function userBlockToOutlineItem(block: UserTextBlock): ConversationOutlineItem {
         targetMessageId: `user-text:${block.id}`,
         kind: 'user',
         label,
-        createdAt: block.createdAt
+        createdAt: block.invokedAt ?? block.createdAt,
+        ...(block.invokedAt === null && block.status === 'failed' ? { transient: true } : {}),
     }
 }
 

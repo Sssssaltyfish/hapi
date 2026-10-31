@@ -75,6 +75,7 @@ import type {
     NativeThreadPage
 } from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
+import type { ConversationHistoryPage, ConversationOutlinePage } from '@/chat/outline'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
 
@@ -412,6 +413,22 @@ export class ApiClient {
             this.outlineIdentityKey = Math.random().toString(36)
         }
         return { key: this.outlineIdentityKey, persistent: false }
+    }
+
+    async getConversationOutline(id: string, locator: ConversationHistoryPage, stopId?: string | string[]): Promise<ConversationOutlinePage> {
+        const params = new URLSearchParams()
+        if (Array.isArray(stopId)) params.set('stopIds', JSON.stringify(stopId))
+        else if (stopId) params.set('stopId', stopId)
+        if (locator.kind === 'native') {
+            if (locator.cursor) params.set('cursor', locator.cursor)
+            return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline?${params}`)
+        }
+        if (locator.beforeAt !== null && locator.beforeSeq !== null) {
+            params.set('beforeAt', String(locator.beforeAt))
+            params.set('beforeSeq', String(locator.beforeSeq))
+        }
+        if (locator.epoch !== null) params.set('epoch', String(locator.epoch))
+        return this.request(`/api/sessions/${encodeURIComponent(id)}/outline?${params}`)
     }
 
     async getCodexNativeModels(): Promise<NativePage<NativeRecord>> {

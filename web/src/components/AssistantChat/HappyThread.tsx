@@ -465,7 +465,7 @@ export function ConversationOutlinePanel(props: {
             </div>
 
             <div className="border-b border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-hint)]" role="status">
-                {props.isLoadingMoreMessages ? <div>{t('misc.loadingMessages')}</div> : props.scannedPages ? <div>{t('session.outline.indexedPages', { n: props.scannedPages })}</div> : null}
+                <div>{t(props.isLoadingMoreMessages ? 'session.outline.completing' : 'session.outline.indexedPrompts', { n: props.items.length })}</div>
                 {props.error || t(props.capped ? 'session.outline.indexLimit' : props.hasMoreMessages ? 'session.outline.partialIndex' : 'session.outline.indexComplete')}
             </div>
             <div className="app-scroll-y min-h-0 flex-1 p-2">

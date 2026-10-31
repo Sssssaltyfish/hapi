@@ -2,6 +2,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
+import { nativeOutlinePage } from '../sync/conversationOutline'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
@@ -140,9 +141,9 @@ export class NativeService {
             throw error
         }
     }
-    async items(threadId: string, params: NativeRecord): Promise<unknown> {
+    async items(threadId: string, params: NativeRecord, deadline?: number): Promise<unknown> {
         try {
-            return await this.control(threadId, 'thread/items/list', params)
+            return await this.control(threadId, 'thread/items/list', params, deadline)
         } catch (error) {
             const empty = this.subscriptions.get(threadId)?.empty
             if (
@@ -154,6 +155,9 @@ export class NativeService {
             }
             throw error
         }
+    }
+    outline(threadId: string, cursor: string | null, stopIds?: string[]) {
+        return nativeOutlinePage((params, deadline) => this.items(threadId, params, deadline), cursor, stopIds)
     }
     isCreatingEmpty(threadId: string): boolean {
         const entry = this.subscriptions.get(threadId)
@@ -481,9 +485,9 @@ export class NativeService {
         }, 5000)
         entry.timer.unref()
     }
-    async control(threadId: string, method: string, params: NativeRecord): Promise<unknown> {
+    async control(threadId: string, method: string, params: NativeRecord, deadline?: number): Promise<unknown> {
         // Controls use a separate connection and never wait for the subscription or history page.
-        return this.call(method, { ...params, threadId })
+        return this.call(method, { ...params, threadId }, deadline)
     }
     async settings(threadId: string, patch: NativeRecord): Promise<NativeRecord> {
         const creating = this.subscriptions.get(threadId)

@@ -1,144 +1,161 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
+import type { ConversationHistoryPage, ConversationOutlineItem, ConversationOutlinePage } from '@/chat/outline'
 import { useConversationHistoryIndex } from './useConversationHistoryIndex'
-import type { ConversationOutlineItem } from '@/chat/outline'
 
-const user = (id: string, text: string, at = 1000) => ({ item: { id, type: 'userMessage', content: [{ type: 'text', text }] }, startedAtMs: at })
-const session = (id: string) => ({ id, metadata: { nativeCodex: { endpointId: 'endpoint', threadId: id } } }) as Session
 const empty: ConversationOutlineItem[] = []
-const outline = (id: string): ConversationOutlineItem => ({ id: `outline:user-text:native:${id}`, targetMessageId: `user-text:native:${id}`, kind: 'user', label: id, createdAt: 1000 })
+const session = (id: string) => ({ id, metadata: { nativeCodex: { endpointId: 'endpoint', threadId: id } } }) as Session
+const item = (id: string, at = 100, cursor: string | null = null): ConversationOutlineItem => ({
+    id: `outline:user-text:native:${id}`, targetMessageId: `user-text:native:${id}`, kind: 'user', label: id, createdAt: at,
+    historyPage: { kind: 'native', cursor },
+})
+const page = (items: ConversationOutlineItem[], cursor: string | null = null, overlapId?: string): ConversationOutlinePage => ({
+    items, next: cursor ? { kind: 'native', cursor } : null, scanned: 1, epoch: null, reachedHead: Boolean(overlapId), overlapId,
+})
 
-describe('conversation prompt history index', () => {
-    it('indexes earlier prompts separately and locates their page through its unchanged opaque cursor', async () => {
-        const cursor = 'opaque / ? + = older'
-        const getCodexNativeItems = vi.fn()
-            .mockResolvedValueOnce({ data: [user('new', 'Current prompt')], nextCursor: cursor })
-            .mockResolvedValueOnce({ data: [user('old', 'Earlier searchable prompt', 100)], nextCursor: null })
-        const locate = vi.fn().mockResolvedValue(true)
-        const nativeSession = session('outline-pagination')
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({
-            api: { getCodexNativeItems } as unknown as ApiClient,
-            session: nativeSession, open: true, currentItems: empty, messagesVersion: 0, onLocateNativePage: locate,
-        }))
-        await waitFor(() => expect(result.current.items).toHaveLength(1))
+beforeEach(() => { vi.stubGlobal('indexedDB', undefined) })
+
+describe('continuous prompt outline', () => {
+    it('continues automatically past newly found prompts and empty tool pages without a 1000-row truncation', async () => {
+        const getConversationOutline = vi.fn()
+            .mockResolvedValueOnce(page([item('new', 2000)], 'opaque-1'))
+            .mockResolvedValueOnce(page([], 'opaque-2'))
+            .mockResolvedValueOnce(page(Array.from({ length: 1200 }, (_, n) => item(`old-${n}`, n, 'opaque-2'))))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('continuous'), open: true, currentItems: empty, messagesVersion: 0 }))
+        await waitFor(() => expect(result.current.items).toHaveLength(1201))
+        expect(result.current.hasEarlier).toBe(false)
+        expect(result.current.capped).toBe(false)
+        expect(getConversationOutline.mock.calls.map(call => call[1])).toEqual([
+            { kind: 'native', cursor: null }, { kind: 'native', cursor: 'opaque-1' }, { kind: 'native', cursor: 'opaque-2' },
+        ])
+        unmount()
+    })
+
+    it('shows a warm index immediately and checks only the head against cached user boundaries', async () => {
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('A1', 1), item('A2', 2)]))
+            .mockResolvedValueOnce(page([item('A3', 3), item('A2', 2)], null, 'user-text:native:A2'))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const s = session('warm-head')
+        const options = { api, session: s, open: true, currentItems: empty, messagesVersion: 0 }
+        const first = renderHook(() => useConversationHistoryIndex(options))
+        await waitFor(() => expect(first.result.current.items).toHaveLength(2))
+        await waitFor(() => expect(first.result.current.loading).toBe(false))
+        first.unmount()
+        const second = renderHook(() => useConversationHistoryIndex(options))
+        expect(second.result.current.items).toHaveLength(2)
+        await waitFor(() => expect(second.result.current.items).toHaveLength(3))
+        expect(getConversationOutline).toHaveBeenLastCalledWith(s.id, { kind: 'native', cursor: null }, ['user-text:native:A2', 'user-text:native:A1'])
+        second.unmount()
+    })
+
+    it('reconciles an offline rewind from A5 to A3 without leaving deleted cached prompts or opaque locators', async () => {
+        const original = [1, 2, 3, 4, 5].map(n => item(`A${n}`, n, 'old-opaque'))
+        const survivors = [3, 2, 1].map(n => item(`A${n}`, n))
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page(original))
+            .mockResolvedValueOnce(page([item('A3', 3)], null, 'user-text:native:A3'))
+            .mockResolvedValueOnce(page(survivors))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const options = { api, session: session('offline-rewind'), open: true, currentItems: empty, messagesVersion: 0 }
+        const first = renderHook(() => useConversationHistoryIndex(options))
+        await waitFor(() => expect(first.result.current.items).toHaveLength(5))
+        first.unmount()
+        const second = renderHook(() => useConversationHistoryIndex(options))
+        await waitFor(() => expect(second.result.current.items.map(value => value.label)).toEqual(['A1', 'A2', 'A3']))
+        await waitFor(() => expect(second.result.current.loading).toBe(false))
+        expect(second.result.current.items.every(value => value.historyPage?.kind === 'native' && value.historyPage.cursor === null)).toBe(true)
+        expect(second.result.current.hasEarlier).toBe(false)
+        second.unmount()
+    })
+
+    it('discards an in-flight old generation and rebuilds after an online rollback', async () => {
+        let resolve!: (value: ConversationOutlinePage) => void
+        const getConversationOutline = vi.fn().mockReturnValueOnce(new Promise(done => { resolve = done }))
+            .mockResolvedValueOnce(page([item('survivor')]))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const s = session('online-reset')
+        const { result, rerender, unmount } = renderHook(({ revision }) => useConversationHistoryIndex({
+            api, session: s, open: true, currentItems: empty, messagesVersion: 0, conversationHistoryRevision: revision,
+        }), { initialProps: { revision: 0 } })
+        await waitFor(() => expect(getConversationOutline).toHaveBeenCalledTimes(1))
+        rerender({ revision: 1 })
+        await act(async () => { resolve(page([item('obsolete')], 'invalid-old')) })
+        await waitFor(() => expect(result.current.items.map(value => value.label)).toEqual(['survivor']))
+        expect(result.current.hasEarlier).toBe(false)
+        unmount()
+    })
+
+    it('keeps progress on failure and retries the same continuation instead of restarting history', async () => {
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('head')], 'resume-here'))
+            .mockRejectedValueOnce(new Error('temporarily unavailable')).mockResolvedValueOnce(page([item('older', 1, 'resume-here')]))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('retry'), open: true, currentItems: empty, messagesVersion: 0 }))
+        await waitFor(() => expect(result.current.error).toContain('temporarily unavailable'))
+        expect(result.current.items.map(value => value.label)).toEqual(['head'])
         expect(result.current.hasEarlier).toBe(true)
         await act(async () => { await result.current.loadEarlier() })
-        expect(getCodexNativeItems).toHaveBeenLastCalledWith(nativeSession.id, cursor)
-        expect(result.current.items.map(item => item.label)).toEqual(['Earlier searchable prompt', 'Current prompt'])
-        expect(result.current.hasEarlier).toBe(false)
+        expect(getConversationOutline).toHaveBeenLastCalledWith('retry', { kind: 'native', cursor: 'resume-here' }, undefined)
+        expect(result.current.items.map(value => value.label)).toEqual(['older', 'head'])
+        unmount()
+    })
+
+    it('repairs a drifting head locator continuously and seeks the actual full-thread page', async () => {
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('target')]))
+            .mockResolvedValueOnce(page([item('new')], 'p1'))
+            .mockResolvedValueOnce(page([], 'p2')).mockResolvedValueOnce(page([], 'p3'))
+            .mockResolvedValueOnce(page([item('target', 100, 'p3')], null, 'user-text:native:target'))
+        const locate = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+        const api = { getConversationOutline } as unknown as ApiClient
+        const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('locate'), open: true, currentItems: empty, messagesVersion: 0, onLocateNativePage: locate }))
+        await waitFor(() => expect(result.current.items).toHaveLength(1))
         await act(async () => { expect(await result.current.locate(result.current.items[0])).toBe(true) })
-        expect(locate).toHaveBeenCalledWith(cursor, 'user-text:native:old')
+        expect(locate).toHaveBeenLastCalledWith('p3', 'user-text:native:target')
+        expect(getConversationOutline).toHaveBeenLastCalledWith('locate', { kind: 'native', cursor: 'p3' } satisfies ConversationHistoryPage, 'user-text:native:target')
         unmount()
     })
 
-    it('does not scan an unbounded history when a page contains no user prompt', async () => {
-        let page = 0
-        const getCodexNativeItems = vi.fn(async () => ({ data: [], nextCursor: `opaque-older-${++page}` }))
-        const nativeSession = session('outline-empty-page')
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({
-            api: { getCodexNativeItems } as unknown as ApiClient,
-            session: nativeSession, open: true, currentItems: empty, messagesVersion: 0,
-        }))
-        await waitFor(() => expect(result.current.loading).toBe(false))
-        expect(getCodexNativeItems).toHaveBeenCalledTimes(8)
-        expect(result.current.scannedPages).toBe(8)
-        expect(result.current.hasEarlier).toBe(true)
-        unmount()
-    })
-
-    it('keeps loading across empty tool pages and a live invalidation until the refreshed index commits', async () => {
-        let resolveStale!: (page: unknown) => void
-        let resolveFresh!: (page: unknown) => void
-        const getCodexNativeItems = vi.fn()
-            .mockReturnValueOnce(new Promise(resolve => { resolveStale = resolve }))
-            .mockReturnValueOnce(new Promise(resolve => { resolveFresh = resolve }))
-            .mockResolvedValueOnce({ data: [user('earlier', 'Earlier prompt')], nextCursor: null })
-        const nativeSession = session('outline-loading-rebase')
-        const api = { getCodexNativeItems } as unknown as ApiClient
-        const { result, rerender, unmount } = renderHook(({ items, version }) => useConversationHistoryIndex({
-            api, session: nativeSession, open: true, currentItems: items, messagesVersion: version,
-        }), { initialProps: { items: empty, version: 0 } })
-        await waitFor(() => expect(result.current.loading).toBe(true))
-        rerender({ items: [outline('live')], version: 1 })
-        expect(result.current.loading).toBe(true)
-        await act(async () => { resolveStale({ data: [], nextCursor: 'obsolete-cursor' }) })
-        expect(result.current.loading).toBe(true)
-        expect(getCodexNativeItems).toHaveBeenNthCalledWith(2, nativeSession.id, undefined)
-        await act(async () => { resolveFresh({ data: [], nextCursor: 'opaque-tools-before-prompt' }) })
-        await waitFor(() => expect(result.current.loading).toBe(false))
-        expect(result.current.items.map(item => item.label)).toContain('Earlier prompt')
-        expect(getCodexNativeItems).toHaveBeenLastCalledWith(nativeSession.id, 'opaque-tools-before-prompt')
-        unmount()
-    })
-
-    it('retains new prompt previews after window eviction and invalidates a completed index', async () => {
-        const nativeSession = session('outline-live-tail')
-        const api = { getCodexNativeItems: vi.fn().mockResolvedValue({ data: [user('first', 'first')], nextCursor: null }) } as unknown as ApiClient
-        const { result, rerender, unmount } = renderHook(({ items, version }) => useConversationHistoryIndex({
-            api, session: nativeSession, open: true, currentItems: items, messagesVersion: version, viewMode: 'tail',
-        }), { initialProps: { items: [outline('first')], version: 0 } })
-        await waitFor(() => expect(result.current.hasEarlier).toBe(false))
-        rerender({ items: [outline('first'), outline('middle'), outline('latest')], version: 1 })
-        expect(result.current.hasEarlier).toBe(true)
-        rerender({ items: [outline('latest')], version: 2 })
-        expect(result.current.items.map(item => item.label)).toContain('middle')
-        expect(result.current.items.find(item => item.label === 'first')?.historyPage).toBeUndefined()
-        unmount()
-    })
-
-    it('repairs a drifting latest-page locator through a bounded scan and its real opaque cursor', async () => {
-        const nativeSession = session('outline-drifting-head')
-        const getCodexNativeItems = vi.fn()
-            .mockResolvedValueOnce({ data: [user('target', 'Target prompt')], nextCursor: null })
-            .mockResolvedValueOnce({ data: [user('new', 'New prompt')], nextCursor: 'opaque-real-older' })
-            .mockResolvedValueOnce({ data: [user('target', 'Target prompt')], nextCursor: null })
-        const locate = vi.fn().mockResolvedValue(true)
-        const api = { getCodexNativeItems } as unknown as ApiClient
+    it('rebuilds an invalid cursor once, then waits for an explicit retry without dropping previews', async () => {
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('retained')], 'bad-cursor'))
+            .mockRejectedValueOnce(new Error('Invalid native cursor'))
+            .mockResolvedValueOnce(page([item('retained')], 'bad-cursor'))
+            .mockRejectedValueOnce(new Error('Invalid native cursor'))
+            .mockResolvedValueOnce(page([item('retained')]))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const s = session('bounded-cursor-recovery')
         const { result, rerender, unmount } = renderHook(({ version }) => useConversationHistoryIndex({
-            api, session: nativeSession, open: true, currentItems: empty, messagesVersion: version, onLocateNativePage: locate,
+            api, session: s, open: true, currentItems: empty, messagesVersion: version,
         }), { initialProps: { version: 0 } })
-        await waitFor(() => expect(result.current.items).toHaveLength(1))
+        await waitFor(() => expect(result.current.error).toContain('Invalid native cursor'))
+        expect(getConversationOutline).toHaveBeenCalledTimes(4)
+        expect(result.current.items.map(value => value.label)).toEqual(['retained'])
         rerender({ version: 1 })
-        expect(result.current.items[0].historyPage).toBeUndefined()
-        await act(async () => { expect(await result.current.locate(result.current.items[0])).toBe(true) })
-        expect(locate).toHaveBeenCalledTimes(1)
-        expect(locate).toHaveBeenCalledWith('opaque-real-older', 'user-text:native:target')
-        expect(getCodexNativeItems).toHaveBeenCalledTimes(3)
-        unmount()
-    })
-
-    it('expires a completed index while the conversation stays mounted', async () => {
-        vi.useFakeTimers()
-        const nativeSession = session('outline-active-ttl')
-        const api = { getCodexNativeItems: vi.fn().mockResolvedValue({ data: [user('first', 'first')], nextCursor: null }) } as unknown as ApiClient
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({
-            api, session: nativeSession, open: true, currentItems: empty, messagesVersion: 0,
-        }))
-        try {
-            await act(async () => { await Promise.resolve() })
-            expect(result.current.hasEarlier).toBe(false)
-            act(() => { vi.advanceTimersByTime(5 * 60 * 1000 + 1) })
-            expect(result.current.hasEarlier).toBe(true)
-        } finally { vi.useRealTimers(); unmount() }
-    })
-
-    it('keeps its cache and error state when a newer navigation supersedes a locate', async () => {
-        let resolve!: (value: boolean) => void
-        const pending = new Promise<boolean>(done => { resolve = done })
-        const nativeSession = session('outline-cancelled-locate')
-        const { result, unmount } = renderHook(() => useConversationHistoryIndex({
-            api: { getCodexNativeItems: vi.fn().mockResolvedValue({ data: [user('one', 'Indexed prompt')], nextCursor: null }) } as unknown as ApiClient,
-            session: nativeSession, open: true, currentItems: empty, messagesVersion: 0,
-            onLocateNativePage: () => pending,
-        }))
-        await waitFor(() => expect(result.current.items).toHaveLength(1))
-        let locating!: Promise<boolean>
-        act(() => { locating = result.current.locate(result.current.items[0], () => false) })
-        await act(async () => { resolve(false); expect(await locating).toBe(false) })
-        expect(result.current.items).toHaveLength(1)
+        expect(getConversationOutline).toHaveBeenCalledTimes(4)
+        await act(async () => { await result.current.loadEarlier() })
+        expect(getConversationOutline).toHaveBeenCalledTimes(5)
         expect(result.current.error).toBeNull()
+        expect(result.current.hasEarlier).toBe(false)
         unmount()
+    })
+
+    it('takes over a partial warm index after its previous mounted view abandons an in-flight page', async () => {
+        let resolve!: (value: ConversationOutlinePage) => void
+        const getConversationOutline = vi.fn().mockResolvedValueOnce(page([item('head', 200)], 'older-page'))
+            .mockReturnValueOnce(new Promise(done => { resolve = done }))
+            .mockResolvedValueOnce(page([item('head', 200)], null, 'user-text:native:head'))
+            .mockResolvedValueOnce(page([item('older', 100, 'older-page')]))
+        const api = { getConversationOutline } as unknown as ApiClient
+        const options = { api, session: session('remount-pending'), open: true, currentItems: empty, messagesVersion: 0 }
+        const first = renderHook(() => useConversationHistoryIndex(options))
+        await waitFor(() => expect(getConversationOutline).toHaveBeenCalledTimes(2))
+        first.unmount()
+        const second = renderHook(() => useConversationHistoryIndex(options))
+        expect(second.result.current.items.map(value => value.label)).toEqual(['head'])
+        await act(async () => { resolve(page([item('abandoned', 50)], 'obsolete-next')) })
+        await waitFor(() => expect(second.result.current.items.map(value => value.label)).toEqual(['older', 'head']))
+        expect(getConversationOutline).toHaveBeenLastCalledWith('remount-pending', { kind: 'native', cursor: 'older-page' }, undefined)
+        expect(second.result.current.hasEarlier).toBe(false)
+        second.unmount()
     })
 })
