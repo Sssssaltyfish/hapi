@@ -20,7 +20,13 @@ export function supportsClaudeSteering(version: string): boolean {
     return major > 2 || (major === 2 && (minor > 1 || (minor === 1 && patch >= 309)));
 }
 
-type Pending = { taken: QueueReservation<EnhancedMode>; lease: ClaudeInputLease; accepted: boolean };
+type Pending = {
+    taken: QueueReservation<EnhancedMode>;
+    lease: ClaudeInputLease;
+    accepted: boolean;
+    dispatchAt: number;
+    firstAssistantAt?: number;
+};
 
 /** Owns reservations in the existing queue, never another message drainer. */
 export class ClaudeSteering {
@@ -76,7 +82,7 @@ export class ClaudeSteering {
         }
         if (!this.session.queue.beginReservationDispatch(taken)) return { steered: false, error: 'Steer cancelled' };
         const uuid = randomUUID();
-        const entry: Pending = { taken, lease, accepted: false };
+        const entry: Pending = { taken, lease, accepted: false, dispatchAt: 0 };
         const restore = async () => {
             if (!taken.originIndeterminate && await this.session.client.setSteerDeliveryState([id], 'queued')) {
                 this.session.queue.restoreReservation(taken);
@@ -97,6 +103,7 @@ export class ClaudeSteering {
         this.pending.set(uuid, entry);
         this.session.client.notePendingHubPromptEcho(text, [id]);
         try {
+            entry.dispatchAt = Date.now();
             await lease.send(text, uuid);
             return entry.accepted ? { steered: true } : { steered: false, pending: true };
         } catch (error) {
@@ -119,18 +126,30 @@ export class ClaudeSteering {
             ? message.user_message_uuids.filter((id): id is string => typeof id === 'string') : []);
         if (typeof message.user_message_uuid === 'string') ids.add(message.user_message_uuid);
         if (!['assistant', 'result', 'stream_event'].includes(message.type)) return;
+        const receivedAt = Date.now();
         for (const [uuid, entry] of this.pending) {
             const id = entry.taken.item.localId!;
+            if (message.type === 'assistant' && !message.parent_tool_use_id) {
+                entry.firstAssistantAt ??= receivedAt;
+            }
             if (ids.has(uuid)) {
                 if (!entry.accepted) {
                     entry.accepted = true;
                     this.session.queue.commitReservation(entry.taken);
-                    this.session.client.emitMessagesConsumed([id], { steered: ids.has(entry.lease.uuid) });
+                    const steered = ids.has(entry.lease.uuid);
+                    // UUID confirmation can arrive only after the final assistant.
+                    // Publish the ordering anchor after that receipt: dispatch for
+                    // the same turn, or the observed start of its later answer.
+                    this.session.client.emitMessagesConsumed([id], {
+                        steered,
+                        invokedAt: steered ? entry.dispatchAt : entry.firstAssistantAt ?? receivedAt,
+                    });
                 }
             } else if (message.type === 'result' && !entry.accepted && entry.taken.state === 'dispatching') {
                 this.session.queue.markReservationIndeterminate(entry.taken);
                 this.session.client.emitSteerIndeterminate([id]);
             }
+            if (message.type === 'result' && !ids.has(uuid)) entry.firstAssistantAt = undefined;
             // An assistant receipt can precede its result. Keep ordinary HAPI
             // queue input behind that turn so its ACK/order does not race it.
             if (message.type === 'result' && ids.has(uuid) && entry.accepted) this.pending.delete(uuid);

@@ -77,7 +77,7 @@ describe('AGY documented hook steering', () => {
         await f.receipt('use 中文 now', 2);
         await f.steering.checkReceipts();
         expect(await result).toEqual({ steered: false, pending: true });
-        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['steer'], { steered: true });
+        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['steer'], { steered: true, invokedAt: expect.any(Number) });
         await f.steering.finishTurn();
         const second = f.steering.beginTurn(f.queue.modeHasher(MODE), CONVERSATION);
         expect(second.addDirectory).toBe(f.lease.addDirectory);
@@ -180,7 +180,7 @@ describe('AGY documented hook steering', () => {
         expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
         await f.receipt('same body', 2);
         await f.steering.checkReceipts();
-        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['new-delivery'], { steered: true });
+        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['new-delivery'], { steered: true, invokedAt: expect.any(Number) });
     });
 
     it('never hands a message to AGY if its durable dispatch state is unconfirmed', async () => {
@@ -193,6 +193,27 @@ describe('AGY documented hook steering', () => {
         expect(f.client.emitSteerIndeterminate).toHaveBeenCalledExactlyOnceWith(['persist-failed']);
         expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
         expect(f.queue.size()).toBe(0);
+    });
+
+    it('orders a late native receipt at its hook offer before the following assistant reply', async () => {
+        const f = await fixture();
+        await f.call();
+        f.queue.push('use this correction', MODE, 'late-receipt');
+        expect(await f.steer('late-receipt')).toEqual({ steered: false, pending: true });
+        const offeredAt = Date.parse('2026-10-01T00:00:01.250Z');
+        const followingAssistantAt = offeredAt + 250;
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(offeredAt);
+        try {
+            expect(await f.call('post')).toHaveProperty('injectSteps');
+            expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
+            await f.receipt('use this correction', 1);
+            await appendFile(f.transcript, JSON.stringify({ step_index: 2, source: 'MODEL', type: 'PLANNER_RESPONSE', status: 'DONE',
+                created_at: new Date(followingAssistantAt).toISOString(), content: 'reply already stored before receipt polling' }) + '\n');
+            clock.mockReturnValue(offeredAt + 5_000);
+            await f.steering.checkReceipts();
+            expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['late-receipt'], { steered: true, invokedAt: offeredAt });
+            expect(f.client.emitMessagesConsumed.mock.calls[0][1].invokedAt).toBeLessThan(followingAssistantAt);
+        } finally { clock.mockRestore(); }
     });
 
     it('holds a recovery interrupted by session shutdown after its queued ACK', async () => {

@@ -162,11 +162,18 @@ describe('DshRemoteLauncher', () => {
         const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
         const pending = (registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'steer-1' })
         await vi.waitFor(() => expect(harness.backend?.sendExtensionRequest).toHaveBeenCalled())
+        const firstDispatchFinishedAt = Date.now()
+        await new Promise(resolve => setTimeout(resolve, 5))
+        session.sendAgentMessage({ type: 'message', message: 'response before receipt callback' })
+        const responseArrivedAt = Date.now()
         expect(session.client.emitMessagesConsumed).not.toHaveBeenCalled()
         expect(harness.prompts).toHaveLength(1)
         accept({ accepted: true, requestId: 'steer-1', delivery: 'native-steer' })
         await expect(pending).resolves.toEqual({ steered: true })
-        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['steer-1'], { steered: true })
+        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['steer-1'], { steered: true, invokedAt: expect.any(Number) })
+        const consumedAt = session.client.emitMessagesConsumed.mock.calls[0][1]!.invokedAt!
+        expect(consumedAt).toBeLessThanOrEqual(firstDispatchFinishedAt)
+        expect(consumedAt).toBeLessThan(responseArrivedAt)
         expect(harness.backend?.cancelPrompt).not.toHaveBeenCalled()
         session.queue.close()
         releasePrompt()
@@ -195,7 +202,7 @@ describe('DshRemoteLauncher', () => {
         session.queue.push('same settings after ready', { model: FLASH, configOptions: launcher.getConfigPreferences() }, 'first-turn-steer')
         const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
         await expect((registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'first-turn-steer' })).resolves.toEqual({ steered: true })
-        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['first-turn-steer'], { steered: true })
+        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['first-turn-steer'], { steered: true, invokedAt: expect.any(Number) })
         session.queue.close()
         releasePrompt()
         await done

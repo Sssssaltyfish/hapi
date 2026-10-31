@@ -45,7 +45,7 @@ describe('Claude soft input reservations', () => {
         const uuid = f.send.mock.calls[0][1];
         expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
         f.steering.observe({ type: 'assistant', user_message_uuids: ['baseline', uuid] });
-        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['local'], { steered: true });
+        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['local'], { steered: true, invokedAt: expect.any(Number) });
         let drained = false;
         const waiting = f.steering.waitForPending().then(() => { drained = true; });
         await Promise.resolve();
@@ -112,12 +112,40 @@ describe('Claude soft input reservations', () => {
         expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
         expect(f.queue.peekByLocalId('local')).toBeNull();
         f.steering.observe({ type: 'assistant', user_message_uuids: [uuid] });
-        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['local'], { steered: false });
+        expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['local'], { steered: false, invokedAt: expect.any(Number) });
         await Promise.resolve();
         expect(drained).toBe(false);
         f.steering.observe({ type: 'result', user_message_uuids: [uuid] });
         await waiting;
         expect(f.send).toHaveBeenCalledTimes(1);
         f.steering.close();
+    });
+
+    it.each([true, false])('orders input before its answer when UUID confirmation arrives only in the result (same turn: %s)', async (sameTurn) => {
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(100);
+        const f = fixture();
+        try {
+            await f.steering.steer('local');
+            const uuid = f.send.mock.calls[0][1];
+            if (!sameTurn) {
+                clock.mockReturnValue(200);
+                f.steering.observe({ type: 'assistant' });
+                clock.mockReturnValue(300);
+                f.steering.observe({ type: 'result', user_message_uuids: ['baseline'] });
+            }
+            clock.mockReturnValue(400);
+            f.steering.observe({ type: 'assistant' });
+            expect(f.client.emitMessagesConsumed).not.toHaveBeenCalled();
+            clock.mockReturnValue(500);
+            f.steering.observe({ type: 'result', user_message_uuids: sameTurn ? ['baseline', uuid] : [uuid] });
+            expect(f.client.emitMessagesConsumed).toHaveBeenCalledExactlyOnceWith(['local'], {
+                steered: sameTurn,
+                // Equal assistant timestamps sort after the earlier queued row's seq.
+                invokedAt: sameTurn ? 100 : 400,
+            });
+        } finally {
+            f.steering.close();
+            clock.mockRestore();
+        }
     });
 });

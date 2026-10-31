@@ -14,6 +14,7 @@ import { createDshBackend } from './utils/dshBackend'
 import { prepareDshPermissionBridge } from './utils/permissionBridge'
 import type { DshSession } from './session'
 import type { DshMode } from './types'
+import type { QueueReservation } from '@/utils/MessageQueue2'
 import { isAcpIndeterminateError } from '@/agent/backends/acp/AcpStdioTransport'
 import { DSH_STEERING_CAPABILITY, DSH_STEERING_METHOD, hasDshSteeringCapability, isDshSteerReceipt } from './utils/steering'
 
@@ -35,6 +36,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private steerEpoch = 0
     private unregisterQueuedSteer: (() => void) | null = null
     private readonly steerRequests = new Set<Promise<unknown>>()
+    private readonly steerInvokedAt = new WeakMap<QueueReservation<DshMode>, number>()
 
     private publishSteeringActive(active: boolean): void {
         this.session.client.updateAgentState?.(state => ({ ...state, steeringActive: active }))
@@ -93,6 +95,10 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             return { steered: false, error: 'Active turn changed' }
         }
         try {
+            // Keep the dispatch chronology even when output arrives before this
+            // async receipt continuation, or an indeterminate request is retried.
+            const invokedAt = this.steerInvokedAt.get(taken) ?? Date.now()
+            this.steerInvokedAt.set(taken, invokedAt)
             const result = await backend.sendExtensionRequest(DSH_STEERING_METHOD,
                 { sessionId, requestId: localId, text: taken.item.message }, { timeoutMs: 10_000 })
             if (!isDshSteerReceipt(result, localId)) {
@@ -101,7 +107,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             }
             queue.commitReservation(taken)
             this.messageBuffer.addMessage(taken.item.message, 'user')
-            this.session.client.emitMessagesConsumed([localId], { steered: true })
+            this.session.client.emitMessagesConsumed([localId], { steered: true, invokedAt })
             return { steered: true }
         } catch (error) {
             if (isAcpIndeterminateError(error)) {

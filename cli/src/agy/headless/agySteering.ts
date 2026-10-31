@@ -19,7 +19,7 @@ type Pending = {
     ready: boolean;
     preparing?: Promise<boolean>;
     restoring?: Promise<void>;
-    receipt?: { path: string; conversationId: string; cursor: number; buffer: string; minStep: number; bytes: number; decoder: StringDecoder };
+    receipt?: { path: string; conversationId: string; offeredAt: number; cursor: number; buffer: string; minStep: number; bytes: number; decoder: StringDecoder };
     resolve: (result: AgySteerResult) => void;
 };
 type HookPayload = {
@@ -206,7 +206,7 @@ export class AgySteering {
         } catch { return {}; }
         if (this.turn !== turn || turn.closing || this.ending || this.pending.get(id) !== entry
             || entry.taken.item.modeHash !== turn.modeHash || !this.session.queue.beginReservationDispatch(entry.taken)) return {};
-        entry.receipt = { path: raw.transcriptPath, conversationId: raw.conversationId, cursor, buffer: '', minStep: raw.initialNumSteps, bytes: 0, decoder: new StringDecoder('utf8') };
+        entry.receipt = { path: raw.transcriptPath, conversationId: raw.conversationId, offeredAt: Date.now(), cursor, buffer: '', minStep: raw.initialNumSteps, bytes: 0, decoder: new StringDecoder('utf8') };
         return { injectSteps: [{ userMessage: entry.taken.item.message }], ...(event === 'post' ? { terminationBehavior: 'force_continue' } : {}) };
     }
 
@@ -246,7 +246,10 @@ export class AgySteering {
                         || typeof step.content !== 'string' || !step.content.startsWith(prefix)
                         || this.receiptSteps.has(step.step_index!)) continue;
                     this.receiptSteps.add(step.step_index!);
-                    if (this.session.queue.commitReservation(entry.taken)) this.session.client.emitMessagesConsumed([id], { steered: true });
+                    // Receipt polling may finish after the following reply was
+                    // stored. Order this confirmed input at its native hook
+                    // boundary, while still withholding the ACK until now.
+                    if (this.session.queue.commitReservation(entry.taken)) this.session.client.emitMessagesConsumed([id], { steered: true, invokedAt: receipt.offeredAt });
                     this.pending.delete(id);
                     entry.resolve({ steered: true });
                     break;
