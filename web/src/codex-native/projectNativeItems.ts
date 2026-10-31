@@ -1,6 +1,7 @@
 import type { DecryptedMessage, Session } from '@/types/api'
 import { nativeQuestionReplies, nativeText, record } from './presentation'
 import type { NativeItemEntry, NativeRecord, NativeRequest } from './types'
+import { nativeCollaborationTool, nativeSubagentEvent } from './nativeCollaboration'
 
 /** Presentation only. No native record is imported into HAPI storage. */
 export function projectNativeItems(
@@ -12,6 +13,8 @@ export function projectNativeItems(
     const messages: DecryptedMessage[] = []
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
     const replies = new Map([...observedReplies, ...nativeQuestionReplies(entries)])
+    const subagentStatuses = new Map<string, string>()
+    const subagentInputs = new Map<string, NativeRecord>()
     const add = (id: string, timestamp: number, body: NativeRecord, user = false) => {
         messages.push({
             id,
@@ -40,7 +43,8 @@ export function projectNativeItems(
         output: unknown,
         complete: boolean,
         turnId?: string,
-        completedAt?: number | null
+        completedAt?: number | null,
+        isError = false
     ) => {
         add(`${id}:call`, at, { type: 'tool-call', name, callId: id, input, turn_id: turnId })
         if (complete)
@@ -48,6 +52,7 @@ export function projectNativeItems(
                 type: 'tool-call-result',
                 callId: id,
                 output,
+                is_error: isError,
                 turn_id: turnId,
             })
     }
@@ -57,6 +62,7 @@ export function projectNativeItems(
         const at = entry.startedAtMs ?? entry.completedAtMs ?? entry.observedAtMs ?? 0
         const completed =
             entry.completedAtMs != null || item.status === 'completed' || item.status === 'failed'
+        const collaboration = item.type === 'collabAgentToolCall' ? nativeCollaborationTool(item) : null
         if (item.type === 'userMessage' || item.type === 'steeringUserMessage') {
             if (item.type === 'steeringUserMessage' && item.status !== 'accepted') continue
             const content = item.content ?? item.input
@@ -165,6 +171,18 @@ export function projectNativeItems(
                 entry.turnId,
                 entry.completedAtMs
             )
+        } else if (item.type === 'subAgentActivity') {
+            const agentId = String(item.agentThreadId ?? '')
+            const event = nativeSubagentEvent(item, subagentStatuses.get(agentId))
+            if (event) {
+                subagentStatuses.set(agentId, String(event.status))
+                event.input = { ...subagentInputs.get(agentId), ...record(event.input) }
+                subagentInputs.set(agentId, record(event.input))
+                add(id, at, { ...event, turn_id: entry.turnId })
+            }
+        } else if (collaboration) {
+            tool(id, at, collaboration.name, collaboration.input, collaboration.output,
+                completed, entry.turnId, entry.completedAtMs, item.status === 'failed' || Boolean(item.error))
         } else if (item.type === 'plan') {
             const text = nativeText(item.text)
             if (text) add(id, at, { type: 'message', message: text, turn_id: entry.turnId })
