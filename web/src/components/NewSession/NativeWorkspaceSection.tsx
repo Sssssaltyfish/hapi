@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { NativeDaemonProject } from '@/codex-native/types'
 import { SelectControl } from '@/components/ui/select-control'
 import { useTranslation } from '@/lib/use-translation'
+import type { NativeWorkspaceCreationDraft } from './newSessionFormDraft'
 
 export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: boolean) {
     const [mode, setMode] = useState<'none' | 'existing' | 'new'>('none')
     const [projectId, setProjectId] = useState('')
     const [name, setName] = useState('')
-    const creation = useRef<{ signature: string; idempotencyKey: string; projectId?: string } | null>(null)
+    const creation = useRef<NativeWorkspaceCreationDraft | null>(null)
+    const captureCreationDraft = useCallback(() => creation.current ? { ...creation.current } : undefined, [])
+    const restoreCreationDraft = useCallback((draft?: NativeWorkspaceCreationDraft) => { creation.current = draft ? { ...draft } : null }, [])
     const query = useInfiniteQuery({
         queryKey: ['codex-native', endpointId, 'projects'],
         queryFn: ({ pageParam }) => api.listCodexNativeProjects(endpointId, pageParam),
@@ -35,7 +38,7 @@ export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: 
         pending.projectId = result.project.id
         return result.project.id
     }
-    return { mode, setMode, projectId, setProjectId, name, setName, query, projects, resolveProjectId, canCreate: mode === 'none' || (mode === 'existing' ? Boolean(projectId) : Boolean(name.trim())) }
+    return { mode, setMode, projectId, setProjectId, name, setName, query, projects, resolveProjectId, captureCreationDraft, restoreCreationDraft, canCreate: mode === 'none' || (mode === 'existing' ? Boolean(projectId) : Boolean(name.trim())) }
 }
 
 export function NativeWorkspaceSection(props: { workspace: ReturnType<typeof useNativeWorkspace>; isDisabled: boolean; onSelect: (project: NativeDaemonProject) => void }) {

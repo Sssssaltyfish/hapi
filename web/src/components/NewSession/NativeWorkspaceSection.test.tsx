@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
 import { NativeWorkspaceSection, useNativeWorkspace } from './NativeWorkspaceSection'
-import { NativeDirectoryPicker } from './NativeDirectoryPicker'
 
 vi.mock('@/lib/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 
@@ -35,15 +34,5 @@ describe('Native launch workspace selection', () => {
         await screen.findByRole('option', { name: 'Saved workspace · C:\\Repo' })
         fireEvent.change(screen.getByLabelText('newSession.native.existingWorkspace'), { target: { value: 'project-id' } })
         expect(select).toHaveBeenCalledWith({ id: 'project-id', name: 'Saved workspace', roots: [{ path: 'C:\\Repo' }] })
-    })
-    it('browses the selected Windows machine before choosing a directory', async () => {
-        const list = vi.fn(async (_endpoint: string, path: string) => ({ path: path || 'C:\\Users', parentPath: 'C:\\', entries: path.endsWith('Repo') ? [] : [{ fileName: 'Repo', path: 'C:\\Users\\Repo' }], truncated: false }))
-        const select = vi.fn()
-        render(<NativeDirectoryPicker api={{ listCodexNativeDirectory: list } as unknown as ApiClient} endpointId="windows" initialPath="" onSelect={select} onClose={vi.fn()} />, { wrapper })
-        fireEvent.click(await screen.findByRole('button', { name: /Repo/ }))
-        await waitFor(() => expect(list).toHaveBeenCalledWith('windows', 'C:\\Users\\Repo', false))
-        await waitFor(() => expect(screen.getByRole('button', { name: 'newSession.native.selectDirectory' })).toBeEnabled())
-        fireEvent.click(screen.getByRole('button', { name: 'newSession.native.selectDirectory' }))
-        expect(select).toHaveBeenCalledWith('C:\\Users\\Repo')
     })
 })

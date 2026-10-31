@@ -4,8 +4,8 @@ import type { ApiClient } from '@/api/client'
 import { nativeModelSummaries } from '@/codex-native/nativeModels'
 import { MachineSelectionField } from './MachineSelector'
 
-export function useNativeCreationTarget(api: ApiClient, enabled: boolean) {
-    const [endpointId, setEndpointId] = useState('')
+export function useNativeCreationTarget(api: ApiClient, enabled: boolean, initialEndpointId?: string) {
+    const [endpointId, setEndpointId] = useState(initialEndpointId ?? '')
     const endpoints = useQuery({
         queryKey: ['codex-native', 'endpoints'],
         queryFn: () => api.getCodexNativeEndpoints(),
@@ -41,8 +41,8 @@ export function useNativeCreationTarget(api: ApiClient, enabled: boolean) {
         status,
         catalog: {
             models: catalog,
-            isLoading: enabled && Boolean(selected) && models.isPending,
-            error: models.error?.message ?? null,
+            isLoading: enabled && (endpoints.isPending || (configured.length > 0 && (!selected || models.isPending))),
+            error: endpoints.error?.message ?? models.error?.message ?? null,
         },
     }
 }
