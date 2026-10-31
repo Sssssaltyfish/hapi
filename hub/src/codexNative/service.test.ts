@@ -92,6 +92,30 @@ function routes(service: NativeService, namespace: string) {
     return app
 }
 describe('native bridge boundaries', () => {
+    test('Windows exact membership skips Git and optional Git timeout preserves known membership', async () => {
+        const state = { 'local-projects': { p: { id: 'p', name: 'Project', rootPaths: ['C:/Repo'] } }, 'projectless-thread-ids': ['manual'] }
+        for (const unresolved of [false, true]) {
+            const calls: string[] = []
+            const service = new NativeService({ endpoint: 'ws://windows', desktopHostId: 'local' })
+            service.desktop = async () => ({ state, projects: [{ id: 'p', name: 'Project', path: 'C:/Repo' }], membership: 'desktop' })
+            service.call = async (method) => {
+                calls.push(method)
+                if (method === 'command/exec') {
+                    await new Promise((resolve) => setTimeout(resolve, 25))
+                    throw new Error('Native directory operation timed out')
+                }
+                return { data: [
+                    { id: 'known', source: 'vscode', cwd: 'c:/repo' },
+                    { id: 'manual', source: 'vscode', cwd: 'C:/Unrelated' },
+                    { id: 'child', source: 'vscode', cwd: 'C:/Child', parentThreadId: 'parent' },
+                    ...(unresolved ? [{ id: 'unknown', source: 'vscode', cwd: 'C:/Unknown' }] : []),
+                ] }
+            }
+            const result = await service.catalog({ limit: 20, deadline: Date.now() + 20 })
+            expect((result.data as Array<{ id: string }>).map((thread) => thread.id)).toEqual(['known'])
+            expect(calls.filter((method) => method === 'command/exec')).toHaveLength(unresolved ? 2 : 0)
+        }
+    })
     test('interrupted queue reconciliation handles consumed input without hiding real start failures or replaying acceptance', async () => {
         for (const scenario of [
             { runtime: 'active', empty: false, failure: undefined, starts: 0, error: undefined },

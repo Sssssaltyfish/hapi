@@ -5,6 +5,7 @@ import {
     createWorkspaceIdentityReader,
     desktopProjects,
     desktopThreadSelection,
+    needsDesktopIdentity,
     type DesktopProject,
     type WorkspaceIdentity,
 } from './desktopSelection'
@@ -63,6 +64,14 @@ export class NativeService {
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private identities = createWorkspaceIdentityReader()
+    private daemonIdentities = createWorkspaceIdentityReader(async (path, args, timeout) => {
+        const response = record(await this.call('command/exec', {
+            command: ['git', ...args], cwd: path, timeoutMs: timeout,
+            outputBytesCap: 16_384, sandboxPolicy: { type: 'readOnly', networkAccess: false },
+        }, Date.now() + timeout))
+        if (response.exitCode !== 0) throw new Error('Native Git identity unavailable')
+        return text(response.stdout) ?? ''
+    })
     constructor(
         readonly config: NativeConfig,
         private createConnection = () => new NativeConnection(config.endpoint!, config.token)
@@ -304,26 +313,34 @@ export class NativeService {
             }, deadline)
         }
         let selected = new Map<string, DesktopProject>()
+        const windowsDesktop = this.config.desktopHostId === 'local' && !this.config.endpoint?.startsWith('unix://')
         if (desktop.state) {
+            selected = desktopThreadSelection(desktop.state, this.config.desktopHostId!, threads)
+            const unresolved = windowsDesktop ? threads.filter((thread) =>
+                !selected.has(String(thread.id)) && needsDesktopIdentity(desktop.state, thread)
+            ) : threads
             const paths = [
                 ...new Set([
-                    ...desktop.projects.map((p) => p.path),
-                    ...threads.map((t) => text(t.cwd)).filter((p): p is string => Boolean(p)),
+                    ...(unresolved.length ? desktop.projects.flatMap((p) => p.rootPaths ?? [p.path]) : []),
+                    ...unresolved.map((t) => text(t.cwd)).filter((p): p is string => Boolean(p)),
                 ]),
             ].slice(0, 512)
             const identities = new Map<string, WorkspaceIdentity>()
             for (
                 let offset = 0;
-                this.config.endpoint?.startsWith('unix://') && offset < paths.length;
+                (this.config.endpoint?.startsWith('unix://') || this.config.desktopHostId === 'local') && offset < paths.length;
                 offset += 4
             ) {
+                if (windowsDesktop && Date.now() >= deadline) break
                 checkBudget()
                 const results = await Promise.allSettled(
                     paths.slice(offset, offset + 4).map(async (path) => {
-                        identities.set(path, await this.identities(path, deadline))
+                        const reader = this.config.endpoint?.startsWith('unix://') ? this.identities : this.daemonIdentities
+                        identities.set(path, await reader(path, deadline))
                     })
                 )
-                for (const result of results) if (result.status === 'rejected') throw result.reason
+                if (!windowsDesktop)
+                    for (const result of results) if (result.status === 'rejected') throw result.reason
             }
             selected = desktopThreadSelection(
                 desktop.state,
@@ -332,7 +349,7 @@ export class NativeService {
                 identities
             )
         }
-        checkBudget()
+        if (!windowsDesktop || !desktop.state) checkBudget()
         const data = threads
             .filter((thread) => {
                 const membership = selected.get(String(thread.id))
