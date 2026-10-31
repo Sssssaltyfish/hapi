@@ -16,6 +16,11 @@ class FakeConnection {
     itemsUnavailable = false
     queueEmpty = false
     startFailure?: string
+    nativeSettings = {
+        approvalPolicy: { granular: { sandbox_approval: true, rules: false, skill_approval: true, request_permissions: true, mcp_elicitations: false } } as unknown,
+        approvalsReviewer: 'auto_review',
+        sandboxPolicy: { type: 'readOnly' },
+    }
     async request(method: string, params: unknown): Promise<unknown> {
         this.calls.push({ method, params })
         if (method === 'thread/start')
@@ -40,14 +45,16 @@ class FakeConnection {
         }
         if (method === 'thread/resume')
             return {
+                ...this.nativeSettings,
                 model: 'model',
                 reasoningEffort: 'low',
                 thread: { id: 'thread', turns: [], status: { type: 'idle' } },
             }
         if (method === 'thread/settings/update') {
+            Object.assign(this.nativeSettings, params)
             this.emit({
                 method: 'thread/settings/updated',
-                params: { threadId: 'thread', threadSettings: params },
+                params: { threadId: 'thread', threadSettings: { ...this.nativeSettings, ...params as object } },
             })
             return {}
         }
@@ -262,6 +269,33 @@ describe('native bridge boundaries', () => {
             'thread/resume',
             'thread/settings/update',
         ])
+    })
+    test('native approval controls preserve custom policy and sandbox while routing review separately', async () => {
+        const { service, clients } = fixture()
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/settings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approvalsReviewer: 'user' }),
+        })
+        expect(response.status).toBe(200)
+        expect(await response.json()).toMatchObject({ applied: {
+            approvalsReviewer: 'user', approvalPolicy: { granular: { sandbox_approval: true } },
+            sandboxPolicy: { type: 'readOnly' },
+        } })
+        expect(clients[0].calls.at(-1)).toEqual({
+            method: 'thread/settings/update', params: { threadId: 'thread', approvalsReviewer: 'user' },
+        })
+        expect(await service.settings('thread', { approvalsReviewer: 'auto_review' })).toMatchObject({ applied: { approvalsReviewer: 'auto_review' } })
+        expect(clients[1].calls.map(call => call.method)).toEqual(['thread/resume'])
+        for (const patch of [
+            { approvalPolicy: 'on-failure' }, { approvalsReviewer: 'automatic' },
+            { sandboxPolicy: { type: 'dangerFullAccess' } },
+        ]) {
+            const invalid = await routes(service, 'owner').request('/api/codex-native/threads/thread/settings', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+            })
+            expect(invalid.status).toBe(400)
+        }
+        expect(clients).toHaveLength(2)
     })
     test('explicit empty thread creation retains its native owner for settings and viewing without a second resume', async () => {
         const { service, clients } = fixture()

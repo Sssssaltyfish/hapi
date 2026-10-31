@@ -37,6 +37,7 @@ export type OpencodeClearOperation = z.infer<typeof OpencodeClearOperationSchema
 const SessionCapabilitiesSchema = z.object({
     concurrentClients: z.boolean().optional(),
     terminal: z.boolean().optional(),
+    permissionModes: z.array(PermissionModeSchema).optional(),
     conversationHistory: ConversationHistoryCapabilitiesSchema.optional()
 })
 

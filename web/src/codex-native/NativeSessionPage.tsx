@@ -12,6 +12,7 @@ import { projectNativeItems } from './projectNativeItems'
 import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
+import { NativeApprovalSettings } from './NativeApprovalSettings'
 
 export function NativeSessionPage({
     api,
@@ -97,7 +98,7 @@ function NativeSessionChat({
             metadata: {
                 ...session.metadata!,
                 ...(typeof detail.name === 'string' ? { name: detail.name } : {}),
-                capabilities: { ...session.metadata?.capabilities, concurrentClients: true },
+                capabilities: { ...session.metadata?.capabilities, concurrentClients: true, permissionModes: [] },
             },
             agentState: {
                 controlledByUser: false,
@@ -147,7 +148,15 @@ function NativeSessionChat({
             api={adapter}
             autocompleteSuggestions={autocompleteSuggestions}
             session={liveSession}
-            nativeCapabilities={{ available: !unavailable, connected: thread.connected }}
+            nativeCapabilities={{
+                available: !unavailable,
+                connected: thread.connected,
+                approvalSettings: <NativeApprovalSettings
+                    settings={settings}
+                    disabled={unavailable || !thread.connected}
+                    onChange={adapter.setNativeApprovalSettings}
+                />,
+            }}
             messages={projected.messages}
             messagesWarning={settingsError || (native.error ?? thread.error) || null}
             hasMoreMessages={Boolean(thread.cursor)}

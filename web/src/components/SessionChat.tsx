@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -564,7 +564,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -2100,6 +2100,8 @@ function SessionChatInner(props: SessionChatProps) {
                         onSchedule={native ? undefined : updatePendingSchedule}
                         onClearSchedule={() => updatePendingSchedule(null)}
                         permissionMode={props.session.permissionMode}
+                        availablePermissionModes={props.session.metadata?.capabilities?.permissionModes}
+                        approvalSettings={native?.approvalSettings}
                         collaborationMode={!native && codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         copilotAgentMode={agentFlavor === 'copilot' ? props.session.copilotAgentMode : undefined}
                         model={props.session.model}

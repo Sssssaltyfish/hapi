@@ -1,4 +1,18 @@
 export default {
+  'nativeApproval.settings': 'Настройки разрешений',
+  'nativeApproval.reviewer': 'Кто проверяет запросы',
+  'nativeApproval.reviewer.user': 'Вы',
+  'nativeApproval.reviewer.auto_review': 'Автоматическая проверка',
+  'nativeApproval.policy': 'Когда запрашивать разрешение',
+  'nativeApproval.policy.on-request': 'По запросу агента',
+  'nativeApproval.policy.untrusted': 'Для недоверенных команд',
+  'nativeApproval.policy.never': 'Никогда',
+  'nativeApproval.custom': 'Особые настройки / недоступно',
+  'nativeApproval.sandbox': 'Песочница: {sandbox}',
+  'nativeApproval.sandbox.readOnly': 'Только чтение',
+  'nativeApproval.sandbox.workspaceWrite': 'Запись в рабочую область',
+  'nativeApproval.sandbox.fullAccess': 'Полный доступ',
+  'nativeApproval.subsequentTurns': 'Изменения применяются к последующим ходам.',
   'settings.native.addMachine': 'Добавить машину Codex Native',
   'settings.native.address': 'Адрес подключения',
   'settings.native.displayName': 'Имя (необязательно)',
@@ -267,6 +281,9 @@ export default {
   'session.outline.searchLabel': 'Поиск элементов плана',
   'session.outline.searchResults': '{matched} из {total} элементов',
   'session.outline.noSearchResults': 'Нет подходящих элементов плана',
+  'session.outline.partialIndex': 'Поиск по индексированным запросам. Нажмите ↑, чтобы добавить более раннюю страницу без загрузки диалога.',
+  'session.outline.indexComplete': 'Все страницы истории проиндексированы.',
+  'session.outline.indexLimit': 'Поиск по ограниченному кешу запросов. Если доступна ↑, можно искать более ранние страницы; прежние записи кеша заменяются.',
 
   // Действия с сессией
   'session.action.rename': 'Переименовать',

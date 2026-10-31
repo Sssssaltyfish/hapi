@@ -1,7 +1,7 @@
 import {
     getCodexCollaborationModeOptions,
     getCopilotAgentModeOptions,
-    getPermissionModeOptionsForFlavor,
+    getPermissionModeOptionsForSession,
     type CopilotAgentMode
 } from '@hapi/protocol'
 import { ComposerPrimitive, useAui, useAuiState } from '@assistant-ui/react'
@@ -12,6 +12,7 @@ import {
     type FormEvent as ReactFormEvent,
     type KeyboardEvent as ReactKeyboardEvent,
     type MutableRefObject,
+    type ReactNode,
     type SyntheticEvent as ReactSyntheticEvent,
     useCallback,
     useEffect,
@@ -298,6 +299,8 @@ export function HappyComposer(props: {
     attachmentsDisabled?: boolean
     disabled?: boolean
     permissionMode?: PermissionMode
+    availablePermissionModes?: readonly PermissionMode[]
+    approvalSettings?: ReactNode
     collaborationMode?: CodexCollaborationMode
     copilotAgentMode?: CopilotAgentMode
     model?: string | null
@@ -409,6 +412,8 @@ export function HappyComposer(props: {
         sessionId,
         disabled = false,
         permissionMode: rawPermissionMode,
+        availablePermissionModes,
+        approvalSettings,
         collaborationMode: rawCollaborationMode,
         copilotAgentMode: rawCopilotAgentMode,
         model: rawModel,
@@ -1045,8 +1050,8 @@ export function HappyComposer(props: {
     }, [switchDisabled, onSwitchToRemote, haptic])
 
     const permissionModeOptions = useMemo(
-        () => getPermissionModeOptionsForFlavor(agentFlavor).filter(option => !concurrentClients || option.mode !== 'safe-yolo'),
-        [agentFlavor, concurrentClients]
+        () => getPermissionModeOptionsForSession({ flavor: agentFlavor, capabilities: { concurrentClients, permissionModes: availablePermissionModes } }),
+        [agentFlavor, concurrentClients, availablePermissionModes]
     )
     const collaborationModeOptions = useMemo(
         () => agentFlavor === 'codex' ? getCodexCollaborationModeOptions() : [],
@@ -1618,7 +1623,7 @@ export function HappyComposer(props: {
 
     const showCollaborationSettings = Boolean(onCollaborationModeChange && collaborationModeOptions.length > 0)
     const showCopilotAgentModeSettings = Boolean(onCopilotAgentModeChange && copilotAgentModeOptions.length > 0)
-    const showPermissionSettings = Boolean(onPermissionModeChange && permissionModeOptions.length > 0)
+    const showPermissionSettings = Boolean((onPermissionModeChange && permissionModeOptions.length > 0) || approvalSettings)
     const showModelSettings = agentFlavor === 'pi'
         // Pi models only come from the dynamic piModels catalog; never fall
         // back to the generic synthesized modelOptions rows (they would post a
@@ -1989,7 +1994,7 @@ export function HappyComposer(props: {
                         {sheetPermissionSettings ? (
                             <div className="py-2">
                                 <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
-                                    {t('misc.permissionMode')}
+                                    {t(approvalSettings ? 'nativeApproval.settings' : 'misc.permissionMode')}
                                 </div>
                                 {permissionModeOptions.map((option) => (
                                     <button
@@ -2020,6 +2025,7 @@ export function HappyComposer(props: {
                                         </span>
                                     </button>
                                 ))}
+                                {approvalSettings}
                             </div>
                         ) : null}
 
@@ -2173,6 +2179,7 @@ export function HappyComposer(props: {
         showCollaborationSettings,
         showCopilotAgentModeSettings,
         showPermissionSettings,
+        approvalSettings,
         showModelSettings,
         showModelEffortSettings,
         visibleModelEffortOptions,
@@ -2442,7 +2449,7 @@ export function HappyComposer(props: {
                                 controlsDisabled={controlsDisabled}
                                 showSettingsButton={showSettingsButton}
                                 settingsButtonRef={settingsButtonRef}
-                                settingsDisabled={modelEffortControlsDisabled}
+                                settingsDisabled={approvalSettings ? disabled || configurationControlsDisabled : modelEffortControlsDisabled}
                                 modelValueButtonRef={modelValueButtonRef}
                                 effortValueButtonRef={effortValueButtonRef}
                                 onSettingsToggle={handleGearToggle}

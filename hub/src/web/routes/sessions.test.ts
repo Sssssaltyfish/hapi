@@ -1168,6 +1168,22 @@ describe('sessions routes', () => {
         expect(applySessionConfigCalls).toEqual([])
     })
 
+    it('constrains runner mode changes to session capabilities', async () => {
+        for (const permissionModes of [[], ['default', 'read-only']] as const) {
+            const session = createSession({ metadata: {
+                path: '/tmp/project', host: 'localhost', flavor: 'codex',
+                capabilities: { permissionModes: [...permissionModes] }
+            } })
+            const { app, applySessionConfigCalls } = createApp(session)
+            const response = await app.request('/api/sessions/session-1/permission-mode', {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ mode: 'yolo' })
+            })
+            expect(response.status).toBe(400)
+            expect(applySessionConfigCalls).toEqual([])
+        }
+    })
+
     it('applies permission mode changes for inactive sessions', async () => {
         const session = createSession({
             active: false,

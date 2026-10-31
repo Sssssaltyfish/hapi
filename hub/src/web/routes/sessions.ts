@@ -3,7 +3,7 @@ import {
     DeleteUploadRequestSchema,
     ForkConversationRequestSchema,
     ImplementCodexPlanRequestSchema,
-    getPermissionModesForFlavor,
+    getPermissionModesForSession,
     isLiveLifecycleState,
     isPermissionModeAllowedForFlavor,
     RenameSessionRequestSchema,
@@ -627,16 +627,16 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
         const flavor = sessionResult.session.metadata?.flavor ?? 'claude'
         const mode = parsed.data.mode
 
-        const allowedModes = getPermissionModesForFlavor(flavor)
+        const allowedModes = getPermissionModesForSession(sessionResult.session.metadata)
         if (allowedModes.length === 0) {
             return c.json({ error: 'Permission mode not supported for session flavor' }, 400)
         }
 
-        if (!isPermissionModeAllowedForFlavor(mode, flavor)) {
-            return c.json({ error: 'Invalid permission mode for session flavor' }, 400)
-        }
-        if (mode === 'safe-yolo' && sessionResult.session.metadata?.capabilities?.concurrentClients) {
-            return c.json({ error: 'Safe Yolo is not available for shared sessions' }, 400)
+        if (!allowedModes.includes(mode)) {
+            if (mode === 'safe-yolo' && sessionResult.session.metadata?.capabilities?.concurrentClients) {
+                return c.json({ error: 'Safe Yolo is not available for shared sessions' }, 400)
+            }
+            return c.json({ error: 'Permission mode is not available for this session' }, 400)
         }
         if (flavor === 'opencode' && mode === 'plan' && sessionResult.session.agentState?.controlledByUser === true && !sessionResult.session.metadata?.capabilities?.concurrentClients) {
             return c.json({ error: 'OpenCode plan mode is only supported for remote sessions' }, 409)

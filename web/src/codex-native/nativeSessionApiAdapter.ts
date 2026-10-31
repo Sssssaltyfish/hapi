@@ -1,5 +1,6 @@
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
+import type { CodexApprovalPolicy, CodexApprovalsReviewer } from '@hapi/protocol'
 import { resolveCodexModel } from '@/lib/codexModelCapabilities'
 import { nativeModelSummaries } from './nativeModels'
 import { nativeAsyncReplyTurn, record } from './presentation'
@@ -17,6 +18,14 @@ type SupportedOperation =
     | 'setModelReasoningEffort'
     | 'approvePermission'
     | 'denyPermission'
+    | 'setNativeApprovalSettings'
+export type NativeApprovalSettingsPatch = {
+    approvalPolicy?: CodexApprovalPolicy
+    approvalsReviewer?: CodexApprovalsReviewer
+}
+export type NativeSessionApiAdapter = ApiClient & {
+    setNativeApprovalSettings: (patch: NativeApprovalSettingsPatch) => Promise<void>
+}
 type AdapterOptions = {
     session: Session
     liveSession: Session
@@ -93,7 +102,7 @@ const GLOBAL_OPERATIONS = [
 export function createNativeSessionApiAdapter(
     target: ApiClient,
     options: AdapterOptions
-): ApiClient {
+): NativeSessionApiAdapter {
     const { session, liveSession, thread, projected, setSettingsError } = options
     const native = session.metadata!.nativeCodex!
     const nativeAction = (
@@ -210,6 +219,16 @@ export function createNativeSessionApiAdapter(
         }
     }
     const operations = {
+        setNativeApprovalSettings: async (patch) => {
+            setSettingsError(null)
+            try {
+                const result = await nativeAction('settings', patch)
+                thread.applySettings(record(result.applied))
+            } catch (error) {
+                setSettingsError(error instanceof Error ? error.message : String(error))
+                throw error
+            }
+        },
         getSessionCodexModels: async () => ({
             success: true,
             models: nativeModelSummaries((await target.getCodexNativeModels()).data),
@@ -231,7 +250,7 @@ export function createNativeSessionApiAdapter(
             answerRequest('approvePermission', requestId, options),
         denyPermission: async (_id, requestId, options) =>
             answerRequest('denyPermission', requestId, options),
-    } satisfies Pick<ApiClient, SupportedOperation>
+    } satisfies Pick<NativeSessionApiAdapter, SupportedOperation>
     const globals: ReadonlySet<PropertyKey> = new Set(GLOBAL_OPERATIONS)
     return new Proxy(target, {
         get(client, property) {
@@ -244,5 +263,5 @@ export function createNativeSessionApiAdapter(
                 throw new Error('This operation is unavailable for native Codex conversations')
             }
         },
-    })
+    }) as NativeSessionApiAdapter
 }
