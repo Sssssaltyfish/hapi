@@ -43,7 +43,7 @@ describe('getPermissionModesForFlavor', () => {
         ])
     })
 
-    test("returns no HAPI mode selector for DSH's server-owned permission policy", () => {
+    test("keeps DSH's opaque runtime presets out of the static permission catalog", () => {
         expect(getPermissionModesForFlavor('dsh')).toEqual([])
     })
 

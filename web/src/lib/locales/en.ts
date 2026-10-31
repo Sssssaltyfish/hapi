@@ -1,4 +1,6 @@
 export default {
+  'sessionConfig.unavailable': 'Unavailable',
+  'sessionConfig.nextMessages': 'Applies to messages sent after this selection. Queued messages keep their selected permissions.',
   'nativeApproval.settings': 'Approval settings',
   'nativeApproval.reviewer': 'Approval reviewer',
   'nativeApproval.reviewer.user': 'You',

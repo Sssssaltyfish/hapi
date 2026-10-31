@@ -868,6 +868,13 @@ export class ApiClient {
         })
     }
 
+    async setSessionConfigOption(sessionId: string, configId: string, value: string): Promise<void> {
+        await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/config-option`, {
+            method: 'POST',
+            body: JSON.stringify({ configId, value })
+        })
+    }
+
     async setCollaborationMode(sessionId: string, mode: CodexCollaborationMode): Promise<void> {
         await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/collaboration-mode`, {
             method: 'POST',

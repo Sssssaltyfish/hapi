@@ -1,4 +1,6 @@
 export default {
+  'sessionConfig.unavailable': '暂不可用',
+  'sessionConfig.nextMessages': '应用于此后发送的消息；已排队的消息保留发送时选择的权限。',
   'nativeApproval.settings': '审批设置',
   'nativeApproval.reviewer': '审批处理者',
   'nativeApproval.reviewer.user': '由我审批',

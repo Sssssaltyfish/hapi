@@ -1,4 +1,6 @@
 export default {
+  'sessionConfig.unavailable': 'Недоступно',
+  'sessionConfig.nextMessages': 'Применяется к новым сообщениям. Сообщения в очереди сохраняют выбранные разрешения.',
   'nativeApproval.settings': 'Настройки разрешений',
   'nativeApproval.reviewer': 'Кто проверяет запросы',
   'nativeApproval.reviewer.user': 'Вы',

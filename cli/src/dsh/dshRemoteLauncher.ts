@@ -1,5 +1,5 @@
 import React from 'react'
-import { RPC_METHODS } from '@hapi/protocol'
+import { RPC_METHODS, SessionConfigOptionRequestSchema, type SessionConfigOption } from '@hapi/protocol'
 import { logger } from '@/ui/logger'
 import { convertAgentMessage } from '@/agent/messageConverter'
 import type { AgentMessage, PromptContent } from '@/agent/types'
@@ -11,6 +11,7 @@ import {
 import { RemoteModeDisplay } from '@/ui/ink/RemoteModeDisplay'
 import { AcpPermissionHandler } from '@/modules/common/permission/AcpPermissionHandler'
 import { createDshBackend } from './utils/dshBackend'
+import { prepareDshPermissionBridge } from './utils/permissionBridge'
 import type { DshSession } from './session'
 
 export class DshRemoteLauncher extends RemoteLauncherBase {
@@ -20,6 +21,40 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private currentBackendModel: string | null = null
     /** Server default captured at session creation, before any override. */
     private initialBackendModel: string | null = null
+    private selectedConfigs: Record<string, string> = {}
+    private initialConfigs: Record<string, string> = {}
+    private configsReady = false
+    private cleanupBridge: (() => Promise<void>) | null = null
+    private running: Promise<RemoteLauncherExitReason> | null = null
+    private disconnecting: Promise<void> | null = null
+
+    private disconnectBackend(): Promise<void> {
+        if (!this.backend) return Promise.resolve()
+        return this.disconnecting ??= this.backend.disconnect()
+    }
+
+    getConfigPreferences(): Record<string, string> | undefined {
+        return this.configsReady ? { ...this.selectedConfigs } : undefined
+    }
+
+    private permissionOptions(): SessionConfigOption[] {
+        if (!this.backend || !this.session.sessionId) return []
+        return (this.backend.getSessionConfigOptions(this.session.sessionId) ?? [])
+            .filter(option => option.category === 'permission')
+    }
+
+    private publishPermissionOptions(): void {
+        const advertised = this.permissionOptions()
+        for (const [id, value] of Object.entries(this.selectedConfigs)) {
+            const option = advertised.find(option => option.id === id)
+            if (!option?.options.some(choice => choice.value === value)) delete this.selectedConfigs[id]
+        }
+        const options = advertised.map(option => ({
+            ...option,
+            ...(this.selectedConfigs[option.id] !== undefined ? { selectedValue: this.selectedConfigs[option.id] } : {})
+        }))
+        this.session.client.updateMetadata(metadata => ({ ...metadata, sessionConfigOptions: options }))
+    }
 
     constructor(
         private readonly session: DshSession,
@@ -34,12 +69,22 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     async launch(): Promise<RemoteLauncherExitReason> {
-        return this.start({ onExit: () => this.handleExitFromUi() })
+        this.running = this.start({ onExit: () => this.handleExitFromUi() })
+        return this.running
     }
 
     async kill(): Promise<void> {
-        if (!this.backend) return
-        await this.handleAbort()
+        await this.requestExit('exit', async () => {
+            this.abortController.abort()
+            // Ending the session must also stop an unresponsive initialize,
+            // session/new or prompt; cooperative session/cancel cannot do that.
+            await this.disconnectBackend()
+            await this.permissionHandler?.cancelAll('Session ended')
+            this.session.onThinkingChange(false)
+        })
+        // Let start()'s finally close ACP and remove its temporary plugin before
+        // the runner lifecycle exits the process, including during initialization.
+        await this.running?.catch(() => {})
     }
 
     protected createDisplay(context: RemoteLauncherDisplayContext): React.ReactElement {
@@ -50,7 +95,10 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     protected async runMainLoop(): Promise<void> {
-        const backend = createDshBackend()
+        const bridge = await prepareDshPermissionBridge()
+        this.cleanupBridge = bridge.cleanup
+        if (this.shouldExit) return
+        const backend = createDshBackend(process.env, bridge.args)
         this.backend = backend
         backend.onStderrError((error) => {
             logger.debug('[dsh-acp] stderr error', error)
@@ -69,6 +117,16 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         const ready = new Promise<string>((resolve, reject) => {
             markReady = resolve
             markFailed = reject
+        })
+        void ready.catch(() => {})
+        this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SetSessionConfigOption, async (raw: unknown) => {
+            await ready
+            const { configId, value } = SessionConfigOptionRequestSchema.parse(raw)
+            const option = this.permissionOptions().find(option => option.id === configId)
+            if (!option?.options.some(choice => choice.value === value)) throw new Error('This DSH configuration value is not currently advertised')
+            this.selectedConfigs[configId] = value
+            this.publishPermissionOptions()
+            return { applied: { configId, value }, applyAt: 'next-message' }
         })
         this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.ListDshModels, async () => {
             let acpSessionId: string
@@ -92,15 +150,19 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         let acpSessionId: string
         try {
             await backend.initialize()
+            if (this.shouldExit) {
+                markFailed(new Error('DSH session ended during initialization'))
+                return
+            }
             acpSessionId = await backend.newSession({
                 cwd: this.session.path,
-                // The official DSH ACP composition rejects non-empty MCP servers;
-                // its tools are configured by the DSH server itself.
+                // HAPI leaves tools to the DSH composition and adds no MCP servers.
                 mcpServers: []
             })
             this.session.sessionId = acpSessionId
         } catch (error) {
             markFailed(error)
+            if (this.shouldExit) return
             throw error
         }
 
@@ -119,6 +181,15 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             this.currentBackendModel = this.initialBackendModel
         }
         this.opts.onConfigDiscovered?.(this.currentBackendModel)
+        for (const option of this.permissionOptions()) {
+            if (option.currentValue !== undefined && option.options.some(choice => choice.value === option.currentValue)) {
+                this.initialConfigs[option.id] = option.currentValue
+            }
+        }
+        this.selectedConfigs = { ...this.initialConfigs }
+        this.configsReady = true
+        backend.onSessionConfigOptionsUpdate(() => this.publishPermissionOptions())
+        this.publishPermissionOptions()
         if (this.currentBackendModel) {
             this.messageBuffer.addMessage(`[MODEL:${this.currentBackendModel}]`, 'system')
         }
@@ -177,12 +248,34 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 }
             }
 
+            let configFailed = false
+            for (const [configId, value] of Object.entries(batch.mode.configOptions ?? this.initialConfigs)) {
+                try {
+                    const option = this.permissionOptions().find(option => option.id === configId)
+                    if (!option) throw new Error('The DSH permission option is no longer available')
+                    if (!option.options.some(choice => choice.value === value)) throw new Error('The selected DSH permission preset is no longer available')
+                    if (option.currentValue === value) continue
+                    await backend.setConfigOption(acpSessionId, configId, value)
+                    if (this.permissionOptions().find(option => option.id === configId)?.currentValue !== value) {
+                        throw new Error('DSH did not confirm the selected permission preset')
+                    }
+                } catch (error) {
+                    configFailed = true
+                    if (this.selectedConfigs[configId] === value) delete this.selectedConfigs[configId]
+                    this.publishPermissionOptions()
+                    this.session.sendSessionEvent({ type: 'message', message: `DSH permission setting failed; this message was not sent: ${error instanceof Error ? error.message : String(error)}` })
+                    break
+                }
+            }
+            if (configFailed) continue
+
             this.session.onThinkingChange(true)
             this.messageBuffer.addMessage(batch.message, 'user')
             const prompt: PromptContent[] = [{ type: 'text', text: batch.message }]
             try {
                 await backend.prompt(acpSessionId, prompt, (message) => this.handleAgentMessage(message))
             } catch (error) {
+                if (this.shouldExit) break
                 const message = error instanceof Error ? error.message : String(error)
                 logger.warn('[dsh-acp] prompt failed', { message })
                 this.session.sendSessionEvent({ type: 'message', message: `DSH prompt failed: ${message}` })
@@ -201,8 +294,13 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         this.clearAbortHandlers(this.session.client.rpcHandlerManager)
         await this.permissionHandler?.cancelAll('Session ended')
         this.permissionHandler = null
-        await this.backend?.disconnect()
-        this.backend = null
+        try {
+            await this.disconnectBackend()
+        } finally {
+            this.backend = null
+            await this.cleanupBridge?.()
+            this.cleanupBridge = null
+        }
     }
 
     private handleAgentMessage(message: AgentMessage): void {

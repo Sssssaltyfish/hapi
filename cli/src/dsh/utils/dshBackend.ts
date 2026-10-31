@@ -49,11 +49,11 @@ export function resolveDshAcpCommand(env: DshAcpEnvironment = process.env): {
     return { command, args: DSH_DEFAULT_ACP_ARGS }
 }
 
-export function createDshBackend(env: NodeJS.ProcessEnv = process.env): AcpSdkBackend {
+export function createDshBackend(env: NodeJS.ProcessEnv = process.env, extraArgs: string[] = []): AcpSdkBackend {
     const { command, args } = resolveDshAcpCommand(env)
     return new AcpSdkBackend({
         command,
-        args,
+        args: [...args, ...extraArgs],
         env: filterEnv(env),
         flavor: 'dsh'
     })

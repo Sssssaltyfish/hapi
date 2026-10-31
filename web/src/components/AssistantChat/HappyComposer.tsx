@@ -301,6 +301,7 @@ export function HappyComposer(props: {
     permissionMode?: PermissionMode
     availablePermissionModes?: readonly PermissionMode[]
     approvalSettings?: ReactNode
+    approvalSettingsTitle?: string
     collaborationMode?: CodexCollaborationMode
     copilotAgentMode?: CopilotAgentMode
     model?: string | null
@@ -414,6 +415,7 @@ export function HappyComposer(props: {
         permissionMode: rawPermissionMode,
         availablePermissionModes,
         approvalSettings,
+        approvalSettingsTitle,
         collaborationMode: rawCollaborationMode,
         copilotAgentMode: rawCopilotAgentMode,
         model: rawModel,
@@ -1994,7 +1996,7 @@ export function HappyComposer(props: {
                         {sheetPermissionSettings ? (
                             <div className="py-2">
                                 <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
-                                    {t(approvalSettings ? 'nativeApproval.settings' : 'misc.permissionMode')}
+                                    {approvalSettingsTitle ?? t(approvalSettings ? 'nativeApproval.settings' : 'misc.permissionMode')}
                                 </div>
                                 {permissionModeOptions.map((option) => (
                                     <button
@@ -2180,6 +2182,7 @@ export function HappyComposer(props: {
         showCopilotAgentModeSettings,
         showPermissionSettings,
         approvalSettings,
+        approvalSettingsTitle,
         showModelSettings,
         showModelEffortSettings,
         visibleModelEffortOptions,

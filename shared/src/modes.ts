@@ -146,6 +146,8 @@ export function getPermissionModesForFlavor(flavor?: string | null): readonly Pe
         return KIMI_PERMISSION_MODES
     }
     if (flavor === 'dsh') {
+        // DSH presets are runtime/plugin-defined opaque values, exposed through
+        // sessionConfigOptions rather than another provider's static modes.
         return []
     }
     if (flavor === 'copilot') {

@@ -45,9 +45,10 @@ export type AcpSessionInfoUpdate = {
 
 export type AcpConfigOptionDescriptor = {
     id: string;
+    name?: string;
     category?: string;
     currentValue?: string;
-    options: Array<{ value: string; name?: string }>;
+    options: Array<{ value: string; name?: string; description?: string }>;
 };
 
 /**
@@ -61,13 +62,13 @@ export type AcpConfigOptionDescriptor = {
  * real choices, so they are flattened recursively. Non-objects and empty
  * values are dropped.
  */
-export function flattenConfigOptionChoices(rawOptions: unknown[]): Array<{ value: string; name?: string }> {
-    const choices: Array<{ value: string; name?: string }> = [];
+export function flattenConfigOptionChoices(rawOptions: unknown[]): Array<{ value: string; name?: string; description?: string }> {
+    const choices: Array<{ value: string; name?: string; description?: string }> = [];
     for (const entry of rawOptions) {
         if (!isObject(entry)) continue;
         const value = asString(entry.value);
         if (value) {
-            choices.push({ value, name: asString(entry.name) ?? undefined });
+            choices.push({ value, name: asString(entry.name) ?? undefined, ...(asString(entry.description) ? { description: asString(entry.description)! } : {}) });
             continue;
         }
         const nested = Array.isArray(entry.options) ? entry.options : [];
@@ -95,6 +96,7 @@ export class AcpSdkBackend implements AgentBackend {
     private readonly pendingPermissions = new Map<string, PendingPermission>();
     private readonly sessionModelsMetadata = new Map<string, AcpSessionModelsMetadata>();
     private readonly sessionConfigOptions = new Map<string, AcpConfigOptionDescriptor[]>();
+    private configOptionsListener: ((sessionId: string) => void) | null = null;
     private readonly sessionInfoRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
     private readonly initialAvailableCommands = new Set<string>();
     private readonly sessionAvailableCommands = new Map<string, Set<string>>();
@@ -317,6 +319,10 @@ export class AcpSdkBackend implements AgentBackend {
 
     getSessionConfigOptions(sessionId: string): AcpConfigOptionDescriptor[] | undefined {
         return this.sessionConfigOptions.get(sessionId);
+    }
+
+    onSessionConfigOptionsUpdate(listener: (sessionId: string) => void): void {
+        this.configOptionsListener = listener;
     }
 
     getConfigOptionByCategory(sessionId: string, category: string): AcpConfigOptionDescriptor | undefined {
@@ -1139,6 +1145,9 @@ export class AcpSdkBackend implements AgentBackend {
         // work is queued so async image registration preserves event order.
         if (sessionId) {
             this.captureAvailableCommands(sessionId, update);
+            if (isObject(update) && update.sessionUpdate === 'config_option_update') {
+                this.captureSessionConfigOptions(sessionId, update);
+            }
         }
         this.forwardSessionInfoUpdate(sessionId, update);
         this.captureUsageUpdate(update);
@@ -1547,6 +1556,7 @@ export class AcpSdkBackend implements AgentBackend {
                 const rawOptions = Array.isArray(entry.options) ? entry.options : [];
                 return {
                     id,
+                    name: asString(entry.name) ?? undefined,
                     category: asString(entry.category) ?? undefined,
                     currentValue: asString(entry.currentValue) ?? undefined,
                     options: flattenConfigOptionChoices(rawOptions)
@@ -1578,8 +1588,9 @@ export class AcpSdkBackend implements AgentBackend {
             });
         }
 
-        if (options.length > 0) {
+        if (Array.isArray(response.configOptions) || options.length > 0) {
             this.sessionConfigOptions.set(sessionId, options);
+            this.configOptionsListener?.(sessionId);
         }
     }
 

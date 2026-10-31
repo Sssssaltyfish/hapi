@@ -66,7 +66,7 @@ export async function runDsh(opts: {
     session.onUserMessage((message, localId) => {
         queue.push(
             formatMessageWithAttachments(message.content.text, message.content.attachments),
-            dshModeForPreference(currentModel),
+            dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()),
             localId
         )
     })
