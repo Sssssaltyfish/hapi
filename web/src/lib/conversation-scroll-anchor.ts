@@ -12,7 +12,7 @@ export type ConversationScrollAnchor = AnchorPoint & {
 }
 
 const CONTENT_SELECTOR = '[data-hapi-scroll-anchor], [data-hapi-scroll-anchors]'
-const MESSAGE_SELECTOR = '.happy-thread-messages > [id]'
+const MESSAGE_SELECTOR = '.happy-thread-messages > [id], .happy-thread-messages [data-hapi-message-role][id]'
 
 function verticalClip(element: HTMLElement, viewport: HTMLElement): { top: number; bottom: number } {
     const bounds = viewport.getBoundingClientRect()

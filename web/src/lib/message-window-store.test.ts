@@ -30,6 +30,7 @@ import {
     removeOptimisticMessage,
     rewindMessageWindow,
     seekMessageWindow,
+    hydrateMessageWindow,
     setMessageViewMode,
     syncTailMessages,
     updateMessageStatus,
@@ -1293,6 +1294,25 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('rehydrates a known row with context on both sides and rejects stale epochs', async () => {
+        const id = sessionId('virtual-row-hydration')
+        const current = makeUserMessage({ id: 'current', seq: 20, createdAt: 20000, invokedAt: 20000 })
+        const target = makeUserMessage({ id: 'target', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const later = makeAgentMessage({ id: 'response', seq: 11, at: 11000 })
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 20000, nextBeforeSeq: 20 }))
+            .mockResolvedValueOnce(beforeResponse([target], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(afterResponse([later], { epoch: 1, nextAfterAt: 11000, nextAfterSeq: 11, snapshotHeadAt: 20000, snapshotHeadSeq: 20 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 21000, beforeSeq: 21, epoch: 1 }, 'user-text:current')
+        const locator = { kind: 'runner' as const, beforeAt: 10000, beforeSeq: 11, epoch: 1, targetMessageId: 'target' }
+        expect(await hydrateMessageWindow(api, id, locator)).toBe(true)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['target', 'response'])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+        expect(await hydrateMessageWindow(api, id, { ...locator, epoch: 2 })).toBe(false)
+        expect(getMessages).toHaveBeenCalledTimes(3)
+    })
+
     it('rejects repeated cursors in both directions without changing the reader window', async () => {
         const id = sessionId('history-cursor-stalled')
         const current = makeUserMessage({ id: 'current', seq: 10, createdAt: 10000, invokedAt: 10000 })

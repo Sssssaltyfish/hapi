@@ -55,7 +55,7 @@ import { classifySessionAttention, getSessionAttentionLabelKey } from '@/lib/ses
 import { getSessionLastSeenAt } from '@/lib/sessionLastSeen'
 import { formatRelativeTime } from '@/lib/relativeTime'
 import { ScratchlistMigrationBanner } from '@/components/AssistantChat/ScratchlistMigrationBanner'
-import { findLatestCompletedBoundaryId, useHappyRuntime } from '@/lib/assistant-runtime'
+import { findLatestCompletedBoundaryId, useHappyRuntime, type HappyRuntimeExtras } from '@/lib/assistant-runtime'
 import {
     getRestoredComposerSendIntent,
     resolveMessageDeliveryMode,
@@ -64,7 +64,9 @@ import {
 import type { MessageDeliveryMode } from '@hapi/protocol'
 import { isSteeringSupportedForSession } from '@hapi/protocol'
 import { createAttachmentAdapter } from '@/lib/attachmentAdapter'
-import { hasNewerMessagesOutsideWindow, rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
+import { getMessageWindowState, hasNewerMessagesOutsideWindow, hydrateMessageWindow, rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
+import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
+import { buildTimelineHistoryLocators } from '@/lib/timeline-history-locators'
 import { ShareSeedConsumer } from '@/components/ShareSeedConsumer'
 import {
     createScratchlistAttachmentAdapter,
@@ -354,11 +356,19 @@ export function applyGlobalSelectAll(e: KeyboardEvent): boolean {
     const thread = document.querySelector<HTMLElement>('.happy-thread-messages')
     if (!thread || !thread.textContent) return false
     e.preventDefault()
-    const range = document.createRange()
-    range.selectNodeContents(thread)
-    const selection = window.getSelection()
-    selection?.removeAllRanges()
-    selection?.addRange(range)
+    const select = () => {
+        if (!thread.isConnected) return
+        const range = document.createRange()
+        range.selectNodeContents(thread)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+    }
+    // Mount the cached conversation for an explicit Select All operation;
+    // ordinary scrolling keeps its bounded virtual DOM.
+    const viewport = thread.closest<HTMLElement>('[data-hapi-thread-viewport]')
+    if (viewport) viewport.dispatchEvent(new CustomEvent('hapi:materialize-selection', { detail: select }))
+    else select()
     return true
 }
 
@@ -593,6 +603,8 @@ type SessionChatProps = {
     conversationHistoryRevision?: number
     onCancelLoadMore: () => void
     onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string) => Promise<boolean>
+    historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
     // inactive-session resume failed. Composer state that should only be cleared on
@@ -651,6 +663,7 @@ function SessionChatInner(props: SessionChatProps) {
     const { toolGroupsCollapsed } = useToolGroupCollapse()
     const navigate = useNavigate()
     const [historyActionPending, setHistoryActionPending] = useState(false)
+    const [rewindRevision, setRewindRevision] = useState(0)
     const [rewindForkFallback, setRewindForkFallback] = useState<string | null>(null)
 
     const onForkConversation = useCallback(async (messageLocalId?: string) => {
@@ -674,6 +687,7 @@ function SessionChatInner(props: SessionChatProps) {
             // Apply the deterministic local part immediately so the removed
             // suffix cannot flash back while the authoritative refresh runs.
             rewindMessageWindow(props.session.id, messageLocalId)
+            setRewindRevision(value => value + 1)
             await props.onRefresh()
             // Force the same tail behavior as a successful send after the
             // refreshed message window has been committed.
@@ -1552,10 +1566,6 @@ function SessionChatInner(props: SessionChatProps) {
         props.tailRevision
     )
 
-    const isLatestCompletedBoundary = useCallback((messageId: string) => {
-        return latestCompletedBoundaryId === messageId
-    }, [latestCompletedBoundaryId])
-
     useEffect(() => {
         visibleGroupsRef.current = visibleBlocks.filter(isToolGroupBlock)
     }, [visibleBlocks])
@@ -1920,9 +1930,22 @@ function SessionChatInner(props: SessionChatProps) {
     }, [props.api, props.session.id, props.session.active, props.resolveSessionIdForUpload, scratchlistMode, inactiveCanResume])
 
 
+    const historyEpoch = native ? null : getMessageWindowState(props.session.id).epoch
+    const historyLocators = useMemo(() => buildTimelineHistoryLocators(
+        visibleMessages, normalizedMessages, props.historyLocators, historyEpoch,
+    ), [visibleMessages, normalizedMessages, props.historyLocators, historyEpoch])
+    const hydrateHistoryRow = useCallback(async (locator: TimelineHistoryLocator) => {
+        if (props.onHydrateHistoryRow) return props.onHydrateHistoryRow(locator)
+        if (locator.kind !== 'runner') return false
+        return hydrateMessageWindow(props.api, props.session.id, locator)
+    }, [props.onHydrateHistoryRow, props.api, props.session.id])
+
     const runtime = useHappyRuntime({
         session: props.session,
         blocks: visibleBlocks,
+        toolGroupsCollapsed,
+        historyLocators,
+        cacheResetRevision: native ? props.conversationHistoryRevision : `${historyEpoch ?? ''}:${rewindRevision}`,
         messagesVersion: props.messagesVersion,
         historyVersion: props.historyVersion,
         viewMode: props.viewMode,
@@ -1938,6 +1961,12 @@ function SessionChatInner(props: SessionChatProps) {
         pendingScheduleRef,
         pendingSendIntentRef,
     })
+    const isLatestCompletedBoundary = useCallback((messageId: string) => {
+        if (!latestCompletedBoundaryId) return false
+        const extras = runtime.thread.getState().extras as HappyRuntimeExtras | undefined
+        return (extras?.resolveRowId(latestCompletedBoundaryId) ?? latestCompletedBoundaryId)
+            === (extras?.resolveRowId(messageId) ?? messageId)
+    }, [runtime, latestCompletedBoundaryId])
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -2031,6 +2060,7 @@ function SessionChatInner(props: SessionChatProps) {
                         isLoadingMoreMessages={props.isLoadingMoreMessages}
                         onLoadMore={props.onLoadMore}
                         onLoadNewer={props.onLoadNewer}
+                        onHydrateHistoryRow={hydrateHistoryRow}
                         onPrefetchHistory={props.onPrefetchHistory}
                         onCancelLoadMore={props.onCancelLoadMore}
                         unseenCount={unseenCount}

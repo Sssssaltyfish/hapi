@@ -1,0 +1,437 @@
+import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Ref, type RefObject } from 'react'
+import { ThreadPrimitive, unstable_useThreadMessageIds } from '@assistant-ui/react'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
+import { captureConversationScrollAnchor, restoreConversationScrollAnchor, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
+
+export type VirtualThreadHandle = {
+    scrollToEnd: (behavior?: ScrollBehavior) => void
+    ensureRow: (alias: string, isCurrent?: () => boolean) => Promise<boolean>
+    materializeTurn: (alias: string) => Promise<() => void>
+    /** DOM materialization must precede native select-all. Released on selection collapse. */
+    materializeSelection: () => Promise<void>
+    prepareHistoryEdge: (direction: 'older' | 'newer') => Promise<boolean>
+    hydrateLocator: (locator: TimelineHistoryLocator) => Promise<boolean>
+    captureHistoryContentAnchor: () => void
+}
+
+type Props = {
+    ref: Ref<VirtualThreadHandle>
+    viewport: RefObject<HTMLDivElement | null>
+    rows?: readonly TimelineRow[]
+    resolveRowId?: (alias: string) => string | null
+    pinTimelineRows?: (ids: readonly string[]) => void
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
+    components: ComponentProps<typeof ThreadPrimitive.Unstable_MessageById>['components']
+    followLatest: RefObject<boolean>
+}
+
+const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+
+export function getTurnRowRange(rows: readonly Pick<TimelineRow, 'role'>[], index: number): [number, number] {
+    let start = Math.max(0, index)
+    while (start > 0 && rows[start]?.role !== 'user') start -= 1
+    let end = Math.max(start, index)
+    while (end + 1 < rows.length && rows[end + 1]?.role !== 'user') end += 1
+    return [start, end]
+}
+
+/** The row registry owns identity; the virtualizer owns all list geometry. */
+export function VirtualThreadMessages(props: Props) {
+    const messageIds = unstable_useThreadMessageIds()
+    const residentIds = useMemo(() => new Set(messageIds), [messageIds])
+    const fallbackRows = useMemo<readonly TimelineRow[]>(() => messageIds.map(id => ({ id, role: 'assistant', sourceIds: [id], createdAt: 0, resident: true, current: true })), [messageIds])
+    const rows = props.rows ?? fallbackRows
+    const containerRef = useRef<HTMLDivElement>(null)
+    const lastConnectedViewport = useRef<HTMLDivElement | null>(null)
+    const getScrollElement = useCallback(() => {
+        const viewport = props.viewport.current
+        if (viewport?.isConnected) lastConnectedViewport.current = viewport
+        // Compound parent refs can detach and reattach around child layout
+        // effects without removing their DOM node. Resetting the virtualizer
+        // during that interval drops its keyed prepend anchor.
+        return lastConnectedViewport.current?.isConnected ? lastConnectedViewport.current : null
+    }, [props.viewport])
+    const connectedViewport = getScrollElement()
+    const measurements = useRef(new Map<string, number>())
+    const hydrating = useRef(new Map<string, Promise<boolean>>())
+    const hydrationTail = useRef<Promise<void>>(Promise.resolve())
+    const hydrationCooldown = useRef(new Map<string, number>())
+    const [hydrationRetry, setHydrationRetry] = useState({ key: '', attempt: 0 })
+    const [scrollMargin, setScrollMargin] = useState(0)
+    // The viewport ref belongs to our parent, whose ref is attached after this
+    // child's first layout pass. Enable observation on the following commit.
+    const [mounted, setMounted] = useState(false)
+    useLayoutEffect(() => { setMounted(true) }, [])
+    const [pinned, setPinned] = useState<readonly string[]>([])
+    const [selectionRows, setSelectionRows] = useState<readonly string[]>([])
+    const allSelected = useRef(false)
+    const semanticAnchor = useRef<{
+        anchor: ConversationScrollAnchor
+        rowId: string
+        sources: Set<string>
+        generation: number
+        observer?: ResizeObserver
+        mutations?: MutationObserver
+        settleTimer?: ReturnType<typeof setTimeout>
+        deadlineTimer?: ReturnType<typeof setTimeout>
+    } | null>(null)
+    const semanticGeneration = useRef(0)
+    const navigationGeneration = useRef(0)
+    const current = useRef({ rows, props })
+    current.current = { rows, props }
+    const committed = useRef({ rows, revision: 0 })
+    useLayoutEffect(() => { committed.current = { rows, revision: committed.current.revision + 1 } })
+
+    const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => {
+        const indices = new Set(defaultRangeExtractor(range))
+        const retained = new Set([...pinned, ...selectionRows])
+        rows.forEach((row, index) => { if (retained.has(row.id)) indices.add(index) })
+        return [...indices].sort((a, b) => a - b)
+    }, [pinned, selectionRows, rows])
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        enabled: mounted,
+        getScrollElement,
+        estimateSize: index => measurements.current.get(rows[index]!.id) ?? 180,
+        getItemKey: index => rows[index]!.id,
+        overscan: 6,
+        scrollMargin,
+        anchorTo: 'end',
+        followOnAppend: props.followLatest.current,
+        scrollEndThreshold: 1,
+        rangeExtractor,
+        measureElement: (element, entry) => {
+            const height = entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height
+            const id = element.getAttribute('data-hapi-virtual-row')
+            if (id && height > 0) measurements.current.set(id, height)
+            return height
+        },
+    })
+    useLayoutEffect(() => {
+        if (mounted && props.followLatest.current) virtualizer.scrollToEnd()
+    }, [mounted, props.followLatest, virtualizer])
+    const currentRow = useCallback((alias: string) => {
+        const { rows, props } = current.current
+        const sourceAlias = alias.startsWith('tool:') ? `tool-call:${alias.slice('tool:'.length)}` : alias
+        const id = props.resolveRowId?.(alias) ?? props.resolveRowId?.(sourceAlias) ?? sourceAlias
+        return rows.find(row => row.id === id || row.sourceIds.includes(sourceAlias))
+    }, [])
+    const clearSemanticAnchor = useCallback(() => {
+        const pending = semanticAnchor.current
+        pending?.observer?.disconnect()
+        pending?.mutations?.disconnect()
+        clearTimeout(pending?.settleTimer)
+        clearTimeout(pending?.deadlineTimer)
+        semanticAnchor.current = null
+    }, [])
+    const refineSemanticAnchor = useCallback(() => {
+        const pending = semanticAnchor.current
+        if (!pending || semanticGeneration.current !== pending.generation) return
+        const row = currentRow(pending.rowId)
+        // Whole-row prepends belong to TanStack. Only a historical source
+        // extension inside this retained response needs content refinement.
+        if (!row || !row.sourceIds.some(source => !pending.sources.has(source))) return
+        const viewport = getScrollElement()
+        if (!viewport) return
+        virtualizer.cancelScroll()
+        const restored = restoreConversationScrollAnchor(viewport, pending.anchor)
+        // AUI can commit content after its row descriptor. Keep watching the
+        // affected row until its geometry settles, with a separate hard bound.
+        clearTimeout(pending.settleTimer)
+        if (restored) pending.settleTimer = setTimeout(() => {
+            if (semanticAnchor.current === pending) clearSemanticAnchor()
+        }, 250)
+    }, [currentRow, getScrollElement, virtualizer, clearSemanticAnchor])
+    const captureHistoryContentAnchor = useCallback(() => {
+        const viewport = getScrollElement()
+        if (!viewport || current.current.props.followLatest.current) return
+        const anchor = captureConversationScrollAnchor(viewport)
+        if (!anchor || anchor.kind !== 'content') return
+        const row = currentRow(anchor.id)
+        if (!row) return
+        clearSemanticAnchor()
+        const pending: NonNullable<typeof semanticAnchor.current> = { anchor, rowId: row.id, sources: new Set(row.sourceIds), generation: ++semanticGeneration.current }
+        semanticAnchor.current = pending
+        const element = [...(containerRef.current?.querySelectorAll<HTMLElement>('[data-hapi-virtual-row]') ?? [])].find(element => element.dataset.hapiVirtualRow === row.id)
+        if (element && typeof ResizeObserver !== 'undefined') {
+            pending.observer = new ResizeObserver(refineSemanticAnchor)
+            pending.observer.observe(element)
+        }
+        if (element && typeof MutationObserver !== 'undefined') {
+            // AUI leaf commits can occur after this list's layout effect. Read
+            // their actual geometry in the commit microtask, before the next
+            // animation frame; ResizeObserver also covers later layout growth.
+            pending.mutations = new MutationObserver(refineSemanticAnchor)
+            pending.mutations.observe(element, { childList: true, characterData: true, subtree: true })
+        }
+        pending.deadlineTimer = setTimeout(() => { if (semanticAnchor.current === pending) clearSemanticAnchor() }, 5000)
+    }, [currentRow, getScrollElement, clearSemanticAnchor, refineSemanticAnchor])
+    const demand = useCallback((row: TimelineRow, requireSource = false): Promise<boolean> => {
+        const latest = currentRow(row.id) ?? row
+        if (requireSource ? latest.current : latest.resident) return Promise.resolve(true)
+        if (!latest.locator || !current.current.props.onHydrateHistoryRow) return Promise.resolve(false)
+        const key = `${requireSource ? 'source:' : ''}${latest.id}:${JSON.stringify(latest.locator)}`
+        const pending = hydrating.current.get(key)
+        if (pending) return pending
+        if ((hydrationCooldown.current.get(key) ?? 0) > Date.now()) return Promise.resolve(false)
+        // Native seeks replace the source window. All demand paths share one
+        // queue so outline, selection and range fetches cannot cancel each other.
+        const request = hydrationTail.current.then(async () => {
+            const source = currentRow(latest.id)
+            if (!source || (requireSource ? source.current : source.resident)) return true
+            const hydrate = current.current.props.onHydrateHistoryRow
+            if (!source.locator || !hydrate) return false
+            try {
+                captureHistoryContentAnchor()
+                const loaded = await hydrate(source.locator)
+                if (!loaded) hydrationCooldown.current.set(key, Date.now() + 1000)
+                return loaded
+            } catch {
+                hydrationCooldown.current.set(key, Date.now() + 1000)
+                return false
+            }
+        }).finally(() => hydrating.current.delete(key))
+        hydrationTail.current = request.then(() => {})
+        hydrating.current.set(key, request)
+        return request
+    }, [currentRow, captureHistoryContentAnchor])
+    const findIndex = useCallback((alias: string) => {
+        const { rows, props } = current.current
+        alias = alias.startsWith('hapi-message-') ? alias.slice('hapi-message-'.length) : alias
+        const sourceAlias = alias.startsWith('tool:') ? `tool-call:${alias.slice('tool:'.length)}` : alias
+        const id = props.resolveRowId?.(alias) ?? props.resolveRowId?.(sourceAlias) ?? sourceAlias
+        return rows.findIndex(row => row.id === id || row.sourceIds.includes(sourceAlias))
+    }, [])
+
+    const hydrateRowFully = useCallback(async (alias: string, isCurrent: () => boolean = () => true) => {
+        // A response can span several history pages. Each successful page may
+        // expose a new missing-piece locator; consume it until the row is whole.
+        for (let attempt = 0; attempt < 24 && isCurrent(); attempt++) {
+            const row = currentRow(alias)
+            if (!row) return false
+            if (row.resident) return true
+            const locator = JSON.stringify(row.locator)
+            if (!await demand(row)) return false
+            for (let settle = 0; settle < 12 && isCurrent(); settle++) {
+                await frame()
+                const next = currentRow(alias)
+                if (!next) return false
+                if (next.resident) return true
+                if (JSON.stringify(next.locator) !== locator) break
+                if (settle === 11) return false
+            }
+        }
+        return false
+    }, [currentRow, demand])
+
+    const ensureRow = useCallback(async (alias: string, isCurrent: () => boolean = () => true) => {
+            const generation = ++navigationGeneration.current
+            const canNavigate = () => generation === navigationGeneration.current && isCurrent()
+            const index = findIndex(alias)
+            if (index < 0 || !canNavigate()) return false
+            virtualizer.scrollToIndex(index, { align: 'start' })
+            if (!await hydrateRowFully(current.current.rows[index]!.id, canNavigate)) return false
+            const deadline = Date.now() + 10_000
+            while (canNavigate() && Date.now() < deadline) {
+                const nextIndex = findIndex(alias)
+                if (nextIndex < 0) return false
+                virtualizer.scrollToIndex(nextIndex, { align: 'start' })
+                await frame()
+                if (!canNavigate()) return false
+                if (current.current.rows[nextIndex]?.resident && containerRef.current?.querySelector(`[data-index="${nextIndex}"] [data-hapi-message-role]`)) {
+                    // Index navigation is complete. Its numeric-index command
+                    // must not reconcile against different rows after prepend.
+                    virtualizer.cancelScroll()
+                    return true
+                }
+            }
+            return false
+        }, [hydrateRowFully, findIndex, virtualizer])
+    useImperativeHandle(props.ref, () => ({
+        scrollToEnd: (behavior = 'auto') => {
+            navigationGeneration.current++
+            virtualizer.scrollToEnd({ behavior })
+        },
+        captureHistoryContentAnchor,
+        hydrateLocator: locator => {
+            const request = hydrationTail.current.then(async () => {
+                try { return await current.current.props.onHydrateHistoryRow?.(locator) ?? false } catch { return false }
+            })
+            hydrationTail.current = request.then(() => {}, () => {})
+            return request
+        },
+        prepareHistoryEdge: async direction => {
+            const rows = current.current.rows
+            const locatable = rows.filter(row => row.locator)
+            const row = direction === 'newer' ? locatable.at(-1) : locatable[0]
+            if (!row || row.current) return true
+            const revision = committed.current.revision
+            if (!await demand(row, true)) return false
+            const deadline = Date.now() + 5000
+            while (Date.now() < deadline) {
+                await frame()
+                const id = current.current.props.resolveRowId?.(row.id) ?? row.id
+                if (committed.current.revision > revision && committed.current.rows.some(candidate => candidate.id === id && candidate.current)) {
+                    await frame()
+                    return true
+                }
+            }
+            return false
+        },
+        ensureRow,
+        materializeTurn: async alias => {
+            const index = findIndex(alias)
+            if (index < 0) return () => {}
+            const [start, end] = getTurnRowRange(current.current.rows, index)
+            const turnRows = current.current.rows.slice(start, end + 1)
+            setPinned(turnRows.map(row => row.id))
+            // Sequential hydration preserves the existing bounded fetch controller.
+            try {
+                for (const row of turnRows) {
+                    if (!await hydrateRowFully(row.id)) throw new Error('Unable to load the complete conversation turn')
+                }
+                await frame()
+                await frame()
+            } catch (error) {
+                setPinned([])
+                throw error
+            }
+            return () => setPinned([])
+        },
+        materializeSelection: async () => {
+            allSelected.current = true
+            setPinned(current.current.rows.filter(row => row.resident).map(row => row.id))
+            await frame()
+            await frame()
+        },
+    }), [demand, hydrateRowFully, findIndex, virtualizer, ensureRow, captureHistoryContentAnchor])
+
+    useLayoutEffect(() => { refineSemanticAnchor() }, [rows, refineSemanticAnchor])
+    useEffect(() => clearSemanticAnchor, [clearSemanticAnchor])
+
+    useLayoutEffect(() => {
+        const container = containerRef.current
+        const viewport = getScrollElement()
+        if (!container || !viewport) return
+        let width = container.getBoundingClientRect().width
+        const update = () => {
+            setScrollMargin(container.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop)
+            const nextWidth = container.getBoundingClientRect().width
+            if (Math.abs(width - nextWidth) > 1) {
+                width = nextWidth
+                measurements.current.clear()
+                virtualizer.measure()
+            }
+        }
+        update()
+        const observer = new ResizeObserver(update)
+        observer.observe(container)
+        return () => observer.disconnect()
+    }, [connectedViewport, virtualizer, mounted])
+
+    useEffect(() => {
+        const onSelection = () => {
+            const selection = window.getSelection()
+            if (!selection || selection.isCollapsed) {
+                setSelectionRows(previous => previous.length ? [] : previous)
+                if (allSelected.current) { allSelected.current = false; setPinned([]) }
+                return
+            }
+            const rowIndex = (node: Node | null) => {
+                const element = node instanceof Element ? node : node?.parentElement
+                const row = element?.closest<HTMLElement>('[data-hapi-virtual-row]')
+                return row && containerRef.current?.contains(row) ? Number(row.dataset.index) : null
+            }
+            const anchor = rowIndex(selection.anchorNode)
+            const focus = rowIndex(selection.focusNode)
+            if (anchor !== null && focus !== null) {
+                const selected = current.current.rows.slice(Math.min(anchor, focus), Math.max(anchor, focus) + 1).map(row => row.id)
+                setSelectionRows(previous => previous.length === selected.length && previous.every((id, index) => id === selected[index]) ? previous : selected)
+            }
+        }
+        document.addEventListener('selectionchange', onSelection)
+        const viewport = props.viewport.current
+        const selectAll = (event: Event) => {
+            const callback = (event as CustomEvent<() => void>).detail
+            void (async () => {
+                allSelected.current = true
+                setPinned(current.current.rows.filter(row => row.resident).map(row => row.id))
+                await frame(); await frame()
+                callback?.()
+            })()
+        }
+        viewport?.addEventListener('hapi:materialize-selection', selectAll)
+        const reveal = (event: Event) => {
+            const detail = (event as CustomEvent<{ alias: string; complete: (found: boolean) => void }>).detail
+            if (detail?.alias) void ensureRow(detail.alias).then(detail.complete, () => detail.complete(false))
+        }
+        viewport?.addEventListener('hapi:ensure-row', reveal)
+        const interrupt = (event: Event) => {
+            if (event instanceof KeyboardEvent && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return
+            virtualizer.cancelScroll()
+            navigationGeneration.current++
+            semanticGeneration.current++
+            clearSemanticAnchor()
+        }
+        viewport?.addEventListener('wheel', interrupt, { passive: true })
+        viewport?.addEventListener('touchstart', interrupt, { passive: true })
+        viewport?.addEventListener('pointerdown', interrupt, { passive: true })
+        viewport?.addEventListener('keydown', interrupt)
+        return () => {
+            document.removeEventListener('selectionchange', onSelection)
+            viewport?.removeEventListener('hapi:materialize-selection', selectAll)
+            viewport?.removeEventListener('hapi:ensure-row', reveal)
+            viewport?.removeEventListener('wheel', interrupt)
+            viewport?.removeEventListener('touchstart', interrupt)
+            viewport?.removeEventListener('pointerdown', interrupt)
+            viewport?.removeEventListener('keydown', interrupt)
+        }
+    }, [demand, props.viewport, ensureRow, virtualizer, clearSemanticAnchor])
+
+    const items = virtualizer.getVirtualItems()
+    // Payload requests follow the virtual range, including retained empty rows.
+    // Physical scroll edges only discover history not yet present in the index.
+    useEffect(() => {
+        props.pinTimelineRows?.(items.map(item => rows[item.index]!.id))
+        const center = ((virtualizer.range?.startIndex ?? 0) + (virtualizer.range?.endIndex ?? 0)) / 2
+        const missing = [...items].sort((a, b) => Math.abs(a.index - center) - Math.abs(b.index - center))
+            .map(item => rows[item.index]!).filter(row => !row.resident)
+        const retryKey = missing.map(row => `${row.id}:${JSON.stringify(row.locator)}`).join('|')
+        const retryAttempt = hydrationRetry.key === retryKey ? hydrationRetry.attempt : 0
+        let cancelled = false
+        let retryTimer: ReturnType<typeof setTimeout> | undefined
+        void (async () => {
+            for (const row of missing) {
+                if (cancelled) return
+                if (!await hydrateRowFully(row.id, () => !cancelled)) {
+                    if (!cancelled && retryAttempt < 3) retryTimer = setTimeout(() => setHydrationRetry({ key: retryKey, attempt: retryAttempt + 1 }), 1000 * (retryAttempt + 1))
+                    break
+                }
+            }
+        })()
+        return () => { cancelled = true; clearTimeout(retryTimer); props.pinTimelineRows?.([]) }
+    }, [items, rows, hydrateRowFully, props.pinTimelineRows, hydrationRetry])
+
+    // Normal-flow spacers preserve native text selection across adjacent rows.
+    // Non-contiguous pinned rows each receive their own exact geometry gap.
+    let previousEnd = scrollMargin
+    return <div ref={containerRef} className="happy-thread-messages" data-hapi-virtualized="true" data-hapi-logical-row-count={rows.length}>
+        {items.map(item => {
+            const row = rows[item.index]!
+            const gap = Math.max(0, item.start - previousEnd)
+            previousEnd = item.end
+            const resident = row.resident && residentIds.has(row.id)
+            return <div key={row.id} style={{ display: 'contents' }}>
+                {gap > 0 ? <div aria-hidden="true" data-hapi-virtual-spacer="true" style={{ height: gap }} /> : null}
+                <div data-index={item.index} data-hapi-virtual-row={row.id}
+                    data-hapi-row-resident={resident ? 'true' : 'false'} data-hapi-row-size={item.size}
+                    ref={resident ? virtualizer.measureElement : undefined}
+                    style={resident ? { paddingBottom: 12, overflowAnchor: 'none' } : { height: item.size, overflowAnchor: 'none' }}>
+                    {resident ? <ThreadPrimitive.Unstable_MessageById messageId={row.id} components={props.components} /> : <div aria-hidden="true" className="h-full min-h-1 animate-pulse rounded-md bg-[var(--app-subtle-bg)]/30" />}
+                </div>
+            </div>
+        })}
+        <div aria-hidden="true" data-hapi-virtual-spacer="true" style={{ height: Math.max(0, virtualizer.getTotalSize() - (previousEnd - scrollMargin)) }} />
+    </div>
+}

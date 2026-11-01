@@ -18,6 +18,14 @@ import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session }
 import { orderItemsById } from '@/lib/attachmentOrder'
 import { splitResponseAnnotations, type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
+import {
+    StableChatTimeline,
+    convertTimelineProjection,
+    type TimelineHistoryLocator,
+    type TimelineRow,
+    type TimelineRowSnapshot,
+    type MaterializedTimelineRow,
+} from '@/lib/stable-chat-timeline'
 
 /**
  * Aggregated metadata for a multi-turn response group, surfaced on the
@@ -62,6 +70,10 @@ export type HappyChatMessageMetadata = {
 export type HappyRuntimeExtras = Readonly<{
     messagesVersion: number
     historyVersion: number
+    timelineRows: readonly TimelineRow[]
+    resolveRowId: (alias: string) => string | null
+    getRowSnapshot: (alias: string) => TimelineRowSnapshot | null
+    pinTimelineRows: (ids: readonly string[]) => void
 }>
 
 function formatCodexReviewText(review: CodexReview): string {
@@ -441,10 +453,95 @@ export function getResponseAnnotationTargets(blocks: readonly VisibleChatBlock[]
 }
 
 export function getMessagePartScrollAnchors(part: ThreadMessage['content'][number]): string[] {
+    const explicit = (part as typeof part & { happySourceIds?: string[] }).happySourceIds
+    if (explicit?.length) return explicit
     // Part sources retain individual converted outputs even when the SDK
     // joins their outer message or merges reasoning with the same parent.
     return getExternalStoreMessages<ThreadMessageLike>(part).flatMap(source => {
         return typeof source.id === 'string' ? [source.id] : []
+    })
+}
+
+export function getTimelineBlockSourceIds(block: VisibleChatBlock): string[] {
+    const aliases = [`${block.kind}:${block.id}`, block.id]
+    if (block.kind === 'tool-group') {
+        for (const tool of block.tools) aliases.push(`tool-call:${tool.id}`, tool.id)
+    }
+    if (block.kind === 'user-text' && block.localId) aliases.push(`user:local:${block.localId}`)
+    return aliases
+}
+
+/** Build only the bounded materialized neighborhood, never the logical index. */
+export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[], toolGroupsCollapsed?: boolean): MaterializedTimelineRow[] {
+    const aggregates = aggregateResponseGroups(blocks)
+    const timestamps = getResponseGroupTimestamps(blocks)
+    const targets = getResponseAnnotationTargets(blocks)
+    const annotations = getResponseAnnotations(blocks)
+    const groups: VisibleChatBlock[][] = []
+    for (const block of blocks) {
+        const previous = groups.at(-1)
+        if (visibleBlockRole(block) === 'assistant' && previous && visibleBlockRole(previous[0]) === 'assistant') previous.push(block)
+        else groups.push([block])
+    }
+    return groups.map(group => {
+        const first = group[0]
+        const role = visibleBlockRole(first)
+        const timestamp = timestamps.get(first) ?? getBlockPresentationTimestamp(first)
+        const aggregate = aggregates.get(first.id)
+        const annotationTargets = targets.get(first)
+        const responseAnnotations = annotations.get(first)
+        const derived = {
+            ...(aggregate ?? {}),
+            ...(annotationTargets?.length ? { responseAnnotationTargets: annotationTargets } : {}),
+            ...(responseAnnotations?.length ? { responseAnnotations } : {}),
+        }
+        return {
+            role,
+            blocks: group,
+            sourceIds: group.flatMap(getTimelineBlockSourceIds),
+            createdAt: Math.min(...group.map(block => block.createdAt)),
+            metadataKey: JSON.stringify([timestamp, derived, toolGroupsCollapsed]),
+            toolGroupsCollapsed,
+            transient: first.kind === 'user-text' && first.status !== undefined && first.status !== 'sent',
+            project(id, materialized, previous) {
+                const materializedTimestamp = role === 'assistant'
+                    ? Math.max(...materialized.map(getBlockPresentationTimestamp))
+                    : timestamp
+                const completeAggregate = aggregateResponseGroups(materialized).get(materialized[0].id) ?? aggregate
+                const completeTargets = getResponseAnnotationTargets(materialized).get(materialized[0])
+                const completeDerived = {
+                    ...(completeAggregate ?? {}),
+                    ...(completeTargets?.length ? { responseAnnotationTargets: completeTargets } : {}),
+                    ...(responseAnnotations?.length ? { responseAnnotations } : {}),
+                }
+                const outputs = materialized.map(block => toThreadMessageLike(block, `${block.kind}:${block.id}`, materializedTimestamp))
+                const initial = outputs[0]
+                const content = outputs.flatMap((output, index) => {
+                    const parts = typeof output.content === 'string' ? [{ type: 'text' as const, text: output.content }] : output.content ?? []
+                    const sourceId = `${materialized[index].kind}:${materialized[index].id}`
+                    return parts.map(part => ({
+                        ...part,
+                        // Prevent the SDK from coalescing reasoning from distinct
+                        // sources and discarding its precise content anchor.
+                        ...(part.type === 'reasoning' ? { parentId: sourceId } : {}),
+                        happySourceIds: [sourceId],
+                    }))
+                })
+                return {
+                    ...initial,
+                    id,
+                    content,
+                    metadata: {
+                        ...initial.metadata,
+                        custom: {
+                            ...previous?.metadata?.custom,
+                            ...initial.metadata?.custom,
+                            ...completeDerived,
+                        },
+                    },
+                } as ThreadMessageLike
+            },
+        }
     })
 }
 
@@ -809,6 +906,9 @@ export function useHappyRuntime(props: {
     blocks: readonly VisibleChatBlock[]
     messagesVersion: number
     historyVersion: number
+    historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
+    cacheResetRevision?: string | number
+    toolGroupsCollapsed?: boolean
     viewMode?: 'tail' | 'history'
     isSyncingTail?: boolean
     isLoadingMore?: boolean
@@ -929,74 +1029,22 @@ export function useHappyRuntime(props: {
         )
     const isRunningForMessages = isRunning && !waitingForAssistantOutput
 
-    // Compute response-group aggregates once per block list so we can
-    // inject the summed metadata onto each group's first visible block.
-    // The library's `joinExternalMessages` only preserves
-    // `metadata.custom` from the first block of a joined chunk, so this
-    // is the surface that survives the join.
-    const threadIdWrapperCacheRef = useRef(
-        new WeakMap<VisibleChatBlock, BlockWithThreadMessageId>()
-    )
-    const blocksWithThreadIds = useMemo(
-        () => assignThreadMessageIdsWithStableWrappers(
-            props.blocks,
-            threadIdWrapperCacheRef.current
-        ),
-        [props.blocks]
-    )
-
-    const aggregates = useMemo(
-        () => aggregateResponseGroups(props.blocks),
-        [props.blocks]
-    )
-    const responseGroupTimestamps = useMemo(
-        () => getResponseGroupTimestamps(props.blocks),
-        [props.blocks]
-    )
-    const responseAnnotationTargets = useMemo(() => getResponseAnnotationTargets(props.blocks), [props.blocks])
-    const responseAnnotations = useMemo(() => getResponseAnnotations(props.blocks), [props.blocks])
-
-    const convertBlock = useCallback(
-        ({ block, threadMessageId }: BlockWithThreadMessageId): ThreadMessageLike => {
-            const message = toThreadMessageLike(
-                block,
-                threadMessageId,
-                responseGroupTimestamps.get(block) ?? getBlockPresentationTimestamp(block)
-            )
-            const aggregate = aggregates.get(block.id)
-            const annotationTargets = responseAnnotationTargets.get(block)
-            const annotations = responseAnnotations.get(block)
-            if (!aggregate && !annotationTargets?.length && !annotations?.length) return message
-            const existing = message.metadata?.custom as HappyChatMessageMetadata | undefined
-            return {
-                ...message,
-                metadata: {
-                    ...message.metadata,
-                    custom: {
-                        ...(existing ?? { kind: 'assistant' }),
-                        ...(aggregate ? {
-                            usage: aggregate.usage,
-                            model: aggregate.model,
-                            invokedAt: aggregate.invokedAt,
-                            durationMs: aggregate.durationMs,
-                            turnCount: aggregate.turnCount,
-                            roundSummary: aggregate.roundSummary
-                        } : {}),
-                        ...(annotationTargets?.length ? { responseAnnotationTargets: annotationTargets } : {}),
-                        ...(annotations?.length ? { responseAnnotations: annotations } : {}),
-                    } satisfies HappyChatMessageMetadata
-                }
-            }
-        },
-        [aggregates, responseGroupTimestamps, responseAnnotationTargets, responseAnnotations]
-    )
-
-    // Use cached message converter for performance optimization
-    // This prevents re-converting all messages on every render
-    const convertedMessages = useExternalMessageConverter<BlockWithThreadMessageId>({
-        callback: convertBlock,
-        messages: blocksWithThreadIds,
+    const timelineRef = useRef<{ sessionId: string; revision: string | number | undefined; timeline: StableChatTimeline } | null>(null)
+    if (!timelineRef.current || timelineRef.current.sessionId !== props.session.id || timelineRef.current.revision !== props.cacheResetRevision) {
+        timelineRef.current = { sessionId: props.session.id, revision: props.cacheResetRevision, timeline: new StableChatTimeline() }
+    }
+    const timeline = timelineRef.current.timeline
+    const projections = useMemo(() => timeline.update(
+        buildMaterializedTimelineRows(props.blocks, props.toolGroupsCollapsed),
+        props.historyLocators,
+        props.toolGroupsCollapsed,
+    ), [timeline, props.blocks, props.historyLocators, props.toolGroupsCollapsed])
+    const timelineRows = timeline.getRows()
+    const convertedMessages = useExternalMessageConverter({
+        callback: convertTimelineProjection,
+        messages: projections,
         isRunning: isRunningForMessages,
+        joinStrategy: 'none',
     })
 
     const onNew = useCallback(async (message: AppendMessage) => {
@@ -1029,8 +1077,12 @@ export function useHappyRuntime(props: {
 
     const extras = useMemo<HappyRuntimeExtras>(() => ({
         messagesVersion: props.messagesVersion,
-        historyVersion: props.historyVersion
-    }), [props.messagesVersion, props.historyVersion])
+        historyVersion: props.historyVersion,
+        timelineRows,
+        resolveRowId: timeline.resolveRowId,
+        getRowSnapshot: timeline.getRowSnapshot,
+        pinTimelineRows: timeline.pinTimelineRows,
+    }), [props.messagesVersion, props.historyVersion, timelineRows, timeline])
 
     // Memoize the adapter to avoid recreating on every render
     // useExternalStoreRuntime may use adapter identity for subscriptions

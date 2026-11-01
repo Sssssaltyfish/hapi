@@ -13,12 +13,20 @@ vi.mock('@/components/AgentTerminal/AgentTerminalView', () => ({ AgentTerminalVi
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     if (originalScrollTo) Object.defineProperty(HTMLElement.prototype, 'scrollTo', originalScrollTo)
     else Reflect.deleteProperty(HTMLElement.prototype, 'scrollTo')
 })
 
 it('renders native content after the native model catalogue reaches the existing chat controls', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    // jsdom has no layout. Give the real virtualizer a visible viewport so this
+    // integration test exercises message rendering alongside native controls.
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(390)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 390, 600))
     HTMLElement.prototype.scrollTo = vi.fn()
     const session = SessionSchema.parse({ id: 'codex-native:test:native-thread', namespace: 'test', seq: 0, createdAt: 1000, updatedAt: 2000,
         active: true, activeAt: 2000, metadataVersion: 1, agentStateVersion: 1, thinking: false, thinkingAt: 0, agentState: {},

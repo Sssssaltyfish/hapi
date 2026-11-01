@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import type { PropsWithChildren } from 'react'
+import { useImperativeHandle, type PropsWithChildren, type Ref, type RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/lib/i18n-context'
 
@@ -25,6 +25,32 @@ vi.mock('@assistant-ui/react', async (importOriginal) => {
             Viewport: ({ children }: PropsWithChildren) => children,
             Messages: () => null
         }
+    }
+})
+
+// These tests isolate input intent and fetch/navigation coordination. The real
+// measured adapter and payload geometry are covered in VirtualThreadMessages.test.
+vi.mock('@/components/AssistantChat/VirtualThreadMessages', async importOriginal => {
+    const actual = await importOriginal<typeof import('@/components/AssistantChat/VirtualThreadMessages')>()
+    return {
+        ...actual,
+        VirtualThreadMessages: (props: { ref: Ref<import('@/components/AssistantChat/VirtualThreadMessages').VirtualThreadHandle>; viewport: RefObject<HTMLDivElement | null> }) => {
+            useImperativeHandle(props.ref, () => ({
+                scrollToEnd: (behavior = 'auto') => {
+                    const viewport = props.viewport.current
+                    const content = viewport?.querySelector<HTMLElement>('.chat-scroll-content')
+                    if (behavior === 'smooth' && content?.scrollIntoView) content.scrollIntoView({ block: 'end', behavior })
+                    else viewport?.scrollTo({ top: viewport.scrollHeight, behavior })
+                },
+                ensureRow: async () => false,
+                materializeTurn: async () => () => {},
+                materializeSelection: async () => {},
+                prepareHistoryEdge: async () => true,
+                hydrateLocator: async () => false,
+                captureHistoryContentAnchor: () => {},
+            }))
+            return <div className="happy-thread-messages" />
+        },
     }
 })
 
@@ -186,7 +212,7 @@ describe('mobile initial scroll settling', () => {
         expect(loadMore).toHaveBeenCalledTimes(1)
     })
 
-    it.each(['older', 'newer'] as const)('continues %s edge coverage while touch is held and preserves the tool through regrouping', async (direction) => {
+    it.each(['older', 'newer'] as const)('continues %s edge coverage while touch is held without applying a second geometry correction', async (direction) => {
         let height = 1232
         let position = direction === 'older' ? 150 : 702
         let version = 0
@@ -195,7 +221,8 @@ describe('mobile initial scroll settling', () => {
         const load = vi.fn(async (beforeApply?: (version: number) => boolean): Promise<OlderLoadOutcome> => {
             version += 1
             expect(beforeApply?.(version)).toBe(true)
-            position += direction === 'older' ? 80 : -80
+            // The measured list retains this row's position. Source payload
+            // replacement must not trigger another scroll adjustment here.
             height += direction === 'older' ? 80 : 0
             replace()
             publish(version + 1)
@@ -253,7 +280,7 @@ describe('mobile initial scroll settling', () => {
         expect(viewport.scrollTop).toBe(3600)
     })
 
-    it('loads forward on a downward edge gesture and restores the visible anchor after head eviction', async () => {
+    it('loads forward on a downward edge gesture while retained head geometry stays intact', async () => {
         let position = 800
         let scrollHeight = 1232
         let apply!: () => void
@@ -261,7 +288,7 @@ describe('mobile initial scroll settling', () => {
         const loadNewer = vi.fn((beforeApply?: (version: number) => boolean) => new Promise<OlderLoadOutcome>(resolve => {
             apply = () => {
                 expect(beforeApply?.(1)).toBe(true)
-                position = 400
+                // Payload eviction leaves a measured placeholder at the head.
                 scrollHeight = 1432
                 publish()
                 resolve({ kind: 'applied', historyVersion: 1, hasMore: true, addedRenderableCount: 5 })
@@ -280,11 +307,11 @@ describe('mobile initial scroll settling', () => {
         viewport.scrollTop = 702
         fireEvent.scroll(viewport)
         const before = anchor.getBoundingClientRect().top
-        fireEvent.wheel(viewport, { deltaY: 200 })
+        await act(async () => { fireEvent.wheel(viewport, { deltaY: 200 }) })
         expect(loadNewer).toHaveBeenCalledTimes(1)
         await act(async () => { apply() })
         expect(anchor.getBoundingClientRect().top).toBe(before)
-        expect(viewport.scrollTop).toBe(302)
+        expect(viewport.scrollTop).toBe(702)
     })
 
     it('keeps navigation loading through delayed DOM mounting and reveals a page-end prompt after the composer returns', async () => {
@@ -334,7 +361,7 @@ describe('mobile initial scroll settling', () => {
         expect(onViewModeChange).not.toHaveBeenCalledWith('history')
     })
 
-    it('restores a reading anchor after returning from a preview without settling back to the bottom', () => {
+    it('restores a reading anchor after returning from a preview without settling back to the bottom', async () => {
         saveConversationReadingPosition('mobile-scroll-session', {
             anchor: { id: 'restored-message', topOffset: 20 }, scrollTop: 300, atBottom: false,
         })
@@ -345,7 +372,7 @@ describe('mobile initial scroll settling', () => {
         vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530 } as DOMRect)
         vi.spyOn(message, 'getBoundingClientRect').mockImplementation(() => ({ top: 450 - viewport.scrollTop, bottom: 510 - viewport.scrollTop } as DOMRect))
         rerenderMessages(2)
-        act(() => { vi.advanceTimersByTime(2000) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
         expect(viewport.scrollTop).toBe(430)
         expect(onViewModeChange).toHaveBeenCalledWith('history')
         expect(container.querySelector('button[aria-label="Scroll to bottom"]')).not.toBeNull()

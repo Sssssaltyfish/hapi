@@ -9,6 +9,7 @@ import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
 import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
+import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
 
 export type MessageViewMode = 'tail' | 'history'
 
@@ -1027,6 +1028,52 @@ export function activateMessageWindow(sessionId: string): void {
         if (controller?.running) {
             controller.trailingRequested = true
         }
+    }
+}
+
+/** Rehydrate a known virtual row without discarding its logical scroll extent. */
+export async function hydrateMessageWindow(
+    api: ApiClient,
+    sessionId: string,
+    locator: Extract<TimelineHistoryLocator, { kind: 'runner' }>,
+): Promise<boolean> {
+    if (locator.beforeSeq === null) return false
+    const initial = getState(sessionId)
+    if (initial.isLoadingMore || initial.isSyncingTail) return false
+    if (locator.epoch !== undefined && initial.epoch !== locator.epoch) return false
+    const generation = initial.olderGeneration + 1
+    updateState(sessionId, previous => buildState(previous, {
+        olderGeneration: generation,
+        syncGeneration: previous.syncGeneration + 1,
+        isLoadingMore: true,
+    }), true)
+    try {
+        const [older, newer] = await Promise.all([
+            readHistoryPage(api, sessionId, 'older', { at: locator.beforeAt, seq: locator.beforeSeq }, initial.epoch),
+            readHistoryPage(api, sessionId, 'newer', { at: locator.beforeAt, seq: locator.beforeSeq - 1 }, initial.epoch),
+        ])
+        if (getState(sessionId).olderGeneration !== generation) return false
+        if (older.page.reset || newer.page.reset || older.page.epoch !== initial.epoch || newer.page.epoch !== initial.epoch) return false
+        const messages = mergeMessages(older.messages, newer.messages)
+        if (!messages.some(message => message.id === locator.targetMessageId)) return false
+        const newest = derivePosition(messages.filter(message => !isQueuedForInvocation(message)), 'newest')
+        updateState(sessionId, previous => buildState(previous, {
+            messages: mergeMessages(messages, previous.messages.filter(isQueuedForInvocation)),
+            viewMode: 'history',
+            hasMore: older.page.hasMore,
+            oldestPositionAt: older.page.nextBeforeAt,
+            oldestPositionSeq: older.page.nextBeforeSeq,
+            newestPositionAt: newest?.at ?? null,
+            newestPositionSeq: newest?.seq ?? null,
+            requiresLatestReset: true,
+            preferLatestOnActivation: false,
+            historyVersion: previous.historyVersion + 1,
+            warning: null,
+        }), true)
+        return true
+    } finally {
+        updateState(sessionId, previous => previous.olderGeneration === generation
+            ? buildState(previous, { isLoadingMore: false }) : previous, true)
     }
 }
 

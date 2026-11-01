@@ -259,8 +259,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         seekController.current?.abort()
         const controller = new AbortController()
         seekController.current = controller
-        historyPages.current.clear()
-        boundaries.current.clear()
+        // A seek changes the materialized neighborhood, not the history. Keep
+        // completed neighbor pages warm for reverse scrolling. Rollback/latest
+        // resets own invalidation of these transport caches.
         olderRequest.current = null
         olderPreviousBrowsing.current = null
         refreshing.current = null

@@ -1,9 +1,11 @@
 import type { ConversationScrollAnchor } from './conversation-scroll-anchor'
+import type { TimelineHistoryLocator } from './stable-chat-timeline'
 
 export type ConversationReadingPosition = {
     anchor: ConversationScrollAnchor | null
     scrollTop: number
     atBottom: boolean
+    historyLocator?: TimelineHistoryLocator
     savedAt: number
 }
 
