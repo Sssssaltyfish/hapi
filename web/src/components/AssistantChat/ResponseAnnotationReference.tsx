@@ -18,6 +18,7 @@ export function ResponseAnnotationReference({ index, children }: { index: number
     const [failed, setFailed] = useState(false)
     const [open, setOpen] = useState(false)
     const request = useRef<AbortController | null>(null)
+    const navigating = useRef(false)
     useEffect(() => { setResolved(null); setFailed(false); return () => request.current?.abort() }, [partId])
     const load = async () => {
         if (!session || !partId || annotations?.[index - 1] || resolved?.[index - 1]) return
@@ -43,8 +44,17 @@ export function ResponseAnnotationReference({ index, children }: { index: number
         <Popover.Portal>
             <Popover.Content side="top" align="start" sideOffset={6} collisionPadding={12}
                 onOpenAutoFocus={event => event.preventDefault()}
+                onCloseAutoFocus={event => {
+                    // Restoring the old trigger after a history jump makes the
+                    // browser scroll back, overriding the exact range reveal.
+                    if (navigating.current) event.preventDefault()
+                    navigating.current = false
+                }}
                 className="z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-1.5 sm:p-2 text-xs shadow-lg">
-                {annotation ? <ResponseAnnotationCards annotations={[annotation]} onNavigate={() => setOpen(false)} />
+                {annotation ? <ResponseAnnotationCards annotations={[annotation]}
+                    onNavigateStart={() => { navigating.current = true }}
+                    onNavigateError={() => { navigating.current = false }}
+                    onNavigate={() => setOpen(false)} />
                     : <div className="p-2 text-xs text-[var(--app-hint)]" role="status">{loading ? t('loading') : t('message.quoteReferenceUnavailable')}
                         {failed || !loading ? <button type="button" onClick={() => void load()} className="ml-2 text-[var(--app-link)]">{t('button.retry')}</button> : null}
                     </div>}

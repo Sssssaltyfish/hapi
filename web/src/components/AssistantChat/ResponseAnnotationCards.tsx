@@ -36,11 +36,13 @@ function QuoteNotes({ value, label, placeholder, onChange }: {
         onKeyDown={event => event.stopPropagation()} />
 }
 
-export function ResponseAnnotationCards({ annotations, onRemove, onAnnotationChange, onNavigate }: {
+export function ResponseAnnotationCards({ annotations, onRemove, onAnnotationChange, onNavigate, onNavigateStart, onNavigateError }: {
     annotations: readonly ResponseAnnotation[]
     onRemove?: (index: number) => void
     onAnnotationChange?: (index: number, annotation: string) => void
     onNavigate?: () => void
+    onNavigateStart?: () => void
+    onNavigateError?: () => void
 }) {
     const { t } = useTranslation()
     const session = useResponseAnnotationSession()
@@ -53,8 +55,9 @@ export function ResponseAnnotationCards({ annotations, onRemove, onAnnotationCha
         const controller = new AbortController()
         request.current = controller
         setPending(index); setFailed(null)
+        onNavigateStart?.()
         try { await session?.navigate(annotation, controller.signal); if (!controller.signal.aborted) onNavigate?.() }
-        catch { if (!controller.signal.aborted) setFailed(index) }
+        catch { if (!controller.signal.aborted) { setFailed(index); onNavigateError?.() } }
         finally { if (!controller.signal.aborted) setPending(null) }
     }
     if (annotations.length === 0) return null
