@@ -1455,6 +1455,26 @@ describe('history view and older pagination', () => {
         expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['current'])
     })
 
+    it.each(['locate', 'hydrate'] as const)('keeps the current window when a quote intent is cancelled before its %s response arrives', async kind => {
+        const id = sessionId(`quote-cancelled-${kind}-intent`)
+        const currentMessage = makeUserMessage({ id: 'current', seq: 30, invokedAt: 1000 })
+        const response = deferred<MessagesResponse>()
+        const getMessages = vi.fn().mockResolvedValueOnce(beforeResponse([currentMessage], { epoch: 4, hasMore: true, nextBeforeAt: 1000, nextBeforeSeq: 30 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 4000, beforeSeq: 40, epoch: 4 }, 'user-text:current')
+        getMessages.mockImplementation(() => response.promise)
+        let current = true
+        const seek = kind === 'locate'
+            ? seekMessageWindow(api, id, { kind: 'runner', beforeAt: 2000, beforeSeq: 20, epoch: 4 }, 'user-text:indexed', () => current)
+            : hydrateMessageWindow(api, id, { kind: 'runner', beforeAt: 2000, beforeSeq: 20, epoch: 4, targetMessageId: 'indexed' }, () => current)
+        await vi.waitFor(() => expect(getMessages).toHaveBeenCalledTimes(kind === 'locate' ? 2 : 3))
+        current = false
+        response.resolve(beforeResponse([makeUserMessage({ id: 'indexed', seq: 10, invokedAt: 1000 })], { epoch: 4, nextBeforeAt: null, nextBeforeSeq: null }))
+        expect(await seek).toBe(false)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['current'])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+    })
+
     it('appends while reading history, then compacts at the tail', () => {
         const id = sessionId('history-unseen')
         const initial = Array.from({ length: VISIBLE_WINDOW_SIZE }, (_, index) =>

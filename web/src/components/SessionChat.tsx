@@ -604,9 +604,9 @@ type SessionChatProps = {
     onPrefetchHistory?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     conversationHistoryRevision?: number
     onCancelLoadMore: () => void
-    onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string) => Promise<boolean>
+    onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string, isCurrent?: () => boolean) => Promise<boolean>
     historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
-    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
     // inactive-session resume failed. Composer state that should only be cleared on
@@ -1936,10 +1936,10 @@ function SessionChatInner(props: SessionChatProps) {
     const historyLocators = useMemo(() => buildTimelineHistoryLocators(
         visibleMessages, normalizedMessages, props.historyLocators, historyEpoch,
     ), [visibleMessages, normalizedMessages, props.historyLocators, historyEpoch])
-    const hydrateHistoryRow = useCallback(async (locator: TimelineHistoryLocator) => {
-        if (props.onHydrateHistoryRow) return props.onHydrateHistoryRow(locator)
+    const hydrateHistoryRow = useCallback(async (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => {
+        if (props.onHydrateHistoryRow) return props.onHydrateHistoryRow(locator, isCurrent)
         if (locator.kind !== 'runner') return false
-        return hydrateMessageWindow(props.api, props.session.id, locator)
+        return hydrateMessageWindow(props.api, props.session.id, locator, isCurrent)
     }, [props.onHydrateHistoryRow, props.api, props.session.id])
 
     const runtime = useHappyRuntime({

@@ -190,10 +190,10 @@ function NativeSessionChat({
             }}
             messages={projected.messages}
             historyLocators={historyLocators}
-            onHydrateHistoryRow={async locator => {
+            onHydrateHistoryRow={async (locator, isCurrent = () => true) => {
                 if (locator.kind !== 'native') return false
                 const found = await thread.seekTurn(locator.turnId, locator.itemId,
-                    entries => entries.some(entry => entry.item.id === locator.itemId))
+                    entries => isCurrent() && entries.some(entry => entry.item.id === locator.itemId))
                 if (found) setViewMode('history')
                 return found
             }}
@@ -232,8 +232,8 @@ function NativeSessionChat({
                 setViewMode('history')
                 return { kind: 'applied', historyVersion: appliedVersion, hasMore: applied.hasMore, addedRenderableCount }
             }}
-            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId) => {
-                const found = await thread.seekTurn(turnId, itemId, entries => containsOutlineTarget(entries, targetMessageId))
+            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId, isCurrent = () => true) => {
+                const found = await thread.seekTurn(turnId, itemId, entries => isCurrent() && containsOutlineTarget(entries, targetMessageId))
                 if (found) {
                     setViewMode('history')
                 }

@@ -41,7 +41,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { matchesSearchQuery } from '@hapi/protocol'
 import { getConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { revealConversationMessage } from '@/lib/revealConversationMessage'
-import { revealResponseAnnotation } from '@/lib/revealResponseAnnotation'
+import { alignResponseAnnotation, highlightResponseAnnotation } from '@/lib/revealResponseAnnotation'
 import { useResponseAnnotationSession } from './ResponseAnnotationSession'
 import { HistoryScrollPrefetch } from '@/lib/history-page-cache'
 import {
@@ -516,7 +516,7 @@ export function HappyThread(props: {
     outlineScannedPages?: number
     onLoadEarlierOutline?: () => Promise<void>
     onLocateOutlineItem?: (item: ConversationOutlineItem, isCurrent?: () => boolean) => Promise<boolean>
-    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
 }) {
     const { t, locale } = useTranslation()
     const { preferences: headerMetadata } = useSessionHeaderMetadata()
@@ -1637,7 +1637,7 @@ export function HappyThread(props: {
         return requestOlder('consumer')
     }, [requestOlder])
 
-    const handleOutlineSelect = useCallback(async (item: ConversationOutlineItem): Promise<boolean> => {
+    const handleOutlineSelect = useCallback(async (item: ConversationOutlineItem, reveal?: (viewport: HTMLElement) => boolean): Promise<boolean> => {
         const runId = ++outlineNavigationRef.current
         const sessionId = props.sessionId
         const isCurrent = () => outlineNavigationRef.current === runId && sessionIdRef.current === sessionId
@@ -1658,6 +1658,24 @@ export function HappyThread(props: {
         setOutlineNavigating(true)
         setOutlineNavigationError(null)
         try {
+            if (reveal) {
+                closingOutlineNavigationRef.current = runId
+                props.onOutlineOpenChange(false)
+                const visible = await virtualThreadRef.current?.ensureRow(item.targetMessageId, isCurrent, {
+                    reveal,
+                    locate: current => props.onLocateOutlineItem?.(item, current) ?? Promise.resolve(false),
+                    ready: () => !outlineOpenRef.current,
+                })
+                if (!isCurrent()) return false
+                if (!visible) {
+                    setOutlineNavigationError(t('session.outline.locateFailed'))
+                    return false
+                }
+                setShowScrollToBottom(true)
+                lastScrollTopRef.current = viewportRef.current?.scrollTop ?? 0
+                props.onOutlineItemClick?.(item)
+                return true
+            }
             const materialized = await virtualThreadRef.current?.ensureRow(item.targetMessageId, isCurrent)
             if (!materialized && !findTarget()) {
                 if (!props.onLocateOutlineItem || !await props.onLocateOutlineItem(item, isCurrent)) return false
@@ -1705,9 +1723,9 @@ export function HappyThread(props: {
     const annotationSession = useResponseAnnotationSession()
     useEffect(() => {
         annotationSession?.setNavigator(async target => {
-            if (!await handleOutlineSelect(target.item)) return false
+            if (!await handleOutlineSelect(target.item, viewport => alignResponseAnnotation(viewport, target))) return false
             const viewport = viewportRef.current
-            return viewport ? revealResponseAnnotation(viewport, target) : false
+            return viewport ? highlightResponseAnnotation(viewport, target) : false
         })
         return () => annotationSession?.setNavigator(undefined)
     }, [annotationSession, handleOutlineSelect])

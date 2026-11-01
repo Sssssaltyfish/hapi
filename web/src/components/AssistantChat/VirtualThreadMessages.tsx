@@ -5,9 +5,15 @@ import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
 import { captureConversationScrollAnchor, getConversationScrollAnchorPosition, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
 
+export type EnsureRowOptions = {
+    reveal: (viewport: HTMLElement) => boolean
+    locate?: (isCurrent: () => boolean) => Promise<boolean>
+    ready?: () => boolean
+}
+
 export type VirtualThreadHandle = {
     scrollToEnd: (behavior?: ScrollBehavior) => void
-    ensureRow: (alias: string, isCurrent?: () => boolean) => Promise<boolean>
+    ensureRow: (alias: string, isCurrent?: () => boolean, options?: EnsureRowOptions) => Promise<boolean>
     materializeTurn: (alias: string) => Promise<() => void>
     /** DOM materialization must precede native select-all. Released on selection collapse. */
     materializeSelection: () => Promise<void>
@@ -22,7 +28,7 @@ type Props = {
     rows?: readonly TimelineRow[]
     resolveRowId?: (alias: string) => string | null
     pinTimelineRows?: (ids: readonly string[]) => void
-    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
     components: ComponentProps<typeof ThreadPrimitive.Unstable_MessageById>['components']
     followLatest: RefObject<boolean>
 }
@@ -67,6 +73,12 @@ export function VirtualThreadMessages(props: Props) {
     const [mounted, setMounted] = useState(false)
     useLayoutEffect(() => { setMounted(true) }, [])
     const [pinned, setPinned] = useState<readonly string[]>([])
+    const [navigationAlias, setNavigationAlias] = useState<string | null>(null)
+    const pendingNavigation = useRef<{
+        alias: string
+        isCurrent: () => boolean
+        options: EnsureRowOptions
+    } | null>(null)
     const [selectionRows, setSelectionRows] = useState<readonly string[]>([])
     const allSelected = useRef(false)
     const semanticAnchor = useRef<{
@@ -93,12 +105,29 @@ export function VirtualThreadMessages(props: Props) {
     const committed = useRef({ rows, revision: 0 })
     useLayoutEffect(() => { committed.current = { rows, revision: committed.current.revision + 1 } })
 
+    const currentRow = useCallback((alias: string) => {
+        const { rows, props } = current.current
+        const sourceAlias = alias.startsWith('tool:') ? `tool-call:${alias.slice('tool:'.length)}` : alias
+        const id = props.resolveRowId?.(alias) ?? props.resolveRowId?.(sourceAlias) ?? sourceAlias
+        return rows.find(row => row.id === id || row.sourceIds.includes(sourceAlias))
+    }, [])
+    const alignNavigation = useCallback(() => {
+        const pending = pendingNavigation.current
+        if (!pending?.isCurrent() || !(pending.options.ready?.() ?? true)) return false
+        const row = currentRow(pending.alias)
+        const viewport = getScrollElement()
+        if (!row?.resident || !viewport || !measuredRows.current.get(row.id)?.isConnected) return false
+        return pending.options.reveal(viewport)
+    }, [currentRow, getScrollElement])
+
     const rangeExtractor = useCallback((range: Parameters<typeof defaultRangeExtractor>[0]) => {
         const indices = new Set(defaultRangeExtractor(range))
         const retained = new Set([...pinned, ...selectionRows])
+        const navigationRow = navigationAlias ? currentRow(navigationAlias) : undefined
+        if (navigationRow) retained.add(navigationRow.id)
         rows.forEach((row, index) => { if (retained.has(row.id)) indices.add(index) })
         return [...indices].sort((a, b) => a - b)
-    }, [pinned, selectionRows, rows])
+    }, [pinned, selectionRows, rows, navigationAlias, currentRow])
     const virtualizer = useVirtualizer({
         count: rows.length,
         enabled: mounted,
@@ -123,6 +152,14 @@ export function VirtualThreadMessages(props: Props) {
         const height = entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height
         if (height <= 0) return
         measurements.current.set(id, height)
+        if (pendingNavigation.current) {
+            const previous = virtualizer.shouldAdjustScrollPositionOnItemSizeChange
+            virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false
+            try { virtualizer.resizeItem(index, height) } finally {
+                virtualizer.shouldAdjustScrollPositionOnItemSizeChange = previous
+            }
+            return
+        }
         const history = historyMeasurements.current
         const previousSources = history?.generation === semanticGeneration.current && history.deadline > Date.now()
             ? history.rows.get(id) : undefined
@@ -171,12 +208,13 @@ export function VirtualThreadMessages(props: Props) {
         const observer = new ResizeObserver(entries => {
             flushSync(() => {
                 for (const entry of entries) if (entry.target instanceof HTMLElement) measureRow(entry.target, entry)
+                alignNavigation()
             })
         })
         rowObserver.current = observer
         for (const element of measuredRows.current.values()) observer.observe(element, { box: 'border-box' })
         return () => { observer.disconnect(); rowObserver.current = null }
-    }, [measureRow])
+    }, [measureRow, alignNavigation])
     // Measure committed DOM even while native touch inertia is active. AUI can
     // also change an existing row on a later commit without replacing its ref.
     useLayoutEffect(() => {
@@ -186,16 +224,13 @@ export function VirtualThreadMessages(props: Props) {
                 measuredRows.current.delete(id)
             } else measureRow(element)
         }
+        // The retained target is measured in normal flow before its semantic
+        // destination is aligned. No row-start scroll is needed to mount it.
+        alignNavigation()
     })
     useLayoutEffect(() => {
         if (mounted && props.followLatest.current) virtualizer.scrollToEnd()
     }, [mounted, props.followLatest, virtualizer])
-    const currentRow = useCallback((alias: string) => {
-        const { rows, props } = current.current
-        const sourceAlias = alias.startsWith('tool:') ? `tool-call:${alias.slice('tool:'.length)}` : alias
-        const id = props.resolveRowId?.(alias) ?? props.resolveRowId?.(sourceAlias) ?? sourceAlias
-        return rows.find(row => row.id === id || row.sourceIds.includes(sourceAlias))
-    }, [])
     const clearSemanticAnchor = useCallback(() => {
         const pending = semanticAnchor.current
         pending?.observer?.disconnect()
@@ -238,7 +273,7 @@ export function VirtualThreadMessages(props: Props) {
     }, [currentRow, getScrollElement, virtualizer, clearSemanticAnchor])
     const captureHistoryContentAnchor = useCallback(() => {
         const viewport = getScrollElement()
-        if (!viewport || current.current.props.followLatest.current) return
+        if (!viewport || current.current.props.followLatest.current || pendingNavigation.current) return
         clearSemanticAnchor()
         const generation = ++semanticGeneration.current
         historyMeasurements.current = {
@@ -285,16 +320,21 @@ export function VirtualThreadMessages(props: Props) {
         const pending = hydrating.current.get(key)
         if (pending) return pending
         if ((hydrationCooldown.current.get(key) ?? 0) > Date.now()) return Promise.resolve(false)
+        // Capture ownership when the request is created, including a pin's
+        // range effect. Joining an existing background request keeps its owner.
+        const navigation = pendingNavigation.current
+        const canApply = () => !navigation || navigation.isCurrent()
         // Native seeks replace the source window. All demand paths share one
         // queue so outline, selection and range fetches cannot cancel each other.
         const request = hydrationTail.current.then(async () => {
+            if (!canApply()) return false
             const source = currentRow(latest.id)
             if (!source || (requireSource ? source.current : source.resident)) return true
             const hydrate = current.current.props.onHydrateHistoryRow
             if (!source.locator || !hydrate) return false
             try {
                 captureHistoryContentAnchor()
-                const loaded = await hydrate(source.locator)
+                const loaded = await hydrate(source.locator, canApply)
                 if (!loaded) hydrationCooldown.current.set(key, Date.now() + 1000)
                 return loaded
             } catch {
@@ -335,9 +375,48 @@ export function VirtualThreadMessages(props: Props) {
         return false
     }, [currentRow, demand])
 
-    const ensureRow = useCallback(async (alias: string, isCurrent: () => boolean = () => true) => {
+    const ensureRow = useCallback(async (alias: string, isCurrent: () => boolean = () => true, options?: EnsureRowOptions) => {
             const generation = ++navigationGeneration.current
             const canNavigate = () => generation === navigationGeneration.current && isCurrent()
+            pendingNavigation.current = null
+            setNavigationAlias(null)
+            if (options) {
+                virtualizer.cancelScroll()
+                clearSemanticAnchor()
+                semanticGeneration.current++
+                historyMeasurements.current = null
+                const pending = { alias, isCurrent: canNavigate, options }
+                // Register before a locator fetch can commit new rows. A far
+                // target mounts through the same normal-flow range extractor.
+                pendingNavigation.current = pending
+                setNavigationAlias(alias)
+                try {
+                    if (!currentRow(alias) && (!options.locate || !await options.locate(canNavigate))) return false
+                    const deadline = Date.now() + 10_000
+                    while (!currentRow(alias) && canNavigate() && Date.now() < deadline) await frame()
+                    if (!canNavigate() || !currentRow(alias)) return false
+                    if (!await hydrateRowFully(alias, canNavigate)) return false
+                    let alignedFrames = 0
+                    while (canNavigate() && Date.now() < deadline) {
+                        const index = findIndex(alias)
+                        if (index < 0) return false
+                        const aligned = alignNavigation()
+                        const range = virtualizer.range
+                        // Release the extra row only after the real viewport
+                        // range has taken ownership of its mounted content.
+                        if (aligned && range && range.startIndex <= index && range.endIndex >= index) {
+                            if (++alignedFrames >= 2) return true
+                        } else alignedFrames = 0
+                        await frame()
+                    }
+                    return false
+                } finally {
+                    if (pendingNavigation.current === pending) {
+                        pendingNavigation.current = null
+                        setNavigationAlias(null)
+                    }
+                }
+            }
             const index = findIndex(alias)
             if (index < 0 || !canNavigate()) return false
             virtualizer.scrollToIndex(index, { align: 'start' })
@@ -357,7 +436,7 @@ export function VirtualThreadMessages(props: Props) {
                 }
             }
             return false
-        }, [hydrateRowFully, findIndex, virtualizer])
+        }, [hydrateRowFully, findIndex, virtualizer, currentRow, alignNavigation, clearSemanticAnchor])
     const materializeSelection = useCallback(async () => {
         allSelected.current = true
         setPinned(current.current.rows.filter(row => row.resident).map(row => row.id))
@@ -367,6 +446,8 @@ export function VirtualThreadMessages(props: Props) {
     useImperativeHandle(props.ref, () => ({
         scrollToEnd: (behavior = 'auto') => {
             navigationGeneration.current++
+            pendingNavigation.current = null
+            setNavigationAlias(null)
             virtualizer.scrollToEnd({ behavior })
         },
         captureHistoryContentAnchor,
@@ -420,6 +501,10 @@ export function VirtualThreadMessages(props: Props) {
 
     useLayoutEffect(() => { refineSemanticAnchor() }, [rows, refineSemanticAnchor])
     useEffect(() => clearSemanticAnchor, [clearSemanticAnchor])
+    useEffect(() => () => {
+        navigationGeneration.current++
+        pendingNavigation.current = null
+    }, [])
 
     useLayoutEffect(() => {
         const container = containerRef.current
@@ -477,6 +562,8 @@ export function VirtualThreadMessages(props: Props) {
             if (event instanceof KeyboardEvent && !['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) return
             virtualizer.cancelScroll()
             navigationGeneration.current++
+            pendingNavigation.current = null
+            setNavigationAlias(null)
             semanticGeneration.current++
             historyMeasurements.current = null
             clearSemanticAnchor()
