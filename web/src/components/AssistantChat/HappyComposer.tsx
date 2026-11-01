@@ -53,7 +53,6 @@ import { StatusBar } from '@/components/AssistantChat/StatusBar'
 import {
     ComposerButtons,
     UnifiedButton,
-    isComposerPrimaryFillHeight,
 } from '@/components/AssistantChat/ComposerButtons'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import { SortableComposerAttachments } from '@/components/AssistantChat/SortableComposerAttachments'
@@ -1667,13 +1666,6 @@ export function HappyComposer(props: {
     const showAbortButton = true
     const voiceEnabled = Boolean(effectiveVoiceToggle)
     const routesToScratchlist = (props.scratchlistMode ?? false) && pendingSchedule == null
-    const primaryFillHeight = isComposerPrimaryFillHeight({
-        canSend,
-        voiceEnabled,
-        voiceStatus: effectiveVoiceStatus,
-        routesToScratchlist,
-        expanded: isExpanded,
-    })
 
     const invokeDictateHotkey = useCallback(() => {
         if (!shouldInvokeComposerDictateShortcut({
@@ -2331,10 +2323,7 @@ export function HappyComposer(props: {
                                     annotationDraft.remove(index)
                                 }} />
                         </div> : null}
-                        <div className={`flex min-h-0 ${isExpanded ? 'flex-1' : ''}`} data-testid="composer-input-row">
-                        <div className={`flex min-w-0 flex-1 flex-col ${
-                            isExpanded ? 'min-h-0' : ''
-                        }`}>
+                        <div className={`flex min-h-0 min-w-0 flex-col ${isExpanded ? 'flex-1' : ''}`} data-testid="composer-input-row">
                             {attachments.length > 0 ? (
                                 <div className={`flex flex-wrap gap-2 px-4 pt-3 ${
                                     isExpanded ? 'max-h-[35%] shrink-0 overflow-y-auto' : ''
@@ -2348,9 +2337,9 @@ export function HappyComposer(props: {
                                 </div>
                             ) : null}
 
-                            <div className={`flex px-4 py-3 ${
-                                isExpanded ? 'min-h-0 flex-1 items-stretch' : 'items-center'
-                            }`}>
+                            <div className={`relative flex min-h-16 px-4 py-3 pr-16 ${
+                                isExpanded ? 'flex-1 items-stretch' : 'items-center'
+                            }`} data-testid="composer-editor">
                                 {richMentionsEnabled ? (
                                     <div
                                         ref={richComposerFueAnchorRef}
@@ -2442,6 +2431,18 @@ export function HappyComposer(props: {
                                         className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                     />
                                 )}
+                                <div className="absolute bottom-2 right-3">
+                                    <UnifiedButton
+                                        canSend={canSend}
+                                        voiceStatus={effectiveVoiceStatus}
+                                        voiceEnabled={voiceEnabled}
+                                        controlsDisabled={controlsDisabled}
+                                        onSend={handleSend}
+                                        onVoiceToggle={effectiveVoiceToggle ?? (() => {})}
+                                        voiceLabel={dictationActive ? t('composer.dictate') : undefined}
+                                        routesToScratchlist={routesToScratchlist}
+                                    />
+                                </div>
                             </div>
                             {richMentionsEnabled && sessionMentionsEnabled && richComposerFueStatus === 'engaging' ? (
                                 <FueCallout
@@ -2504,27 +2505,6 @@ export function HappyComposer(props: {
                                 onScratchlistToggle={props.onScratchlistToggle}
                                 omitPrimaryButton
                             />
-                        </div>
-                        {/* Collapsed card: fill-height primary (empty → voice; draft → Send). Expanded: compact. */}
-                        <div
-                            className={
-                                primaryFillHeight
-                                    ? 'flex shrink-0 self-stretch items-stretch'
-                                    : 'flex shrink-0 items-end self-stretch py-3 pr-3'
-                            }
-                        >
-                            <UnifiedButton
-                                canSend={canSend}
-                                voiceStatus={effectiveVoiceStatus}
-                                voiceEnabled={voiceEnabled}
-                                controlsDisabled={controlsDisabled}
-                                onSend={handleSend}
-                                onVoiceToggle={effectiveVoiceToggle ?? (() => {})}
-                                voiceLabel={dictationActive ? t('composer.dictate') : undefined}
-                                fillHeight={primaryFillHeight}
-                                routesToScratchlist={routesToScratchlist}
-                            />
-                        </div>
                         </div>
                     </div>
                 </ComposerPrimitive.Root>

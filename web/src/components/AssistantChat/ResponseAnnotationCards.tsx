@@ -31,7 +31,7 @@ function QuoteNotes({ value, label, placeholder, onChange }: {
     }, [value])
     return <textarea ref={ref} aria-label={label} placeholder={placeholder}
         value={value} rows={1} data-hapi-nested-scroll="true"
-        className="mt-0.5 max-h-32 min-h-6 w-full resize-none overflow-y-auto border-0 bg-transparent p-0 text-xs leading-5 text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:bg-[var(--app-subtle-bg)] focus:outline-none"
+        className="mt-0.5 max-h-32 min-h-6 w-full resize-none overflow-y-auto rounded-none border-0 border-b border-[var(--app-divider)] bg-transparent p-0 text-xs leading-5 text-[var(--app-fg)] placeholder:text-[var(--app-hint)] transition-colors focus:border-[var(--app-link)] focus:outline-none"
         onChange={event => onChange(event.target.value)}
         onKeyDown={event => event.stopPropagation()} />
 }
