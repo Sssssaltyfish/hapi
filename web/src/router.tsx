@@ -695,6 +695,7 @@ function HapiSessionPage() {
                 const idPrefix = s.id.slice(0, 8)
                 return {
                     key: `session:${s.id}`,
+                    group: 'threads' as const,
                     text: mentionText,
                     label: `@${title || idPrefix}`,
                     description: s.active
@@ -716,6 +717,7 @@ function HapiSessionPage() {
                             : `@"${file.fullPath.replace(/(["\\])/g, '\\$1')}"`
                         fileHits.push({
                             key: mentionText,
+                            group: 'files',
                             text: mentionText,
                             label: `@${file.fileName}`,
                             description: file.filePath || file.fullPath,
@@ -727,7 +729,7 @@ function HapiSessionPage() {
             return [...sessionHits, ...fileHits]
         }
         if (query.startsWith('$')) {
-            return await getSkillSuggestions(query)
+            return (await getSkillSuggestions(query)).map(suggestion => ({ ...suggestion, group: 'skills' as const }))
         }
         return await getSlashSuggestions(query)
     }, [

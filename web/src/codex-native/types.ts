@@ -4,6 +4,7 @@ export type NativeRecord = Record<string, unknown>
 export type NativeProject = { id: string; name: string; path: string }
 export type NativeEndpoint = {
     id: string
+    desktopHostId?: string
     label: string
     baseLabel?: string
     displayName?: string

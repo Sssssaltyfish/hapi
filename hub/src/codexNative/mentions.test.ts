@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test'
-import { mentionSuggestions, nativeMessageInput } from './mentions'
+import { mentionSuggestions, nativeMessageInput, threadReferenceCapability } from './mentions'
 import type { NativeService } from './service'
 import { record } from './transport'
+import { serializeResponseAnnotations } from '@hapi/protocol/codexInputContext'
 
 test('the current query receives a plugin that finishes discovery after file search', async () => {
     let finish!: (value: unknown) => void
@@ -65,6 +66,19 @@ test('native message conversion preserves file references and uses typed inputs 
             { name: 'disabled', path: '/disabled', enabled: false },
         ])[0].text
     ).toBe('$disabled plain')
+})
+
+test('inline selected skills become typed inputs while injected quote context remains verbatim text', () => {
+    const skills = [{ name: 'tool', path: '/skills/tool/SKILL.md', enabled: true }]
+    expect(nativeMessageInput('Please use $tool next', skills)).toEqual([
+        { type: 'text', text: 'Please use ', text_elements: [] },
+        { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
+        { type: 'text', text: ' next', text_elements: [] },
+    ])
+    const message = serializeResponseAnnotations('Explain this quote', [{ text: 'The example mentions $tool in its text' }])
+    const input = nativeMessageInput(message, skills)
+    expect(input.every(item => item.type === 'text')).toBe(true)
+    expect(input.map(item => item.text).join('')).toBe(message)
 })
 
 test('suggestions use the native workspace root and discover only enabled skills and installed enabled plugins/apps', async () => {
@@ -143,6 +157,7 @@ test('suggestions use the native workspace root and discover only enabled skills
     expect(suggestions.map((item) => item.key)).toEqual([
         '/repo/世界.ts',
         '/repo/src',
+        'skill:/skill/SKILL.md',
         'plugin://ok@market',
         'app://app',
     ])
@@ -154,5 +169,24 @@ test('suggestions use the native workspace root and discover only enabled skills
     ])
     expect((await mentionSuggestions(service, 'thread', '$')).map((item) => item.text)).toEqual([
         '$ready',
+    ])
+})
+
+test('checks reference capability on the current thread and shares only its short-lived result', async () => {
+    const calls: unknown[] = []
+    const service = {
+        withConnection: async (action: (client: unknown) => Promise<unknown>) => action({
+            request: async (_method: string, params: unknown) => {
+                calls.push(params)
+                return { data: [{ name: 'codex_app', runtimeStatus: 'connected', toolsError: null, tools: { read_thread: { name: 'read_thread' } } }] }
+            },
+        }),
+    } as unknown as NativeService
+    expect(await threadReferenceCapability(service, 'one')).toBe(true)
+    expect(await threadReferenceCapability(service, 'one')).toBe(true)
+    expect(await threadReferenceCapability(service, 'two')).toBe(true)
+    expect(calls).toEqual([
+        { threadId: 'one', serverName: 'codex_app', detail: 'toolsAndAuthOnly', limit: 100 },
+        { threadId: 'two', serverName: 'codex_app', detail: 'toolsAndAuthOnly', limit: 100 },
     ])
 })

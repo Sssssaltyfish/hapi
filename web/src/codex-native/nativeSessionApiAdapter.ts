@@ -88,6 +88,8 @@ const GLOBAL_OPERATIONS = [
     'getCodexNativeStatus',
     'withCodexNativeEndpoint',
     'getCodexNativeEndpoints',
+    'resolveCodexNativeThreadReference',
+    'getCodexNativeReferenceCapabilities',
     'createCodexNativeThread',
     'readCodexNativeFile',
     'readCodexNativeDirectory',

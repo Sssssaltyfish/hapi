@@ -19,6 +19,9 @@ import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 import type { NativeItemEntry } from './types'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
+import { useQuery } from '@tanstack/react-query'
+import { useSessions } from '@/hooks/queries/useSessions'
+import { nativeThreadReferenceMessage } from './nativeThreadReferences'
 
 function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
     const messages = projectNativeItems(entries, [], false).messages
@@ -67,7 +70,11 @@ function NativeSessionChat({
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
     const queue = useNativeQueue(api, native.threadId, native.available !== false, thread.subscribeEvents)
-    const autocompleteSuggestions = useNativeSuggestions(api, native.threadId)
+    const { sessions: mentionSessions } = useSessions(api)
+    const nativeEndpoints = useQuery({ queryKey: ['codex-native', 'endpoints'], queryFn: () => api.getCodexNativeEndpoints(), staleTime: 30_000, retry: false })
+    const autocompleteSuggestions = useNativeSuggestions(api, native.threadId, {
+        endpointId: native.endpointId, sessions: mentionSessions, endpoints: nativeEndpoints.data?.endpoints ?? [],
+    })
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
         observedReplies.current.set(id, answer)
@@ -284,7 +291,7 @@ function NativeSessionChat({
                     if (deliveryMode === 'steer' && !expectedTurnId)
                         throw new Error('No active native turn to steer')
                     const result = await api.codexNativeAction(native.threadId, 'messages', {
-                        text,
+                        text: await nativeThreadReferenceMessage(api, native, text),
                         clientId: attemptId,
                         ...(attachments?.length ? { attachments } : {}),
                         ...(expectedTurnId ? { expectedTurnId } : {}),

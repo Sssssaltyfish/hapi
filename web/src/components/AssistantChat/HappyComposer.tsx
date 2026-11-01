@@ -898,7 +898,7 @@ export function HappyComposer(props: {
     const isIOSPWA = isIOS && isStandalone
     const bottomPaddingClass = isIOSPWA ? 'pb-0' : 'pb-3'
     const activeWord = useActiveWord(inputState.text, inputState.selection, autocompletePrefixes)
-    const [suggestions, selectedIndex, moveUp, moveDown, clearSuggestions] = useActiveSuggestions(
+    const [suggestions, selectedIndex, moveUp, moveDown, clearSuggestions, expandSuggestionGroup] = useActiveSuggestions(
         activeWord,
         autocompleteSuggestions,
         { clampSelection: true, wrapAround: true }
@@ -956,6 +956,10 @@ export function HappyComposer(props: {
     const handleSuggestionSelect = useCallback((index: number) => {
         const suggestion = suggestions[index]
         if (!suggestion) return
+        if (suggestion.expandGroup) {
+            expandSuggestionGroup(suggestion.expandGroup.group)
+            return
+        }
         if (suggestion.text.startsWith('$')) {
             markSkillUsed(suggestion.text.slice(1))
         }
@@ -1012,7 +1016,7 @@ export function HappyComposer(props: {
         }, 0)
 
         haptic('light')
-    }, [setComposerText, suggestions, inputState, autocompletePrefixes, haptic, richMentionsEnabled, handleUserEdit])
+    }, [setComposerText, suggestions, inputState, autocompletePrefixes, haptic, richMentionsEnabled, handleUserEdit, expandSuggestionGroup])
 
     const abortDisabled = controlsDisabled || isAborting || !threadIsRunning
     const switchDisabled = controlsDisabled || isSwitching || !controlledByUser

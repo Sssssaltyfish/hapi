@@ -153,6 +153,7 @@ export class NativeRegistry {
         return {
             id: config.id,
             label: config.label,
+            ...(config.desktopHostId ? { desktopHostId: config.desktopHostId } : {}),
             baseLabel: this.configs.find(endpoint => endpoint.id === config.id && endpoint.namespace === config.namespace)?.label ?? 'Codex Native',
             ...(config.displayName ? { displayName: config.displayName } : {}),
             address: nativeDisplayAddress(config.endpoint!),
