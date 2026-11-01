@@ -9,6 +9,7 @@ export default {
   'queuedMessages.title': '排队消息',
   'nativeQueue.disconnected': '正在重连，当前显示最后一次读取的队列。',
   'nativeQueue.cancel': '取消排队消息',
+  'nativeQueue.steerCleanupFailed': '已插入当前回合，请取消残留的队列项，避免再次执行。',
   'queuedMessages.steerPending': '等待代理确认接收…',
   'nativeQueue.quotes': '{count} 条引用',
   'nativeQueue.attachments': '{count} 个附件',
