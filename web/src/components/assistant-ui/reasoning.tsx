@@ -78,7 +78,7 @@ export const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
                 components={defaultComponents}
                 componentsByLanguage={MARKDOWN_COMPONENTS_BY_LANGUAGE}
                 urlTransform={denyOnlyTransform}
-                className={cn(MARKDOWN_CLASSNAME, 'aui-reasoning-content text-[13.5px] text-[var(--app-hint)]')}
+                className={cn(MARKDOWN_CLASSNAME, 'aui-reasoning-content')}
             />
         </UriConfirmProvider>
     )

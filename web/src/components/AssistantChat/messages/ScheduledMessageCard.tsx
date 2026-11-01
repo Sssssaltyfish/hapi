@@ -16,8 +16,13 @@ export function ScheduledMessageCard({ message }: { message: ScheduledMessage })
             </time>
             : <span>· {t(message.decision === 'DONT_NOTIFY' ? 'message.scheduledQuiet' : 'message.scheduledNotify')}</span>}
     </span>
-    if (message.kind === 'trigger') return <details className="min-w-0" data-testid="scheduled-message">
-        <summary className="cursor-pointer text-xs text-[var(--app-hint)]">{label}</summary>
+    if (message.kind === 'trigger') return <details className="group/scheduled min-w-0" data-testid="scheduled-message">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-xs text-[var(--app-hint)] [&::-webkit-details-marker]:hidden">
+            <svg aria-hidden="true" className="h-3 w-3 shrink-0 group-open/scheduled:rotate-90" viewBox="0 0 16 16" fill="none">
+                <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {label}
+        </summary>
         <div className="mt-2 min-w-0 border-l-2 border-[var(--app-divider)] pl-3 text-sm">
             <MarkdownRenderer content={message.text} />
         </div>

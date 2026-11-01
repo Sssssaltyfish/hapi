@@ -2313,27 +2313,28 @@ export function HappyComposer(props: {
                     ) : null}
 
                     <div
-                        className={`flex overflow-hidden rounded-[20px] bg-[var(--app-secondary-bg)] ${
+                        className={`flex flex-col overflow-hidden rounded-[20px] bg-[var(--app-secondary-bg)] ${
                             isExpanded ? 'min-h-0 flex-1' : ''
                         } ${
                             sendError ? 'ring-1 ring-red-500' : ''
                         }`}
                         data-testid="composer-card"
                     >
+                        {annotationDraft.annotations.length > 0 ? <div className="max-h-[min(14rem,35dvh)] shrink-0 overflow-y-auto px-4 pt-2" data-testid="composer-quotes" data-hapi-nested-scroll="true">
+                            <ResponseAnnotationCards annotations={annotationDraft.annotations}
+                                onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
+                                    handleUserEdit()
+                                    annotationDraft.setAnnotation(index, annotation)
+                                }}
+                                onRemove={controlsDisabled ? undefined : (index) => {
+                                    handleUserEdit()
+                                    annotationDraft.remove(index)
+                                }} />
+                        </div> : null}
+                        <div className={`flex min-h-0 ${isExpanded ? 'flex-1' : ''}`} data-testid="composer-input-row">
                         <div className={`flex min-w-0 flex-1 flex-col ${
                             isExpanded ? 'min-h-0' : ''
                         }`}>
-                            {annotationDraft.annotations.length > 0 ? <div className="px-4 pt-3">
-                                <ResponseAnnotationCards annotations={annotationDraft.annotations}
-                                    onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
-                                        handleUserEdit()
-                                        annotationDraft.setAnnotation(index, annotation)
-                                    }}
-                                    onRemove={controlsDisabled ? undefined : (index) => {
-                                        handleUserEdit()
-                                        annotationDraft.remove(index)
-                                    }} />
-                            </div> : null}
                             {attachments.length > 0 ? (
                                 <div className={`flex flex-wrap gap-2 px-4 pt-3 ${
                                     isExpanded ? 'max-h-[35%] shrink-0 overflow-y-auto' : ''
@@ -2523,6 +2524,7 @@ export function HappyComposer(props: {
                                 fillHeight={primaryFillHeight}
                                 routesToScratchlist={routesToScratchlist}
                             />
+                        </div>
                         </div>
                     </div>
                 </ComposerPrimitive.Root>

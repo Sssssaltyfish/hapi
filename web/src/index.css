@@ -546,6 +546,34 @@ html:has(.chat-scroll-y) #root {
     line-height: var(--app-chat-line-height);
 }
 
+.aui-reasoning-content {
+    color: var(--app-hint);
+    font-size: calc(var(--app-chat-font-size) * 0.875);
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+.aui-reasoning-content :where(p, li, table, th, td) {
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6, strong, th) {
+    color: inherit;
+    font-size: inherit;
+    font-weight: 500;
+    line-height: inherit;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6) {
+    margin-block: 0.75em 0.25em;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
+}
+
 
 .tool-result-quote :where(.aui-md, .aui-md-p, .aui-md-li, .aui-md-td, .aui-md-th, .aui-md-strong, .aui-md-em, .aui-md-h1, .aui-md-h2, .aui-md-h3, .aui-md-h4, .aui-md-h5, .aui-md-h6) {
     color: inherit;

@@ -50,7 +50,7 @@ export function ResponseAnnotationReference({ index, children }: { index: number
                     if (navigating.current) event.preventDefault()
                     navigating.current = false
                 }}
-                className="z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-1.5 sm:p-2 text-xs shadow-lg">
+                className="z-50 w-80 max-w-[calc(100vw-24px)] rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-2 text-xs shadow-lg">
                 {annotation ? <ResponseAnnotationCards annotations={[annotation]}
                     onNavigateStart={() => { navigating.current = true }}
                     onNavigateError={() => { navigating.current = false }}
