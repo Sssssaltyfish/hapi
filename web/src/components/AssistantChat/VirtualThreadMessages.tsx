@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Ref, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
 import { ThreadPrimitive, unstable_useThreadMessageIds } from '@assistant-ui/react'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
-import { captureConversationScrollAnchor, restoreConversationScrollAnchor, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
+import { captureConversationScrollAnchor, getConversationScrollAnchorPosition, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
 
 export type VirtualThreadHandle = {
     scrollToEnd: (behavior?: ScrollBehavior) => void
@@ -54,6 +55,8 @@ export function VirtualThreadMessages(props: Props) {
     }, [props.viewport])
     const connectedViewport = getScrollElement()
     const measurements = useRef(new Map<string, number>())
+    const measuredRows = useRef(new Map<string, HTMLElement>())
+    const rowObserver = useRef<ResizeObserver | null>(null)
     const hydrating = useRef(new Map<string, Promise<boolean>>())
     const hydrationTail = useRef<Promise<void>>(Promise.resolve())
     const hydrationCooldown = useRef(new Map<string, number>())
@@ -71,12 +74,19 @@ export function VirtualThreadMessages(props: Props) {
         rowId: string
         sources: Set<string>
         generation: number
+        localOffset: number
         observer?: ResizeObserver
         mutations?: MutationObserver
         settleTimer?: ReturnType<typeof setTimeout>
         deadlineTimer?: ReturnType<typeof setTimeout>
     } | null>(null)
     const semanticGeneration = useRef(0)
+    const historyMeasurements = useRef<{
+        generation: number
+        deadline: number
+        rows: Map<string, Set<string>>
+        anchorRowId?: string
+    } | null>(null)
     const navigationGeneration = useRef(0)
     const current = useRef({ rows, props })
     current.current = { rows, props }
@@ -101,12 +111,81 @@ export function VirtualThreadMessages(props: Props) {
         followOnAppend: props.followLatest.current,
         scrollEndThreshold: 1,
         rangeExtractor,
-        measureElement: (element, entry) => {
-            const height = entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height
-            const id = element.getAttribute('data-hapi-virtual-row')
-            if (id && height > 0) measurements.current.set(id, height)
-            return height
-        },
+        // Layout measurements run inside React's commit. React flushes those
+        // updates before paint; external observer deliveries are batched below.
+        useFlushSync: false,
+    })
+    const measureRow = useCallback((element: HTMLElement, entry?: ResizeObserverEntry) => {
+        const id = element.dataset.hapiVirtualRow
+        const index = Number(element.dataset.index)
+        if (!id || measuredRows.current.get(id) !== element || !element.isConnected || element.dataset.hapiRowResident !== 'true'
+            || !Number.isInteger(index) || current.current.rows[index]?.id !== id) return
+        const height = entry?.borderBoxSize?.[0]?.blockSize ?? element.getBoundingClientRect().height
+        if (height <= 0) return
+        measurements.current.set(id, height)
+        const history = historyMeasurements.current
+        const previousSources = history?.generation === semanticGeneration.current && history.deadline > Date.now()
+            ? history.rows.get(id) : undefined
+        const expandedByHistory = previousSources && current.current.rows[index]!.sourceIds.some(source => !previousSources.has(source))
+        const previousItem = expandedByHistory ? virtualizer.getVirtualItems().find(item => item.key === id) : undefined
+        const anchorRowId = history?.anchorRowId
+            ? current.current.props.resolveRowId?.(history.anchorRowId) ?? history.anchorRowId : undefined
+        const anchorIndex = anchorRowId ? current.current.rows.findIndex(row => row.id === anchorRowId) : -1
+        const viewportTop = virtualizer.scrollElement?.scrollTop ?? virtualizer.scrollOffset ?? 0
+        const beforeReadingPoint = anchorIndex >= 0 ? index < anchorIndex : previousItem && previousItem.end <= viewportTop
+        if (previousItem && beforeReadingPoint) {
+            // Native upward scrolling normally suppresses remeasurement
+            // correction. A history-expanded predecessor must preserve the
+            // captured reading point even if part of that row is still visible.
+            // Without a precise content anchor, retain the above-fold fallback.
+            const previous = virtualizer.shouldAdjustScrollPositionOnItemSizeChange
+            virtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => true
+            try { virtualizer.resizeItem(index, height) } finally {
+                virtualizer.shouldAdjustScrollPositionOnItemSizeChange = previous
+            }
+            return
+        }
+        // Own one measurement channel per row. Unlike measureElement's ref
+        // path, resizeItem does not postpone first measurement during a fling.
+        virtualizer.resizeItem(index, height)
+    }, [virtualizer])
+    const attachMeasuredRow = useCallback((element: HTMLElement | null) => {
+        if (element) {
+            const id = element.dataset.hapiVirtualRow
+            if (id) {
+                const previous = measuredRows.current.get(id)
+                if (previous && previous !== element) rowObserver.current?.unobserve(previous)
+                measuredRows.current.set(id, element)
+            }
+            rowObserver.current?.observe(element, { box: 'border-box' })
+        } else {
+            for (const [id, previous] of measuredRows.current) {
+                if (!previous.isConnected) {
+                    rowObserver.current?.unobserve(previous)
+                    measuredRows.current.delete(id)
+                }
+            }
+        }
+    }, [])
+    useLayoutEffect(() => {
+        const observer = new ResizeObserver(entries => {
+            flushSync(() => {
+                for (const entry of entries) if (entry.target instanceof HTMLElement) measureRow(entry.target, entry)
+            })
+        })
+        rowObserver.current = observer
+        for (const element of measuredRows.current.values()) observer.observe(element, { box: 'border-box' })
+        return () => { observer.disconnect(); rowObserver.current = null }
+    }, [measureRow])
+    // Measure committed DOM even while native touch inertia is active. AUI can
+    // also change an existing row on a later commit without replacing its ref.
+    useLayoutEffect(() => {
+        for (const [id, element] of measuredRows.current) {
+            if (!element.isConnected || element.dataset.hapiRowResident !== 'true') {
+                rowObserver.current?.unobserve(element)
+                measuredRows.current.delete(id)
+            } else measureRow(element)
+        }
     })
     useLayoutEffect(() => {
         if (mounted && props.followLatest.current) virtualizer.scrollToEnd()
@@ -134,26 +213,57 @@ export function VirtualThreadMessages(props: Props) {
         if (!row || !row.sourceIds.some(source => !pending.sources.has(source))) return
         const viewport = getScrollElement()
         if (!viewport) return
-        virtualizer.cancelScroll()
-        const restored = restoreConversationScrollAnchor(viewport, pending.anchor)
+        const element = measuredRows.current.get(row.id)
+        const position = getConversationScrollAnchorPosition(viewport, pending.anchor)
+        if (!element?.isConnected || !position) return
+        const rowTop = element.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+        const localOffset = position.currentOffset - rowTop
+        const delta = localOffset - pending.localOffset
+        pending.localOffset = localOffset
+        // Native inertia moves the row and its text together. Only a change
+        // inside the row is a layout correction; replaying viewport coordinates
+        // here would cancel the reader's movement on every later observer.
+        if (Math.abs(delta) > 0.5) {
+            virtualizer.cancelScroll()
+            viewport.scrollTop += delta
+        }
         // AUI can commit content after its row descriptor. Keep watching the
         // affected row until its geometry settles, with a separate hard bound.
-        clearTimeout(pending.settleTimer)
-        if (restored) pending.settleTimer = setTimeout(() => {
-            if (semanticAnchor.current === pending) clearSemanticAnchor()
-        }, 250)
+        if (!pending.settleTimer || Math.abs(delta) > 0.5) {
+            clearTimeout(pending.settleTimer)
+            pending.settleTimer = setTimeout(() => {
+                if (semanticAnchor.current === pending) clearSemanticAnchor()
+            }, 250)
+        }
     }, [currentRow, getScrollElement, virtualizer, clearSemanticAnchor])
     const captureHistoryContentAnchor = useCallback(() => {
         const viewport = getScrollElement()
         if (!viewport || current.current.props.followLatest.current) return
+        clearSemanticAnchor()
+        const generation = ++semanticGeneration.current
+        historyMeasurements.current = {
+            generation,
+            deadline: Date.now() + 5000,
+            rows: new Map([...measuredRows.current.keys()].flatMap(id => {
+                const row = currentRow(id)
+                return row ? [[id, new Set(row.sourceIds)] as const] : []
+            })),
+        }
         const anchor = captureConversationScrollAnchor(viewport)
         if (!anchor || anchor.kind !== 'content') return
         const row = currentRow(anchor.id)
         if (!row) return
-        clearSemanticAnchor()
-        const pending: NonNullable<typeof semanticAnchor.current> = { anchor, rowId: row.id, sources: new Set(row.sourceIds), generation: ++semanticGeneration.current }
-        semanticAnchor.current = pending
         const element = [...(containerRef.current?.querySelectorAll<HTMLElement>('[data-hapi-virtual-row]') ?? [])].find(element => element.dataset.hapiVirtualRow === row.id)
+        if (!element) return
+        if (historyMeasurements.current) historyMeasurements.current.anchorRowId = row.id
+        const rowTop = element.getBoundingClientRect().top - viewport.getBoundingClientRect().top
+        const pending: NonNullable<typeof semanticAnchor.current> = {
+            // This local baseline belongs to this exact source point. A fallback
+            // in a different row must never inherit its row-relative geometry.
+            anchor: { ...anchor, alternatives: undefined }, rowId: row.id,
+            sources: new Set(row.sourceIds), generation, localOffset: anchor.topOffset - rowTop,
+        }
+        semanticAnchor.current = pending
         if (element && typeof ResizeObserver !== 'undefined') {
             pending.observer = new ResizeObserver(refineSemanticAnchor)
             pending.observer.observe(element)
@@ -372,6 +482,7 @@ export function VirtualThreadMessages(props: Props) {
             virtualizer.cancelScroll()
             navigationGeneration.current++
             semanticGeneration.current++
+            historyMeasurements.current = null
             clearSemanticAnchor()
         }
         viewport?.addEventListener('wheel', interrupt, { passive: true })
@@ -426,7 +537,7 @@ export function VirtualThreadMessages(props: Props) {
                 {gap > 0 ? <div aria-hidden="true" data-hapi-virtual-spacer="true" style={{ height: gap }} /> : null}
                 <div data-index={item.index} data-hapi-virtual-row={row.id}
                     data-hapi-row-resident={resident ? 'true' : 'false'} data-hapi-row-size={item.size}
-                    ref={resident ? virtualizer.measureElement : undefined}
+                    ref={resident ? attachMeasuredRow : undefined}
                     style={resident ? { paddingBottom: 12, overflowAnchor: 'none' } : { height: item.size, overflowAnchor: 'none' }}>
                     {resident ? <ThreadPrimitive.Unstable_MessageById messageId={row.id} components={props.components} /> : <div aria-hidden="true" className="h-full min-h-1 animate-pulse rounded-md bg-[var(--app-subtle-bg)]/30" />}
                 </div>

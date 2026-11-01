@@ -1,14 +1,15 @@
 import { act, render, waitFor } from '@testing-library/react'
-import { useRef, type RefObject } from 'react'
+import { createRef, useRef, type RefObject } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssistantRuntimeProvider, useAuiState, useExternalStoreRuntime, type ThreadMessageLike } from '@assistant-ui/react'
-import { getTurnRowRange, VirtualThreadMessages } from './VirtualThreadMessages'
+import { getTurnRowRange, VirtualThreadMessages, type VirtualThreadHandle } from './VirtualThreadMessages'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
+import { captureConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
 
 function Message() {
     const id = useAuiState(s => s.message.id)
     const role = useAuiState(s => s.message.role)
-    return <div id={`hapi-message-${id}`} data-hapi-message-role={role}>{id}</div>
+    return <div id={`hapi-message-${id}`} data-hapi-message-role={role} data-hapi-scroll-anchor={`source-${id.split('-').at(-1)}`}>{id}</div>
 }
 const components = { UserMessage: Message, AssistantMessage: Message, SystemMessage: Message }
 const rows: TimelineRow[] = Array.from({ length: 100 }, (_, index) => ({
@@ -16,14 +17,14 @@ const rows: TimelineRow[] = Array.from({ length: 100 }, (_, index) => ({
     locator: { kind: 'native', turnId: `turn-${index}`, itemId: `item-${index}` },
 }))
 
-function Harness(props: { rows: readonly TimelineRow[]; hydrate?: (locator: TimelineHistoryLocator) => Promise<boolean>; compoundViewportRef?: boolean }) {
+function Harness(props: { rows: readonly TimelineRow[]; hydrate?: (locator: TimelineHistoryLocator) => Promise<boolean>; compoundViewportRef?: boolean; listRef?: RefObject<VirtualThreadHandle | null> }) {
     const viewport = useRef<HTMLDivElement>(null)
     const follow = useRef(false)
     const ref = useRef(null)
     const messages: ThreadMessageLike[] = props.rows.filter(row => row.resident).map(row => ({ id: row.id, role: row.role, content: [{ type: 'text', text: row.id }] }))
     const runtime = useExternalStoreRuntime({ messages, convertMessage: message => message, isRunning: false, onNew: async () => {} })
     return <AssistantRuntimeProvider runtime={runtime}>
-        <div ref={props.compoundViewportRef ? node => { viewport.current = node } : viewport} data-testid="viewport"><VirtualThreadMessages ref={ref} viewport={viewport as RefObject<HTMLDivElement | null>} followLatest={follow} rows={props.rows} components={components} onHydrateHistoryRow={props.hydrate} /></div>
+        <div ref={props.compoundViewportRef ? node => { viewport.current = node } : viewport} data-testid="viewport"><VirtualThreadMessages ref={props.listRef ?? ref} viewport={viewport as RefObject<HTMLDivElement | null>} followLatest={follow} rows={props.rows} components={components} onHydrateHistoryRow={props.hydrate} /></div>
     </AssistantRuntimeProvider>
 }
 
@@ -38,8 +39,10 @@ beforeEach(() => {
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) { return this.dataset.testid === 'viewport' ? 600 : 120 })
     vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(30_000)
     vi.stubGlobal('ResizeObserver', class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
-        observe(element: HTMLElement) { this.callback([{ target: element, borderBoxSize: [{ inlineSize: 800, blockSize: element.getBoundingClientRect().height }] } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver) }
+        constructor(_callback: ResizeObserverCallback) {}
+        // Hold delivery: synchronous committed layout must establish geometry
+        // before a later native ResizeObserver batch, including during a fling.
+        observe() {}
         unobserve() {}
         disconnect() {}
     })
@@ -48,9 +51,142 @@ beforeEach(() => {
         queueMicrotask(() => this.dispatchEvent(new Event('scroll')))
     }
 })
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('measured conversation virtualization', () => {
+    it('preserves the actual content anchor when a partially visible predecessor expands during history loading', async () => {
+        const listRef = createRef<VirtualThreadHandle>()
+        const view = render(<Harness rows={rows} listRef={listRef} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-2')).not.toBeNull())
+        const viewport = view.getByTestId('viewport')
+        const predecessor = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-0"]')!
+        const intervening = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-1"]')!
+        const anchorRow = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-2"]')!
+        const source = view.container.querySelector<HTMLElement>('#hapi-message-row-2')!
+        let height = 232
+        let insertedHeight = 0
+        const bounds = (top: number, size: number): DOMRect => ({ width: 800, height: size, top, bottom: top + size, left: 0, right: 800, x: 0, y: top, toJSON() {} })
+        Object.defineProperty(predecessor, 'getBoundingClientRect', { configurable: true, value: () => bounds(insertedHeight - viewport.scrollTop, height) })
+        Object.defineProperty(intervening, 'getBoundingClientRect', { configurable: true, value: () => bounds(insertedHeight + height - viewport.scrollTop, 36) })
+        Object.defineProperty(anchorRow, 'getBoundingClientRect', { configurable: true, value: () => bounds(insertedHeight + height + 36 - viewport.scrollTop, 268) })
+        Object.defineProperty(source, 'getBoundingClientRect', { configurable: true, value: () => bounds(insertedHeight + height + 40 - viewport.scrollTop, 40) })
+        view.rerender(<Harness rows={[...rows]} listRef={listRef} />)
+        act(() => {
+            viewport.scrollTop = 300
+            viewport.dispatchEvent(new Event('scroll'))
+            viewport.scrollTop = 197
+            viewport.dispatchEvent(new Event('scroll'))
+            expect(captureConversationScrollAnchor(viewport)).toMatchObject({ id: 'source-2', kind: 'content' })
+            listRef.current!.captureHistoryContentAnchor()
+        })
+        const readingOffset = source.getBoundingClientRect().top
+        height = 323.5
+        insertedHeight = 240
+        const older = rows.slice(0, 2).map((row, index) => ({ ...row, id: `older-${index}`, sourceIds: [`older-source-${index}`], createdAt: index - 2 }))
+        view.rerender(<Harness rows={[...older, ...rows.map((row, index) => index === 0 ? { ...row, sourceIds: [...row.sourceIds, 'history-prefix'] } : row)]} listRef={listRef} />)
+        expect(viewport.scrollTop).toBe(528.5)
+        expect(source.getBoundingClientRect().top).toBe(readingOffset)
+        expect(anchorRow.dataset.hapiRowSize).toBe('268')
+    })
+    it('corrects only changes inside a response without replaying viewport coordinates over native inertia', async () => {
+        const listRef = createRef<VirtualThreadHandle>()
+        const view = render(<Harness rows={rows} listRef={listRef} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-1')).not.toBeNull())
+        const viewport = view.getByTestId('viewport')
+        const row = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-1"]')!
+        const source = view.container.querySelector<HTMLElement>('#hapi-message-row-1')!
+        let height = 300
+        let localOffset = 108
+        const bounds = (top: number, size: number): DOMRect => ({ width: 800, height: size, top, bottom: top + size, left: 0, right: 800, x: 0, y: top, toJSON() {} })
+        Object.defineProperty(row, 'getBoundingClientRect', { configurable: true, value: () => bounds(120 - viewport.scrollTop, height) })
+        Object.defineProperty(source, 'getBoundingClientRect', { configurable: true, value: () => bounds(120 + localOffset - viewport.scrollTop, 40) })
+        view.rerender(<Harness rows={[...rows]} listRef={listRef} />)
+        // Keep these commits inside the pending observer's quiet window even
+        // when the test runner is busy rendering the other conversation suites.
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+        act(() => {
+            viewport.scrollTop = 150
+            viewport.dispatchEvent(new Event('scroll'))
+            expect(captureConversationScrollAnchor(viewport)).toMatchObject({ id: 'source-1', kind: 'content' })
+            listRef.current!.captureHistoryContentAnchor()
+        })
+        const extended = rows.map((row, index) => index === 1 ? { ...row, sourceIds: [...row.sourceIds, 'history-prefix'] } : row)
+        view.rerender(<Harness rows={extended} listRef={listRef} />)
+        act(() => {
+            // The phone continues moving after touchend without a new gesture.
+            viewport.scrollTop = 121
+            viewport.dispatchEvent(new Event('scroll'))
+        })
+        view.rerender(<Harness rows={[...extended]} listRef={listRef} />)
+        expect(viewport.scrollTop).toBe(121)
+        localOffset += 126.5
+        height += 126.5
+        view.rerender(<Harness rows={[...extended]} listRef={listRef} />)
+        expect(viewport.scrollTop).toBe(247.5)
+        view.rerender(<Harness rows={[...extended]} listRef={listRef} />)
+        expect(viewport.scrollTop).toBe(247.5)
+    })
+    it('keeps the reading offset consistent while several short history rows are measured in one layout batch', async () => {
+        const previousRect = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!
+        vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+            const rect = previousRect.call(this)
+            return this.dataset.hapiVirtualRow?.startsWith('older-') ? { ...rect, height: 36, bottom: 36 } : rect
+        })
+        const view = render(<Harness rows={rows} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-0')).not.toBeNull())
+        act(() => {
+            const viewport = view.getByTestId('viewport')
+            viewport.scrollTop = 300
+            viewport.dispatchEvent(new Event('scroll'))
+            viewport.scrollTop = 60
+            viewport.dispatchEvent(new Event('scroll'))
+        })
+        const older = rows.slice(0, 14).map((row, index) => ({ ...row, id: `older-${index}`, sourceIds: [`older-source-${index}`], createdAt: index - 14 }))
+        view.rerender(<Harness rows={[...older, ...rows]} />)
+        let rowTop = 0
+        for (const element of view.container.querySelectorAll<HTMLElement>('[data-hapi-virtual-row], [data-hapi-virtual-spacer]')) {
+            if (element.dataset.hapiVirtualRow === 'row-0') break
+            rowTop += element.hasAttribute('data-hapi-virtual-spacer') ? parseFloat(element.style.height) || 0 : element.getBoundingClientRect().height
+        }
+        expect(rowTop - view.getByTestId('viewport').scrollTop).toBe(-60)
+    })
+    it('preserves the reader when a history page expands an already measured row entirely above the fold during upward scrolling', async () => {
+        const listRef = createRef<VirtualThreadHandle>()
+        const view = render(<Harness rows={rows} listRef={listRef} />)
+        await waitFor(() => expect(view.container.querySelector('[data-hapi-virtual-row="row-0"]')).not.toBeNull())
+        const row = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-0"]')!
+        let height = 136
+        Object.defineProperty(row, 'getBoundingClientRect', { configurable: true, value: () => ({ width: 800, height, top: 0, bottom: height, left: 0, right: 800, x: 0, y: 0, toJSON() {} }) })
+        view.rerender(<Harness rows={[...rows]} listRef={listRef} />)
+        act(() => {
+            const viewport = view.getByTestId('viewport')
+            viewport.scrollTop = 300
+            viewport.dispatchEvent(new Event('scroll'))
+            viewport.scrollTop = 197
+            viewport.dispatchEvent(new Event('scroll'))
+            listRef.current!.captureHistoryContentAnchor()
+        })
+        height = 323.5
+        view.rerender(<Harness rows={rows.map((row, index) => index === 0 ? { ...row, sourceIds: [...row.sourceIds, 'earlier-history-tool'] } : row)} listRef={listRef} />)
+        expect(view.getByTestId('viewport').scrollTop).toBe(384.5)
+        expect(row.dataset.hapiRowSize).toBe('323.5')
+    })
+    it('measures new history rows during native scrolling before ResizeObserver delivery', async () => {
+        const view = render(<Harness rows={rows} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-2')).not.toBeNull())
+        const retained = view.container.querySelector('#hapi-message-row-2')
+        act(() => {
+            const viewport = view.getByTestId('viewport')
+            viewport.scrollTop = 300
+            viewport.dispatchEvent(new Event('scroll'))
+        })
+        const older = rows.slice(0, 14).map((row, index) => ({ ...row, id: `older-${index}`, sourceIds: [`older-source-${index}`], createdAt: index - 14 }))
+        view.rerender(<Harness rows={[...older, ...rows]} />)
+        const newMountedRows = [...view.container.querySelectorAll<HTMLElement>('[data-hapi-virtual-row^="older-"]')]
+        expect(newMountedRows.length).toBeGreaterThan(0)
+        expect(newMountedRows.every(element => element.dataset.hapiRowSize === '120')).toBe(true)
+        expect(view.container.querySelector('#hapi-message-row-2')).toBe(retained)
+    })
     it('retains its connected viewport through a compound parent ref detach during prepend', async () => {
         const view = render(<Harness rows={rows} compoundViewportRef />)
         await waitFor(() => expect(view.container.querySelector('#hapi-message-row-0')).not.toBeNull())

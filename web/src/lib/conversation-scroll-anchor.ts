@@ -142,7 +142,10 @@ export function captureConversationScrollAnchor(viewport: HTMLElement): Conversa
     return first ? { ...first, ...(rest.length ? { alternatives: rest } : {}) } : null
 }
 
-export function restoreConversationScrollAnchor(viewport: HTMLElement, anchor: ConversationScrollAnchor): boolean {
+export function getConversationScrollAnchorPosition(viewport: HTMLElement, anchor: ConversationScrollAnchor): {
+    currentOffset: number
+    targetOffset: number
+} | null {
     const content = Array.from(viewport.querySelectorAll<HTMLElement>(CONTENT_SELECTOR))
     for (const point of [anchor, ...(anchor.alternatives ?? [])]) {
         const target = point.kind === 'content'
@@ -162,8 +165,14 @@ export function restoreConversationScrollAnchor(viewport: HTMLElement, anchor: C
         }
         const range = offset === undefined ? null : textRange(target, offset)
         const rect = range?.getBoundingClientRect() ?? target.getBoundingClientRect()
-        viewport.scrollTop += rect.top - viewport.getBoundingClientRect().top - point.topOffset
-        return true
+        return { currentOffset: rect.top - viewport.getBoundingClientRect().top, targetOffset: point.topOffset }
     }
-    return false
+    return null
+}
+
+export function restoreConversationScrollAnchor(viewport: HTMLElement, anchor: ConversationScrollAnchor): boolean {
+    const position = getConversationScrollAnchorPosition(viewport, anchor)
+    if (!position) return false
+    viewport.scrollTop += position.currentOffset - position.targetOffset
+    return true
 }
