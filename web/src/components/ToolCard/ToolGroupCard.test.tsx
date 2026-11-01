@@ -124,14 +124,16 @@ describe('ToolGroupCard', () => {
         expect(view.container.innerHTML).toContain('bg-[var(--app-tool-group-bg)]')
     })
 
-    it('uses actual single-line command previews for minimal exploration groups and their expanded rows', () => {
+    it('summarizes minimal groups while keeping actual single-line commands in expanded rows', () => {
         renderCard(makeGroup({ presentationMode: 'codex-exploration', tools: [
             makeToolBlock('read', 'CodexBash', { command: ['cat', 'README.md'], parsed_cmd: [{ type: 'read', path: 'README.md', name: 'README.md' }] }),
             makeToolBlock('test', 'Bash', { command: 'bun test' }),
         ] }), { displayMode: 'minimal' })
         const header = screen.getByRole('button', { expanded: false })
-        expect(header).toHaveTextContent('cat README.md · bun test')
-        expect(screen.getByText('cat README.md · bun test')).toHaveClass('truncate', 'whitespace-nowrap')
+        expect(header).toHaveTextContent('Explored')
+        expect(header).not.toHaveTextContent('cat README.md')
+        expect(header).not.toHaveTextContent('bun test')
+        expect(screen.getByText('Explored')).toHaveClass('truncate', 'whitespace-nowrap')
         expect(screen.getByText('2 actions')).toBeInTheDocument()
         expect(screen.queryByText('Duration')).not.toBeInTheDocument()
         fireEvent.click(header)

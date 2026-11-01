@@ -236,11 +236,6 @@ export function ToolGroupCard(props: {
     }, [selectedTool, props.metadata, t])
 
     const primaryTitle = formatGroupedHeaderTitle(props.block, t)
-    const minimalPreview = useMemo(() => minimal ? props.block.tools.map(block => getMinimalToolPreview(block.tool, getToolPresentation({
-        toolName: block.tool.name, input: block.tool.input, result: block.tool.result,
-        childrenCount: block.children.length, description: block.tool.nativeTitle ?? block.tool.description,
-        metadata: props.metadata,
-    }, t))).join(' · ') : '', [minimal, props.block.tools, props.metadata, t])
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
         : props.block.summary.pendingCount > 0 ? 'pending'
             : groupTiming.running ? 'running' : 'completed'
@@ -270,8 +265,8 @@ export function ToolGroupCard(props: {
                                 <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
                                     <DetailsIcon open={open} />
                                 </div>
-                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'font-mono text-xs font-normal' : 'text-sm font-medium')} title={minimal ? minimalPreview : undefined}>
-                                    {minimal ? minimalPreview : primaryTitle}
+                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'text-xs font-normal' : 'text-sm font-medium')} title={minimal ? primaryTitle : undefined}>
+                                    {primaryTitle}
                                 </CardTitle>
                             </div>
                             {!minimal ? <ToolTimingSummary
