@@ -269,6 +269,37 @@ export class MessageService {
         }
     }
 
+    /** Resolve a persisted source directly, with bounded context for rendering and navigation. */
+    getMessageContext(sessionId: string, messageId: string) {
+        const stored = this.store.messages.getById(sessionId, messageId)
+        if (!stored || !isWebVisibleStoredMessage(stored)) return null
+        const position = messagePosition(stored)
+        const epoch = this.store.messages.getMessageEpoch(sessionId)
+        // The composite cursor is exclusive. The next seq at the same timestamp
+        // includes this exact row without relying on wall-clock rounding.
+        const before = this.getMessagesPage(sessionId, {
+            limit: 25, before: { at: position.at, seq: position.seq + 1 }, epoch,
+        })
+        const after = this.getMessagesPage(sessionId, { limit: 25, after: position, epoch })
+        const messages = new Map(before.messages.map(message => [message.id, message]))
+        messages.set(stored.id, toDecryptedMessage(stored))
+        for (const message of after.messages) messages.set(message.id, message)
+        return {
+            message: toDecryptedMessage(stored), position, epoch,
+            page: {
+                messages: [...messages.values()],
+                page: {
+                    ...before.page,
+                    limit: 50,
+                    nextAfterAt: after.page.nextAfterAt,
+                    nextAfterSeq: after.page.nextAfterSeq,
+                    snapshotHeadAt: after.page.snapshotHeadAt,
+                    snapshotHeadSeq: after.page.snapshotHeadSeq,
+                },
+            },
+        }
+    }
+
     getMessagesPage(
         sessionId: string,
         options: {

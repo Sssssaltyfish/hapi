@@ -4,6 +4,7 @@ import { NativeConnection, record, text, type NativeEvent, type NativeRecord } f
 import { listDaemonProjects, projectMemberships } from './projects'
 import { nativeOutlinePage } from '../sync/conversationOutline'
 import { nativeTurnContext } from './turnContext'
+import { nativeItemLookup } from './itemLookup'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
@@ -162,6 +163,10 @@ export class NativeService {
     }
     turnContext(threadId: string, turnId: string, itemId: string) {
         return nativeTurnContext((params) => this.items(threadId, params), turnId, itemId)
+    }
+
+    item(threadId: string, turnId: string, itemId: string) {
+        return nativeItemLookup(params => this.control(threadId, 'thread/items/read', params), turnId, itemId)
     }
     isCreatingEmpty(threadId: string): boolean {
         const entry = this.subscriptions.get(threadId)
