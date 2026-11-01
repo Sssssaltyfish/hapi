@@ -2,6 +2,9 @@ export type ResponseAnnotationSource = {
     messageId: string
     startOffset: number
     endOffset: number
+    /** Optional HAPI locator hints. Desktop accepts and strips unknown source keys. */
+    turnId?: string
+    partId?: string
 }
 
 export type ResponseAnnotation = {
@@ -33,7 +36,13 @@ function parseAnnotation(value: unknown): ResponseAnnotation | null {
         && typeof rawSource.messageId === 'string' && rawSource.messageId.length > 0
         && Number.isInteger(rawSource.startOffset) && Number.isInteger(rawSource.endOffset)
         && Number(rawSource.startOffset) >= 0 && Number(rawSource.endOffset) > Number(rawSource.startOffset)
-        ? rawSource as ResponseAnnotationSource : undefined
+        ? {
+            messageId: rawSource.messageId,
+            startOffset: Number(rawSource.startOffset),
+            endOffset: Number(rawSource.endOffset),
+            ...(typeof rawSource.turnId === 'string' && rawSource.turnId ? { turnId: rawSource.turnId } : {}),
+            ...(typeof rawSource.partId === 'string' && rawSource.partId ? { partId: rawSource.partId } : {}),
+        } satisfies ResponseAnnotationSource : undefined
     return {
         text: entry.text,
         ...(typeof entry.annotation === 'string' && entry.annotation ? { annotation: entry.annotation } : {}),
@@ -96,7 +105,10 @@ export function responseAnnotationFromRange(range: Range, text: string): Respons
         const raw = range.toString()
         const leading = raw.length - raw.trimStart().length
         const startOffset = before.toString().length + leading
-        return { text, source: { messageId, startOffset, endOffset: startOffset + text.length } }
+        return { text, source: { messageId, startOffset, endOffset: startOffset + text.length,
+            ...(target.dataset.hapiResponseTurnId ? { turnId: target.dataset.hapiResponseTurnId } : {}),
+            ...(target.dataset.hapiResponsePartId ? { partId: target.dataset.hapiResponsePartId } : {}),
+        } }
     } catch {
         return { text }
     }

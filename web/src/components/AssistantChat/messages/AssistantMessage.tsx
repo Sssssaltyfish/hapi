@@ -13,6 +13,8 @@ import { NotifySummaryText } from '@/components/AssistantChat/messages/NotifySum
 import { useSessionSummaryInChat } from '@/hooks/useSessionSummaryInChat'
 import type { ReasoningMessagePartComponent, TextMessagePartComponent } from '@assistant-ui/react'
 import { ResponseAnnotationsProvider } from '@/components/AssistantChat/ResponseAnnotationReference'
+import { useResponseAnnotationSession } from '@/components/AssistantChat/ResponseAnnotationSession'
+import { WorkDisclosure } from './WorkDisclosure'
 
 function useScrollAnchor() {
     const part = useAuiState(state => state.part)
@@ -25,12 +27,17 @@ function useScrollAnchor() {
 
 const QuotableAssistantText: TextMessagePartComponent = (props) => {
     const anchor = useScrollAnchor()
+    const part = useAuiState(state => state.part)
+    const partId = getMessagePartScrollAnchors(part).find(id => id.startsWith('agent-text:'))
+    const session = useResponseAnnotationSession()
     const targets = useAuiState(state => (state.message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.responseAnnotationTargets)
     const annotations = useAuiState(state => (state.message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.responseAnnotations)
     const matches = targets?.filter(target => target.text === props.text) ?? []
     // Repeated identical native text cannot be mapped to a unique source item.
-    const sourceId = matches.length === 1 ? matches[0].messageId : undefined
-    return <div {...anchor} data-hapi-response-item-id={sourceId}><ResponseAnnotationsProvider value={annotations ?? []}>
+    const source = session?.resolver.sourceForPart(partId)
+    const sourceId = source?.messageId ?? (matches.length === 1 ? matches[0].messageId : undefined)
+    return <div {...anchor} data-hapi-response-item-id={sourceId} data-hapi-response-turn-id={source?.turnId} data-hapi-response-part-id={source?.partId}>
+        <ResponseAnnotationsProvider value={{ annotations: annotations ?? [], partId }}>
         <NotifySummaryText {...props} />
     </ResponseAnnotationsProvider></div>
 }
@@ -86,6 +93,7 @@ export function HappyAssistantMessage() {
     const messageModel = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.model)
     const turnCount = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.turnCount)
     const roundSummary = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.roundSummary)
+    const workGroup = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.workGroup)
 
     const metadata = { durationMs, usage, model: messageModel ?? null, turnCount, roundSummary }
 
@@ -107,7 +115,7 @@ export function HappyAssistantMessage() {
             data-hapi-message-role="assistant"
             className={`happy-message ${rootClass} scroll-mt-4`}
         >
-            {isCliOutput
+            {workGroup ? <WorkDisclosure work={workGroup}><MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} /></WorkDisclosure> : isCliOutput
                 ? <CliOutputBlock text={cliText} />
                 : codexReview
                     ? <CodexReviewCard review={codexReview} />

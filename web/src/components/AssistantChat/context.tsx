@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { TerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
 import type { SessionMetadataSummary } from '@/types/api'
+import { createWorkExpansionState } from './workExpansion'
 
 export type OlderHistoryLoadResult = 'loaded' | 'transient-stop' | 'terminal-stop'
 
@@ -79,10 +80,12 @@ function createToolGroupExpansionState() {
 }
 
 const ToolGroupExpansionContext = createContext<ReturnType<typeof createToolGroupExpansionState> | null>(null)
+const WorkExpansionContext = createContext<ReturnType<typeof createWorkExpansionState> | null>(null)
 
 export function HappyChatProvider(props: { value: HappyChatContextValue; children: ReactNode }) {
     // Cards can remount when history changes the surrounding assistant response.
     const toolGroupExpansion = useMemo(createToolGroupExpansionState, [props.value.sessionId])
+    const workExpansion = useMemo(createWorkExpansionState, [props.value.sessionId])
     // Keep dismissal outside virtualized cards so recycling cannot revive a menu.
     const [continued, setContinued] = useState<{ sessionId: string; ids: ReadonlySet<string> }>({
         sessionId: props.value.sessionId, ids: new Set()
@@ -100,7 +103,7 @@ export function HappyChatProvider(props: { value: HappyChatContextValue; childre
     return (
         <HappyChatContext.Provider value={value}>
             <ToolGroupExpansionContext.Provider value={toolGroupExpansion}>
-                {props.children}
+                <WorkExpansionContext.Provider value={workExpansion}>{props.children}</WorkExpansionContext.Provider>
             </ToolGroupExpansionContext.Provider>
         </HappyChatContext.Provider>
     )
@@ -110,6 +113,10 @@ export function useToolGroupExpansionState() {
     const state = useContext(ToolGroupExpansionContext)
     if (!state) throw new Error('HappyChatContext is missing')
     return state
+}
+
+export function useOptionalWorkExpansionState() {
+    return useContext(WorkExpansionContext)
 }
 
 export function useOptionalHappyChatContext(): HappyChatContextValue | null {

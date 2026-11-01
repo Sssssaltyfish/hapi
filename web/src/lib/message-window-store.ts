@@ -7,6 +7,7 @@ import type { NormalizedMessage } from '@/chat/types'
 import type { DecryptedMessage, MessageStatus, MessagesResponse } from '@/types/api'
 import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
 import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
+import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
@@ -1097,7 +1098,7 @@ export async function seekMessageWindow(
         if (getState(sessionId).olderGeneration !== generation) return false
         if (locator.epoch !== null && response.page.epoch !== locator.epoch) return false
         const normalized = response.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-        if (!buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)) return false
+        if (!reduceChatBlocks(normalized, null).blocks.some(block => getTimelineBlockSourceIds(block).includes(targetMessageId))) return false
         const newest = derivePosition(response.messages.filter(message => !isQueuedForInvocation(message)), 'newest')
         updateState(sessionId, previous => buildState(previous, {
             messages: mergeMessages(response.messages, previous.messages.filter(isQueuedForInvocation)),

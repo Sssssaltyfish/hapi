@@ -33,7 +33,7 @@ describe('MarkdownRenderer', () => {
         expect(container.querySelector('code')?.textContent).toBe(marker)
         expect(container.querySelector('.aui-md-codeblock')?.textContent).toContain(marker)
         fireEvent.click(screen.getByRole('button', { name: 'Quote 6' }))
-        expect(screen.getByText('This quote is not available in the currently loaded history.')).toBeTruthy()
+        expect(screen.getByText('The original quote could not be loaded.')).toBeTruthy()
     })
 
     it('renders fenced code blocks with the shared syntax highlighter shell in standalone mode', () => {

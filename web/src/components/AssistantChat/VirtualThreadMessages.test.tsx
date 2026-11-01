@@ -6,6 +6,9 @@ import { getTurnRowRange, VirtualThreadMessages, type VirtualThreadHandle } from
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
 import { captureConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
 
+const work = vi.hoisted(() => ({ expansion: null as { set: (turnId: string, open: boolean) => void } | null }))
+vi.mock('./context', () => ({ useOptionalWorkExpansionState: () => work.expansion }))
+
 function Message() {
     const id = useAuiState(s => s.message.id)
     const role = useAuiState(s => s.message.role)
@@ -29,6 +32,7 @@ function Harness(props: { rows: readonly TimelineRow[]; hydrate?: (locator: Time
 }
 
 beforeEach(() => {
+    work.expansion = null
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
         const height = this.dataset.testid === 'viewport' ? 600 : this.hasAttribute('data-hapi-virtual-row') ? 120 : 0
         return { width: 800, height, top: 0, left: 0, right: 800, bottom: height, x: 0, y: 0, toJSON() {} }
@@ -54,6 +58,15 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('measured conversation virtualization', () => {
+    it('opens collapsed work before the actual select-all event completes', async () => {
+        const set = vi.fn()
+        work.expansion = { set }
+        const view = render(<Harness rows={rows.slice(0, 3).map((row, index) => index === 1 ? { ...row, workTurnId: 'work-turn' } : row)} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-1')).not.toBeNull())
+        const complete = vi.fn(() => expect(set).toHaveBeenCalledWith('work-turn', true))
+        act(() => view.getByTestId('viewport').dispatchEvent(new CustomEvent('hapi:materialize-selection', { detail: complete })))
+        await waitFor(() => expect(complete).toHaveBeenCalledOnce())
+    })
     it('preserves the actual content anchor when a partially visible predecessor expands during history loading', async () => {
         const listRef = createRef<VirtualThreadHandle>()
         const view = render(<Harness rows={rows} listRef={listRef} />)
@@ -271,6 +284,22 @@ describe('measured conversation virtualization', () => {
         })
         await waitFor(() => expect(complete).toHaveBeenCalledWith(false))
         expect(viewport.scrollTop).toBeGreaterThan(600)
+    })
+
+    it('reveals work classified during hydration before navigation completes', async () => {
+        const set = vi.fn()
+        work.expansion = { set }
+        const complete = vi.fn()
+        const hydrate = vi.fn(async (_locator: TimelineHistoryLocator) => {
+            await new Promise(resolve => setTimeout(resolve, 0))
+            view.rerender(<Harness rows={rows.map((row, index) => index === 3 ? { ...row, workTurnId: 'classified-work' } : row)} hydrate={hydrate} />)
+            return true
+        })
+        const view = render(<Harness rows={rows.map((row, index) => index === 3 ? { ...row, resident: false } : row)} hydrate={hydrate} />)
+        act(() => { view.getByTestId('viewport').dispatchEvent(new CustomEvent('hapi:ensure-row', { detail: { alias: 'source-3', complete } })) })
+        await waitFor(() => expect(complete).toHaveBeenCalledWith(true))
+        expect(set).toHaveBeenCalledWith('classified-work', true)
+        expect(set.mock.invocationCallOrder[0]).toBeLessThan(complete.mock.invocationCallOrder[0])
     })
 
     it('materializes only resident rows for explicit selection, and releases them when selection collapses', async () => {

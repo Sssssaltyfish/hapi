@@ -336,6 +336,12 @@ export function HappyToolMessage(props: ToolCallMessagePartProps) {
     const ctx = useHappyChatContext()
     const artifact = props.artifact
 
+    if (isObject(artifact) && artifact.kind === 'agent-event' && isObject(artifact.event) && typeof artifact.event.type === 'string') {
+        return <div className="py-1" data-hapi-scroll-anchor={`agent-event:${artifact.id}`}>
+            <EventMessage event={artifact.event as import('@/chat/types').AgentEvent} />
+        </div>
+    }
+
     if (isToolGroupBlock(artifact)) {
         return (
             <div data-hapi-share-exclude="true" className="py-1 min-w-0 max-w-full overflow-x-hidden">

@@ -97,6 +97,8 @@ const GLOBAL_OPERATIONS = [
     'uploadCodexNativeFile',
     'deleteCodexNativeUpload',
     'getCodexNativeItems',
+    'getCodexNativeItem',
+    'getCodexNativeTurnItems',
     'getCodexNativeModels',
     'getCodexNativeQueue',
     'codexNativeAction',

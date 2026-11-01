@@ -13,7 +13,7 @@ import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
 import { getConversationReadingPosition } from '@/lib/conversation-reading-position'
-import { buildConversationOutline } from '@/chat/outline'
+import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
@@ -23,7 +23,7 @@ import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
 function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
     const messages = projectNativeItems(entries, [], false).messages
     const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
+    return reduceChatBlocks(normalized, null).blocks.some(block => getTimelineBlockSourceIds(block).includes(targetMessageId))
 }
 
 export function NativeSessionPage({
@@ -74,15 +74,19 @@ function NativeSessionChat({
     while (observedReplies.current.size > 300)
         observedReplies.current.delete(observedReplies.current.keys().next().value!)
     const turnStateKnown = thread.detail.activeTurn !== undefined
+    const activeTurnId = typeof record(thread.detail.activeTurn).id === 'string'
+        ? String(record(thread.detail.activeTurn).id) : null
+    const workTurnStateKnown = thread.detail.activeTurn === null || activeTurnId !== null
     const projected = useMemo(
         () =>
             projectNativeItems(
                 thread.items,
                 thread.requests,
                 turnStateKnown,
-                observedReplies.current
+                observedReplies.current,
+                workTurnStateKnown ? { activeTurnId } : undefined
             ),
-        [thread.items, thread.requests, turnStateKnown]
+        [thread.items, thread.requests, turnStateKnown, activeTurnId, workTurnStateKnown]
     )
     const [sending, setSending] = useState(false)
     const historyLocators = useMemo(() => {

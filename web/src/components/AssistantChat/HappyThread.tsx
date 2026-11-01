@@ -41,6 +41,8 @@ import { queryKeys } from '@/lib/query-keys'
 import { matchesSearchQuery } from '@hapi/protocol'
 import { getConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { revealConversationMessage } from '@/lib/revealConversationMessage'
+import { revealResponseAnnotation } from '@/lib/revealResponseAnnotation'
+import { useResponseAnnotationSession } from './ResponseAnnotationSession'
 import { HistoryScrollPrefetch } from '@/lib/history-page-cache'
 import {
     captureConversationScrollAnchor as captureScrollAnchor,
@@ -1635,7 +1637,7 @@ export function HappyThread(props: {
         return requestOlder('consumer')
     }, [requestOlder])
 
-    const handleOutlineSelect = useCallback(async (item: ConversationOutlineItem) => {
+    const handleOutlineSelect = useCallback(async (item: ConversationOutlineItem): Promise<boolean> => {
         const runId = ++outlineNavigationRef.current
         const sessionId = props.sessionId
         const isCurrent = () => outlineNavigationRef.current === runId && sessionIdRef.current === sessionId
@@ -1656,16 +1658,17 @@ export function HappyThread(props: {
         setOutlineNavigating(true)
         setOutlineNavigationError(null)
         try {
-            if (!findTarget() && !await virtualThreadRef.current?.ensureRow(item.targetMessageId, isCurrent)) {
-                if (!props.onLocateOutlineItem || !await props.onLocateOutlineItem(item, isCurrent)) return
+            const materialized = await virtualThreadRef.current?.ensureRow(item.targetMessageId, isCurrent)
+            if (!materialized && !findTarget()) {
+                if (!props.onLocateOutlineItem || !await props.onLocateOutlineItem(item, isCurrent)) return false
                 // Locator may have introduced a previously unknown logical row.
                 await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
                 await virtualThreadRef.current?.ensureRow(item.targetMessageId, isCurrent)
             }
-            if (!isCurrent()) return
+            if (!isCurrent()) return false
             const target = await revealConversationMessage({ targetMessageId: canonicalTargetId(), viewport: () => viewportRef.current, isCurrent })
-            if (!isCurrent()) return
-            if (!target) { setOutlineNavigationError(t('session.outline.locateFailed')); return }
+            if (!isCurrent()) return false
+            if (!target) { setOutlineNavigationError(t('session.outline.locateFailed')); return false }
             // Closing a mobile outline restores the composer and changes the
             // chat height. Confirm visibility again in that final layout.
             closingOutlineNavigationRef.current = runId
@@ -1680,6 +1683,7 @@ export function HappyThread(props: {
                 setShowScrollToBottom(true)
                 lastScrollTopRef.current = viewportRef.current?.scrollTop ?? 0
                 props.onOutlineItemClick?.(item)
+                return true
             } else if (isCurrent()) {
                 setOutlineNavigationError(t('session.outline.locateFailed'))
                 props.onOutlineOpenChange(true)
@@ -1695,7 +1699,18 @@ export function HappyThread(props: {
                 scheduleCoverageAfterSettling()
             }
         }
+        return false
     }, [clearInitialScrollTimers, stopHistoryForNavigation, scheduleCoverageAfterSettling, props.sessionId, props.onLocateOutlineItem, props.onOutlineItemClick, props.onOutlineOpenChange, t])
+
+    const annotationSession = useResponseAnnotationSession()
+    useEffect(() => {
+        annotationSession?.setNavigator(async target => {
+            if (!await handleOutlineSelect(target.item)) return false
+            const viewport = viewportRef.current
+            return viewport ? revealResponseAnnotation(viewport, target) : false
+        })
+        return () => annotationSession?.setNavigator(undefined)
+    }, [annotationSession, handleOutlineSelect])
 
     useEffect(() => {
         if (!props.outlineOpen) {

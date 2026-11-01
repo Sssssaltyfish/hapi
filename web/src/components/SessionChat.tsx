@@ -21,6 +21,8 @@ import type {
 import type { ChatBlock, NormalizedMessage } from '@/chat/types'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
+import { ResponseAnnotationResolver } from '@/lib/responseAnnotationResolver'
+import { ResponseAnnotationSessionProvider } from '@/components/AssistantChat/ResponseAnnotationSession'
 import { reduceChatBlocks } from '@/chat/reducer'
 import { reconcileChatBlocks } from '@/chat/reconcile'
 import { buildConversationOutline } from '@/chat/outline'
@@ -1961,6 +1963,10 @@ function SessionChatInner(props: SessionChatProps) {
         pendingScheduleRef,
         pendingSendIntentRef,
     })
+    const annotationCacheScope = props.api.getConversationCacheScope?.().key
+    const annotationResolver = useMemo(() => new ResponseAnnotationResolver(props.api, props.session), [annotationCacheScope, props.session.id, props.conversationHistoryRevision, historyEpoch, rewindRevision])
+    annotationResolver.updateApi(props.api)
+    useMemo(() => annotationResolver.observe(visibleMessages), [annotationResolver, visibleMessages])
     const isLatestCompletedBoundary = useCallback((messageId: string) => {
         if (!latestCompletedBoundaryId) return false
         const extras = runtime.thread.getState().extras as HappyRuntimeExtras | undefined
@@ -2019,6 +2025,7 @@ function SessionChatInner(props: SessionChatProps) {
             ) : null}
 
             <AssistantRuntimeProvider runtime={runtime}>
+                <ResponseAnnotationSessionProvider resolver={annotationResolver}>
                 <ShareSeedConsumer sessionId={props.session.id} sessionActive={props.session.active} />
                 <AbortRestoreConsumer messages={normalizedMessages} onAbortRestore={props.onAbortRestore ?? (() => {})} />
                 <DragDropZone disabled={(!props.session.active && !inactiveCanResume) || props.isSending || pendingSchedule != null || isScratchlistParking}>
@@ -2354,6 +2361,7 @@ function SessionChatInner(props: SessionChatProps) {
                     </div>
                     </div>
                 </DragDropZone>
+                </ResponseAnnotationSessionProvider>
             </AssistantRuntimeProvider>
             </div>
 

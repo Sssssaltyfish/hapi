@@ -1,5 +1,6 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { buildVisibleChatBlocks, type VisibleChatBlock, type VisibleChatBlockRole } from '@/chat/toolGroups'
+import type { WorkGroup } from './work-groups'
 
 export type TimelineHistoryLocator =
     | { kind: 'runner'; beforeAt: number; beforeSeq: number | null; epoch?: number; targetMessageId: string }
@@ -14,6 +15,7 @@ export type TimelineRow = Readonly<{
     resident: boolean
     current: boolean
     locator?: TimelineHistoryLocator
+    workTurnId?: string
 }>
 
 export type TimelineRowSnapshot = { role: VisibleChatBlockRole; text: string }
@@ -26,6 +28,9 @@ export type MaterializedTimelineRow = {
     metadataKey: string
     transient?: boolean
     toolGroupsCollapsed?: boolean
+    groupingKey?: string
+    workTurnId?: string
+    workState?: WorkGroup
     project: (id: string, blocks: readonly VisibleChatBlock[], previous?: ThreadMessageLike) => ThreadMessageLike
 }
 
@@ -52,6 +57,8 @@ type KnownRow = {
     ordinal: number
     locator?: TimelineHistoryLocator
     transient?: boolean
+    groupingKey?: string
+    workTurnId?: string
 }
 
 function atomicKeys(blocks: readonly VisibleChatBlock[]): string[] {
@@ -128,6 +135,7 @@ export class StableChatTimeline {
     private rows: readonly TimelineRow[] = []
     private viewportPins = new Set<string>()
     private toolGroupsCollapsed: boolean | undefined
+    private readonly workGroups = new Map<string, WorkGroup>()
 
     constructor(private readonly retainedPayloadBytes = 8 * 1024 * 1024) {}
 
@@ -180,23 +188,34 @@ export class StableChatTimeline {
             this.rows = []
             this.clock = 0
             this.ordinal = 0
+            this.workGroups.clear()
         }
         const current: string[] = []
         const pinned = new Set<string>()
         for (const source of incoming) {
+            if (source.workState) {
+                const state = source.workState
+                const finalKnown = state.finalKnown || this.workGroups.get(state.turnId)?.finalKnown === true
+                this.workGroups.set(state.turnId, { ...state, finalKnown, canCollapse: finalKnown && !state.blocked })
+            }
             const matches = [...new Set(source.sourceIds.flatMap(alias => {
                 const id = this.aliases.get(alias)
-                return id && this.known.get(id)?.role === source.role ? [id] : []
+                const known = id ? this.known.get(id) : undefined
+                const sameGroup = known?.groupingKey === source.groupingKey
+                    || (known?.groupingKey?.includes(':unclassified:') && source.groupingKey !== undefined)
+                return known?.role === source.role && sameGroup ? [known.id] : []
             }))].sort((a, b) => this.known.get(a)!.ordinal - this.known.get(b)!.ordinal)
             let row = matches.length ? this.known.get(matches[0])! : undefined
             if (!row) {
                 const base = source.sourceIds[0] ?? `timeline:${this.ordinal}`
                 let id = base
                 while (this.known.has(id)) id = `${base}~${++this.ordinal}`
-                row = { id, role: source.role, sourceIds: new Set(), requiredKeys: new Set(), sourceOrder: [], locators: new Map(), createdAt: source.createdAt, ordinal: this.ordinal++, transient: source.transient }
+                row = { id, role: source.role, groupingKey: source.groupingKey, workTurnId: source.workTurnId, sourceIds: new Set(), requiredKeys: new Set(), sourceOrder: [], locators: new Map(), createdAt: source.createdAt, ordinal: this.ordinal++, transient: source.transient }
                 this.known.set(id, row)
                 this.aliases.set(id, id)
             }
+            row.groupingKey = source.groupingKey
+            row.workTurnId = source.workTurnId
             // A later contiguous materialization may prove that two previously
             // disconnected fragments belong to one response. The first known
             // identity wins and all old aliases continue to resolve.
@@ -268,6 +287,18 @@ export class StableChatTimeline {
         }
         this.toolGroupsCollapsed = toolGroupsCollapsed
 
+        // A final-only page or turn completion must also update retained work
+        // whose source payload is outside the current materialized window.
+        for (const [id, payload] of this.payloads) {
+            const turnId = this.known.get(id)?.workTurnId
+            const workGroup = turnId ? this.workGroups.get(turnId) : undefined
+            if (!workGroup || JSON.stringify(payload.projection.message.metadata?.custom?.workGroup) === JSON.stringify(workGroup)) continue
+            const previous = payload.projection.message
+            const message = { ...previous, metadata: { ...previous.metadata, custom: { ...previous.metadata?.custom, workGroup } } }
+            payload.projection = { message }
+            payload.bytes = JSON.stringify(message).length * 2
+        }
+
         for (const [id, row] of this.known) {
             if (!row.transient || pinned.has(id)) continue
             this.known.delete(id)
@@ -305,7 +336,7 @@ export class StableChatTimeline {
             const available = new Set(atomicKeys(payload?.blocks ?? []))
             const missing = [...row.requiredKeys].find(key => !available.has(key))
             const locator = missing ? row.locators.get(missing) ?? row.locators.get(missing.slice(missing.indexOf(':') + 1)) ?? row.locator : row.locator
-            return { id, role: row.role, sourceIds: [...row.sourceIds], createdAt: row.createdAt, resident: payload?.complete === true, current: pinned.has(id), locator }
+            return { id, role: row.role, sourceIds: [...row.sourceIds], createdAt: row.createdAt, resident: payload?.complete === true, current: pinned.has(id), locator, workTurnId: row.workTurnId }
         })
         return this.order.flatMap(id => {
             const payload = this.payloads.get(id)
