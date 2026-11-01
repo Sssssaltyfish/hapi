@@ -1,5 +1,4 @@
 import { MessagePrimitive, useAuiState } from '@assistant-ui/react'
-import { getEventPresentation } from '@/chat/presentation'
 import type { AgentEvent } from '@/chat/types'
 import type { HappyChatMessageMetadata } from '@/lib/assistant-runtime'
 import { getConversationMessageAnchorId } from '@/chat/outline'
@@ -9,6 +8,7 @@ import { CodeBlock } from '@/components/CodeBlock'
 import { parseGoalStatusMessage } from '@/components/ToolCard/goalTools'
 import { GoalSummary } from '@/components/ToolCard/views/GoalView'
 import { useTranslation } from '@/lib/use-translation'
+import { EventMessage } from './EventMessage'
 
 function formatTokenDelta(event: AgentEvent | undefined): string | null {
     if (!event || event.type !== 'compact-summary') return null
@@ -40,7 +40,6 @@ export function HappySystemMessage() {
 
     if (role !== 'system') return null
 
-    const icon = event ? getEventPresentation(event).icon : null
     const goalMessage = event?.type === 'message' && typeof event.message === 'string' ? event.message : null
     const goal = goalMessage !== null ? parseGoalStatusMessage(goalMessage) : null
     if (goal && goalMessage !== null) {
@@ -87,13 +86,7 @@ export function HappySystemMessage() {
 
     return (
         <MessagePrimitive.Root id={getConversationMessageAnchorId(messageId)} className="scroll-mt-4 py-1">
-            <div className="mx-auto w-fit max-w-[92%] px-2 text-center text-xs text-[var(--app-hint)] opacity-80">
-                <span className="inline-flex items-center gap-1">
-                    {icon ? <span aria-hidden="true">{icon}</span> : null}
-                    <span>{text}</span>
-                    <MessageTimestamp className="text-[10px]" />
-                </span>
-            </div>
+            <EventMessage event={event ?? { type: 'message', message: text }} timestamp={<MessageTimestamp className="text-[10px]" />} />
         </MessagePrimitive.Root>
     )
 }

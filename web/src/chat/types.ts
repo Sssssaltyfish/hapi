@@ -31,7 +31,20 @@ export type RoundSummary = {
     durationMs?: number
 }
 
+/** A historical activity record, independent of the child's current run state. */
+export type AgentActivityEvent = {
+    type: 'agent-activity'
+    sourceItemId: string
+    agentId: string
+    activityKind: string
+    summary: string
+    agentPath?: string
+    model?: string
+    reasoningEffort?: string
+}
+
 export type AgentEvent =
+    | AgentActivityEvent
     | { type: 'switch'; mode: 'local' | 'remote' }
     | { type: 'message'; message: string }
     | { type: 'error'; message: string }
@@ -53,6 +66,14 @@ export type AgentEvent =
     | { type: 'thread-goal-cleared'; threadId?: string }
     | { type: 'abort-restore'; text: string }
     | ({ type: string } & Record<string, unknown>)
+
+export function isAgentActivityEvent(event: AgentEvent): event is AgentActivityEvent {
+    return event.type === 'agent-activity'
+        && typeof event.sourceItemId === 'string'
+        && typeof event.agentId === 'string'
+        && typeof event.activityKind === 'string'
+        && typeof event.summary === 'string'
+}
 
 export type ToolResultPermission = {
     date: number

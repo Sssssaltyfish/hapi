@@ -1,4 +1,5 @@
 import type { AgentEvent } from '@/chat/types'
+import { isAgentActivityEvent } from '@/chat/types'
 
 function normalizeTimestamp(value: number): Date {
     const ms = value < 1_000_000_000_000 ? value * 1000 : value
@@ -253,6 +254,14 @@ export function getEventPresentation(event: AgentEvent): EventPresentation {
     }
     if (event.type === 'error') {
         return { icon: '⚠️', text: typeof event.message === 'string' ? event.message : 'Error' }
+    }
+    if (isAgentActivityEvent(event)) {
+        const action = event.activityKind === 'started' ? 'Started'
+            : event.activityKind === 'completed' ? 'Completed'
+              : event.activityKind === 'failed' || event.activityKind === 'errored' ? 'Failed'
+                : event.activityKind === 'interacted' ? 'Interacted with'
+                  : `Activity (${event.activityKind}) for`
+        return { icon: '↳', text: `${action} ${event.summary}` }
     }
     if (event.type === 'message') {
         return { icon: null, text: typeof event.message === 'string' ? event.message : 'Message' }

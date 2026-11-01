@@ -1,9 +1,8 @@
 import { expect, it } from 'vitest'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
-import type { NormalizedMessage, ToolCallBlock } from '@/chat/types'
-import { getCodexAgentFieldRows } from '@/components/ToolCard/codexAgents'
-import { getToolTimingDetails } from '@/components/ToolCard/ToolCard'
+import type { ChatBlock, NormalizedMessage, ToolCallBlock } from '@/chat/types'
+import { getEventPresentation } from '@/chat/presentation'
 import { projectNativeItems } from './projectNativeItems'
 import type { NativeItemEntry } from './types'
 
@@ -17,43 +16,61 @@ const activity = (id: string, kind: string, at: number, model?: string): NativeI
     },
 })
 
-function tools(entries: NativeItemEntry[]): ToolCallBlock[] {
+function blocks(entries: NativeItemEntry[]): ChatBlock[] {
     const projected = projectNativeItems(entries, [])
     const normalized = projected.messages.map(normalizeDecryptedMessage)
         .filter((message): message is NormalizedMessage => message !== null)
     return reduceChatBlocks(normalized, { requests: projected.requests }).blocks
-        .filter((block): block is ToolCallBlock => block.kind === 'tool-call')
 }
 
-it('projects actual desktop subAgentActivity records into the existing agent card with real identity', () => {
-    const cards = tools([activity('spawn', 'started', 100, 'gpt-6.1-sol'), activity('send', 'interacted', 200)])
-    expect(cards).toHaveLength(1)
-    expect(cards[0].id).toBe(`codex-agent:${agentId}`)
-    expect(cards[0].tool.name).toBe('CodexAgent')
-    // completedAtMs belongs to each activity record; the run is still active.
-    expect(cards[0].tool.state).toBe('running')
-    expect(getCodexAgentFieldRows('CodexAgent', cards[0].tool.input)).toEqual(expect.arrayContaining([
-        { label: 'Agent', value: agentId },
-        { label: 'Work', value: '/root/native_subagents' },
-        { label: 'Model', value: 'gpt-6.1-sol' },
-        { label: 'Reasoning', value: 'high' },
-    ]))
+function tools(entries: NativeItemEntry[]): ToolCallBlock[] {
+    return blocks(entries).filter((block): block is ToolCallBlock => block.kind === 'tool-call')
+}
+
+it('projects each desktop activity with its own source identity and recorded details', () => {
+    const events = blocks([activity('spawn', 'started', 100, 'gpt-6.1-sol'), activity('send', 'interacted', 200)])
+    expect(events.map(block => block.id)).toEqual(['native:spawn', 'native:send'])
+    expect(events[0]).toMatchObject({ kind: 'agent-event', event: {
+        type: 'agent-activity', sourceItemId: 'spawn', agentId,
+        activityKind: 'started', summary: '/root/native_subagents',
+        agentPath: '/root/native_subagents', model: 'gpt-6.1-sol', reasoningEffort: 'high',
+    } })
+    expect(events[1]).toMatchObject({ kind: 'agent-event', event: { activityKind: 'interacted' } })
+    expect(events.every(block => block.kind === 'agent-event' && !('status' in block.event))).toBe(true)
 })
 
-it('keeps completed child state through interactions and allows an explicit new start', () => {
-    const entries = [activity('spawn', 'started', 100), activity('done', 'completed', 200), activity('send', 'interacted', 300)]
-    expect(tools(entries)[0].tool.state).toBe('completed')
-    expect(tools([...entries, activity('restart', 'started', 400)])[0].tool.state).toBe('running')
+it('preserves retained activity order and meaning through prepend, trim and rehydration', () => {
+    const entries: NativeItemEntry[] = [
+        activity('spawn', 'started', 100),
+        { startedAtMs: 150, item: { id: 'user', type: 'userMessage', content: [{ text: 'Next request' }] } },
+        activity('done', 'completed', 200),
+        { startedAtMs: 250, item: { id: 'reply', type: 'agentMessage', text: 'Response' } },
+        activity('send', 'interacted', 300),
+        activity('send-again', 'interacted', 350),
+        activity('restart', 'started', 400),
+    ]
+    const complete = blocks(entries)
+    expect(complete.map(block => block.id)).toEqual([
+        'native:spawn', 'native:user', 'native:done', 'native:reply', 'native:send', 'native:send-again', 'native:restart',
+    ])
+    for (const window of [entries.slice(2), entries.slice(4), entries.slice(1), entries]) {
+        const retained = blocks(window)
+        expect(retained).toEqual(complete.filter(block => window.some(entry => `native:${entry.item.id}` === block.id)))
+    }
+    const labels = complete.flatMap(block => block.kind === 'agent-event' ? [getEventPresentation(block.event).text] : [])
+    expect(labels).toEqual([
+        'Started /root/native_subagents', 'Completed /root/native_subagents',
+        'Interacted with /root/native_subagents', 'Interacted with /root/native_subagents', 'Started /root/native_subagents',
+    ])
+    expect(labels.some(label => /running/i.test(label))).toBe(false)
 })
 
-it('renders a completed activity from a history window without requiring its spawn record', () => {
-    const cards = tools([activity('done', 'completed', 200)])
-    expect(cards).toHaveLength(1)
-    expect(cards[0].tool.state).toBe('completed')
-    expect(cards[0].tool.input).toMatchObject({ agentId, summary: '/root/native_subagents' })
-    expect(getToolTimingDetails(cards[0].tool, 300)).toEqual({ startedAt: null, completedAt: 200, durationMs: null })
-    const fullHistory = tools([activity('spawn', 'started', 100), activity('send', 'interacted', 150), activity('done', 'completed', 200)])
-    expect(getToolTimingDetails(fullHistory[0].tool, 300)).toEqual({ startedAt: 100, completedAt: 200, durationMs: 100 })
+it('renders completed, failed and unknown activity as recorded events without a child lifecycle', () => {
+    const events = blocks([activity('done', 'completed', 200), activity('fail', 'errored', 250), activity('update', 'updated', 300)])
+    expect(events.every(block => block.kind === 'agent-event')).toBe(true)
+    expect(events.flatMap(block => block.kind === 'agent-event' ? [getEventPresentation(block.event).text] : [])).toEqual([
+        'Completed /root/native_subagents', 'Failed /root/native_subagents', 'Activity (updated) for /root/native_subagents',
+    ])
 })
 
 it('maps collab lifecycle items to the runner tool cards', () => {
