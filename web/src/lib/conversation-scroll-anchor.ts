@@ -14,6 +14,21 @@ export type ConversationScrollAnchor = AnchorPoint & {
 const CONTENT_SELECTOR = '[data-hapi-scroll-anchor], [data-hapi-scroll-anchors]'
 const MESSAGE_SELECTOR = '.happy-thread-messages > [id]'
 
+function verticalClip(element: HTMLElement, viewport: HTMLElement): { top: number; bottom: number } {
+    const bounds = viewport.getBoundingClientRect()
+    let top = bounds.top
+    let bottom = bounds.bottom
+    for (let parent: HTMLElement | null = element; parent && parent !== viewport; parent = parent.parentElement) {
+        const overflow = getComputedStyle(parent).overflowY
+        if (overflow === 'auto' || overflow === 'scroll' || overflow === 'hidden' || overflow === 'clip') {
+            const rect = parent.getBoundingClientRect()
+            top = Math.max(top, rect.top)
+            bottom = Math.min(bottom, rect.bottom)
+        }
+    }
+    return { top, bottom }
+}
+
 function keys(element: HTMLElement): string[] {
     const key = element.dataset.hapiScrollAnchor
     if (key) {
@@ -44,11 +59,11 @@ function textRange(element: HTMLElement, offset: number): Range | null {
     return null
 }
 
-function capturePoint(element: HTMLElement, viewport: HTMLElement, id: string, content: boolean): AnchorPoint {
+function capturePoint(element: HTMLElement, viewport: HTMLElement, id: string, content: boolean, clip = verticalClip(element, viewport)): AnchorPoint {
     const rect = element.getBoundingClientRect()
     const viewportRect = viewport.getBoundingClientRect()
     const point: AnchorPoint = { id, topOffset: rect.top - viewportRect.top, ...(content ? { kind: 'content' } : {}) }
-    if (!content || rect.top >= viewportRect.top) {
+    if (!content || rect.top >= clip.top) {
         return point
     }
     const document = element.ownerDocument as Document & {
@@ -56,7 +71,7 @@ function capturePoint(element: HTMLElement, viewport: HTMLElement, id: string, c
         caretRangeFromPoint?: (x: number, y: number) => Range | null
     }
     const x = Math.min(rect.right - 4, Math.max(rect.left + 16, viewportRect.left + 24))
-    const y = Math.min(rect.bottom - 2, viewportRect.top + 24)
+    const y = Math.min(rect.bottom - 2, clip.bottom - 2, clip.top + 24)
     const position = document.caretPositionFromPoint?.(x, y)
     const caret = position ? null : document.caretRangeFromPoint?.(x, y)
     const node = position?.offsetNode ?? caret?.startContainer
@@ -71,7 +86,10 @@ function capturePoint(element: HTMLElement, viewport: HTMLElement, id: string, c
     const textOffset = prefix.toString().length
     const range = textRange(element, textOffset)
     const textRect = range?.getBoundingClientRect()
-    if (textRect && textRect.height > 0) {
+    // A caret API may return the nearest text above a clipped card. Such a
+    // character is not the reader's visible position, even if the card's
+    // border still intersects the viewport.
+    if (textRect && textRect.height > 0 && textRect.top >= clip.top && textRect.top + textRect.height <= clip.bottom) {
         point.textOffset = textOffset
         const text = element.textContent ?? ''
         const start = Math.max(0, textOffset - 24)
@@ -86,10 +104,14 @@ export function captureConversationScrollAnchor(viewport: HTMLElement): Conversa
     const rect = viewport.getBoundingClientRect()
     const visible = (element: HTMLElement) => {
         const bounds = element.getBoundingClientRect()
-        return bounds.height > 0 && bounds.bottom > rect.top && bounds.top < rect.bottom
+        if (bounds.height <= 0 || bounds.bottom <= rect.top || bounds.top >= rect.bottom) {
+            return false
+        }
+        const clip = verticalClip(element, viewport)
+        return bounds.bottom > clip.top && bounds.top < clip.bottom && clip.top < clip.bottom
     }
     const content = Array.from(viewport.querySelectorAll<HTMLElement>(CONTENT_SELECTOR)).filter(visible)
-    const points: AnchorPoint[] = []
+    const points: { point: AnchorPoint; visible: boolean }[] = []
     for (const element of content) {
         // Expanded tools have an actual row. A collapsed group's aliases are
         // useful only when no more precise visible child represents it.
@@ -101,18 +123,22 @@ export function captureConversationScrollAnchor(viewport: HTMLElement): Conversa
         if (sampled.length === 0) {
             continue
         }
-        const point = capturePoint(element, viewport, sampled[0], true)
+        const clip = verticalClip(element, viewport)
+        const point = capturePoint(element, viewport, sampled[0], true, clip)
+        const top = element.getBoundingClientRect().top
+        const visiblePoint = point.textOffset !== undefined || (top >= clip.top && top < clip.bottom)
         for (const id of sampled) {
-            points.push({ ...point, id })
+            points.push({ point: { ...point, id }, visible: visiblePoint })
         }
     }
-    points.sort((a, b) => Math.abs(a.topOffset) - Math.abs(b.topOffset))
+    points.sort((a, b) => Number(b.visible) - Number(a.visible) || Math.abs(a.point.topOffset) - Math.abs(b.point.topOffset))
+    const candidates = points.map(value => value.point)
     for (const element of viewport.querySelectorAll<HTMLElement>(MESSAGE_SELECTOR)) {
         if (visible(element)) {
-            points.push(capturePoint(element, viewport, element.id, false))
+            candidates.push(capturePoint(element, viewport, element.id, false))
         }
     }
-    const [first, ...rest] = points.slice(0, 24)
+    const [first, ...rest] = candidates.slice(0, 24)
     return first ? { ...first, ...(rest.length ? { alternatives: rest } : {}) } : null
 }
 

@@ -83,6 +83,7 @@ export function HappyUserMessage() {
             <MessagePrimitive.Root
                 id={elementId}
                 data-hapi-message-role="user"
+                data-hapi-scroll-anchor={messageId}
                 className="happy-message scroll-mt-4 px-1 min-w-0 max-w-full overflow-x-hidden"
             >
                 <div className="ml-auto w-full max-w-[92%]">
@@ -100,6 +101,7 @@ export function HappyUserMessage() {
         <MessagePrimitive.Root
             id={elementId}
             data-hapi-message-role="user"
+            data-hapi-scroll-anchor={messageId}
             className="happy-message flex flex-col items-end scroll-mt-4"
         >
             <div className={getUserBubbleClassName(status)}>

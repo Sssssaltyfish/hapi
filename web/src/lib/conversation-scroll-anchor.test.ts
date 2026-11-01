@@ -23,6 +23,61 @@ function place(element: HTMLElement, scroller: HTMLElement, absoluteTop: number,
 }
 
 describe('stable conversation content anchors', () => {
+    it('prefers visible tool or user content over a clipped sliver whose nearest caret is above the viewport', () => {
+        const rangeDescriptor = Object.getOwnPropertyDescriptor(Range.prototype, 'getBoundingClientRect')
+        const caretDescriptor = Object.getOwnPropertyDescriptor(document, 'caretPositionFromPoint')
+        Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+            configurable: true,
+            value: () => ({ top: 48.5, bottom: 62.5, height: 14 } as DOMRect)
+        })
+        try {
+            for (const key of ['tool:visible', 'user-text:visible']) {
+                const scroller = viewport()
+                scroller.scrollTop = 212
+                vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue({ top: 64, bottom: 872, height: 808, left: 0, right: 400 } as DOMRect)
+                const sliver = document.createElement('div')
+                sliver.dataset.hapiScrollAnchors = JSON.stringify(['tool:offscreen-header'])
+                sliver.textContent = 'Run project commands Started 5:28 Finished 5:31 Duration 3 minutes'
+                place(sliver, scroller, 223.5, 60)
+                const readable = document.createElement('div')
+                readable.dataset.hapiScrollAnchor = key
+                const top = key.startsWith('tool:') ? 79.5 : 164
+                place(readable, scroller, top + scroller.scrollTop)
+                const clip = document.createElement('div')
+                clip.style.overflowY = 'hidden'
+                place(clip, scroller, 312, 20)
+                const clipped = document.createElement('div')
+                clipped.dataset.hapiScrollAnchor = 'tool:outside-inner-clip'
+                place(clipped, scroller, 287, 10)
+                clip.append(clipped)
+                scroller.firstElementChild!.append(sliver, readable, clip)
+                Object.defineProperty(document, 'caretPositionFromPoint', {
+                    configurable: true,
+                    value: () => ({ offsetNode: sliver.firstChild, offset: 27 })
+                })
+                const anchor = captureConversationScrollAnchor(scroller)!
+                expect(anchor.id).toBe(key)
+                expect(anchor.topOffset).toBe(top - 64)
+                expect(anchor.alternatives?.some(point => point.id === 'tool:outside-inner-clip')).toBe(false)
+                const fallback = anchor.alternatives?.find(point => point.id === 'tool:offscreen-header')
+                expect(fallback?.topOffset).toBe(-52.5)
+                expect(fallback?.textOffset).toBeUndefined()
+                scroller.remove()
+            }
+        } finally {
+            if (rangeDescriptor) {
+                Object.defineProperty(Range.prototype, 'getBoundingClientRect', rangeDescriptor)
+            } else {
+                Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect')
+            }
+            if (caretDescriptor) {
+                Object.defineProperty(document, 'caretPositionFromPoint', caretDescriptor)
+            } else {
+                Reflect.deleteProperty(document, 'caretPositionFromPoint')
+            }
+        }
+    })
+
     it('preserves an expanded tool row after its aggregate message and group are replaced and the opposite edge is trimmed', () => {
         const scroller = viewport()
         scroller.scrollTop = 100
