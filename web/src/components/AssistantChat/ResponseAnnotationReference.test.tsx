@@ -1,11 +1,39 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { ResponseAnnotationReference, ResponseAnnotationsProvider } from './ResponseAnnotationReference'
 
-const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
-vi.mock('./ResponseAnnotationSession', () => ({ useResponseAnnotationSession: () => ({ navigate }) }))
+const { navigate, readAnnotations } = vi.hoisted(() => ({ navigate: vi.fn(), readAnnotations: vi.fn() }))
+vi.mock('./ResponseAnnotationSession', () => ({ useResponseAnnotationSession: () => ({ navigate, resolver: { readAnnotations } }) }))
 vi.mock('@/lib/use-translation', () => ({ useTranslation: () => ({ t: (key: string) => key }) }))
 afterEach(() => vi.clearAllMocks())
+
+it('places the quote once its content is ready instead of resizing a loading popover', async () => {
+    let resolve!: (value: { text: string }[]) => void
+    readAnnotations.mockReturnValue(new Promise(done => { resolve = done }))
+    render(<ResponseAnnotationsProvider value={{ annotations: [], partId: 'reply-part' }}>
+        <ResponseAnnotationReference index={1}>directive</ResponseAnnotationReference>
+    </ResponseAnnotationsProvider>)
+    const trigger = screen.getByRole('button', { name: 'message.quoteReference' })
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await act(async () => resolve([{ text: 'The complete original quote' }]))
+    expect(await screen.findByRole('dialog')).toHaveTextContent('The complete original quote')
+})
+
+it.each(['escape', 'outside click'])('does not open a delayed quote after %s', async action => {
+    let resolve!: (value: { text: string }[]) => void
+    readAnnotations.mockReturnValue(new Promise(done => { resolve = done }))
+    render(<ResponseAnnotationsProvider value={{ annotations: [], partId: 'reply-part' }}>
+        <ResponseAnnotationReference index={1}>directive</ResponseAnnotationReference>
+    </ResponseAnnotationsProvider>)
+    const trigger = screen.getByRole('button', { name: 'message.quoteReference' })
+    fireEvent.click(trigger)
+    if (action === 'escape') fireEvent.keyDown(trigger, { key: 'Escape' })
+    else fireEvent.pointerDown(document.body)
+    await act(async () => resolve([{ text: 'A cancelled lookup' }]))
+    expect(screen.queryByRole('dialog')).toBeNull()
+})
 
 function openReference() {
     render(<><button data-testid="original">Original source</button><ResponseAnnotationsProvider value={[{ text: 'quoted text', source: { messageId: 'source', startOffset: 0, endOffset: 11 } }]}>
