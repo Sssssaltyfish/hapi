@@ -5,7 +5,8 @@ import type { ConversationOutlineItem } from '@/chat/outline'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { projectNativeItems } from '@/codex-native/projectNativeItems'
 import type { NativeItemEntry } from '@/codex-native/types'
-import { splitResponseAnnotations, type ResponseAnnotation, type ResponseAnnotationSource } from './responseAnnotations'
+import { type ResponseAnnotation, type ResponseAnnotationSource } from './responseAnnotations'
+import { splitCodexInputContext } from './codexInputContext'
 import { parseNativeQuestionReply } from './nativeQuestionReply'
 
 type PartLocator = { rawId: string; partId: string; nativeId?: string; turnId?: string }
@@ -75,7 +76,7 @@ export class ResponseAnnotationResolver {
             const message = this.normalized.get(raw)
             if (!message) continue
             if (message.role === 'user') {
-                if (!parseNativeQuestionReply(message.content.text)) prompt = splitResponseAnnotations(message.content.text).annotations
+                if (!parseNativeQuestionReply(message.content.text)) prompt = splitCodexInputContext(message.content.text).annotations
                 continue
             }
             for (const part of parts(message)) {
@@ -148,7 +149,7 @@ export class ResponseAnnotationResolver {
                     if (entry.item.type !== 'userMessage' && entry.item.type !== 'steeringUserMessage') continue
                     const user = entryMessages([entry]).find(message => message.role === 'user')
                     if (!user || user.role !== 'user' || parseNativeQuestionReply(user.content.text)) continue
-                    annotations = splitResponseAnnotations(user.content.text).annotations
+                    annotations = splitCodexInputContext(user.content.text).annotations
                     this.rememberAnnotations(partId, annotations)
                     return annotations
                 }
@@ -168,7 +169,7 @@ export class ResponseAnnotationResolver {
                     if (!beforeOwner) continue
                     const message = normalizeDecryptedMessage(raw)
                     if (message?.role !== 'user' || parseNativeQuestionReply(message.content.text)) continue
-                    annotations = splitResponseAnnotations(message.content.text).annotations
+                    annotations = splitCodexInputContext(message.content.text).annotations
                     this.rememberAnnotations(partId, annotations)
                     return annotations
                 }

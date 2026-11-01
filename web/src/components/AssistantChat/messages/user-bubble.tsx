@@ -3,7 +3,7 @@ import { LazyRainbowText } from '@/components/LazyRainbowText'
 import { SparklesIcon } from '@/components/ToolCard/icons'
 import { cn } from '@/lib/utils'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
-import { splitResponseAnnotations } from '@/lib/responseAnnotations'
+import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { ResponseAnnotationCards } from '@/components/AssistantChat/ResponseAnnotationCards'
 import { parseScheduledMessage } from '@/lib/scheduledMessage'
 import { ScheduledMessageCard } from './ScheduledMessageCard'
@@ -73,9 +73,9 @@ export function UserBubbleContent(props: { text: string }) {
             <LazyRainbowText text={reply.answer} preserveSingleLineBreaks />
         </div>)}
     </div>
-    const annotated = splitResponseAnnotations(props.text)
-    if (annotated.annotations.length > 0) return <div className="flex min-w-0 flex-col gap-2">
-        <ResponseAnnotationCards annotations={annotated.annotations} />
+    const annotated = splitCodexInputContext(props.text)
+    if (annotated.annotations.length > 0 || annotated.references.length > 0) return <div className="flex min-w-0 flex-col gap-2">
+        {annotated.annotations.length > 0 && <ResponseAnnotationCards annotations={annotated.annotations} />}
         {annotated.body.trim() ? <UserBubbleContent text={annotated.body} /> : null}
     </div>
     const { directives, body } = extractLeadingDirectives(props.text)

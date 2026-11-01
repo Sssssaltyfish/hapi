@@ -39,7 +39,7 @@ export function useConversationHistoryIndex(options: {
     // Tool tokens rebuild viewport blocks, but do not change these short user previews.
     const currentItems = useMemo(() => viewport, [visibleSignature])
     const scope = scopeFor(api)
-    const key = JSON.stringify([scope.key, native ? ['native-turn-summary-v1', native.endpointId, native.threadId] : ['runner', session.id]])
+    const key = JSON.stringify([scope.key, native ? ['native-turn-summary-v2', native.endpointId, native.threadId] : ['runner-v2', session.id]])
     const apiRef = useRef(api)
     apiRef.current = api
     const cache = useMemo(() => getOutlineCache(key, Boolean(native), scope.persistent), [key, Boolean(native), scope.persistent])

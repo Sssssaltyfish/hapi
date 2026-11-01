@@ -4,9 +4,19 @@ import {
     buildSessionCitationSteerInstruction,
     extractSessionCitationIds,
     normalizeSessionIdPrefix,
+    buildNativeThreadHref,
+    parseNativeThreadHref,
 } from './sessionCitation'
 
 const UUID = '7ee03698-0fe7-4f76-b8a8-d84f4eddbf5c'
+
+it('preserves Desktop host identity in thread links and rejects ambiguous URI suffixes', () => {
+    const href = buildNativeThreadHref(UUID, 'wsl:Ubuntu-26.04')
+    expect(parseNativeThreadHref(href)).toEqual({ threadId: UUID, hostId: 'wsl:Ubuntu-26.04' })
+    expect(parseNativeThreadHref(`thread://${UUID}`)).toEqual({ threadId: UUID })
+    expect(parseNativeThreadHref(`thread://${UUID}?hostId=local&hostId=other`)).toBeNull()
+    expect(parseNativeThreadHref(`thread://${UUID}?hostId=..%2Fother`)).toBeNull()
+})
 
 describe('extractSessionCitationIds', () => {
     it('extracts id from Copy-reference prose (tiann/hapi#1144)', () => {

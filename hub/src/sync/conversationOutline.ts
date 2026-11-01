@@ -1,5 +1,5 @@
 import { unwrapRoleWrappedRecordEnvelope } from '@hapi/protocol/messages'
-import { nativeQuestionReplyDisplayText } from '@hapi/protocol'
+import { codexInputDisplayText } from '@hapi/protocol'
 import type { DecryptedMessage } from '@hapi/protocol/types'
 import type { MessagesResponse } from '@hapi/protocol/apiTypes'
 import { record, type NativeRecord } from '../codexNative/transport'
@@ -39,7 +39,7 @@ const MAX_SCAN_MS = 1500
 // A native page is atomic; byte/time budgets prevent fetching another page.
 
 function preview(value: string): string {
-    const text = nativeQuestionReplyDisplayText(value).replace(/\s+/g, ' ').trim()
+    const text = codexInputDisplayText(value).replace(/\s+/g, ' ').trim()
     return text.length > 96 ? `${text.slice(0, 93).trimEnd()}...` : text || 'Empty message'
 }
 function outlineItem(id: string, text: string, at: number, locator: OutlineContinuation): OutlineItem {
