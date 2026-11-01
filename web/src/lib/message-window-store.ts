@@ -110,7 +110,14 @@ function readHistoryPage(api: ApiClient, sessionId: string, direction: HistoryDi
             return response
         }),
     response => response.messages.length,
-    response => !response.page.reset && (epoch === null || response.page.epoch === epoch) && !response.messages.some(isQueuedForInvocation),
+    response => {
+        const next = direction === 'older'
+            ? pagePosition(response.page.nextBeforeAt, response.page.nextBeforeSeq)
+            : pagePosition(response.page.nextAfterAt, response.page.nextAfterSeq)
+        const advances = next !== null && (direction === 'older' ? comparePosition(next, position) < 0 : comparePosition(next, position) > 0)
+        return !response.page.reset && (epoch === null || response.page.epoch === epoch)
+            && !response.messages.some(isQueuedForInvocation) && (!response.page.hasMore || advances)
+    },
     response => direction === 'older' || response.page.hasMore || historyPageTailVersions.get(response) === getState(sessionId).tailRevision,
     sessionId)
 }
@@ -1147,6 +1154,10 @@ export async function fetchOlderMessages(
             await syncTailMessages(api, sessionId, { ensureAfterCurrent: true })
             return { kind: 'stopped', reason: 'epoch-reset' }
         }
+        const nextBefore = pagePosition(response.page.nextBeforeAt, response.page.nextBeforeSeq)
+        if (response.page.hasMore && (!nextBefore || comparePosition(nextBefore, before) >= 0)) {
+            throw new Error('Older history cursor did not advance')
+        }
 
         let historyVersion = 0
         let addedRenderableCount = 0
@@ -1243,6 +1254,10 @@ export async function fetchNewerMessages(
             invalidateMessageWindow(sessionId)
             await syncTailMessages(api, sessionId, { ensureAfterCurrent: true })
             return { kind: 'stopped', reason: 'epoch-reset' }
+        }
+        const nextAfter = pagePosition(response.page.nextAfterAt, response.page.nextAfterSeq)
+        if (response.page.hasMore && (!nextAfter || comparePosition(nextAfter, after) <= 0)) {
+            throw new Error('Newer history cursor did not advance')
         }
         let historyVersion = 0
         let addedRenderableCount = 0

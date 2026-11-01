@@ -3,6 +3,7 @@ import { Reasoning, ReasoningGroup } from '@/components/assistant-ui/reasoning'
 import { HappyToolMessage } from '@/components/AssistantChat/messages/ToolMessage'
 import { CliOutputBlock } from '@/components/CliOutputBlock'
 import type { HappyChatMessageMetadata } from '@/lib/assistant-runtime'
+import { getMessagePartScrollAnchors } from '@/lib/assistant-runtime'
 import { getAssistantCopyText } from '@/components/AssistantChat/messages/assistantCopyText'
 import { getConversationMessageAnchorId } from '@/chat/outline'
 import { CodexReviewCard } from '@/components/AssistantChat/messages/CodexReviewCard'
@@ -10,18 +11,33 @@ import { MessageActions } from '@/components/AssistantChat/messages/MessageActio
 import { useHappyChatContext } from '@/components/AssistantChat/context'
 import { NotifySummaryText } from '@/components/AssistantChat/messages/NotifySummaryText'
 import { useSessionSummaryInChat } from '@/hooks/useSessionSummaryInChat'
-import type { TextMessagePartComponent } from '@assistant-ui/react'
+import type { ReasoningMessagePartComponent, TextMessagePartComponent } from '@assistant-ui/react'
 import { ResponseAnnotationsProvider } from '@/components/AssistantChat/ResponseAnnotationReference'
 
+function useScrollAnchor() {
+    const part = useAuiState(state => state.part)
+    const sources = getMessagePartScrollAnchors(part)
+    return {
+        'data-hapi-scroll-anchor': sources.length === 1 ? sources[0] : undefined,
+        'data-hapi-scroll-anchors': sources.length > 1 ? JSON.stringify(sources) : undefined
+    }
+}
+
 const QuotableAssistantText: TextMessagePartComponent = (props) => {
+    const anchor = useScrollAnchor()
     const targets = useAuiState(state => (state.message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.responseAnnotationTargets)
     const annotations = useAuiState(state => (state.message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.responseAnnotations)
     const matches = targets?.filter(target => target.text === props.text) ?? []
     // Repeated identical native text cannot be mapped to a unique source item.
     const sourceId = matches.length === 1 ? matches[0].messageId : undefined
-    return <div data-hapi-response-item-id={sourceId}><ResponseAnnotationsProvider value={annotations ?? []}>
+    return <div {...anchor} data-hapi-response-item-id={sourceId}><ResponseAnnotationsProvider value={annotations ?? []}>
         <NotifySummaryText {...props} />
     </ResponseAnnotationsProvider></div>
+}
+
+const AnchoredReasoning: ReasoningMessagePartComponent = (props) => {
+    const anchor = useScrollAnchor()
+    return <div {...anchor}><Reasoning {...props} /></div>
 }
 
 const TOOL_COMPONENTS = {
@@ -30,7 +46,7 @@ const TOOL_COMPONENTS = {
 
 const MESSAGE_PART_COMPONENTS = {
     Text: QuotableAssistantText,
-    Reasoning: Reasoning,
+    Reasoning: AnchoredReasoning,
     ReasoningGroup: ReasoningGroup,
     tools: TOOL_COMPONENTS
 } as const

@@ -173,6 +173,7 @@ function CodexExplorationRows(props: {
             return (
                 <button
                     key={`${tool.id}:${index}`}
+                    data-hapi-scroll-anchor={`tool:${tool.id}`}
                     type="button"
                     className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-1 text-left hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                     onClick={() => props.onSelect(tool.id)}
@@ -252,7 +253,7 @@ export function ToolGroupCard(props: {
     const fileCount = props.block.summary.fileTargets.length
 
     return (
-        <Card className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
+        <Card data-hapi-scroll-anchors={JSON.stringify(props.block.tools.map(tool => `tool:${tool.id}`))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
             <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
                 <button
                     type="button"
@@ -335,6 +336,7 @@ export function ToolGroupCard(props: {
                             return (
                                 <button
                                     key={tool.id}
+                                    data-hapi-scroll-anchor={`tool:${tool.id}`}
                                     type="button"
                                     className="flex min-w-0 items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                                     onClick={() => setSelectedToolId(tool.id)}

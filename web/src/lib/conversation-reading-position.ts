@@ -1,5 +1,7 @@
+import type { ConversationScrollAnchor } from './conversation-scroll-anchor'
+
 export type ConversationReadingPosition = {
-    anchor: { id: string; topOffset: number } | null
+    anchor: ConversationScrollAnchor | null
     scrollTop: number
     atBottom: boolean
     savedAt: number

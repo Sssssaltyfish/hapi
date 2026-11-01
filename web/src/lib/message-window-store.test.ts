@@ -1293,6 +1293,22 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('rejects repeated cursors in both directions without changing the reader window', async () => {
+        const id = sessionId('history-cursor-stalled')
+        const current = makeUserMessage({ id: 'current', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(beforeResponse([], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(afterResponse([], { epoch: 1, hasMore: true, nextAfterAt: 10000, nextAfterSeq: 10, snapshotHeadAt: 10000, snapshotHeadSeq: 10 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 11000, beforeSeq: 11, epoch: 1 }, 'user-text:current')
+        expect(await fetchOlderMessages(api, id)).toMatchObject({ kind: 'failed' })
+        expect(await fetchNewerMessages(api, id)).toMatchObject({ kind: 'failed' })
+        expect(getMessageWindowState(id).messages).toEqual([current])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+        expect(getMessages).toHaveBeenCalledTimes(3)
+    })
+
     it('does not exhaust a newer observed tail when joining an older speculative end response', async () => {
         const id = sessionId('prefetch-moving-end')
         const current = makeUserMessage({ id: 'current', seq: 10, createdAt: 10000, invokedAt: 10000 })

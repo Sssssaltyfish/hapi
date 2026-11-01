@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'react'
 import type React from 'react'
-import type { AppendMessage, AttachmentAdapter, ThreadMessageLike } from '@assistant-ui/react'
-import { useExternalMessageConverter, useExternalStoreRuntime } from '@assistant-ui/react'
+import type { AppendMessage, AttachmentAdapter, ThreadMessage, ThreadMessageLike } from '@assistant-ui/react'
+import { getExternalStoreMessages, useExternalMessageConverter, useExternalStoreRuntime } from '@assistant-ui/react'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import { resolvePendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import {
@@ -440,6 +440,14 @@ export function getResponseAnnotationTargets(blocks: readonly VisibleChatBlock[]
     return targets
 }
 
+export function getMessagePartScrollAnchors(part: ThreadMessage['content'][number]): string[] {
+    // Part sources retain individual converted outputs even when the SDK
+    // joins their outer message or merges reasoning with the same parent.
+    return getExternalStoreMessages<ThreadMessageLike>(part).flatMap(source => {
+        return typeof source.id === 'string' ? [source.id] : []
+    })
+}
+
 /**
  * Finds the latest conversation-history boundary that is safe to fork.
  * While the main agent is running, every block from the latest invoked user
@@ -532,7 +540,7 @@ function containsActiveAssistantOutput(
         ))
 }
 
-function toThreadMessageLike(
+export function toThreadMessageLike(
     block: VisibleChatBlock,
     threadMessageId: string,
     timestamp: number

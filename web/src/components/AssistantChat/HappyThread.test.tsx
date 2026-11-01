@@ -6,7 +6,6 @@ import {
     ConversationOutlinePanel,
     captureScrollAnchor,
     getHistoryCoverageRetryDelay,
-    getPullToLoadState,
     getScrollIntent,
     getScrollToBottomButtonVisibility,
     hasAppliedHistoryVersion,
@@ -480,12 +479,6 @@ describe('top-triggered history loading', () => {
         expect(getHistoryCoverageRetryDelay(900, 1_000)).toBe(16)
     })
 
-    it('shows pull feedback at 16px and arms release loading at 64px', () => {
-        expect(getPullToLoadState(15)).toBe('idle')
-        expect(getPullToLoadState(16)).toBe('pulling')
-        expect(getPullToLoadState(63)).toBe('pulling')
-        expect(getPullToLoadState(64)).toBe('ready')
-    })
 })
 
 describe('share turn snapshots', () => {

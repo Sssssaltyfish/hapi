@@ -55,6 +55,7 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
     locate?: () => Promise<boolean>
     onOpenChange?: (open: boolean) => void
     loadNewer?: (beforeApply?: (version: number) => boolean) => Promise<OlderLoadOutcome>
+    loadMore?: (beforeApply?: (version: number) => boolean) => Promise<OlderLoadOutcome>
     prefetch?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
 } = {}) {
     const queryClient = new QueryClient({
@@ -75,10 +76,10 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessa
                     onViewModeChange={onViewModeChange}
                     isSyncingTail={false}
                     messagesWarning={null}
-                    hasMoreMessages={false}
+                    hasMoreMessages={Boolean(outline.loadMore)}
                     hasNewerMessages={hasNewerMessages}
                     isLoadingMoreMessages={false}
-                    onLoadMore={vi.fn().mockResolvedValue({ status: 'exhausted' })}
+                    onLoadMore={outline.loadMore ?? vi.fn().mockResolvedValue({ status: 'exhausted' })}
                     onLoadNewer={outline.loadNewer}
                     onPrefetchHistory={outline.prefetch}
                     onCancelLoadMore={vi.fn()}
@@ -162,6 +163,80 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('drops a scheduled older continuation when the reader reverses inside a short viewport', async () => {
+        let publish = () => {}
+        const loadMore = vi.fn(async (beforeApply?: (version: number) => boolean): Promise<OlderLoadOutcome> => {
+            expect(beforeApply?.(1)).toBe(true)
+            publish()
+            return { kind: 'applied', historyVersion: 1, hasMore: true, addedRenderableCount: 0 }
+        })
+        const result = renderThread(vi.fn(), 0, false, { loadMore })
+        publish = () => result.rerenderMessages(2)
+        const { viewport, container } = result
+        const sentinel = container.querySelector('.chat-scroll-content > [aria-hidden="true"]')!
+        vi.spyOn(sentinel, 'getBoundingClientRect').mockImplementation(() => ({ top: -viewport.scrollTop, bottom: 1 - viewport.scrollTop, height: 1 } as DOMRect))
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 700 })
+        viewport.scrollTop = 100
+        await act(async () => { fireEvent.scroll(viewport) })
+        expect(loadMore).toHaveBeenCalledTimes(1)
+        viewport.scrollTop = 110
+        fireEvent.scroll(viewport)
+        await act(async () => { await vi.advanceTimersByTimeAsync(17) })
+        expect(loadMore).toHaveBeenCalledTimes(1)
+    })
+
+    it.each(['older', 'newer'] as const)('continues %s edge coverage while touch is held and preserves the tool through regrouping', async (direction) => {
+        let height = 1232
+        let position = direction === 'older' ? 150 : 702
+        let version = 0
+        let publish = (_version: number) => {}
+        let replace = () => {}
+        const load = vi.fn(async (beforeApply?: (version: number) => boolean): Promise<OlderLoadOutcome> => {
+            version += 1
+            expect(beforeApply?.(version)).toBe(true)
+            position += direction === 'older' ? 80 : -80
+            height += direction === 'older' ? 80 : 0
+            replace()
+            publish(version + 1)
+            return { kind: 'applied', historyVersion: version, hasMore: true, addedRenderableCount: 1 }
+        })
+        const result = renderThread(vi.fn(), 0, direction === 'newer', direction === 'older' ? { loadMore: load } : { loadNewer: load })
+        publish = result.rerenderMessages
+        const { viewport, container } = result
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => height })
+        vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530, height: 530 } as DOMRect)
+        const sentinel = container.querySelector('.chat-scroll-content > [aria-hidden="true"]')!
+        vi.spyOn(sentinel, 'getBoundingClientRect').mockImplementation(() => ({ top: -viewport.scrollTop, bottom: 1 - viewport.scrollTop, height: 1 } as DOMRect))
+        let row: HTMLButtonElement
+        replace = () => {
+            container.querySelector('.happy-thread-messages')!.replaceChildren()
+            const group = document.createElement('div')
+            group.id = `aggregate-${version}`
+            row = document.createElement('button')
+            row.dataset.hapiScrollAnchor = 'tool:stable-raw-tool'
+            vi.spyOn(row, 'getBoundingClientRect').mockImplementation(() => ({ top: position - viewport.scrollTop, bottom: position + 40 - viewport.scrollTop, height: 40 } as DOMRect))
+            group.append(row)
+            container.querySelector('.happy-thread-messages')!.append(group)
+        }
+        replace()
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+        if (direction === 'newer') {
+            viewport.scrollTop = 400
+            fireEvent.scroll(viewport)
+        }
+        fireEvent.touchStart(viewport, { touches: [{ clientY: 100 }] })
+        viewport.scrollTop = direction === 'older' ? 100 : 602
+        const expectedTop = row!.getBoundingClientRect().top
+        await act(async () => { fireEvent.scroll(viewport) })
+        expect(load).toHaveBeenCalledTimes(1)
+        expect(row!.getBoundingClientRect().top).toBe(expectedTop)
+        await act(async () => { await vi.advanceTimersByTimeAsync(17) })
+        expect(load).toHaveBeenCalledTimes(2)
+        expect(row!.getBoundingClientRect().top).toBe(expectedTop)
+        fireEvent.touchEnd(viewport)
+    })
+
     it('looks ahead during fast scrolling before foreground edge loading is needed', () => {
         const prefetch = vi.fn().mockResolvedValue(undefined)
         const loadNewer = vi.fn()
