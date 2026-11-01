@@ -8,8 +8,7 @@ export function projectNativeItems(
     entries: NativeItemEntry[],
     requests: NativeRequest[],
     canAnswerAsync = true,
-    observedReplies: ReadonlyMap<string, string> = new Map(),
-    turnState?: { activeTurnId: string | null }
+    observedReplies: ReadonlyMap<string, string> = new Map()
 ) {
     const messages: DecryptedMessage[] = []
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
@@ -35,10 +34,9 @@ export function projectNativeItems(
                           nativeCodexRecord: true,
                           ...(typeof body.turn_id === 'string' ? {
                               codexTurnId: body.turn_id,
-                              ...(turnState ? { nativeCodexTurnState: body.turn_id === turnState.activeTurnId ? 'active' : 'inactive' } : {}),
                           } : {}),
                           ...(body.nativeMessagePhase === 'commentary' || body.nativeMessagePhase === 'final_answer'
-                              ? { nativeCodexMessagePhase: body.nativeMessagePhase, nativeCodexItemComplete: body.nativeItemComplete === true } : {}),
+                              ? { nativeCodexMessagePhase: body.nativeMessagePhase } : {}),
                           ...(typeof body.nativeResponseItemId === 'string'
                               ? { nativeCodexResponseItemId: body.nativeResponseItemId } : {}),
                       },
@@ -97,7 +95,7 @@ export function projectNativeItems(
             const text = nativeText(item.text)
             if (text) add(id, at, {
                 type: 'message', message: text, turn_id: entry.turnId, nativeResponseItemId: item.id,
-                nativeMessagePhase: item.phase, nativeItemComplete: completed,
+                nativeMessagePhase: item.phase,
             })
             if (Array.isArray(item.questions)) {
                 const questions = item.questions.map((value, index) => {

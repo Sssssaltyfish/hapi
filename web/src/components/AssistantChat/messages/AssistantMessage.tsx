@@ -14,7 +14,6 @@ import { useSessionSummaryInChat } from '@/hooks/useSessionSummaryInChat'
 import type { ReasoningMessagePartComponent, TextMessagePartComponent } from '@assistant-ui/react'
 import { ResponseAnnotationsProvider } from '@/components/AssistantChat/ResponseAnnotationReference'
 import { useResponseAnnotationSession } from '@/components/AssistantChat/ResponseAnnotationSession'
-import { WorkDisclosure } from './WorkDisclosure'
 
 function useScrollAnchor() {
     const part = useAuiState(state => state.part)
@@ -93,7 +92,6 @@ export function HappyAssistantMessage() {
     const messageModel = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.model)
     const turnCount = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.turnCount)
     const roundSummary = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.roundSummary)
-    const workGroup = useAuiState(({ message }) => (message.metadata.custom as Partial<HappyChatMessageMetadata> | undefined)?.workGroup)
 
     const metadata = { durationMs, usage, model: messageModel ?? null, turnCount, roundSummary }
 
@@ -115,7 +113,7 @@ export function HappyAssistantMessage() {
             data-hapi-message-role="assistant"
             className={`happy-message ${rootClass} scroll-mt-4`}
         >
-            {workGroup ? <WorkDisclosure work={workGroup}><MessagePrimitive.Content components={MESSAGE_PART_COMPONENTS} /></WorkDisclosure> : isCliOutput
+            {isCliOutput
                 ? <CliOutputBlock text={cliText} />
                 : codexReview
                     ? <CodexReviewCard review={codexReview} />

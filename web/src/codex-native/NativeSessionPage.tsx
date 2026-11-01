@@ -74,19 +74,15 @@ function NativeSessionChat({
     while (observedReplies.current.size > 300)
         observedReplies.current.delete(observedReplies.current.keys().next().value!)
     const turnStateKnown = thread.detail.activeTurn !== undefined
-    const activeTurnId = typeof record(thread.detail.activeTurn).id === 'string'
-        ? String(record(thread.detail.activeTurn).id) : null
-    const workTurnStateKnown = thread.detail.activeTurn === null || activeTurnId !== null
     const projected = useMemo(
         () =>
             projectNativeItems(
                 thread.items,
                 thread.requests,
                 turnStateKnown,
-                observedReplies.current,
-                workTurnStateKnown ? { activeTurnId } : undefined
+                observedReplies.current
             ),
-        [thread.items, thread.requests, turnStateKnown, activeTurnId, workTurnStateKnown]
+        [thread.items, thread.requests, turnStateKnown]
     )
     const [sending, setSending] = useState(false)
     const historyLocators = useMemo(() => {

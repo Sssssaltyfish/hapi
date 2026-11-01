@@ -1265,8 +1265,6 @@ export default {
   'codexSync.confirm.archiveAction': 'Архивировать в Codex',
   'session.action.syncCodexDisabledActive': 'Остановите или заархивируйте выполняющуюся сессию перед синхронизацией истории Codex.',
   'codexSync.manual.success.noNewMessages': 'Нет новых сообщений Codex.',
-  'session.work.running': 'Выполняется',
-  'session.work.completed': 'Ход работы',
   'session.status.title': 'Статус сессии',
   'session.status.goal': 'Цель',
   'session.status.tasks': 'Задачи',

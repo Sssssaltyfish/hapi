@@ -1283,8 +1283,6 @@ export default {
   'codexSync.confirm.archiveAction': '在 Codex 侧归档',
   'session.action.syncCodexDisabledActive': '当前会话正在运行，停止或归档后才能同步 Codex 历史。',
   'codexSync.manual.success.noNewMessages': '没有新的 Codex 消息。',
-  'session.work.running': '处理中',
-  'session.work.completed': '处理过程',
   'session.status.title': '会话状态',
   'tool.goal.create_goal': '创建目标',
   'tool.goal.get_goal': '查看目标',

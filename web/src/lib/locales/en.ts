@@ -1285,8 +1285,6 @@ export default {
   'codexSync.confirm.archiveAction': 'Archive in Codex',
   'session.action.syncCodexDisabledActive': 'Stop or archive the running session before syncing Codex history.',
   'codexSync.manual.success.noNewMessages': 'No new Codex messages.',
-  'session.work.running': 'Working',
-  'session.work.completed': 'Work',
   'session.status.title': 'Session status',
   'tool.goal.create_goal': 'Create goal',
   'tool.goal.get_goal': 'Get goal',

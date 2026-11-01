@@ -16,9 +16,10 @@ import type { ToolGroupBlock, VisibleChatBlock } from '@/chat/toolGroups'
 import { visibleBlockRole } from '@/chat/toolGroups'
 import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session } from '@/types/api'
 import { orderItemsById } from '@/lib/attachmentOrder'
-import { splitResponseAnnotations, type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
+import { type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
+import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
-import { getWorkGroups, getWorkGroupingKey, getWorkTurnId, type WorkGroup } from '@/lib/work-groups'
+import { getNativeResponseGroupingKey } from '@/lib/native-response-groups'
 import {
     StableChatTimeline,
     convertTimelineProjection,
@@ -60,7 +61,6 @@ export type HappyChatMessageMetadata = {
     model?: string | null
     roundSummary?: RoundSummary
     review?: CodexReview
-    workGroup?: WorkGroup
     /**
      * Distinct turn count when this block carries an aggregated response
      * group footer. Single-turn blocks omit this field so the existing
@@ -423,7 +423,7 @@ export function getResponseAnnotations(blocks: readonly VisibleChatBlock[]): Map
     let inResponse = false
     for (const block of blocks) {
         if (block.kind === 'user-text' && !parseNativeQuestionReply(block.text)) {
-            annotations = splitResponseAnnotations(block.text).annotations
+            annotations = splitCodexInputContext(block.text).annotations
         }
         if (visibleBlockRole(block) !== 'assistant') {
             inResponse = false
@@ -479,22 +479,19 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
     const timestamps = getResponseGroupTimestamps(blocks)
     const targets = getResponseAnnotationTargets(blocks)
     const annotations = getResponseAnnotations(blocks)
-    const workGroups = getWorkGroups(blocks)
     const groups: VisibleChatBlock[][] = []
     for (const block of blocks) {
         const previous = groups.at(-1)
-        const groupingKey = getWorkGroupingKey(block)
-        const previousKey = previous ? getWorkGroupingKey(previous[0]) : undefined
+        const groupingKey = getNativeResponseGroupingKey(block)
+        const previousKey = previous ? getNativeResponseGroupingKey(previous[0]) : undefined
         if (previous && groupingKey && groupingKey === previousKey) previous.push(block)
         else if (!groupingKey && !previousKey && visibleBlockRole(block) === 'assistant' && previous && visibleBlockRole(previous[0]) === 'assistant') previous.push(block)
         else groups.push([block])
     }
     return groups.map(group => {
         const first = group[0]
-        const groupingKey = getWorkGroupingKey(first)
-        const workGroup = groupingKey?.endsWith(':work')
-            ? workGroups.get(getWorkTurnId(first) ?? '') : undefined
-        const role = groupingKey ? 'assistant' : visibleBlockRole(first)
+        const groupingKey = getNativeResponseGroupingKey(first)
+        const role = visibleBlockRole(first)
         const timestamp = timestamps.get(first) ?? getBlockPresentationTimestamp(first)
         const aggregate = aggregates.get(first.id)
         const annotationTargets = targets.get(first)
@@ -503,13 +500,10 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
             ...(aggregate ?? {}),
             ...(annotationTargets?.length ? { responseAnnotationTargets: annotationTargets } : {}),
             ...(responseAnnotations?.length ? { responseAnnotations } : {}),
-            ...(workGroup ? { workGroup } : {}),
         }
         return {
             role,
             groupingKey,
-            workTurnId: workGroup?.turnId,
-            workState: workGroups.get(getWorkTurnId(first) ?? ''),
             blocks: group,
             sourceIds: group.flatMap(getTimelineBlockSourceIds),
             createdAt: Math.min(...group.map(block => block.createdAt)),
@@ -522,27 +516,12 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
                     : timestamp
                 const completeAggregate = aggregateResponseGroups(materialized).get(materialized[0].id) ?? aggregate
                 const completeTargets = getResponseAnnotationTargets(materialized).get(materialized[0])
-                const previousWork = previous?.metadata?.custom?.workGroup as WorkGroup | undefined
-                const completeWork = workGroup && !workGroup.finalKnown && previousWork?.finalKnown
-                    ? { ...workGroup, finalKnown: true, canCollapse: !workGroup.blocked }
-                    : workGroup
                 const completeDerived = {
                     ...(completeAggregate ?? {}),
                     ...(completeTargets?.length ? { responseAnnotationTargets: completeTargets } : {}),
                     ...(responseAnnotations?.length ? { responseAnnotations } : {}),
-                    ...(completeWork ? { workGroup: completeWork } : {}),
                 }
-                const outputs = materialized.map(block => {
-                    const output = toThreadMessageLike(block, `${block.kind}:${block.id}`, materializedTimestamp)
-                    // Keep typed historical activity inside the work disclosure,
-                    // using the same shared event component as standalone rows.
-                    if (workGroup && block.kind === 'agent-event') return {
-                        ...output,
-                        role: 'assistant' as const,
-                        content: [{ type: 'tool-call' as const, toolCallId: block.id, toolName: 'HapiEvent', argsText: '', result: null, artifact: block }],
-                    }
-                    return output
-                })
+                const outputs = materialized.map(block => toThreadMessageLike(block, `${block.kind}:${block.id}`, materializedTimestamp))
                 const initial = outputs[0]
                 const content = outputs.flatMap((output, index) => {
                     const parts = typeof output.content === 'string' ? [{ type: 'text' as const, text: output.content }] : output.content ?? []

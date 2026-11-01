@@ -4,7 +4,6 @@ import { ThreadPrimitive, unstable_useThreadMessageIds } from '@assistant-ui/rea
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
 import { captureConversationScrollAnchor, getConversationScrollAnchorPosition, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
-import { useOptionalWorkExpansionState } from './context'
 
 export type VirtualThreadHandle = {
     scrollToEnd: (behavior?: ScrollBehavior) => void
@@ -40,7 +39,6 @@ export function getTurnRowRange(rows: readonly Pick<TimelineRow, 'role'>[], inde
 
 /** The row registry owns identity; the virtualizer owns all list geometry. */
 export function VirtualThreadMessages(props: Props) {
-    const workExpansion = useOptionalWorkExpansionState()
     const messageIds = unstable_useThreadMessageIds()
     const residentIds = useMemo(() => new Set(messageIds), [messageIds])
     const fallbackRows = useMemo<readonly TimelineRow[]>(() => messageIds.map(id => ({ id, role: 'assistant', sourceIds: [id], createdAt: 0, resident: true, current: true })), [messageIds])
@@ -342,18 +340,12 @@ export function VirtualThreadMessages(props: Props) {
             const canNavigate = () => generation === navigationGeneration.current && isCurrent()
             const index = findIndex(alias)
             if (index < 0 || !canNavigate()) return false
-            const workTurnId = current.current.rows[index]?.workTurnId
-            if (workTurnId) workExpansion?.set(workTurnId, true)
             virtualizer.scrollToIndex(index, { align: 'start' })
             if (!await hydrateRowFully(current.current.rows[index]!.id, canNavigate)) return false
             const deadline = Date.now() + 10_000
             while (canNavigate() && Date.now() < deadline) {
                 const nextIndex = findIndex(alias)
                 if (nextIndex < 0) return false
-                // Hydration can classify an unknown phase as completed work.
-                // Reveal the latest canonical row before testing its content.
-                const hydratedWorkTurnId = current.current.rows[nextIndex]?.workTurnId
-                if (hydratedWorkTurnId) workExpansion?.set(hydratedWorkTurnId, true)
                 virtualizer.scrollToIndex(nextIndex, { align: 'start' })
                 await frame()
                 if (!canNavigate()) return false
@@ -365,14 +357,13 @@ export function VirtualThreadMessages(props: Props) {
                 }
             }
             return false
-        }, [hydrateRowFully, findIndex, virtualizer, workExpansion])
+        }, [hydrateRowFully, findIndex, virtualizer])
     const materializeSelection = useCallback(async () => {
         allSelected.current = true
-        for (const row of current.current.rows) if (row.resident && row.workTurnId) workExpansion?.set(row.workTurnId, true)
         setPinned(current.current.rows.filter(row => row.resident).map(row => row.id))
         await frame()
         await frame()
-    }, [workExpansion])
+    }, [])
     useImperativeHandle(props.ref, () => ({
         scrollToEnd: (behavior = 'auto') => {
             navigationGeneration.current++
@@ -410,8 +401,6 @@ export function VirtualThreadMessages(props: Props) {
             if (index < 0) return () => {}
             const [start, end] = getTurnRowRange(current.current.rows, index)
             const turnRows = current.current.rows.slice(start, end + 1)
-            const workChoices = new Map(turnRows.flatMap(row => row.workTurnId ? [[row.workTurnId, workExpansion?.get(row.workTurnId)] as const] : []))
-            for (const turnId of workChoices.keys()) workExpansion?.set(turnId, true)
             setPinned(turnRows.map(row => row.id))
             // Sequential hydration preserves the existing bounded fetch controller.
             try {
@@ -422,16 +411,12 @@ export function VirtualThreadMessages(props: Props) {
                 await frame()
             } catch (error) {
                 setPinned([])
-                for (const [turnId, open] of workChoices) workExpansion?.set(turnId, open)
                 throw error
             }
-            return () => {
-                setPinned([])
-                for (const [turnId, open] of workChoices) workExpansion?.set(turnId, open)
-            }
+            return () => setPinned([])
         },
         materializeSelection,
-    }), [demand, hydrateRowFully, findIndex, virtualizer, ensureRow, captureHistoryContentAnchor, workExpansion, materializeSelection])
+    }), [demand, hydrateRowFully, findIndex, virtualizer, ensureRow, captureHistoryContentAnchor, materializeSelection])
 
     useLayoutEffect(() => { refineSemanticAnchor() }, [rows, refineSemanticAnchor])
     useEffect(() => clearSemanticAnchor, [clearSemanticAnchor])
