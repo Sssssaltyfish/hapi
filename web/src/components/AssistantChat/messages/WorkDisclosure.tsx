@@ -8,16 +8,16 @@ const subscribeNothing = () => () => {}
 export function WorkDisclosure({ work, children }: { work: WorkGroup; children: ReactNode }) {
     const expansion = useOptionalWorkExpansionState()
     const { t } = useTranslation()
-    const expanded = useSyncExternalStore(expansion?.subscribe ?? subscribeNothing,
-        () => expansion?.get(work.turnId) ?? false,
-        () => false)
-    const open = !work.canCollapse || expanded
+    const choice = useSyncExternalStore(expansion?.subscribe ?? subscribeNothing,
+        () => expansion?.get(work.turnId),
+        () => undefined)
+    const open = work.blocked || (choice ?? !work.canCollapse)
     return (
         <details data-hapi-work-turn={work.turnId} open={open} className="min-w-0">
             <summary className="mb-2 cursor-pointer text-xs text-[var(--app-hint)]"
                 onClick={event => {
                     event.preventDefault()
-                    if (work.canCollapse) expansion?.set(work.turnId, !expanded)
+                    if (!work.blocked) expansion?.set(work.turnId, !open)
                 }}>
                 {t(work.active ? 'session.work.running' : 'session.work.completed')}
             </summary>

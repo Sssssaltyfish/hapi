@@ -5,6 +5,7 @@ import { AssistantRuntimeProvider, useAuiState, useExternalStoreRuntime, type Th
 import { getTurnRowRange, VirtualThreadMessages, type VirtualThreadHandle } from './VirtualThreadMessages'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
 import { captureConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
+import { createWorkExpansionState } from './workExpansion'
 
 const work = vi.hoisted(() => ({ expansion: null as { set: (turnId: string, open: boolean) => void } | null }))
 vi.mock('./context', () => ({ useOptionalWorkExpansionState: () => work.expansion }))
@@ -316,5 +317,18 @@ describe('measured conversation virtualization', () => {
         expect(getTurnRowRange(rows, 6)).toEqual([4, 7])
         expect(getTurnRowRange(rows, 4)).toEqual([4, 7])
         expect(getTurnRowRange(rows, 99)).toEqual([96, 99])
+    })
+
+    it('restores the default work choice after temporarily opening a turn for sharing', async () => {
+        const expansion = createWorkExpansionState()
+        work.expansion = expansion
+        const listRef = createRef<VirtualThreadHandle>()
+        const view = render(<Harness rows={rows.slice(0, 4).map((row, index) => index === 1 ? { ...row, workTurnId: 'shared-work' } : row)} listRef={listRef} />)
+        await waitFor(() => expect(view.container.querySelector('#hapi-message-row-1')).not.toBeNull())
+        let release!: () => void
+        await act(async () => { release = await listRef.current!.materializeTurn('source-1') })
+        expect(expansion.get('shared-work')).toBe(true)
+        act(() => release())
+        expect(expansion.get('shared-work')).toBeUndefined()
     })
 })

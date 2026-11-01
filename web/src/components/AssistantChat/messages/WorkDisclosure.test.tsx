@@ -29,3 +29,19 @@ it('shows running work, collapses after completion, remembers expansion only wit
     render(<WorkDisclosure work={completed}><p>Tool and commentary</p></WorkDisclosure>)
     expect(disclosure().open).toBe(false)
 })
+
+it('lets inactive work without a loaded final answer be manually closed while keeping its default open', () => {
+    state.expansion = createWorkExpansionState()
+    const work = { turnId: 'historical-turn', canCollapse: false, finalKnown: false, blocked: false, active: false }
+    const view = render(<WorkDisclosure work={work}><p>Historical commentary</p></WorkDisclosure>)
+    const disclosure = () => screen.getByText('Historical commentary').closest('details')!
+    expect(disclosure().open).toBe(true)
+    fireEvent.click(screen.getByText('Work'))
+    expect(disclosure().open).toBe(false)
+    view.rerender(<WorkDisclosure work={{ ...work }}><p>Historical commentary</p></WorkDisclosure>)
+    expect(disclosure().open).toBe(false)
+    view.rerender(<WorkDisclosure work={{ ...work, blocked: true }}><p>Historical commentary</p></WorkDisclosure>)
+    expect(disclosure().open).toBe(true)
+    fireEvent.click(screen.getByText('Work'))
+    expect(disclosure().open).toBe(true)
+})

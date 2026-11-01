@@ -1,13 +1,14 @@
 /** Session-local choices survive virtual row recycling and reset on chat exit. */
 export function createWorkExpansionState() {
-    const expanded = new Set<string>()
+    const choices = new Map<string, boolean>()
     const listeners = new Set<() => void>()
     return {
-        get: (turnId: string) => expanded.has(turnId),
-        set(turnId: string, open: boolean) {
-            if (expanded.has(turnId) === open) return
-            if (open) expanded.add(turnId)
-            else expanded.delete(turnId)
+        get: (turnId: string) => choices.get(turnId),
+        set(turnId: string, open: boolean | undefined) {
+            if (choices.get(turnId) === open) return
+            choices.delete(turnId)
+            if (open !== undefined) choices.set(turnId, open)
+            while (choices.size > 2048) choices.delete(choices.keys().next().value!)
             for (const listener of listeners) listener()
         },
         subscribe(listener: () => void) {

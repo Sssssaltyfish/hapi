@@ -410,7 +410,7 @@ export function VirtualThreadMessages(props: Props) {
             if (index < 0) return () => {}
             const [start, end] = getTurnRowRange(current.current.rows, index)
             const turnRows = current.current.rows.slice(start, end + 1)
-            const workChoices = new Map(turnRows.flatMap(row => row.workTurnId ? [[row.workTurnId, workExpansion?.get(row.workTurnId) ?? false] as const] : []))
+            const workChoices = new Map(turnRows.flatMap(row => row.workTurnId ? [[row.workTurnId, workExpansion?.get(row.workTurnId)] as const] : []))
             for (const turnId of workChoices.keys()) workExpansion?.set(turnId, true)
             setPinned(turnRows.map(row => row.id))
             // Sequential hydration preserves the existing bounded fetch controller.
