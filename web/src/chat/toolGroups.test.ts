@@ -202,8 +202,8 @@ describe('buildVisibleChatBlocks', () => {
         expect(visible[0].tools.map((tool) => tool.id)).toEqual(['codex-read', 'codex-search'])
     })
 
-    it('opens exploration groups when the collapse preference is disabled', () => {
-        const visible = buildVisibleChatBlocks([
+    it.each(['default', 'codex-exploration'] as const)('shares the collapse preference with %s groups and keeps pending approval separate', (family) => {
+        const exploration = [
             makeToolBlock('codex-read', 'CodexBash', {
                 command: 'cat package.json',
                 command_actions: [{ type: 'read', command: 'cat package.json', name: 'package.json', path: '/repo/package.json' }]
@@ -212,9 +212,18 @@ describe('buildVisibleChatBlocks', () => {
                 command: 'rg nativeTitle web/src',
                 command_actions: [{ type: 'search', command: 'rg nativeTitle web/src', query: 'nativeTitle' }]
             })
-        ], { hasMoreMessages: false, codexExplorationCollapsed: false })
-
-        expect(isToolGroupBlock(visible[0]) && visible[0].defaultOpen).toBe(true)
+        ]
+        const ordinary = [makeToolBlock('read', 'Read', { path: '/repo/file.ts' }), makeToolBlock('bash', 'Bash', { command: 'bun test' })]
+        const pending = makeToolBlock('approval', 'Bash', { command: 'needs approval' })
+        pending.tool.state = 'pending'
+        pending.tool.permission = { id: 'approval-request', status: 'pending' }
+        for (const collapsed of [true, false]) {
+            const visible = buildVisibleChatBlocks([...(family === 'default' ? ordinary : exploration), pending], { hasMoreMessages: false, toolGroupsCollapsed: collapsed })
+            expect(visible).toHaveLength(2)
+            expect(isToolGroupBlock(visible[0]) && visible[0].presentationMode).toBe(family)
+            expect(isToolGroupBlock(visible[0]) && visible[0].defaultOpen).toBe(!collapsed)
+            expect(visible[1]).toBe(pending)
+        }
     })
 
     it('keeps structured general Codex commands separate from exploration groups', () => {

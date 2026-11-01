@@ -26,7 +26,7 @@ import { reconcileChatBlocks } from '@/chat/reconcile'
 import { buildConversationOutline } from '@/chat/outline'
 import { buildVisibleChatBlocks, isToolGroupBlock, type ToolGroupBlock } from '@/chat/toolGroups'
 import { useUnseenBlockCount } from '@/hooks/useUnseenBlockCount'
-import { useCodexExplorationCollapse } from '@/hooks/useCodexExplorationCollapse'
+import { useToolGroupCollapse } from '@/hooks/useToolGroupCollapse'
 import { isQueuedForInvocation } from '@/lib/messages'
 import { inactiveSessionCanResume } from '@/lib/sessionResume'
 import {
@@ -648,7 +648,7 @@ function SessionChatInner(props: SessionChatProps) {
     const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
     const { t } = useTranslation()
-    const { codexExplorationCollapsed } = useCodexExplorationCollapse()
+    const { toolGroupsCollapsed } = useToolGroupCollapse()
     const navigate = useNavigate()
     const [historyActionPending, setHistoryActionPending] = useState(false)
     const [rewindForkFallback, setRewindForkFallback] = useState<string | null>(null)
@@ -1514,9 +1514,9 @@ function SessionChatInner(props: SessionChatProps) {
         () => buildVisibleChatBlocks(reconciled.blocks, {
             hasMoreMessages: props.hasMoreMessages,
             previousGroups: visibleGroupsRef.current,
-            codexExplorationCollapsed
+            toolGroupsCollapsed
         }),
-        [reconciled.blocks, props.hasMoreMessages, codexExplorationCollapsed]
+        [reconciled.blocks, props.hasMoreMessages, toolGroupsCollapsed]
     )
 
     // Fork-current must compare against assistant-ui message ids (`kind:id`),

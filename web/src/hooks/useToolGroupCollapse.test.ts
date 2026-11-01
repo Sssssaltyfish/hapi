@@ -1,61 +1,61 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-    DEFAULT_CODEX_EXPLORATION_COLLAPSED,
-    getInitialCodexExplorationCollapsed,
-    useCodexExplorationCollapse,
-} from './useCodexExplorationCollapse'
+    DEFAULT_TOOL_GROUPS_COLLAPSED,
+    getInitialToolGroupsCollapsed,
+    useToolGroupCollapse,
+} from './useToolGroupCollapse'
 
 const STORAGE_KEY = 'hapi-codex-exploration-collapsed'
 
-describe('useCodexExplorationCollapse helpers', () => {
+describe('useToolGroupCollapse helpers', () => {
     beforeEach(() => {
         window.localStorage.clear()
     })
 
     it('defaults to collapsed', () => {
-        expect(getInitialCodexExplorationCollapsed()).toBe(DEFAULT_CODEX_EXPLORATION_COLLAPSED)
+        expect(getInitialToolGroupsCollapsed()).toBe(DEFAULT_TOOL_GROUPS_COLLAPSED)
     })
 
     it('reads valid stored values and ignores invalid values', () => {
         window.localStorage.setItem(STORAGE_KEY, 'false')
-        expect(getInitialCodexExplorationCollapsed()).toBe(false)
+        expect(getInitialToolGroupsCollapsed()).toBe(false)
 
         window.localStorage.setItem(STORAGE_KEY, 'invalid')
-        expect(getInitialCodexExplorationCollapsed()).toBe(DEFAULT_CODEX_EXPLORATION_COLLAPSED)
+        expect(getInitialToolGroupsCollapsed()).toBe(DEFAULT_TOOL_GROUPS_COLLAPSED)
     })
 })
 
-describe('useCodexExplorationCollapse', () => {
+describe('useToolGroupCollapse', () => {
     beforeEach(() => {
         window.localStorage.clear()
     })
 
     it('persists the expanded preference', () => {
-        const { result } = renderHook(() => useCodexExplorationCollapse())
+        const { result } = renderHook(() => useToolGroupCollapse())
 
         act(() => {
-            result.current.setCodexExplorationCollapsed(false)
+            result.current.setToolGroupsCollapsed(false)
         })
 
-        expect(result.current.codexExplorationCollapsed).toBe(false)
+        expect(result.current.toolGroupsCollapsed).toBe(false)
         expect(window.localStorage.getItem(STORAGE_KEY)).toBe('false')
     })
 
     it('removes the stored preference when restored to the default', () => {
         window.localStorage.setItem(STORAGE_KEY, 'false')
-        const { result } = renderHook(() => useCodexExplorationCollapse())
+        const { result } = renderHook(() => useToolGroupCollapse())
 
         act(() => {
-            result.current.setCodexExplorationCollapsed(true)
+            result.current.setToolGroupsCollapsed(true)
         })
 
-        expect(result.current.codexExplorationCollapsed).toBe(true)
+        expect(result.current.toolGroupsCollapsed).toBe(true)
         expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull()
     })
 
     it('applies cross-tab changes from storage events', () => {
-        const { result } = renderHook(() => useCodexExplorationCollapse())
+        const { result } = renderHook(() => useToolGroupCollapse())
 
         act(() => {
             window.dispatchEvent(new StorageEvent('storage', {
@@ -64,7 +64,7 @@ describe('useCodexExplorationCollapse', () => {
             }))
         })
 
-        expect(result.current.codexExplorationCollapsed).toBe(false)
+        expect(result.current.toolGroupsCollapsed).toBe(false)
 
         act(() => {
             window.dispatchEvent(new StorageEvent('storage', {
@@ -73,6 +73,6 @@ describe('useCodexExplorationCollapse', () => {
             }))
         })
 
-        expect(result.current.codexExplorationCollapsed).toBe(true)
+        expect(result.current.toolGroupsCollapsed).toBe(true)
     })
 })

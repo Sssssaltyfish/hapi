@@ -1,7 +1,7 @@
 import { useTranslation } from '@/lib/use-translation'
 import { getComposerEnterBehaviorOptions, useComposerEnterBehavior } from '@/hooks/useComposerEnterBehavior'
 import { getTerminalToolDisplayModeOptions, useTerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
-import { useCodexExplorationCollapse } from '@/hooks/useCodexExplorationCollapse'
+import { useToolGroupCollapse } from '@/hooks/useToolGroupCollapse'
 import { useReasoningCollapse } from '@/hooks/useReasoningCollapse'
 import {
     getChatSurfaceColorPickerValue,
@@ -52,7 +52,7 @@ export default function SettingsChatPage() {
     const { composerEnterBehavior, setComposerEnterBehavior } = useComposerEnterBehavior()
     const { composerSendMode, setComposerSendMode } = useComposerSendMode()
     const { terminalToolDisplayMode, setTerminalToolDisplayMode } = useTerminalToolDisplayMode()
-    const { codexExplorationCollapsed, setCodexExplorationCollapsed } = useCodexExplorationCollapse()
+    const { toolGroupsCollapsed, setToolGroupsCollapsed } = useToolGroupCollapse()
     const { reasoningCollapsed, setReasoningCollapsed } = useReasoningCollapse()
     const { toolGroupBackground, userMessageBackground, setToolGroupBackground, setUserMessageBackground } = useChatSurfaceColors()
     return (
@@ -78,10 +78,10 @@ export default function SettingsChatPage() {
                     onChange={setTerminalToolDisplayMode}
                 />
                 <SettingsSwitch
-                    label={t('settings.chat.codexExplorationCollapsed')}
-                    description={t('settings.chat.codexExplorationCollapsed.desc')}
-                    checked={codexExplorationCollapsed}
-                    onChange={setCodexExplorationCollapsed}
+                    label={t('settings.chat.toolGroupsCollapsed')}
+                    description={t('settings.chat.toolGroupsCollapsed.desc')}
+                    checked={toolGroupsCollapsed}
+                    onChange={setToolGroupsCollapsed}
                 />
                 <SettingsSwitch
                     label={t('settings.chat.reasoningCollapsed')}

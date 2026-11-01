@@ -56,7 +56,7 @@ export function visibleBlockRole(block: VisibleChatBlock): VisibleChatBlockRole 
 type ToolGroupingOptions = {
     hasMoreMessages: boolean
     previousGroups?: ToolGroupBlock[]
-    codexExplorationCollapsed?: boolean
+    toolGroupsCollapsed?: boolean
 }
 
 const PLAN_TOOL_NAMES = new Set([
@@ -311,7 +311,7 @@ export function buildVisibleChatBlocks(
             firstToolId: tools[0].id,
             lastToolId: tools[tools.length - 1].id,
             tools,
-            defaultOpen: groupingFamily === 'codex-exploration' && options.codexExplorationCollapsed === false,
+            defaultOpen: options.toolGroupsCollapsed === false,
             historyState: needsOlderHistory ? 'needs-older-history' : 'complete',
             needsOlderHistory,
             activityTitle,

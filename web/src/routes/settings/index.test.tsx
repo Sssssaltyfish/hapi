@@ -11,7 +11,7 @@ import SettingsVoicePage from './voice'
 import SettingsVoiceVoicesPage from './voice-voices'
 import SettingsVoiceAdvancedPage from './voice-advanced'
 
-const { context, navigate, setAppearance, setColorTheme, setFontScale, setTerminalFontSize, setComposerEnterBehavior, setCodexExplorationCollapsed, setVoice, setAppBadgeEnabled, setFixedSessionOrder } = vi.hoisted(() => ({
+const { context, navigate, setAppearance, setColorTheme, setFontScale, setTerminalFontSize, setComposerEnterBehavior, setToolGroupsCollapsed, setVoice, setAppBadgeEnabled, setFixedSessionOrder } = vi.hoisted(() => ({
     context: { token: '' },
     navigate: vi.fn(),
     setAppearance: vi.fn(),
@@ -19,7 +19,7 @@ const { context, navigate, setAppearance, setColorTheme, setFontScale, setTermin
     setFontScale: vi.fn(),
     setTerminalFontSize: vi.fn(),
     setComposerEnterBehavior: vi.fn(),
-    setCodexExplorationCollapsed: vi.fn(),
+    setToolGroupsCollapsed: vi.fn(),
     setVoice: vi.fn(),
     setAppBadgeEnabled: vi.fn(),
     setFixedSessionOrder: vi.fn(),
@@ -148,8 +148,8 @@ vi.mock('@/hooks/useTerminalToolDisplayMode', () => ({
     ],
 }))
 
-vi.mock('@/hooks/useCodexExplorationCollapse', () => ({
-    useCodexExplorationCollapse: () => ({ codexExplorationCollapsed: true, setCodexExplorationCollapsed }),
+vi.mock('@/hooks/useToolGroupCollapse', () => ({
+    useToolGroupCollapse: () => ({ toolGroupsCollapsed: true, setToolGroupsCollapsed }),
 }))
 
 vi.mock('@/hooks/useChatSurfaceColors', () => ({
@@ -330,12 +330,12 @@ describe('responsive settings pages', () => {
         expect(screen.getByText('Grouped Tool Use Background')).toBeInTheDocument()
     })
 
-    it('renders the default-collapse switch for Codex exploration groups', () => {
+    it('renders the shared default-collapse switch for grouped tool calls', () => {
         renderPage(<SettingsChatPage />)
-        const toggle = screen.getByRole('checkbox', { name: 'Collapse explored tool groups by default' })
+        const toggle = screen.getByRole('checkbox', { name: 'Collapse grouped tool calls by default' })
         expect(toggle).toBeChecked()
         fireEvent.click(toggle)
-        expect(setCodexExplorationCollapsed).toHaveBeenCalledWith(false)
+        expect(setToolGroupsCollapsed).toHaveBeenCalledWith(false)
     })
 
     it('renders About metadata on its own route page', () => {
