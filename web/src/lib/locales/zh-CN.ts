@@ -1,4 +1,7 @@
 export default {
+  'message.scheduledTask': '定时任务',
+  'message.scheduledQuiet': '无需通知',
+  'message.scheduledNotify': '有更新',
   'settings.chat.sendMode': '默认发送方式',
   'settings.chat.sendMode.queue': '排队',
   'settings.chat.sendMode.steer': '支持时立即引导',

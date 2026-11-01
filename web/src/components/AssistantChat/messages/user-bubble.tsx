@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
 import { splitResponseAnnotations } from '@/lib/responseAnnotations'
 import { ResponseAnnotationCards } from '@/components/AssistantChat/ResponseAnnotationCards'
+import { parseScheduledMessage } from '@/lib/scheduledMessage'
+import { ScheduledMessageCard } from './ScheduledMessageCard'
 
 const LEADING_DIRECTIVE_REGEX = /^([$\/][a-z0-9][\w-]*)(?=\s|$)/i
 
@@ -62,6 +64,8 @@ export function DirectiveChip(props: { value: string }) {
 }
 
 export function UserBubbleContent(props: { text: string }) {
+    const scheduled = parseScheduledMessage(props.text)
+    if (scheduled) return <ScheduledMessageCard message={scheduled} />
     const replies = parseNativeQuestionReply(props.text)
     if (replies) return <div className="flex min-w-0 flex-col gap-3" data-testid="question-reply-content">
         {replies.map((reply, index) => <div key={`${reply.questionItemId}:${index}`} className="min-w-0">

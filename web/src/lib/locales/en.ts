@@ -1,4 +1,7 @@
 export default {
+  'message.scheduledTask': 'Scheduled task',
+  'message.scheduledQuiet': 'No notification',
+  'message.scheduledNotify': 'Update',
   'settings.chat.sendMode': 'Default send behavior',
   'settings.chat.sendMode.queue': 'Queue',
   'settings.chat.sendMode.steer': 'Steer when supported',
