@@ -160,6 +160,27 @@ export class StableChatTimeline {
         locators?: ReadonlyMap<string, TimelineHistoryLocator>,
         toolGroupsCollapsed?: boolean,
     ): TimelineProjection[] {
+        const locatableAliases = incoming.flatMap(source => source.sourceIds.filter(alias => locators?.has(alias)))
+        const hasKnownHistory = [...this.known.values()].some(row => row.locators.size > 0)
+        const overlapsKnownHistory = locatableAliases.some(alias => {
+            const id = this.aliases.get(alias)
+            return id !== undefined && this.known.get(id)?.locators.has(alias)
+        })
+        if (hasKnownHistory && locatableAliases.length > 0 && !overlapsKnownHistory) {
+            // A seek or latest reset can replace the entire source window.
+            // Without explicit gap rows, retaining the old segment would imply
+            // that its unread intervening history was chronologically adjacent.
+            // Only durable history aliases establish overlap: a pending request
+            // shared by both windows is not evidence of a contiguous page.
+            this.known.clear()
+            this.aliases.clear()
+            this.payloads.clear()
+            this.viewportPins.clear()
+            this.order = []
+            this.rows = []
+            this.clock = 0
+            this.ordinal = 0
+        }
         const current: string[] = []
         const pinned = new Set<string>()
         for (const source of incoming) {

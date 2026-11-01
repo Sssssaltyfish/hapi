@@ -16,6 +16,41 @@ function contents(message: { content?: unknown }): string[] {
 }
 
 describe('stable logical chat timeline', () => {
+    it('replaces disjoint history segments instead of implying adjacency across an unread seek gap', () => {
+        const timeline = new StableChatTimeline()
+        const latest = text('latest', 100)
+        const older = text('older', 1)
+        const pending = user('pending', 200, { status: 'sending', localId: 'request' })
+        const latestLocator: TimelineHistoryLocator = { kind: 'native', turnId: 'new-turn', itemId: 'latest' }
+        const olderLocator: TimelineHistoryLocator = { kind: 'native', turnId: 'old-turn', itemId: 'older' }
+        const locators = new Map([['latest', latestLocator], ['older', olderLocator]])
+        timeline.update(buildMaterializedTimelineRows([latest, pending]), locators)
+        timeline.pinTimelineRows(['latest'])
+        const sought = timeline.update(buildMaterializedTimelineRows([older, pending]), locators)
+        expect(timeline.getRows().map(row => row.id)).toEqual(['agent-text:older', 'user-text:pending'])
+        expect(sought.map(row => row.message.id)).toEqual(['agent-text:older', 'user-text:pending'])
+        expect(timeline.resolveRowId('latest')).toBeNull()
+        expect(timeline.getRowSnapshot('latest')).toBeNull()
+    })
+
+    it('preserves locator-backed row identity across overlapping pages and known-row rehydration', () => {
+        const timeline = new StableChatTimeline(0)
+        const earlier = user('earlier', 1)
+        const response = text('response', 2)
+        const next = user('next', 3)
+        const locator = (itemId: string): TimelineHistoryLocator => ({ kind: 'native', turnId: 'turn', itemId })
+        const locators = new Map(['earlier', 'response', 'next'].map(id => [id, locator(id)]))
+        const initial = timeline.update(buildMaterializedTimelineRows([earlier, response]), locators)
+        const id = initial[1].message.id
+        timeline.update(buildMaterializedTimelineRows([response, next]), locators)
+        timeline.update(buildMaterializedTimelineRows([next]), locators)
+        expect(timeline.getRows()).toHaveLength(3)
+        expect(timeline.getRows()[1]).toMatchObject({ id, resident: false })
+        const rehydrated = timeline.update(buildMaterializedTimelineRows([response]), locators)
+        expect(timeline.getRows().map(row => row.id)).toEqual(['user-text:earlier', id, 'user-text:next'])
+        expect(rehydrated[0].message.id).toBe(id)
+    })
+
     it('retains the first observed response identity when an earlier part is prepended or the source prefix is trimmed', () => {
         const timeline = new StableChatTimeline()
         const a = text('a', 10)
