@@ -1168,7 +1168,7 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
                     ref={placeholderRef}
                     aria-hidden
                     data-testid="rich-composer-placeholder"
-                    className="pointer-events-none absolute inset-0 overflow-hidden whitespace-nowrap text-base leading-[1.375rem] text-[var(--app-hint)]"
+                    className="pointer-events-none absolute inset-0 overflow-hidden whitespace-nowrap text-base leading-[1.375rem] text-[var(--app-composer-placeholder)]"
                 >
                     {placeholder}
                 </div>

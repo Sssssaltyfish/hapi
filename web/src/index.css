@@ -12,6 +12,7 @@
     --app-banner-bg: var(--tg-theme-button-color, #111827);
     --app-banner-text: var(--tg-theme-button-text-color, #ffffff);
     --app-secondary-bg: var(--tg-theme-secondary-bg-color, #f3f4f6);
+    --app-composer-placeholder: color-mix(in srgb, var(--app-hint) 78%, var(--app-secondary-bg));
 
     --app-dialog-bg: #ffffff;
     --app-chat-user-bg: #f2f4f6;
