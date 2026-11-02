@@ -466,7 +466,7 @@ html:has(.chat-scroll-y) #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .aui-reasoning-group > .collapsible-panel {
+    .hapi-disclosure-content {
         transition: none;
     }
 }

@@ -8,6 +8,7 @@ import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown'
 import { cn } from '@/lib/utils'
 import { useReasoningCollapse } from '@/hooks/useReasoningCollapse'
 import { useOptionalHappyChatContext } from '@/components/AssistantChat/context'
+import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 import {
     MARKDOWN_CLASSNAME,
     MARKDOWN_COMPONENTS_BY_LANGUAGE,
@@ -17,29 +18,6 @@ import {
     denyOnlyTransform,
     UriConfirmProvider,
 } from '@/components/assistant-ui/markdown-text'
-
-function ChevronIcon(props: { className?: string; open?: boolean }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn(
-                'transition-transform duration-250 ease-in-out motion-reduce:transition-none',
-                props.open ? 'rotate-90' : '',
-                props.className
-            )}
-        >
-            <polyline points="9 18 15 12 9 6" />
-        </svg>
-    )
-}
 
 function ShimmerDot() {
     return (
@@ -216,7 +194,7 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                     'transition-colors cursor-pointer select-none'
                 )}
             >
-                <ChevronIcon open={isOpen} />
+                <DisclosureChevron open={isOpen} className="h-3 w-3" />
                 <span>Reasoning</span>
                 {isStreaming && (
                     <span className="ml-1 flex items-center gap-1 text-[var(--app-hint)]">
@@ -225,24 +203,22 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                 )}
             </button>
 
-            <div id={panelId} className="collapsible-panel" data-open={isOpen ? '' : undefined} inert={!isOpen}>
-                <div className="min-h-0 overflow-hidden">
-                    <div
-                        ref={scrollRef}
-                        data-hapi-nested-scroll="true"
-                        tabIndex={isOpen ? 0 : -1}
-                        onScroll={handleScroll}
-                        onPointerDown={claimNestedPointerScroll}
-                        onWheel={claimNestedWheelScroll}
-                        onKeyDown={claimNestedKeyboardScroll}
-                        // Let wheel/touch events chain to the chat at the edge
-                        // of the panel. Nested follow-tail is handled above.
-                        className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
-                    >
-                        {children}
-                    </div>
+            <DisclosureContent open={isOpen} id={panelId} keepMounted>
+                <div
+                    ref={scrollRef}
+                    data-hapi-nested-scroll="true"
+                    tabIndex={isOpen ? 0 : -1}
+                    onScroll={handleScroll}
+                    onPointerDown={claimNestedPointerScroll}
+                    onWheel={claimNestedWheelScroll}
+                    onKeyDown={claimNestedKeyboardScroll}
+                    // Let wheel/touch events chain to the chat at the edge
+                    // of the panel. Nested follow-tail is handled above.
+                    className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
+                >
+                    {children}
                 </div>
-            </div>
+            </DisclosureContent>
         </div>
     )
 }

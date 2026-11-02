@@ -358,11 +358,13 @@ describe('TraceSection', () => {
         expect(container.textContent).not.toContain('Input')
         expect(container.textContent).not.toContain('Result')
 
-        const childButtons = Array.from(container.querySelectorAll('button'))
-            .filter((button) => button.getAttribute('aria-expanded') === null)
+        const childButtons = screen.getAllByRole('button', { expanded: false })
         expect(childButtons).toHaveLength(2)
+        expect(childButtons[0]).toHaveAccessibleName(/Terminal/)
+        expect(childButtons[1]).toHaveAccessibleName(/file-c2\.ts/)
 
         fireEvent.click(childButtons[0])
+        expect(screen.getByRole('button', { name: /Terminal/, expanded: true })).toBe(childButtons[0])
         expect(container.textContent).toContain('Input')
         expect(container.textContent).toContain('Result')
     })

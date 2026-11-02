@@ -2,7 +2,7 @@
  * TraceSection — shows child tool calls inside a Task/Agent tool dialog.
  * Placed between Input and Result sections.
  */
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { isObject, safeStringify } from '@hapi/protocol'
 import type { ChatBlock, ToolCallBlock } from '@/chat/types'
 import type { SessionMetadataSummary } from '@/types/api'
@@ -14,6 +14,7 @@ import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { formatDuration, getEventPresentation } from '@/chat/presentation'
 import { useTranslation } from '@/lib/use-translation'
 import { isSubagentToolName } from '@/chat/subagentTool'
+import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 
 // ---------------------------------------------------------------------------
 // Result type narrowing (trace.tsx-internal; do NOT move to shared protocol)
@@ -151,26 +152,28 @@ function TraceSectionInner({
 }: TraceSectionInnerProps) {
     const { t } = useTranslation()
     const [open, setOpen] = useState(defaultOpen)
+    const panelId = useId()
 
     return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col">
             {/* Header row — clickable to toggle */}
             <button
                 type="button"
                 className="flex items-center gap-1 text-left text-xs font-medium text-[var(--app-hint)] hover:text-[var(--app-fg)] transition-colors"
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
+                aria-controls={panelId}
             >
-                <span className="w-3 text-center select-none">{open ? '▾' : '▸'}</span>
+                <DisclosureChevron open={open} className="h-3 w-3" />
                 <span>{t('tool.trace')}</span>
                 <span className="font-mono font-normal opacity-70">({summaryText})</span>
             </button>
 
-            {open ? (
-                <div className={fixedHeight ? 'min-h-[260px] max-h-[45vh] overflow-y-auto pr-1' : undefined}>
+            <DisclosureContent open={open} id={panelId}>
+                <div className={fixedHeight ? 'mt-1 min-h-[260px] max-h-[45vh] overflow-y-auto pr-1' : 'mt-1'}>
                     <TraceChildList items={items} metadata={metadata} mode={mode} />
                 </div>
-            ) : null}
+            </DisclosureContent>
         </div>
     )
 }
@@ -221,16 +224,17 @@ type TraceChildRowProps = {
 
 function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChildRowProps) {
     const { t } = useTranslation()
+    const panelId = useId()
     const isSessionMode = mode === 'session'
     const rowClassName = isSessionMode
-        ? 'flex flex-col gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-subtle-bg)] p-2'
-        : 'flex flex-col gap-1'
+        ? 'flex flex-col rounded-xl border border-[var(--app-border)] bg-[var(--app-subtle-bg)] p-2'
+        : 'flex flex-col'
     const detailClassName = isSessionMode
-        ? 'rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-2 text-sm'
-        : 'ml-8 rounded border border-[var(--app-border)] p-2 text-sm'
-    const detailPlainClassName = isSessionMode ? '' : 'ml-8'
+        ? 'mt-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-2 text-sm'
+        : 'ml-8 mt-1 rounded border border-[var(--app-border)] p-2 text-sm'
+    const detailPlainClassName = isSessionMode ? 'mt-2' : 'ml-8 mt-1'
     const chevron = onToggle ? (
-        <span className="w-3 text-center select-none">{expanded ? '▾' : '▸'}</span>
+        <DisclosureChevron open={expanded} className="h-3 w-3" />
     ) : (
         <span className="w-3 text-center select-none text-[var(--app-hint)]">•</span>
     )
@@ -246,16 +250,18 @@ function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChild
                     className="flex items-center gap-2 text-left text-xs text-[var(--app-hint)] hover:text-[var(--app-fg)] transition-colors disabled:pointer-events-none"
                     onClick={onToggle}
                     disabled={!onToggle}
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
                 >
                     {chevron}
                     <span className="font-medium">{label}</span>
                     <span className="min-w-0 truncate">{preview}</span>
                 </button>
-                {expanded && (
+                <DisclosureContent open={expanded} id={panelId}>
                     <div className={detailClassName}>
                         <MarkdownRenderer content={child.text} />
                     </div>
-                )}
+                </DisclosureContent>
             </div>
         )
     }
@@ -268,16 +274,18 @@ function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChild
                     className="flex items-center gap-2 text-left text-xs text-[var(--app-hint)] hover:text-[var(--app-fg)] transition-colors disabled:pointer-events-none"
                     onClick={onToggle}
                     disabled={!onToggle}
+                    aria-expanded={expanded}
+                    aria-controls={panelId}
                 >
                     {chevron}
                     <span className="font-medium">Output</span>
                     <span className="min-w-0 truncate">{child.text.trim().split('\n')[0]}</span>
                 </button>
-                {expanded && (
+                <DisclosureContent open={expanded} id={panelId}>
                     <div className={detailPlainClassName}>
                         <CodeBlock code={child.text} language="text" />
                     </div>
-                )}
+                </DisclosureContent>
             </div>
         )
     }
@@ -311,6 +319,8 @@ function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChild
                 className="flex items-center gap-2 text-left text-xs text-[var(--app-hint)] hover:text-[var(--app-fg)] transition-colors disabled:pointer-events-none"
                 onClick={onToggle}
                 disabled={!onToggle}
+                aria-expanded={expanded}
+                aria-controls={panelId}
             >
                 {chevron}
                 <span className="w-4 text-center shrink-0">
@@ -319,8 +329,8 @@ function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChild
                 <span className={isSessionMode ? 'min-w-0 truncate font-mono' : 'font-mono break-all'}>{label}</span>
             </button>
 
-            {expanded && (
-                <div className={isSessionMode ? 'flex flex-col gap-2' : 'ml-8 flex flex-col gap-2 rounded border border-[var(--app-border)] p-2'}>
+            <DisclosureContent open={expanded} id={panelId}>
+                <div className={isSessionMode ? 'mt-2 flex flex-col gap-2' : 'ml-8 mt-1 flex flex-col gap-2 rounded border border-[var(--app-border)] p-2'}>
                     <div>
                         <div className="mb-1 text-xs font-medium text-[var(--app-hint)]">{t('tool.input')}</div>
                         {FullInputView ? (
@@ -334,7 +344,7 @@ function TraceChildRow({ child, metadata, expanded, onToggle, mode }: TraceChild
                         <ResultView block={child} metadata={metadata} />
                     </div>
                 </div>
-            )}
+            </DisclosureContent>
         </div>
     )
 }
