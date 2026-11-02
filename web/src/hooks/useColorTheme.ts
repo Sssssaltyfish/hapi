@@ -149,7 +149,7 @@ function palette(accent: string, background: string, foreground: string, hint: s
         code: isDark ? mix(background, '#ffffff', 0.11) : mix(background, '#000000', 0.045),
         border: withAlpha(isDark ? '#ffffff' : '#0f172a', isDark ? 0.11 : 0.10),
         subtle: withAlpha(isDark ? '#ffffff' : '#0f172a', isDark ? 0.06 : 0.045),
-        buttonText: readableText(accent),
+        buttonText: themeButtonTextColor(accent),
     }
 }
 
@@ -352,8 +352,12 @@ function compositeOnBackground(rgba: string, background: string): string {
     return toHex(blend(Number(match[1]), base.r), blend(Number(match[2]), base.g), blend(Number(match[3]), base.b))
 }
 
-function readableText(hex: string): string {
-    return relativeLuminance(hex) > 0.45 ? '#111827' : '#ffffff'
+export function themeButtonTextColor(hex: string): string {
+    const background = relativeLuminance(hex)
+    const dark = '#111827'
+    const darkContrast = (background + 0.05) / (relativeLuminance(dark) + 0.05)
+    const lightContrast = 1.05 / (background + 0.05)
+    return darkContrast >= lightContrast ? dark : '#ffffff'
 }
 
 export function composerHintColors(hint: string, surface: string, text: string) {

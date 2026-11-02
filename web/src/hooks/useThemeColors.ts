@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { applyColorTheme, composerHintColors, getColorThemePickerValue, getColorThemeStorageKey, getStoredColorTheme, type ColorScheme } from './useColorTheme'
+import { applyColorTheme, composerHintColors, getColorThemePickerValue, getColorThemeStorageKey, getStoredColorTheme, themeButtonTextColor, type ColorScheme } from './useColorTheme'
 
 /**
  * Per-appearance "key color" customization.
@@ -71,7 +71,9 @@ export const THEME_COLOR_KEYS: readonly ThemeColorKey[] = [
     {
         id: 'accent',
         labelKey: 'settings.display.themeColors.key.accent',
-        targets: ['--app-link', '--app-chat-user-chip-fg'],
+        targets: ['--app-link', '--app-chat-user-chip-fg', '--app-button'],
+        derivedTargets: ['--app-button-text'],
+        derive: hex => ({ '--app-button-text': themeButtonTextColor(hex) }),
     },
     {
         id: 'border',

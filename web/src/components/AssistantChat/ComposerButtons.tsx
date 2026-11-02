@@ -376,8 +376,11 @@ export function ComposerToolbarItemPreview(props: { item: ComposerToolbarItemId;
     )
 }
 
+const PRIMARY_BUTTON_COLORS = 'bg-[color-mix(in_srgb,var(--app-button)_16%,var(--app-secondary-bg))] text-[var(--app-fg)] enabled:hover:bg-[var(--app-button)] enabled:hover:text-[var(--app-button-text)] enabled:active:bg-[var(--app-button)] enabled:active:text-[var(--app-button-text)]'
+const ACTIVE_PRIMARY_BUTTON_COLORS = 'bg-[var(--app-button)] text-[var(--app-button-text)] enabled:hover:opacity-90'
+
 export function ComposerSendButtonPreview() {
-    return <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black" aria-hidden="true"><SendIcon /></span>
+    return <span className={`flex h-10 w-10 items-center justify-center rounded-full ${PRIMARY_BUTTON_COLORS}`} aria-hidden="true"><SendIcon /></span>
 }
 
 /**
@@ -593,30 +596,30 @@ export function UnifiedButton(props: {
 
     if (isConnecting) {
         icon = <LoadingIcon />
-        className = 'bg-black text-white'
+        className = ACTIVE_PRIMARY_BUTTON_COLORS
         ariaLabel = t('voice.connecting')
     } else if (isConnected) {
         icon = <StopIcon />
-        className = 'bg-black text-white'
+        className = ACTIVE_PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.stop')
     } else if (routesToScratchlist) {
         // Amber send button - matches the scratchlist drawer accent.
         // Single visual signal carries the "this goes to the scratchlist"
         // contract; without it, the modal state is invisible to the user.
         icon = <SendIcon />
-        className = 'bg-amber-500 text-white hover:bg-amber-600'
+        className = 'bg-[var(--app-badge-warning-bg)] text-[var(--app-badge-warning-text)] ring-1 ring-inset ring-[var(--app-badge-warning-border)] enabled:hover:opacity-90'
         ariaLabel = t('scratchlist.sendToScratchlist')
     } else if (hasText) {
         icon = <SendIcon />
-        className = 'bg-black text-white'
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.send')
     } else if (props.voiceEnabled) {
         icon = <VoiceAssistantIcon size={22} />
-        className = 'bg-black text-white'
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = props.voiceLabel ?? t('composer.voice')
     } else {
         icon = <SendIcon />
-        className = 'bg-[#C0C0C0] text-white'
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.send')
     }
 
@@ -640,7 +643,7 @@ export function UnifiedButton(props: {
             title={ariaLabel}
             data-testid="composer-unified-button"
             data-size="round"
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-secondary-bg)] disabled:cursor-not-allowed disabled:bg-[var(--app-subtle-bg)] disabled:text-[var(--app-hint)] disabled:ring-1 disabled:ring-inset disabled:ring-[var(--app-border)] ${className}`}
         >
             {icon}
         </button>
