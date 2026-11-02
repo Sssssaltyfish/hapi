@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 export function DisclosureChevron(props: { open: boolean; className?: string }) {
     return <svg
         aria-hidden="true"
-        className={cn('h-4 w-4 shrink-0 transition-transform duration-250 ease-in-out motion-reduce:transition-none', props.open && 'rotate-90', props.className)}
+        className={cn('hapi-disclosure-chevron h-4 w-4 shrink-0 transition-transform ease-in-out', props.open && 'rotate-90', props.className)}
         viewBox="0 0 16 16"
         fill="none"
         data-state={props.open ? 'open' : 'closed'}

@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider, createMemoryHistory } from '@tanstack/react-router'
 import './index.css'
+import { initializeDisclosureDuration } from '@/hooks/useDisclosureDuration'
 import { initializeFontScale } from '@/hooks/useFontScale'
 import { getTelegramWebApp, isTelegramEnvironment, loadTelegramSdk } from './hooks/useTelegram'
 import { queryClient } from './lib/query-client'
@@ -36,6 +37,7 @@ function getInitialPath(): string {
 async function bootstrap() {
     installScrollRestorationGuard()
     initializeFontScale()
+    initializeDisclosureDuration()
 
     // Only load Telegram SDK in Telegram environment (with 3s timeout)
     const isTelegram = isTelegramEnvironment()

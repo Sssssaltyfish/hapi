@@ -3,6 +3,7 @@ import { getComposerEnterBehaviorOptions, useComposerEnterBehavior } from '@/hoo
 import { getTerminalToolDisplayModeOptions, useTerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
 import { useToolGroupCollapse } from '@/hooks/useToolGroupCollapse'
 import { useReasoningCollapse } from '@/hooks/useReasoningCollapse'
+import { DISCLOSURE_DURATIONS, setDisclosureDuration, useDisclosureDuration } from '@/hooks/useDisclosureDuration'
 import {
     getChatSurfaceColorPickerValue,
     getChatSurfaceColorPresetOptions,
@@ -54,6 +55,7 @@ export default function SettingsChatPage() {
     const { terminalToolDisplayMode, setTerminalToolDisplayMode } = useTerminalToolDisplayMode()
     const { toolGroupsCollapsed, setToolGroupsCollapsed } = useToolGroupCollapse()
     const { reasoningCollapsed, setReasoningCollapsed } = useReasoningCollapse()
+    const disclosureDuration = useDisclosureDuration()
     const { toolGroupBackground, userMessageBackground, setToolGroupBackground, setUserMessageBackground } = useChatSurfaceColors()
     return (
         <SettingsPageContent description={t('settings.chat.description')}>
@@ -88,6 +90,16 @@ export default function SettingsChatPage() {
                     description={t('settings.chat.reasoningCollapsed.desc')}
                     checked={reasoningCollapsed}
                     onChange={setReasoningCollapsed}
+                />
+                <SettingsChoiceGroup
+                    label={t('settings.chat.disclosureDuration')}
+                    value={disclosureDuration}
+                    options={DISCLOSURE_DURATIONS.map(value => ({
+                        value,
+                        label: value === 0 ? t('settings.chat.disclosureDuration.off') : t('settings.chat.disclosureDuration.ms', { ms: value }),
+                    }))}
+                    onChange={setDisclosureDuration}
+                    columns={4}
                 />
             </SettingsSection>
             <SettingsSection title={t('settings.chat.colors')}>

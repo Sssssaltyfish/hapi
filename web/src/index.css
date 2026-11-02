@@ -465,7 +465,13 @@ html:has(.chat-scroll-y) #root {
     opacity: 1;
 }
 
+.hapi-disclosure-chevron,
+.hapi-disclosure-content {
+    transition-duration: var(--app-disclosure-duration);
+}
+
 @media (prefers-reduced-motion: reduce) {
+    .hapi-disclosure-chevron,
     .hapi-disclosure-content {
         transition: none;
     }
