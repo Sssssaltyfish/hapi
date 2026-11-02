@@ -643,7 +643,7 @@ export function UnifiedButton(props: {
             title={ariaLabel}
             data-testid="composer-unified-button"
             data-size="round"
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-secondary-bg)] disabled:cursor-not-allowed disabled:bg-[var(--app-subtle-bg)] disabled:text-[var(--app-hint)] disabled:ring-1 disabled:ring-inset disabled:ring-[var(--app-border)] ${className}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-secondary-bg)] disabled:cursor-not-allowed disabled:bg-[var(--app-subtle-bg)] disabled:text-[var(--app-hint)] disabled:ring-0 ${className}`}
         >
             {icon}
         </button>
