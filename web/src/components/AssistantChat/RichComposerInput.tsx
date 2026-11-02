@@ -1162,13 +1162,13 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
     ])
 
     return (
-        <div className="relative min-w-0 flex-1">
+        <div className="hapi-composer-field relative min-w-0 flex-1">
             {domIsEmpty && placeholder ? (
                 <div
                     ref={placeholderRef}
                     aria-hidden
                     data-testid="rich-composer-placeholder"
-                    className="pointer-events-none absolute inset-0 overflow-hidden whitespace-nowrap text-base leading-[1.375rem] text-[var(--app-composer-placeholder)]"
+                    className="hapi-composer-placeholder pointer-events-none absolute inset-0 overflow-hidden whitespace-nowrap text-base leading-[1.375rem]"
                 >
                     {placeholder}
                 </div>

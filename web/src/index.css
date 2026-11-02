@@ -12,7 +12,8 @@
     --app-banner-bg: var(--tg-theme-button-color, #111827);
     --app-banner-text: var(--tg-theme-button-text-color, #ffffff);
     --app-secondary-bg: var(--tg-theme-secondary-bg-color, #f3f4f6);
-    --app-composer-placeholder: color-mix(in srgb, var(--app-hint) 78%, var(--app-secondary-bg));
+    --app-composer-placeholder: var(--app-hint);
+    --app-composer-placeholder-focused: var(--app-composer-placeholder);
 
     --app-dialog-bg: #ffffff;
     --app-chat-user-bg: #f2f4f6;
@@ -787,6 +788,32 @@ html[data-theme="oled"] .shiki span:not([data-line-number]) {
 .tsqd-open-btn-container {
   bottom: 50% !important;
   transform: translateY(50%);
+}
+
+.hapi-composer-field::placeholder,
+.hapi-composer-placeholder {
+    color: var(--app-composer-placeholder);
+    opacity: 1;
+    transition: color 180ms ease-out;
+}
+
+.hapi-composer-field:focus::placeholder,
+.hapi-composer-field:focus-within > .hapi-composer-placeholder {
+    color: var(--app-composer-placeholder-focused);
+}
+
+@media (prefers-contrast: more) {
+    .hapi-composer-field:focus::placeholder,
+    .hapi-composer-field:focus-within > .hapi-composer-placeholder {
+        color: var(--app-composer-placeholder);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hapi-composer-field::placeholder,
+    .hapi-composer-placeholder {
+        transition: none;
+    }
 }
 
 /* Composer attachment controls stay discoverable on touch, but stay quiet

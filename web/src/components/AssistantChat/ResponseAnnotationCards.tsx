@@ -31,7 +31,7 @@ function QuoteNotes({ value, label, placeholder, onChange }: {
     }, [value])
     return <textarea ref={ref} aria-label={label} placeholder={placeholder}
         value={value} rows={1} data-hapi-nested-scroll="true"
-        className="mt-0.5 max-h-32 min-h-6 w-full resize-none overflow-y-auto rounded-none border-0 border-b border-[var(--app-divider)] bg-transparent p-0 text-xs leading-5 text-[var(--app-fg)] placeholder:text-[var(--app-composer-placeholder)] transition-colors focus:border-[var(--app-link)] focus:outline-none"
+        className="mt-0.5 max-h-32 min-h-6 w-full resize-none overflow-y-auto rounded-none border-0 border-b border-[var(--app-divider)] bg-transparent p-0 text-xs leading-5 text-[var(--app-fg)] hapi-composer-field transition-colors focus:border-[var(--app-link)] focus:outline-none"
         onChange={event => onChange(event.target.value)}
         onKeyDown={event => event.stopPropagation()} />
 }
@@ -62,14 +62,15 @@ export function ResponseAnnotationCards({ annotations, onRemove, onAnnotationCha
     }
     if (annotations.length === 0) return null
     return <div className="flex min-w-0 flex-col gap-2 text-xs" data-testid="response-annotation-cards">
-        {annotations.map((annotation, index) => <div key={index}
-            className="flex min-w-0 items-start gap-1 border-l-2 border-[var(--app-md-quote-border)] pl-2">
+        {annotations.map((annotation, index) => <div key={index} className="flex min-w-0 items-start gap-1">
             <div className="min-w-0 flex-1">
-                {session && annotation.source ? <button type="button" data-hapi-nested-scroll="true"
-                    aria-label={t('message.quoteOriginal')} aria-busy={pending === index}
-                    onClick={() => void navigate(annotation, index)}
-                    className="block max-h-16 w-full overflow-y-auto whitespace-pre-wrap break-words text-left leading-4 text-[var(--app-fg)] hover:text-[var(--app-link)] sm:max-h-24 sm:leading-5">{annotation.text}</button>
-                    : <div data-hapi-nested-scroll="true" className="max-h-16 overflow-y-auto whitespace-pre-wrap break-words leading-4 text-[var(--app-fg)] sm:max-h-24 sm:leading-5">{annotation.text}</div>}
+                <blockquote className="m-0 border-s-2 border-[var(--app-link)] ps-2 font-medium">
+                    {session && annotation.source ? <button type="button" data-hapi-nested-scroll="true"
+                        aria-label={t('message.quoteOriginal')} aria-busy={pending === index}
+                        onClick={() => void navigate(annotation, index)}
+                        className="block max-h-16 w-full overflow-y-auto whitespace-pre-wrap break-words text-left leading-4 text-[var(--app-fg)] hover:text-[var(--app-link)] sm:max-h-24 sm:leading-5">{annotation.text}</button>
+                        : <div data-hapi-nested-scroll="true" className="max-h-16 overflow-y-auto whitespace-pre-wrap break-words leading-4 text-[var(--app-fg)] sm:max-h-24 sm:leading-5">{annotation.text}</div>}
+                </blockquote>
                 {failed === index ? <div role="status" className="mt-1 text-[var(--app-hint)]">{t('session.outline.locateFailed')}</div> : null}
                 {onAnnotationChange ? <QuoteNotes
                         label={t('message.quoteNotes', { index: index + 1 })}

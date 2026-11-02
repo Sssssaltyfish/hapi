@@ -356,6 +356,43 @@ function readableText(hex: string): string {
     return relativeLuminance(hex) > 0.45 ? '#111827' : '#ffffff'
 }
 
+export function composerHintColors(hint: string, surface: string, text: string) {
+    const background = relativeLuminance(surface)
+    const contrast = (color: string) => {
+        const ink = relativeLuminance(color)
+        return (Math.max(background, ink) + 0.05) / (Math.min(background, ink) + 0.05)
+    }
+    const base = mix(hint, surface, 0.22)
+    let readableInk = text
+    if (contrast(text) < 4.5) {
+        readableInk = contrast('#ffffff') > contrast('#000000') ? '#ffffff' : '#000000'
+    }
+
+    // Keep the palette's hint hue. Move toward the surface if it is already
+    // legible, or toward the text color if it needs more contrast.
+    function shade(target: number): string {
+        const soften = contrast(base) >= target
+        const from = soften ? surface : base
+        const to = soften ? base : readableInk
+        let result = to
+        let low = 0
+        let high = 1
+        for (let i = 0; i < 8; i++) {
+            const amount = (low + high) / 2
+            const candidate = mix(from, to, amount)
+            if (contrast(candidate) >= target) {
+                result = candidate
+                high = amount
+            } else {
+                low = amount
+            }
+        }
+        return result
+    }
+
+    return { idle: shade(5), focused: shade(3.6) }
+}
+
 function relativeLuminance(hex: string): number {
     const { r, g, b } = parseHex(hex)
     const convert = (value: number) => {

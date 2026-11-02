@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { applyColorTheme, getColorThemePickerValue, getColorThemeStorageKey, getStoredColorTheme, type ColorScheme } from './useColorTheme'
+import { applyColorTheme, composerHintColors, getColorThemePickerValue, getColorThemeStorageKey, getStoredColorTheme, type ColorScheme } from './useColorTheme'
 
 /**
  * Per-appearance "key color" customization.
@@ -264,6 +264,20 @@ export function applyThemeColors(): void {
                 rootStyle.setProperty(cssVar, derived[cssVar]!)
             }
         }
+    }
+
+    const style = window.getComputedStyle(document.documentElement)
+    const read = (name: string) => style.getPropertyValue(name).trim()
+    const hint = read('--app-hint')
+    const surface = read('--app-secondary-bg')
+    const text = read('--app-fg')
+    if ([hint, surface, text].every(isHexColor)) {
+        const colors = composerHintColors(hint, surface, text)
+        rootStyle.setProperty('--app-composer-placeholder', colors.idle)
+        rootStyle.setProperty('--app-composer-placeholder-focused', colors.focused)
+    } else {
+        rootStyle.removeProperty('--app-composer-placeholder')
+        rootStyle.removeProperty('--app-composer-placeholder-focused')
     }
 }
 

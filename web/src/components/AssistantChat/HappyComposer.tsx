@@ -2389,7 +2389,7 @@ export function HappyComposer(props: {
                                         onSelect={handleSelect}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
-                                        className={`${isExpanded ? 'h-full min-h-0' : 'max-h-40'} flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder:text-[var(--app-composer-placeholder)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`${isExpanded ? 'h-full min-h-0' : 'max-h-40'} flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50`}
                                     />
                                 ) : isExpanded ? (
                                     <ComposerPrimitive.Input
@@ -2409,7 +2409,7 @@ export function HappyComposer(props: {
                                                 showContinueHint,
                                             }))}
                                             disabled={controlsDisabled}
-                                            className="h-full min-h-0 flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder:text-[var(--app-composer-placeholder)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="h-full min-h-0 flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                     </ComposerPrimitive.Input>
                                 ) : (
@@ -2428,7 +2428,7 @@ export function HappyComposer(props: {
                                         onSelect={handleSelect}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
-                                        className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder:text-[var(--app-composer-placeholder)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                     />
                                 )}
                                 <div className="absolute bottom-2 right-3">
