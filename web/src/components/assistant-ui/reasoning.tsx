@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef, type FC, type KeyboardEvent, type PropsWithChildren, type UIEvent } from 'react'
+import { useState, useCallback, useEffect, useId, useLayoutEffect, useRef, type FC, type KeyboardEvent, type PropsWithChildren, type UIEvent } from 'react'
 import {
     useAuiState,
     type ReasoningGroupProps,
@@ -31,7 +31,7 @@ function ChevronIcon(props: { className?: string; open?: boolean }) {
             strokeLinecap="round"
             strokeLinejoin="round"
             className={cn(
-                'transition-transform duration-200',
+                'transition-transform duration-250 ease-in-out motion-reduce:transition-none',
                 props.open ? 'rotate-90' : '',
                 props.className
             )}
@@ -93,7 +93,7 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
     startIndex = 0,
     endIndex,
 }) => {
-    const [isOpen, setIsOpen] = useState(false)
+    const panelId = useId()
     const scrollRef = useRef<HTMLDivElement | null>(null)
     const followLatestRef = useRef(true)
     const pointerActiveRef = useRef(false)
@@ -105,9 +105,10 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
         return parts.some((part) => part.type === 'reasoning' && part.status.type === 'running')
     })
     const { reasoningCollapsed } = useReasoningCollapse()
+    const [isOpen, setIsOpen] = useState(() => isStreaming && !reasoningCollapsed)
     const chatContext = useOptionalHappyChatContext()
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!isStreaming) return
         const nextOpen = !reasoningCollapsed
         if (nextOpen) {
@@ -206,6 +207,8 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
         <div data-hapi-share-exclude="true" className="aui-reasoning-group my-3 overflow-hidden rounded-2xl bg-[var(--app-reasoning-bg)]">
             <button
                 type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
                 onClick={handleToggle}
                 className={cn(
                     'flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left text-xs font-medium',
@@ -222,29 +225,22 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                 )}
             </button>
 
-            <div
-                className={cn(
-                    'overflow-hidden transition-all duration-200 ease-in-out',
-                    isOpen ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
-                )}
-            >
-                <div
-                    ref={scrollRef}
-                    data-hapi-nested-scroll="true"
-                    tabIndex={isOpen ? 0 : -1}
-                    onScroll={handleScroll}
-                    onPointerDown={claimNestedPointerScroll}
-                    onWheel={claimNestedWheelScroll}
-                    onKeyDown={claimNestedKeyboardScroll}
-                    // No overscroll containment: native scroll chaining must pass
-                    // to the outer chat viewport once the panel reaches its
-                    // bottom (see #1264). The follow-tail coordination above
-                    // (onNestedScrollFollowChange) already pauses the outer
-                    // auto-follow while the user scrolls inside this panel, so
-                    // contain is not needed to stop the two from fighting.
-                    className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
-                >
-                    {children}
+            <div id={panelId} className="collapsible-panel" data-open={isOpen ? '' : undefined} inert={!isOpen}>
+                <div className="min-h-0 overflow-hidden">
+                    <div
+                        ref={scrollRef}
+                        data-hapi-nested-scroll="true"
+                        tabIndex={isOpen ? 0 : -1}
+                        onScroll={handleScroll}
+                        onPointerDown={claimNestedPointerScroll}
+                        onWheel={claimNestedWheelScroll}
+                        onKeyDown={claimNestedKeyboardScroll}
+                        // Let wheel/touch events chain to the chat at the edge
+                        // of the panel. Nested follow-tail is handled above.
+                        className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
+                    >
+                        {children}
+                    </div>
                 </div>
             </div>
         </div>
