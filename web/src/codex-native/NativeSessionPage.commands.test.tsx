@@ -50,6 +50,27 @@ it('runs management commands without a chat message, queue mutation or new model
     expect(api.codexNativeCommand).toHaveBeenCalledTimes(6)
 })
 
+it('dispatches the four native commands without chat input or discovery refresh and rejects extra text', async () => {
+    const post = vi.fn().mockImplementation(async (_id, request) => ({ ...request.command,
+        ...(request.command.command === 'compact' ? { accepted: true }
+            : request.command.command === 'recap' ? { sourceTurnId: 'turn', text: 'Recap' }
+                : request.command.command === 'usage' ? { usage: null, rateLimits: null, unavailable: {} }
+                    : { denial: null }) }))
+    const api = setup(post)
+    await waitFor(() => expect(api.getCodexNativeCommands).toHaveBeenCalledOnce())
+    for (const command of ['compact', 'recap', 'usage', 'approve']) {
+        await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!(`/${command}`)).toBe('handled') })
+    }
+    expect(post).toHaveBeenCalledTimes(4)
+    expect(api.getCodexNativeCommands).toHaveBeenCalledOnce()
+    expect(api.codexNativeAction).not.toHaveBeenCalled()
+    expect(queue.refresh).not.toHaveBeenCalled()
+    await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!('/compact unexpected')).toBe('failed') })
+    await act(async () => { expect(await ui.props!.onSend('/recap unexpected')).toBe(false) })
+    expect(post).toHaveBeenCalledTimes(4)
+    expect(api.codexNativeAction).not.toHaveBeenCalled()
+})
+
 it.each(['Explain this', 'off'])('submits a quoted plan prompt %s once through the queue command even when explicit steer was requested', async prompt => {
     const post = vi.fn().mockResolvedValue({ command: 'plan', applied: { collaborationMode: { mode: 'plan' } }, submission: { accepted: true } })
     const api = setup(post)

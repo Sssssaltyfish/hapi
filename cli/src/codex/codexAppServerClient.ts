@@ -341,7 +341,7 @@ export class CodexAppServerClient extends JsonLineParser {
     }
 
     async request<T = unknown>(method: string, params?: unknown): Promise<T> {
-        return await this.sendRequest(method, params, { timeoutMs: 20_000 }) as T;
+        return await this.sendRequest(method, params, { timeoutMs: method === 'thread/sample' ? 120_000 : 20_000 }) as T;
     }
 
     async initialize(params: InitializeParams): Promise<InitializeResponse> {
