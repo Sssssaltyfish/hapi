@@ -81,16 +81,16 @@ export function useSlashCommands(
             ? queryText.slice(1).toLowerCase()
             : queryText.toLowerCase()
 
-        if (!searchTerm) {
-            return commands.map(cmd => ({
-                key: `/${cmd.name}`,
-                text: `/${cmd.name}`,
-                label: `/${cmd.name}`,
-                description: cmd.description ?? (cmd.source === 'builtin' ? undefined : 'Custom command'),
-                content: cmd.content,
-                source: cmd.source
-            }))
-        }
+        const suggestion = (cmd: SlashCommand): Suggestion => ({
+            key: `/${cmd.name}`,
+            text: `/${cmd.name}`,
+            label: `/${cmd.name}`,
+            description: cmd.description ?? (cmd.source === 'builtin' ? undefined : 'Custom command'),
+            content: cmd.content,
+            source: cmd.source,
+            submitOnSelect: agentType === 'codex' && cmd.source === 'builtin' && (cmd.name === 'plan' || cmd.name === 'goal')
+        })
+        if (!searchTerm) return commands.map(suggestion)
 
         const maxDistance = Math.max(2, Math.floor(searchTerm.length / 2))
         return commands
@@ -108,15 +108,8 @@ export function useSlashCommands(
             })
             .filter(item => item.score < Infinity)
             .sort((a, b) => a.score - b.score)
-            .map(({ cmd }) => ({
-                key: `/${cmd.name}`,
-                text: `/${cmd.name}`,
-                label: `/${cmd.name}`,
-                description: cmd.description ?? (cmd.source === 'builtin' ? undefined : 'Custom command'),
-                content: cmd.content,
-                source: cmd.source
-            }))
-    }, [commands, query.refetch])
+            .map(({ cmd }) => suggestion(cmd))
+    }, [agentType, commands, query.refetch])
 
     return {
         commands,
