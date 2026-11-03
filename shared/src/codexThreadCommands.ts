@@ -5,6 +5,43 @@ export type CodexThreadCommand =
     | { command: 'goal'; action: 'show' | 'pause' | 'resume' | 'clear' }
     | { command: 'goal'; action: 'set'; objective: string }
 
+export type NativeGoal = {
+    threadId: string
+    objective: string
+    status: 'active' | 'paused' | 'blocked' | 'usageLimited' | 'budgetLimited' | 'complete'
+    tokenBudget: number | null
+    tokensUsed: number
+    timeUsedSeconds: number
+    createdAt: number
+    updatedAt: number
+}
+
+export type NativePlanPreset = {
+    name: string
+    mode: 'plan' | 'default'
+    model: string | null
+    reasoning_effort: string | null
+}
+
+export type NativeCommandState = {
+    capabilities: { plan: boolean; goal: boolean }
+    planPresets: NativePlanPreset[]
+    collaborationMode: Record<string, unknown> | null
+    goal: NativeGoal | null
+    unavailable: { plan?: string; goal?: string }
+}
+
+export type NativeCommandRequest = {
+    command: CodexThreadCommand
+    clientId?: string
+    attachments?: Array<{ path: string }>
+}
+
+export type NativeCommandResult =
+    | { command: 'plan'; applied: Record<string, unknown>; submission?: Record<string, unknown> & { accepted: true; startError?: string } }
+    | { command: 'goal'; action: 'show' | 'set' | 'pause' | 'resume'; goal: NativeGoal | null; cleared?: never }
+    | { command: 'goal'; action: 'clear'; cleared: boolean; goal?: never }
+
 export function parseCodexThreadCommand(text: string): CodexThreadCommand | null {
     const match = /^\/(plan|goal)(?:\s+([\s\S]*))?$/i.exec(text.trim())
     if (!match) return null
