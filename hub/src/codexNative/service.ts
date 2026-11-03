@@ -1,5 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
+import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
 import type { CodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
@@ -48,7 +49,10 @@ function settingsSnapshot(value: NativeRecord): NativeRecord {
     return { ...value, effort: value.effort ?? value.reasoningEffort ?? null }
 }
 function settingsMatch(current: NativeRecord, patch: NativeRecord): boolean {
-    return Object.entries(patch).every(([key, value]) => isDeepStrictEqual(current[key], value))
+    return Object.entries(patch).every(([key, value]) => key === 'collaborationMode'
+        && value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? nativeModeSettingsMatch(record(current[key]), record(value))
+        : isDeepStrictEqual(current[key], value))
 }
 export function fallbackThread(thread: NativeRecord): boolean {
     const source = thread.source

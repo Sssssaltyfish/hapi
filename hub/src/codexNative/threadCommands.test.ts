@@ -20,6 +20,7 @@ class Daemon {
     latestStatus = 'inProgress'
     runtimeStatus = 'active'
     startFailure = false
+    canonicalInstructions = false
     emit(event: NativeEvent) {
         for (const client of this.clients) for (const listener of client.listeners) listener(event)
     }
@@ -45,6 +46,18 @@ class Daemon {
                     case 'thread/resume': return structuredClone({ ...this.settings, thread: { id: 'thread', status: { type: this.runtimeStatus } } })
                     case 'thread/settings/update': {
                         this.settings = { ...this.settings, ...structuredClone(params) }
+                        if (this.canonicalInstructions) {
+                            const mode = this.settings.collaborationMode as NativeRecord
+                            const settings = mode.settings as NativeRecord
+                            this.settings.collaborationMode = { ...mode, settings: { ...settings, developer_instructions: 'Native built-in Plan instructions' } }
+                            for (const mismatch of [
+                                { ...mode, mode: 'default' },
+                                { ...mode, settings: { ...settings, model: 'another-model' } },
+                                { ...mode, settings: { ...settings, reasoning_effort: 'low' } }
+                            ]) {
+                                this.emit({ method: 'thread/settings/updated', params: { threadId: 'thread', threadSettings: { ...this.settings, collaborationMode: mismatch } } })
+                            }
+                        }
                         this.emit({ method: 'thread/settings/updated', params: { threadId: 'thread', threadSettings: structuredClone(this.settings) } })
                         return {}
                     }
@@ -119,12 +132,13 @@ describe('Native Plan and Goal commands', () => {
 
     test('confirms a native Plan preset with the current model and emits no user input for management commands', async () => {
         const { daemon, service, app, command } = fixture()
+        daemon.canonicalInstructions = true
         try {
             expect(await (await app.request('/api/codex-native/threads/thread/commands')).json()).toMatchObject({ collaborationMode: null })
             const response = await command({ command: 'plan', mode: 'plan' })
             expect(response.status).toBe(200)
             expect(await response.json()).toMatchObject({ command: 'plan', applied: { collaborationMode: {
-                mode: 'plan', settings: { model: 'current-model', reasoning_effort: 'medium', developer_instructions: null }
+                mode: 'plan', settings: { model: 'current-model', reasoning_effort: 'medium', developer_instructions: 'Native built-in Plan instructions' }
             } } })
             expect(daemon.calls.filter(call => call.method === 'thread/settings/update')).toHaveLength(1)
             expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)

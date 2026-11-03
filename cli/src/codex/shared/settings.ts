@@ -1,19 +1,5 @@
-import { isDeepStrictEqual } from 'node:util';
 import { record } from './gateway';
-
-/** Native updates are asynchronous; an unrelated notification is not our ACK. */
-export function settingsMatch(actual: Record<string, unknown>, expected: Record<string, unknown>): boolean {
-    return Object.entries(expected).every(([key, value]) => {
-        if (key === 'threadId') return true;
-        // null developer instructions select the native built-in instructions;
-        // the effective snapshot is allowed to contain their expanded text.
-        if (key === 'developer_instructions' && value === null) return true;
-        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-            return settingsMatch(record(actual[key]), record(value));
-        }
-        return isDeepStrictEqual(actual[key], value);
-    });
-}
+export { settingsMatch } from '@hapi/protocol/nativeSettings.server';
 
 /** Never silently convert a named/external sandbox into workspace-write. */
 export function inheritedSandbox(settings: Record<string, unknown>): Record<string, unknown> {
