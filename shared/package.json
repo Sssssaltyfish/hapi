@@ -13,6 +13,7 @@
         "./buildInfo": "./src/buildInfo.ts",
         "./conversationHistory": "./src/conversationHistory.ts",
         "./codexInputContext": "./src/codexInputContext.ts",
+        "./codexThreadCommands": "./src/codexThreadCommands.ts",
         "./modes": "./src/modes.ts",
         "./rpcMethods": "./src/rpcMethods.ts",
         "./runnerCapabilities": "./src/runnerCapabilities.ts",

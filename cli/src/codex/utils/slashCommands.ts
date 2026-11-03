@@ -1,11 +1,12 @@
 import { CODEX_PERMISSION_MODES } from '@hapi/protocol/modes';
+import { MAX_CODEX_GOAL_OBJECTIVE_CHARS, parseCodexThreadCommand } from '@hapi/protocol/codexThreadCommands';
 import type { CodexPermissionMode } from '@hapi/protocol/types';
 import type { ReasoningEffort } from '../appServerTypes';
 import type { CodexPersonality, EnhancedMode } from '../loop';
 import type { SlashCommand } from '@/modules/common/slashCommands';
 import { parseReasoningEffortValue } from './reasoningEffort';
 
-export const MAX_CODEX_GOAL_OBJECTIVE_CHARS = 4_000;
+export { MAX_CODEX_GOAL_OBJECTIVE_CHARS };
 
 const CODEX_PERSONALITIES = ['friendly', 'pragmatic', 'none'] as const satisfies readonly CodexPersonality[];
 
@@ -91,28 +92,13 @@ export function resolveCodexSlashCommand(
         };
     }
 
-    if (command === 'plan') {
-        const lowerRest = rest.toLowerCase();
-        if (lowerRest === 'off' || lowerRest === 'default' || lowerRest === 'exit' || lowerRest === 'disable') {
-            return {
-                kind: 'handled',
-                message: 'Codex plan mode disabled',
-                updates: { collaborationMode: 'default' }
-            };
-        }
-        if (rest) {
-            return {
-                kind: 'replace',
-                text: rest,
-                message: 'Codex plan mode enabled',
-                updates: { collaborationMode: 'plan' }
-            };
-        }
-        return {
-            kind: 'handled',
-            message: 'Codex plan mode enabled',
-            updates: { collaborationMode: 'plan' }
-        };
+    const threadCommand = parseCodexThreadCommand(text);
+    if (threadCommand?.command === 'plan') {
+        const updates = { collaborationMode: threadCommand.mode };
+        const message = threadCommand.mode === 'plan' ? 'Codex plan mode enabled' : 'Codex plan mode disabled';
+        return threadCommand.prompt
+            ? { kind: 'replace', text: threadCommand.prompt, updates, message }
+            : { kind: 'handled', updates, message };
     }
 
     if (command === 'agent') {
@@ -139,27 +125,9 @@ export function resolveCodexSlashCommand(
         };
     }
 
-    if (command === 'goal') {
-        const lowerRest = rest.toLowerCase();
-        if (!rest) {
-            return { kind: 'goal', action: 'show' };
-        }
-        if (lowerRest === 'clear') {
-            return { kind: 'goal', action: 'clear' };
-        }
-        if (lowerRest === 'pause') {
-            return { kind: 'goal', action: 'pause' };
-        }
-        if (lowerRest === 'resume') {
-            return { kind: 'goal', action: 'resume' };
-        }
-        const objective = rest.trim();
-        if (!objective) {
-            return {
-                kind: 'handled',
-                message: 'Goal objective must not be empty.'
-            };
-        }
+    if (threadCommand?.command === 'goal') {
+        if (threadCommand.action !== 'set') return { kind: 'goal', action: threadCommand.action };
+        const { objective } = threadCommand;
         if ([...objective].length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
             return {
                 kind: 'handled',
