@@ -1,4 +1,5 @@
 import { query } from './sdk/query'
+import { normalizeSessionRecap, SESSION_RECAP_PROMPT } from '@hapi/protocol/recap'
 
 /** Read the current transcript through a non-persistent native fork, without tools. */
 export async function createClaudeSideRecap(options: {
@@ -9,7 +10,7 @@ export async function createClaudeSideRecap(options: {
 }): Promise<string> {
     const timeout = AbortSignal.timeout(60_000)
     const stream = query({
-        prompt: 'Give a concise recap of this conversation: the user goal, completed work, current state, unresolved questions, and next steps. Use only the conversation already available. Do not run tools or perform new work.',
+        prompt: SESSION_RECAP_PROMPT,
         options: {
             cwd: options.cwd,
             resume: options.sessionId,
@@ -32,5 +33,5 @@ export async function createClaudeSideRecap(options: {
         }
     }
     if (!text.trim()) throw new Error('Claude returned no recap text')
-    return text
+    return normalizeSessionRecap(text)
 }

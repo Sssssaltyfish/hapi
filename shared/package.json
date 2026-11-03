@@ -10,6 +10,7 @@
         "./apiTypes": "./src/apiTypes.ts",
         "./messages": "./src/messages.ts",
         "./slashCommands": "./src/slashCommands.ts",
+        "./recap": "./src/recap.ts",
         "./buildInfo": "./src/buildInfo.ts",
         "./conversationHistory": "./src/conversationHistory.ts",
         "./codexInputContext": "./src/codexInputContext.ts",

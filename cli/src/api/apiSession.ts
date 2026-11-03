@@ -743,13 +743,22 @@ export class ApiSessionClient extends EventEmitter {
     private readonly remoteUsage = new RemoteUsageSnapshot()
     private commandDispatch: Promise<void> | null = null
     private nativeSlashCommandChecker: ((name: string) => boolean | Promise<boolean>) | null = null
+    private usageProvider: (() => Promise<string>) | null = null
 
     setNativeSlashCommandChecker(checker: (name: string) => boolean | Promise<boolean>): void {
         this.nativeSlashCommandChecker = checker
     }
 
+    setUsageProvider(reader: () => Promise<string>): void {
+        this.usageProvider = reader
+    }
+
     noteProviderUsage(usage: unknown): void {
-        this.remoteUsage.observe(usage)
+        this.remoteUsage.observe(usage, this.metadata?.flavor ?? undefined)
+    }
+
+    noteProviderRateLimit(info: unknown): void {
+        this.remoteUsage.observeRateLimit(info)
     }
 
     private enqueueUserMessage(message: UserMessage, localId?: string): void {
@@ -771,9 +780,16 @@ export class ApiSessionClient extends EventEmitter {
                     ])
                     const custom = new Set([...catalog.filter(entry => entry.source !== 'builtin').map(entry => entry.name),
                         ...skills.map(entry => entry.name)])
-                    const result = resolveRemoteBuiltinCommand({ text: message.content.text, flavor,
+                    let result = resolveRemoteBuiltinCommand({ text: message.content.text, flavor,
                         customCommands: custom, nativeCommands: this.metadata?.slashCommands,
                         nativeCommandSupported: await this.nativeSlashCommandChecker?.(command.name), usage: this.remoteUsage })
+                    if (result !== null && command.name === 'usage' && !command.args && this.usageProvider) {
+                        try { result = await this.usageProvider() }
+                        catch (error) {
+                            logger.debug('[API] Native usage query unavailable', error)
+                            result = this.remoteUsage.describe() + '\n\nLive usage query is unavailable; showing only the last reported facts.'
+                        }
+                    }
                     if (result !== null) {
                         if (localId) this.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true })
                         this.sendSessionEvent({ type: 'message', message: result })
@@ -1022,6 +1038,7 @@ export class ApiSessionClient extends EventEmitter {
 
     sendClaudeSessionMessage(body: RawJSONLines): void {
         if (body.type === 'assistant' && !body.isSidechain && !body.isApiErrorMessage) this.noteProviderUsage(body.message?.usage)
+        if (body.type === 'system' && !body.isSidechain && 'resultSummary' in body) this.remoteUsage.observe(body.resultSummary, 'claude-result')
         let content: MessageContent
         // Origin timestamp (epoch ms) from the transcript entry's own `timestamp`,
         // forwarded only for agent messages so the hub can stamp created_at/invoked_at
@@ -1201,6 +1218,7 @@ export class ApiSessionClient extends EventEmitter {
             // token totals. Keep their context facts without inventing a zero bill.
             const hasTokenTotals = Object.values(total).some(value => typeof value === 'number' && value > 0)
             this.noteProviderUsage({ ...(hasTokenTotals ? total : {}),
+                inputTokenSemantics: (body as { inputTokenSemantics?: unknown }).inputTokenSemantics,
                 contextTokens: info?.contextTokens, modelContextWindow: info?.modelContextWindow })
         }
         const content = {
@@ -1230,6 +1248,7 @@ export class ApiSessionClient extends EventEmitter {
     } | {
         type: 'message'
         message: string
+        codexUsage?: import('@hapi/protocol/codexUsage').CodexUsageSnapshot
     } | {
         type: 'error'
         message: string

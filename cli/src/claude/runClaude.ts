@@ -342,7 +342,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
             report('Generating a recap in an isolated, temporary Claude session…');
             void createClaudeSideRecap({ sessionId: nativeSessionId, cwd: workingDirectory,
                 model: currentSessionRef.current?.getModel() ?? currentModel ?? undefined, signal: sideQueryAbort.signal })
-                .then(text => report(`Conversation recap:\n${text}`))
+                .then(text => report(text))
                 .catch(error => report(`Claude recap failed: ${error instanceof Error ? error.message : String(error)}`))
                 .finally(() => { recapInFlight = false; });
             return;

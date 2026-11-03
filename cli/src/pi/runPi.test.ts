@@ -16,6 +16,7 @@ const harness = vi.hoisted(() => ({
         sessionId: 'hapi-session-test',
         keepAlive: vi.fn(),
         onUserMessage: vi.fn(),
+        setUsageProvider: vi.fn(),
         onCancelQueuedMessage: vi.fn(),
         emitMessagesConsumed: vi.fn(),
         sendSessionEvent: vi.fn(),
@@ -1529,6 +1530,28 @@ describe('Pi built-in slash commands', () => {
         }));
         await vi.waitFor(() => expect(harness.session.emitMessagesConsumed).toHaveBeenCalledWith(['stats-id'], { clearQueuedThinkingGrace: true }));
 
+        harness.onError?.(new Error('finish test'));
+        await running;
+    });
+
+    it('queries native session statistics for the live usage report without a model prompt', async () => {
+        const { running } = await startReadySession();
+        const reader = harness.session.setUsageProvider.mock.calls.at(-1)![0] as () => Promise<string>;
+        const report = reader();
+        const request = await vi.waitFor(() => {
+            const command = [...harness.sent].reverse().find(item => (item as { type?: string }).type === 'get_session_stats') as { id: string } | undefined;
+            expect(command).toBeDefined();
+            return command!;
+        });
+        harness.onEvent!({ type: 'response', id: request.id, command: 'get_session_stats', success: true,
+            data: { tokens: { input: 3000, output: 2000, total: 5000 }, cost: 0.1234,
+                contextUsage: { tokens: 4000, contextWindow: 200000 } } });
+        const text = await report;
+        expect(text).toContain('Session totals from Pi');
+        expect(text).toContain('Input tokens: 3,000');
+        expect(text).toContain('Available context space: 196,000 tokens');
+        expect(text).toContain('Not reported by this provider');
+        expect(harness.sent).not.toContainEqual(expect.objectContaining({ type: 'prompt' }));
         harness.onError?.(new Error('finish test'));
         await running;
     });
