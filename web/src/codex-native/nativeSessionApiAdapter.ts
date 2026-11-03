@@ -136,15 +136,6 @@ export function createNativeSessionApiAdapter(
             if (property === 'setModel') {
                 if (!selected) throw new Error('Native model is unavailable')
                 patch.model = selected.id
-                const effort = liveSession.modelReasoningEffort
-                if (
-                    effort &&
-                    selected.supportedReasoningEfforts &&
-                    !selected.supportedReasoningEfforts.includes(effort) &&
-                    selected.defaultReasoningEffort
-                ) {
-                    patch.effort = selected.defaultReasoningEffort
-                }
             } else {
                 const effort = typeof value === 'string' ? value : selected?.defaultReasoningEffort
                 if (!effort)

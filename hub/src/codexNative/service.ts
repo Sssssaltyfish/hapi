@@ -590,7 +590,28 @@ export class NativeService {
                     : client.request('thread/resume', { threadId, excludeTurns: true }))
             )
             const current = settingsSnapshot(resumed)
-            const patch = typeof update === 'function' ? update(current) : update
+            const patch = { ...(typeof update === 'function' ? update(current) : update) }
+            if (typeof patch.model === 'string' && patch.model !== current.model &&
+                !Object.hasOwn(patch, 'effort') && typeof current.effort === 'string') {
+                // A browser may have an old effort from another device. Migrate
+                // only an incompatible current daemon effort, never its UI copy.
+                let cursor: string | undefined
+                do {
+                    const page = record(await client.request('model/list', { includeHidden: true, ...(cursor ? { cursor } : {}) }))
+                    const model = (Array.isArray(page.data) ? page.data : []).map(record)
+                        .find(model => model.id === patch.model || model.model === patch.model)
+                    if (model) {
+                        const efforts = Array.isArray(model.supportedReasoningEfforts)
+                            ? model.supportedReasoningEfforts.map(value => record(value).reasoningEffort) : []
+                        if (efforts.length && !efforts.includes(current.effort) && typeof model.defaultReasoningEffort === 'string')
+                            patch.effort = model.defaultReasoningEffort
+                        break
+                    }
+                    const next = text(page.nextCursor)
+                    if (next === cursor) break
+                    cursor = next
+                } while (cursor)
+            }
             if (settingsMatch(current, patch))
                 return { applied: current }
             const applied = new Promise<NativeRecord>((resolve, reject) => {

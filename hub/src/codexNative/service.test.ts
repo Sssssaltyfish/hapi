@@ -303,6 +303,25 @@ describe('native bridge boundaries', () => {
         ])
         expect(clients[0].closed).toBe(true)
     })
+    test('model changes migrate only incompatible authoritative effort', async () => {
+        for (const effort of ['high', 'ultra']) {
+            const { service, clients } = fixture(client => {
+                const request = client.request.bind(client)
+                client.request = async (method, params) => {
+                    if (method === 'model/list') return { data: [{ id: 'target',
+                        supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'medium' }],
+                        defaultReasoningEffort: 'medium' }] }
+                    const result = await request(method, params)
+                    return method === 'thread/resume' ? { ...result as object, effort } : result
+                }
+            })
+            await service.settings('thread', { model: 'target' })
+            expect(clients[0].calls.find(call => call.method === 'thread/settings/update')?.params)
+                .toEqual({ threadId: 'thread', model: 'target', ...(effort === 'ultra' ? { effort: 'medium' } : {}) })
+            service.dispose()
+        }
+    })
+
     test('reentry publishes current settings instead of the original attach defaults', async () => {
         const { service, clients } = fixture()
         const release = await service.subscribe('thread', () => {})
