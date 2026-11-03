@@ -130,7 +130,7 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
         {thread && hasThread && <section className="space-y-2 pt-2">
             <h3 className="text-sm font-medium">{t('codexUsage.threadConsumption')}</h3>
             <Rows values={[
-                [t('codexUsage.estimatedCredits'), thread.creditsMicros === null ? null : decimal(codexMicroAmount(thread.creditsMicros))],
+                [t('codexUsage.credits'), thread.creditsMicros === null ? null : decimal(codexMicroAmount(thread.creditsMicros))],
                 [t('codexUsage.estimatedUsd'), thread.usdMicros === null ? null : `$${decimal(codexMicroAmount(thread.usdMicros))}`],
             ]} />
             {thread.groups.length > 0 && <details>
@@ -138,7 +138,7 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
                 <div className="mt-3 space-y-4">{thread.groups.map((group, index) => <div key={index}>
                     <p className="mb-2 break-words text-sm font-medium">{[group.model, group.reasoning, group.speed].filter(Boolean).join(' · ') || t('codexUsage.modelUnknown')}</p>
                     <Rows values={[
-                        [t('codexUsage.estimatedCredits'), group.creditsMicros === null ? null : decimal(codexMicroAmount(group.creditsMicros))],
+                        [t('codexUsage.credits'), group.creditsMicros === null ? null : decimal(codexMicroAmount(group.creditsMicros))],
                         [t('codexUsage.inputTokens'), count(group.inputTokens)],
                         [t('codexUsage.newInputTokens'), count(group.newInputTokens)],
                         [t('codexUsage.cachedInputTokens'), count(group.cachedInputTokens)],
