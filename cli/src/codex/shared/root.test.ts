@@ -128,6 +128,7 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         root, native, rpc, send, events, consumed, uncertain, metadata: () => metadata, state: () => state, updateState,
         drain: () => (root as unknown as { notifications: Promise<void> }).notifications,
         reconnect: () => reconnect?.(),
+        dropHubGoal: () => { state = { ...state, codexGoal: undefined, codexGoalUnavailable: undefined }; },
         emitHubArchived: () => { for (const listener of hubArchivedListeners) listener(); },
         hubArchivedListenerCount: () => hubArchivedListeners.length,
         end,
@@ -203,6 +204,22 @@ describe('typed native goal controls', () => {
         expect(await reading).toMatchObject({ goal: { objective: 'New goal', status: 'paused' } });
         expect(f.state().codexGoal).toMatchObject({ objective: 'New goal', status: 'paused' });
     });
+    it('does not let a background read discard an acknowledged control before its notification arrives', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        const control = f.rpc.get(RPC_METHODS.CodexGoalControl)!;
+        await control({ action: 'set', objective: 'Preserve the acknowledgement' });
+        let release!: (value: unknown) => void;
+        const request = f.root.client.request.bind(f.root.client);
+        vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => method === 'thread/goal/set'
+            ? new Promise(resolve => { release = resolve; }) : request(method, params));
+        const pausing = control({ action: 'pause' });
+        await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+        await f.root.refresh();
+        release({ goal: { ...f.state().codexGoal!, status: 'paused' } });
+        expect(await pausing).toMatchObject({ goal: { status: 'paused' } });
+        expect(f.state().codexGoal?.status).toBe('paused');
+    });
     it('rejects invalid typed actions before calling the native runtime', async () => {
         const f = await fixture();
         await f.root.activate();
@@ -217,7 +234,28 @@ describe('typed native goal controls', () => {
             ? Promise.reject(new Error('goals feature is disabled')) : request(method, params));
         await f.root.refresh();
         expect(f.state().codexGoalUnavailable).toBe('goals feature is disabled');
+        const updates = f.updateState.mock.calls.length;
+        await f.root.refresh();
+        expect(f.updateState).toHaveBeenCalledTimes(updates);
         expect(calls.mock.calls.some(([method]) => method.startsWith('experimentalFeature/'))).toBe(false);
+    });
+    it('deduplicates identical reads and native notifications, but replays a lost Hub goal on reconnect', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        await f.rpc.get(RPC_METHODS.CodexGoalControl)!({ action: 'set', objective: 'Survive reconnect' });
+        await f.drain();
+        const updates = f.updateState.mock.calls.length;
+        await f.root.refresh(); await f.root.refresh();
+        f.native.notify('thread/goal/updated', { threadId: 'thread', goal: { ...f.state().codexGoal! } });
+        await f.drain();
+        expect(f.updateState).toHaveBeenCalledTimes(updates);
+        f.dropHubGoal();
+        expect(f.state().codexGoal).toBeUndefined();
+        f.reconnect();
+        await vi.waitFor(() => expect(f.state().codexGoal?.objective).toBe('Survive reconnect'));
+        const afterReconnect = f.updateState.mock.calls.length;
+        await f.root.refresh();
+        expect(f.updateState).toHaveBeenCalledTimes(afterReconnect);
     });
 });
 

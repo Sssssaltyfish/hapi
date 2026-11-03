@@ -71,6 +71,8 @@ export class SharedCodexRoot {
     private settingsRevision = 0;
     private goalRevision = 0;
     private goal: ThreadGoal | null | undefined;
+    private goalUnavailable: string | null | undefined;
+    private publishedGoalSignature?: string;
     private nameRevision = 0;
     private refreshing?: Promise<void>;
     private interrupted = false;
@@ -163,6 +165,7 @@ export class SharedCodexRoot {
             this.steeringActive = undefined;
             this.publishedPlanId = undefined;
             this.publishedCompactionIds = undefined;
+            this.publishedGoalSignature = undefined;
             void this.refresh().then(() => this.refreshChildren(false)).then(() => this.queue.replay())
                 .catch(error => logger.debug('[Codex shared] hub resync', error));
         });
@@ -609,29 +612,44 @@ export class SharedCodexRoot {
             config: { ...record(sandbox.config), model_reasoning_effort: this.settings.modelReasoningEffort ?? undefined } };
     }
     private notice(message: string): void { this.session.sendSessionEvent({ type: 'message', message }); }
-    private acceptGoal(value: unknown): void {
+    private acceptGoal(value: unknown, advanceRevision = true): void {
         const goal = value === null ? null : ThreadGoalSchema.parse(value);
         if (goal && goal.threadId !== this.threadId) throw new Error('Goal belongs to another Codex thread');
-        this.goalRevision++;
+        if (advanceRevision) this.goalRevision++;
         this.goal = goal;
-        this.session.updateAgentState(state => ({ ...state, codexGoal: goal, codexGoalUnavailable: null }));
+        this.goalUnavailable = null;
+        this.publishGoal();
+    }
+    private publishGoal(): void {
+        const goal = this.goal;
+        const unavailable = this.goalUnavailable;
+        if (goal === undefined && unavailable === undefined) return;
+        const signature = JSON.stringify([goal, unavailable]);
+        if (signature === this.publishedGoalSignature) return;
+        this.publishedGoalSignature = signature;
+        this.session.updateAgentState(state => ({ ...state,
+            ...(goal !== undefined ? { codexGoal: goal } : {}), codexGoalUnavailable: unavailable }));
     }
     private async refreshGoal(): Promise<void> {
         const revision = this.goalRevision;
         try {
             const response = record(await this.client.request('thread/goal/get', { threadId: this.threadId }));
-            if (revision === this.goalRevision) this.acceptGoal(response.goal ?? null);
+            if (revision === this.goalRevision) this.acceptGoal(response.goal ?? null, false);
         } catch (error) {
             const detail = error instanceof Error ? error.message : String(error);
             if (revision === this.goalRevision && /goals feature is disabled|unsupported|not supported|method not found|unknown method/i.test(detail)) {
-                this.session.updateAgentState(state => ({ ...state, codexGoalUnavailable: detail }));
+                this.goalRevision++;
+                this.goalUnavailable = detail;
+                this.publishGoal();
             }
             logger.debug('[Codex shared] goal snapshot unavailable', error);
         }
     }
     private async goalControl(command: CodexGoalControlRequest): Promise<CodexGoalControlResult> {
         if (this.closed || this.stopping || this.reconnecting || !this.client.isInitialized()) throw new Error('Codex is disconnected or stopping');
-        const revision = this.goalRevision;
+        // Invalidate reads that began before this control. A background read
+        // during it cannot supersede the control's authoritative reply.
+        const revision = ++this.goalRevision;
         const params = { threadId: this.threadId };
         const response = record(command.action === 'show' ? await this.client.request('thread/goal/get', params)
             : command.action === 'clear' ? await this.client.request('thread/goal/clear', { ...params, origin: 'user' })
