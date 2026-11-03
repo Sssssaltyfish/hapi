@@ -4,7 +4,9 @@ export type CodexThreadCommand =
     | { command: 'plan'; mode: 'plan' | 'default'; prompt?: string }
     | { command: 'goal'; action: 'show' | 'pause' | 'resume' | 'clear' }
     | { command: 'goal'; action: 'set'; objective: string }
-    | { command: 'compact' | 'recap' | 'usage' }
+    | { command: 'compact' }
+    | { command: 'recap' }
+    | { command: 'usage' }
     | { command: 'approve'; action: 'show' }
     | { command: 'approve'; action: 'retry'; reviewId: string }
 
