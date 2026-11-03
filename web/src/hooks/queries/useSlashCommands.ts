@@ -31,6 +31,7 @@ export function useSlashCommands(
     isLoading: boolean
     error: string | null
     getSuggestions: (query: string) => Promise<Suggestion[]>
+    refreshCommands: () => Promise<SlashCommand[] | null>
 } {
     const resolvedSessionId = sessionId ?? 'unknown'
 
@@ -113,6 +114,14 @@ export function useSlashCommands(
 
     return {
         commands,
+        refreshCommands: async () => {
+            if (query.data?.success && query.data.commands && !query.isStale) {
+                return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...query.data.commands])
+            }
+            const result = await query.refetch()
+            if (result.error || !result.data?.success || !result.data.commands) return null
+            return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...result.data.commands])
+        },
         isLoading: query.isLoading,
         error: query.error instanceof Error ? query.error.message : query.error ? 'Failed to load commands' : null,
         getSuggestions,

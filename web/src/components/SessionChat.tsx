@@ -96,6 +96,8 @@ import { SessionHeader } from '@/components/SessionHeader'
 import { CursorMigrationBanner } from '@/components/CursorMigrationBanner'
 import { TeamPanel } from '@/components/TeamPanel'
 import { SessionStatusPanel } from '@/components/SessionStatusPanel'
+import { PendingApprovalDialog } from '@/components/ToolCard/PendingApprovalDialog'
+import { submitApproveCommand } from '@/lib/approveCommand'
 import { CodexGoalControls } from '@/components/CodexGoalControls'
 import { parseCodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
 import { RunnerPlanButton, useRunnerCodexControls } from '@/hooks/useRunnerCodexControls'
@@ -586,6 +588,7 @@ type SessionChatProps = {
     nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
+    resolveSlashCommands?: () => Promise<SlashCommand[] | null>
     contextUsage?: ContextUsage | null
     cursorChatOnDisk?: boolean
     reopenDisabledReason?: string
@@ -664,6 +667,11 @@ export function SessionChat(props: SessionChatProps) {
 
 function SessionChatInner(props: SessionChatProps) {
     const native = props.nativeCapabilities
+    const [approvalRequestId, setApprovalRequestId] = useState<string | null>(null)
+    useEffect(() => {
+        if (approvalRequestId && (!props.session.agentState?.requests?.[approvalRequestId]
+            || props.session.agentState?.completedRequests?.[approvalRequestId])) setApprovalRequestId(null)
+    }, [approvalRequestId, props.session.agentState])
     const runnerControls = useRunnerCodexControls(props.api, props.session, Boolean(native))
     const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
@@ -2353,13 +2361,18 @@ function SessionChatInner(props: SessionChatProps) {
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={props.autocompleteSuggestions}
-                        onSubmitCommand={native?.onSubmitCommand ?? (runnerControls.goalControlsAvailable ? async text => {
-                            const command = parseCodexThreadCommand(text)
-                            if (command?.command === 'goal' && command.action === 'show') {
-                                return await runnerControls.controlGoal({ action: 'show' }) ? 'handled' : 'failed'
+                        onSubmitCommand={native?.onSubmitCommand ?? (async text => {
+                            if (runnerControls.goalControlsAvailable) {
+                                const command = parseCodexThreadCommand(text)
+                                if (command?.command === 'goal' && command.action === 'show') {
+                                    return await runnerControls.controlGoal({ action: 'show' }) ? 'handled' : 'failed'
+                                }
                             }
-                            return 'unhandled'
-                        } : undefined)}
+                            return await submitApproveCommand({ text, flavor: agentFlavor ?? 'claude', active: props.session.active,
+                                state: props.session.agentState, commands: props.availableSlashCommands ?? [],
+                                nativeCommands: props.session.metadata?.slashCommands,
+                                resolveCommands: props.resolveSlashCommands, open: setApprovalRequestId })
+                        })}
                         voiceStatus={voice?.status}
                         voiceMicMuted={voice?.micMuted}
                         onVoiceToggle={voice && voiceBackendReady ? handleVoiceToggle : undefined}
@@ -2382,6 +2395,9 @@ function SessionChatInner(props: SessionChatProps) {
                 </ResponseAnnotationSessionProvider>
             </AssistantRuntimeProvider>
             </div>
+            {!native ? <PendingApprovalDialog api={props.api} sessionId={props.session.id} metadata={props.session.metadata}
+                state={props.session.agentState} requestId={approvalRequestId} disabled={sessionInactive}
+                onClose={() => setApprovalRequestId(null)} onRefresh={props.onRefresh} /> : null}
 
             {/* Voice session component - renders nothing but initializes voice backend */}
             {voice && (
