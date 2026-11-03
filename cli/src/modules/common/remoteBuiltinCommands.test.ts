@@ -53,7 +53,7 @@ describe('remote builtin command routing', () => {
         usage.observe({ contextTokens: 1200, modelContextWindow: 200000 })
         expect(usage.describe()).toContain('Input tokens: 1,000')
         expect(usage.describe()).toContain('Available context space: 198,800 tokens')
-        expect(usage.describe()).toContain('Reported cost: $0.1234')
+        expect(usage.describe()).toContain('Reported cost: $0.12')
         expect(usage.describe()).not.toContain('Account limits')
         usage.observe({ contextTokens: 1200, context_window: 1000000, context_window_source: 'model-suffix' })
         expect(usage.describe()).not.toContain('Available context space')

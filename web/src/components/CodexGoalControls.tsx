@@ -3,6 +3,7 @@ import type { ThreadGoal } from '@/types/api'
 import type { CodexGoalControlRequest } from '@hapi/protocol/codexGoalControl'
 import { MAX_CODEX_GOAL_OBJECTIVE_CHARS } from '@hapi/protocol/codexThreadCommands'
 import { useTranslation } from '@/lib/use-translation'
+import { commandNumber } from '@hapi/protocol/commandNumber'
 
 type GoalAction = (command: CodexGoalControlRequest) => Promise<boolean>
 const actionClass = 'rounded px-1.5 py-1 text-[var(--app-link)] hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-50'
@@ -62,7 +63,7 @@ export function CodexGoalControls({ goal, editing, onEditingChange, disabled, pe
                 <button type="button" className={actionClass} disabled={disabled || pending} onClick={() => void onAction({ action: 'clear' })}>{t('goalEditor.clear')}</button>
             </div>
             <div className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[var(--app-fg)]" data-hapi-nested-scroll="true">{goal.objective}</div>
-            <div>{t('nativeCommands.tokens', { used: goal.tokensUsed.toLocaleString(), budget: goal.tokenBudget == null ? t('nativeCommands.unlimited') : goal.tokenBudget.toLocaleString() })} · {t('nativeCommands.timeUsed', { seconds: goal.timeUsedSeconds })}</div>
+            <div>{t('nativeCommands.tokens', { used: commandNumber(goal.tokensUsed), budget: goal.tokenBudget == null ? t('nativeCommands.unlimited') : commandNumber(goal.tokenBudget) })} · {t('nativeCommands.timeUsed', { seconds: commandNumber(goal.timeUsedSeconds) })}</div>
         </> : null}
     </section>
 }

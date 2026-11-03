@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { commandNumber } from './commandNumber'
 
 export type CodexUsageWindow = {
     usedPercent: number | null
@@ -205,12 +206,12 @@ export function codexUsageSummary(snapshot: CodexUsageSnapshot): string {
     const lines = ['Codex usage']
     for (const quota of snapshot.limits) {
         const windows = [quota.primary?.remainingPercent, quota.secondary?.remainingPercent]
-            .map((value, index) => value == null ? null : `${index === 0 ? 'Primary' : 'Secondary'} ${value}% remaining`)
+            .map((value, index) => value == null ? null : `${index === 0 ? 'Primary' : 'Secondary'} ${commandNumber(value, { suffix: '%' })} remaining`)
             .filter(Boolean)
         lines.push(`${quota.name ?? quota.id ?? 'Allowance'}: ${windows.join('; ') || 'remaining allowance unavailable'}`)
     }
     if (snapshot.thread?.creditsMicros !== null && snapshot.thread?.creditsMicros !== undefined) {
-        lines.push(`Estimated thread credits consumed: ${codexMicroAmount(snapshot.thread.creditsMicros)}`)
+        lines.push(`Estimated thread credits consumed: ${commandNumber(codexMicroAmount(snapshot.thread.creditsMicros))}`)
     }
     if (snapshot.ordinaryUsageAllowed === false) lines.push('Included usage: unavailable')
     for (const error of Object.values(snapshot.unavailable)) if (error) lines.push(error)

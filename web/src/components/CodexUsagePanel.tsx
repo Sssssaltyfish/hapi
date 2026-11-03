@@ -1,17 +1,15 @@
 import type { ReactNode } from 'react'
 import { codexMicroAmount, type CodexUsageLimit, type CodexUsageSnapshot, type CodexUsageWindow } from '@hapi/protocol/codexUsage'
 import { useTranslation } from '@/lib/use-translation'
+import { commandNumber } from '@hapi/protocol/commandNumber'
 
 function count(value: string | null): string | null {
     if (value === null) return null
-    try { return BigInt(value).toLocaleString() }
-    catch { return value }
+    return commandNumber(value)
 }
 
 function decimal(value: string): string {
-    const [whole, fraction] = value.split('.')
-    const integer = /^\d+$/.test(whole) ? count(whole) : whole
-    return `${integer}${fraction ? `.${fraction}` : ''}`
+    return commandNumber(value)
 }
 
 function date(value: number | null, seconds = true): ReactNode {
@@ -32,12 +30,12 @@ function Rows({ values }: { values: Array<[string, ReactNode]> }) {
 
 function Window({ value, label }: { value: CodexUsageWindow; label: string }) {
     const { t } = useTranslation()
-    const percent = (number: number) => number.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    const percent = (number: number) => commandNumber(number)
     const duration = value.durationMins
     const windowLabel = duration === null ? label : `${label} · ${duration >= 1440 && duration % 1440 === 0
-        ? t('codexUsage.days', { count: duration / 1440 })
-        : duration >= 60 && duration % 60 === 0 ? t('codexUsage.hours', { count: duration / 60 })
-            : t('codexUsage.minutes', { count: duration })}`
+        ? t('codexUsage.days', { count: commandNumber(duration / 1440) })
+        : duration >= 60 && duration % 60 === 0 ? t('codexUsage.hours', { count: commandNumber(duration / 60) })
+            : t('codexUsage.minutes', { count: commandNumber(duration) })}`
     return <div className="space-y-2" aria-label={windowLabel}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h4 className="text-sm font-medium">{windowLabel}</h4>
@@ -86,9 +84,9 @@ function Limit({ value }: { value: CodexUsageLimit }) {
         {(spending || value.spendControlReached !== null) && <div className="space-y-2 pt-2">
             <h4 className="text-sm font-medium">{t('codexUsage.spending')}</h4>
             <Rows values={[
-                [t('codexUsage.remaining'), spending?.remainingPercent == null ? null : `${spending.remainingPercent.toLocaleString()}%`],
-                [t('codexUsage.spent'), spending?.used ?? null],
-                [t('codexUsage.spendingLimit'), spending?.limit ?? null],
+                [t('codexUsage.remaining'), spending?.remainingPercent == null ? null : commandNumber(spending.remainingPercent, { suffix: '%' })],
+                [t('codexUsage.spent'), spending?.used == null ? null : decimal(spending.used)],
+                [t('codexUsage.spendingLimit'), spending?.limit == null ? null : decimal(spending.limit)],
                 [t('codexUsage.resets'), date(spending?.resetsAt ?? null)],
                 [t('codexUsage.spendingStatus'), value.spendControlReached === null ? null
                     : value.spendControlReached ? t('codexUsage.reached') : t('codexUsage.notReached')],
@@ -131,7 +129,7 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
             <h3 className="text-sm font-medium">{t('codexUsage.threadConsumption')}</h3>
             <Rows values={[
                 [t('codexUsage.credits'), thread.creditsMicros === null ? null : decimal(codexMicroAmount(thread.creditsMicros))],
-                [t('codexUsage.estimatedUsd'), thread.usdMicros === null ? null : `$${decimal(codexMicroAmount(thread.usdMicros))}`],
+                [t('codexUsage.estimatedUsd'), thread.usdMicros === null ? null : commandNumber(codexMicroAmount(thread.usdMicros), { prefix: '$' })],
             ]} />
             {thread.groups.length > 0 && <details>
                 <summary className="cursor-pointer text-sm">{t('codexUsage.modelBreakdown')}</summary>

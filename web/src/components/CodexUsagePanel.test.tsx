@@ -26,7 +26,7 @@ it('renders rich native usage with remaining quota distinct from consumption and
     expect(screen.getByText('Included usage')).toBeInTheDocument()
     expect(screen.getByText('Unavailable')).toBeInTheDocument()
     expect(screen.getByText('9.25')).toBeInTheDocument()
-    expect(screen.getByText('$1.2345')).toBeInTheDocument()
+    expect(screen.getByText('$1.23')).toBeInTheDocument()
     expect(screen.getByText('Lifetime tokens consumed')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Consumption by model and reasoning'))
     expect(screen.getByText('test-model · high · fast')).toBeInTheDocument()
@@ -44,4 +44,12 @@ it('uses the same structured view for a Runner event and keeps malformed attachm
     rerender(<I18nProvider><EventMessage event={{ type: 'message', message: 'Usage unavailable', codexUsage: { limits: 'invalid' } }} /></I18nProvider>)
     expect(screen.getByText('Usage unavailable')).toBeInTheDocument()
     expect(container.textContent).not.toContain('invalid')
+})
+
+it('formats small nonzero costs with their units without changing the snapshot', () => {
+    const tiny = { ...snapshot, thread: { ...snapshot.thread!, creditsMicros: '1', usdMicros: '1', groups: [] } }
+    render(<I18nProvider><CodexUsagePanel snapshot={tiny} /></I18nProvider>)
+    expect(screen.getByText('<$0.01')).toBeInTheDocument()
+    expect(screen.getByText('<0.01')).toBeInTheDocument()
+    expect(tiny.thread.usdMicros).toBe('1')
 })

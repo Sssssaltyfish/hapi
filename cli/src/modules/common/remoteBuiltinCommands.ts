@@ -1,3 +1,5 @@
+import { commandNumber } from '@hapi/protocol/commandNumber'
+
 export type RemoteBuiltinCommand = 'compact' | 'approve' | 'recap' | 'usage'
 const customSlashMessages = new WeakSet<object>()
 
@@ -13,7 +15,7 @@ type TokenUsage = { input?: number; output?: number; cacheRead?: number; cacheWr
 type LimitUsage = { name: string; usedPercent?: number; resetsAt?: number; reached: boolean }
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const number = (...values: unknown[]): number | undefined => values.find(value => typeof value === 'number' && Number.isFinite(value) && value >= 0) as number | undefined
-const count = (value: number): string => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)
+const count = (value: number): string => commandNumber(value, { locale: 'en-US' })
 
 /** Only facts already emitted by the running provider; this is not an account quota API. */
 export class RemoteUsageSnapshot {
@@ -88,7 +90,7 @@ export class RemoteUsageSnapshot {
             sections.push(lines.join('\n'))
         }
         const costs: string[] = []
-        if (this.cost !== undefined) costs.push(`Reported cost: ${this.cost > 0 && this.cost < 0.000001 ? '<$0.000001' : '$' + this.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`)
+        if (this.cost !== undefined) costs.push(`Reported cost: ${commandNumber(this.cost, { prefix: '$', locale: 'en-US' })}`)
         if (this.duration !== undefined) costs.push(`Reported duration: ${this.duration < 1000 ? count(this.duration) + ' ms' : count(this.duration / 1000) + ' s'}`)
         if (costs.length) sections.push('Cost and duration\n' + costs.join('\n'))
         if (this.messages !== undefined) sections.push(`Activity\nMessages: ${count(this.messages)}`)

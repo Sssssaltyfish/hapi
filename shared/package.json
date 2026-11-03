@@ -17,6 +17,7 @@
         "./codexThreadCommands": "./src/codexThreadCommands.ts",
         "./codexManagement": "./src/codexManagement.ts",
         "./codexUsage": "./src/codexUsage.ts",
+        "./commandNumber": "./src/commandNumber.ts",
         "./codexGoalControl": "./src/codexGoalControl.ts",
         "./nativeSettings.server": "./src/nativeSettings.server.ts",
         "./modes": "./src/modes.ts",
