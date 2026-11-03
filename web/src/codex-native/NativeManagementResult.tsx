@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { NativeCommandRequest, NativeCommandResult } from '@hapi/protocol/codexThreadCommands'
 import { useTranslation } from '@/lib/use-translation'
-import { record } from './presentation'
+import { CodexUsagePanel } from '@/components/CodexUsagePanel'
 
 type Result = Exclude<NativeCommandResult, { command: 'plan' | 'goal' }>
 
@@ -16,34 +16,6 @@ function actionDescription(action: Record<string, unknown>): string {
         case 'request_permissions': return String(action.reason ?? '')
         default: return String(action.type ?? '')
     }
-}
-
-function Usage({ result }: { result: Extract<Result, { command: 'usage' }> }) {
-    const { t } = useTranslation()
-    const summary = record(result.usage?.summary)
-    const thread = record(result.usage?.threadUsage)
-    const rates = record(result.rateLimits?.rateLimits)
-    const primary = record(rates.primary)
-    const secondary = record(rates.secondary)
-    const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString() : null
-    const fields = [
-        [t('nativeManagement.lifetimeTokens'), number(summary.lifetimeTokens)],
-        [t('nativeManagement.peakDailyTokens'), number(summary.peakDailyTokens)],
-        [t('nativeManagement.threadCredits'), typeof thread.estimatedUsageCreditsMicros === 'number' ? (thread.estimatedUsageCreditsMicros / 1_000_000).toLocaleString() : null],
-        [t('nativeManagement.primaryUsed'), typeof primary.usedPercent === 'number' ? `${primary.usedPercent}%` : null],
-        [t('nativeManagement.secondaryUsed'), typeof secondary.usedPercent === 'number' ? `${secondary.usedPercent}%` : null],
-    ].filter((field): field is [string, string] => field[1] !== null)
-    return <>
-        <p className="text-sm font-medium">{t('nativeManagement.usageTitle')}</p>
-        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            {fields.map(([label, value]) => <div key={label} className="contents"><dt>{label}</dt><dd className="text-right tabular-nums">{value}</dd></div>)}
-        </dl>
-        {Object.entries(result.unavailable).map(([key, error]) => <p key={key} className="mt-2 text-sm text-[var(--app-hint)]">{error}</p>)}
-        {(result.usage || result.rateLimits) && <details className="mt-2 text-xs">
-            <summary className="cursor-pointer">{t('nativeManagement.usageDetails')}</summary>
-            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify({ usage: result.usage, rateLimits: result.rateLimits }, null, 2)}</pre>
-        </details>}
-    </>
 }
 
 export function NativeManagementResult({ result, pendingCommand, pending, disabled, execute, dismiss }: {
@@ -62,7 +34,7 @@ export function NativeManagementResult({ result, pendingCommand, pending, disabl
         <div className="float-right ml-2"><button type="button" aria-label={t('nativeManagement.close')} onClick={dismiss}>×</button></div>
         {result.command === 'compact' && <p className="text-sm" role="status">{t('nativeManagement.compactAccepted')}</p>}
         {result.command === 'recap' && <><p className="text-sm font-medium">{t('nativeManagement.recapTitle')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{result.text}</p><p className="mt-2 text-xs text-[var(--app-hint)]">{t('nativeManagement.recapSeparate')}</p></>}
-        {result.command === 'usage' && <Usage result={result} />}
+        {result.command === 'usage' && <CodexUsagePanel snapshot={result.snapshot} />}
         {result.command === 'approve' && (result.action === 'retry' ? <p className="text-sm" role="status">{t('nativeManagement.retryAccepted')}</p>
             : result.denial ? <>
                 <p className="text-sm font-medium">{t('nativeManagement.deniedAction')}</p>

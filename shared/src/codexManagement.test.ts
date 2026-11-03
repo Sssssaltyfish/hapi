@@ -68,7 +68,7 @@ describe('Codex management protocol', () => {
             if (method === 'account/rateLimits/read') throw new Error('Rate limits unavailable for this account')
             expect(params).toEqual({ threadId: 'thread' })
             return usage
-        }, 'thread')).toEqual({ command: 'usage', usage, rateLimits: null,
-            unavailable: { rateLimits: 'Rate limits unavailable for this account' } })
+        }, 'thread')).toMatchObject({ command: 'usage', snapshot: { summary: { lifetimeTokens: '123' }, thread: null, limits: [],
+            unavailable: { rateLimits: 'Rate limits unavailable for this account' } } })
     })
 })

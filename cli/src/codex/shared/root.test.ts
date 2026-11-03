@@ -146,6 +146,9 @@ describe('native management command delivery', () => {
             f.userMessage(`/${name}`, name, 'steer');
             await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith([name], expect.anything()));
         }
+        const usageEvent = f.events.mock.calls.map(([event]) => event).find(event => event.codexUsage);
+        expect(usageEvent.codexUsage.summary.lifetimeTokens).toBe('123');
+        expect(usageEvent.message).not.toContain('{');
         f.native.notify('item/autoApprovalReview/completed', { threadId: 'thread', turnId: 'completed', reviewId: 'review',
             decisionSource: 'agent', review: { status: 'denied', rationale: 'Check this command' },
             action: { type: 'command', source: 'shell', command: 'echo exact', cwd: '/project' } });
