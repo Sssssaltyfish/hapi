@@ -588,7 +588,7 @@ type SessionChatProps = {
     nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
-    resolveSlashCommands?: () => Promise<SlashCommand[] | null>
+    resolveSlashCommands?: () => SlashCommand[] | null | Promise<SlashCommand[] | null>
     contextUsage?: ContextUsage | null
     cursorChatOnDisk?: boolean
     reopenDisabledReason?: string

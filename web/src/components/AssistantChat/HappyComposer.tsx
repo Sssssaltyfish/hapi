@@ -1138,7 +1138,7 @@ export function HappyComposer(props: {
         }
 
         if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null
-            && /^\s*\//.test(annotationDraft.getText())) {
+            && /^\s*\//.test(splitResponseAnnotations(annotationDraft.getText()).body)) {
             const snapshotText = annotationDraft.getText()
             const scope = commandScopeRef.current
             const editGeneration = userEditGenerationRef.current

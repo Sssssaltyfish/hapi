@@ -31,7 +31,7 @@ export function useSlashCommands(
     isLoading: boolean
     error: string | null
     getSuggestions: (query: string) => Promise<Suggestion[]>
-    refreshCommands: () => Promise<SlashCommand[] | null>
+    refreshCommands: () => SlashCommand[] | null | Promise<SlashCommand[] | null>
 } {
     const resolvedSessionId = sessionId ?? 'unknown'
     const client = useQueryClient()
@@ -118,14 +118,19 @@ export function useSlashCommands(
 
     return {
         commands,
-        refreshCommands: async () => {
-            try {
+        refreshCommands: () => {
+            const cached = client.getQueryState<{ success: boolean; commands?: SlashCommand[] }>(commandQueryOptions.queryKey)
+            if (cached?.data?.success && cached.data.commands && !cached.isInvalidated
+                && Date.now() - cached.dataUpdatedAt < commandQueryOptions.staleTime) {
+                return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...cached.data.commands])
+            }
+            return (async () => { try {
                 // Read freshness from the cache itself: observer notifications
                 // can lag behind a synchronous catalog invalidation.
                 const result = await client.fetchQuery(commandQueryOptions)
                 if (!result.success || !result.commands) return null
                 return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...result.commands])
-            } catch { return null }
+            } catch { return null } })()
         },
         isLoading: query.isLoading,
         error: query.error instanceof Error ? query.error.message : query.error ? 'Failed to load commands' : null,
