@@ -7,10 +7,8 @@ export type UsageData = {
     output_tokens: number
     cache_creation_input_tokens?: number
     cache_read_input_tokens?: number
-    /** null explicitly excludes cumulative spending from context occupancy. */
-    context_tokens?: number | null
+    context_tokens?: number
     context_window?: number
-    context_window_source?: 'provider' | 'estimate'
     thread_id?: string
     scope_role?: string
     service_tier?: string

@@ -2,7 +2,7 @@ import { isObject } from '@hapi/protocol'
 import { unwrapRoleWrappedRecordEnvelope } from '@hapi/protocol/messages'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import type { DecryptedMessage } from '@/types/api'
-import type { ContextUsage } from './contextUsage'
+import { codexContextUsage, type ContextUsage } from './contextUsage'
 
 export type SessionContextSnapshot = {
     usage: ContextUsage
@@ -41,15 +41,22 @@ export function mergeSessionContextUsage(previous: SessionContextSnapshot | null
         const normalized = normalizeDecryptedMessage(message)
         if (!normalized) continue
         const usage = normalized.usage
-        if (!usage || usage.context_tokens === null || normalized.isSidechain || normalized.parentToolUseId || usage.scope_role === 'child') continue
-        const used = usage.context_tokens ?? usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0)
+        if (!usage || normalized.isSidechain || normalized.parentToolUseId || usage.scope_role === 'child') continue
+        const codex = data.type === 'token_count'
+        const context = codex ? codexContextUsage(data.info) : null
+        if (codex && !context) continue
+        const used = context?.used ?? usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0)
         if (!Number.isSafeInteger(used) || used < 0) continue
-        const model = normalized.model ?? null
-        const reportedLimit = usage.context_window_source !== 'estimate' ? usage.context_window : undefined
+        const model = normalized.model ?? (typeof data.model === 'string' ? data.model : null)
+        const rawMessage = isObject(data.message) ? data.message : null
+        const rawUsage = isObject(rawMessage?.usage) ? rawMessage.usage : null
+        const reportedLimit = codex ? context?.max : rawUsage?.context_window_source === 'provider' ? rawUsage.context_window : null
+        const info = isObject(data.info) ? data.info : null
+        const windowOmitted = codex && info && info.modelContextWindow === undefined && info.model_context_window === undefined
         const max = typeof reportedLimit === 'number' && Number.isSafeInteger(reportedLimit) && reportedLimit > 0
             ? reportedLimit
-            : usage.context_window_source !== 'estimate' && model && current?.model === model ? current.usage.max : null
-        current = { usage: { used, max, cacheRead: usage.cache_read_input_tokens }, model, at, seq }
+            : windowOmitted && model && current?.model === model ? current.usage.max : null
+        current = { usage: { used, max, cacheRead: context?.cacheRead ?? usage.cache_read_input_tokens }, model, at, seq }
     }
     return current
 }
