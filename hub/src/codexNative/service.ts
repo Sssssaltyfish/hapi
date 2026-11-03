@@ -567,9 +567,13 @@ export class NativeService {
         return state
     }
     async threadCommand(threadId: string, command: CodexThreadCommand, submission?: { input: NativeRecord[]; clientId: string }) {
-        // Serialize control RPCs only. Submitted input remains in the daemon's queue.
+        // Reads see preceding mutations without holding up subsequent commands.
         const previous = this.commandRuns.get(threadId) ?? Promise.resolve()
         const running = previous.catch(() => {}).then(() => executeThreadCommand(this, threadId, command, submission))
+        if (command.command === 'usage' || command.command === 'recap' ||
+            ((command.command === 'goal' || command.command === 'approve') && command.action === 'show')) {
+            return running
+        }
         this.commandRuns.set(threadId, running)
         try {
             return await running
