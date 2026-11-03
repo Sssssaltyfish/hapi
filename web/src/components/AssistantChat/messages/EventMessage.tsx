@@ -11,7 +11,7 @@ import { CodexUsagePanel } from '@/components/CodexUsagePanel'
 export function EventMessage({ event, timestamp }: { event: AgentEvent; timestamp?: ReactNode }) {
     const context = useOptionalHappyChatContext()
     const usage = event.type === 'message' ? CodexUsageSnapshotSchema.safeParse(event.codexUsage) : null
-    if (usage?.success) return <div className="mx-auto w-full max-w-2xl rounded-lg border p-3"><CodexUsagePanel snapshot={usage.data} /></div>
+    if (usage?.success) return <div className="mx-auto w-full max-w-2xl px-3 py-2"><CodexUsagePanel snapshot={usage.data} /></div>
     const presentation = getEventPresentation(event)
     const activity = isAgentActivityEvent(event) ? event : null
     const endpointId = context?.metadata?.nativeCodex?.endpointId
