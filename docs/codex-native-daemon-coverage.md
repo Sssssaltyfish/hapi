@@ -12,21 +12,24 @@
 | P1 | 在手机上完成阻塞任务的授权或表单 | 服务端请求 `mcpServer/elicitation/request`、`item/permissions/requestApproval` | Web 当前只处理命令审批、文件修改审批、requestUserInput；其他请求仅提示需桌面。Hub 有通用回复通道，但缺少对应 UI、参数校验和完整决策语义。OAuth/URL 类交互仍可能需要浏览器或宿主。 |
 | P1 | 修改、调整尚未执行的排队输入 | `thread/queue/update`、`thread/queue/reorder` | 已有列表、删除、发送、立即引导，缺编辑与排序。必须使用 daemon 的 submission ID，并处理被另一客户端消费后的冲突；不要用删后重发模拟编辑。两方法在完整导出中属于实验接口。 |
 | P1 | 发现并停止遗留后台任务 | `thread/backgroundTerminals/list`、`thread/backgroundTerminals/terminate`，按需 `thread/backgroundTerminals/clean` | 已展示历史命令卡片，不等于管理仍在运行的进程。列表两端只读调用成功；终止/清理未执行验证。此方法族也不等于完整交互终端。 |
-| P2 | 从历史某处开分支、压缩上下文、恢复归档 | `thread/fork`、`thread/compact/start`、`thread/list` 的 archived 参数、`thread/unarchive` | Native UI 未接；Runner/shared 已有 fork、compact、unarchive 路径。优先提供保留原会话的 fork。若增加 `thread/revert`，必须明确它只截断持久对话历史，不回滚本地文件。 |
+| P2 | 从历史某处开分支、恢复归档 | `thread/fork`、`thread/list` 的 archived 参数、`thread/unarchive` | Native UI 仍缺分支和归档恢复。压缩上下文有独立的 `/compact` 入口。 |
 | P2 | 在多个聊天间找到未加载的内容 | `thread/search` | HAPI 当前列表搜索只筛选已取回摘要，不调用此接口。协议声明 substring/full-text query 并返回 thread+snippet，但本轮未核定其具体索引字段、分词与全量正文范围。WSL 只读调用成功；另一版本一次 15 秒未返回，需先验证大历史库性能。 |
 | P2 | 明确设置生效时间、速度档和权限配置 | `thread/settings/update`、`turn/settings/update`、`permissionProfile/list` | Native 当前设置主要作用于后续 turn。运行中 turn 的设置是另一实验接口；serviceTier、命名权限配置仍未暴露。权限配置列表两端读取成功，设置是否允许取决于实际配置、模型及宿主约束。 |
 | P2 | 在多个客户端间同步已读、整理项目和分区 | `thread/readState/update`、`thread/metadata/update`、`threadSection/list/create/update/delete`、`thread/section/move` | HAPI 的本地已读标记、目录分组，不等于 daemon 的原生持久状态。已读更新要求 expectedRevision；项目归属与分区排序应保留服务端 ID、并发冲突和空值语义。 |
-| P2 | 看到原生用量、额度及上下文占用 | `account/rateLimits/read`、`account/usage/read`；通知 `thread/tokenUsage/updated` | HAPI 自身用量统计与 Native endpoint 的账户用量是不同数据源。需要区分账户级额度、账户用量、单线程上下文占用、Goal 消耗；本轮未读取账户明细。 |
 
-## 本轮新增的 Plan / Goal 覆盖
+## 输入区与会话命令
+
+`/compact` 启动原生上下文压缩。`/recap` 使用 `thread/sample` 对最近已结束的轮次单独生成摘要，会调用模型，主对话历史保持原样。`/approve` 展示当前线程中已观察到的自动审查拒绝，用户核对具体动作后可以请求一次重试。`/usage` 通过 `account/usage/read` 和 `account/rateLimits/read` 读取用量与额度，两项可用性分别显示。
+
+输入区的上下文占用取自最近一次实际 token 用量和 provider 报告的窗口上限。点击在百分比与 token 数之间切换。账户总用量和 Goal 的累计消耗另行展示。
 
 本轮已经补齐 Native Hub/Web 的命令链路，不能继续列为“daemon 支持、Native 完全没接”。新实现通过 Native commands 路由执行操作，不把 `/plan`、`/goal` 当普通模型提示词。
 
 | 用户操作 | 原生入口与确认方式 | 当前边界 |
 |---|---|---|
-| `/plan`、`/plan off` | `collaborationMode/list` 发现真实预设；`thread/settings/update` 提交 collaborationMode；以 `thread/settings/updated` 确认状态 | 作用于后续 turn。未知当前模式保留 unknown，不凭空显示 Default。预设 model/effort 非空时采用预设，否则继承权威线程设置。 |
+| `/plan` 开启，输入区 Plan 按钮退出 | `collaborationMode/list` 发现预设，`thread/settings/update` 提交，`thread/settings/updated` 确认 | 作用于后续轮次。点击补全与发送命令走同一入口。`/plan off` 会按原文提交提示词 `off`。 |
 | `/plan <任务>` | 先确认模式，再使用既有 native 队列提交一次任务；附件继续走既有输入链路 | 强制作为排队输入，不插入正在执行的 turn。公开 queue 请求没有每条消息的 collaborationMode 字段，因此不承诺与其他客户端同时改模式时的消息级隔离。 |
-| `/goal`、`/goal <目标>`、pause / resume / clear | `thread/goal/get/set/clear`；写入带 `origin:user`，使用 daemon 返回状态和 cleared 结果 | 手机可查看目标、请求暂停/恢复、清除，状态变更仍以原生返回为准；tokenBudget、tokensUsed、timeUsedSeconds 为读取展示，本轮没有预算编辑 UI，写入省略预算以保留既有值。 |
+| `/goal` 查看，`/goal <目标>` 设置 | `thread/goal/get/set/clear`，写入带 `origin:user` | 暂停、恢复和清除通过目标旁的按钮操作。命令后的文字均作为目标，包括 `pause`。预算、用量和耗时取自 daemon。 |
 | 状态条及命令发现 | 按当前线程读取 presets、完整 feature 分页及 goal；监听 settings/goal 更新或清除后刷新 | 功能未启用或状态不可确认时明确不可用；不自动修改全局 feature 配置。刷新失败不把已确认操作重新显示成失败。 |
 
 计划正文复用原生 plan item 的消息投影，并消费 `item/plan/delta` 增量。Goal feature 必须按被操作线程检查；Plan 不能仅因旧 `collaboration_modes` 条目为 removed 就被禁止。已确认排队成功后的自动启动失败会单独显示；提交结果不确定时不会自动重发。上述覆盖由新源码链路确认，最终隔离协议与 UI 验收结果另见本轮交付记录。
