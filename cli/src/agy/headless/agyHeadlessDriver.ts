@@ -539,6 +539,10 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                 // can parse buffered records.
                 const handleLine = (line: string): void => {
                     if (!line.trim()) return;
+                    try {
+                        const raw = JSON.parse(line) as { result?: { usage?: unknown }; step_update?: { usage?: unknown } };
+                        this.session.client.noteProviderUsage?.(raw.result?.usage ?? raw.step_update?.usage);
+                    } catch { /* The protocol parser below owns malformed-line handling. */ }
                     const event = parseAgyNdjsonLine(line);
                     // Resume can silently fail: agy may create a REPLACEMENT
                     // conversation when the seeded --conversation id is stale.

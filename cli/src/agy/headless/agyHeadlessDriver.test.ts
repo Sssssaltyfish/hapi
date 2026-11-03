@@ -57,6 +57,7 @@ function createSession(clientOverrides: Record<string, unknown> = {}) {
     const client = {
         sendAgySessionMessage: (...args: unknown[]) => { sent.push(args); },
         emitMessagesConsumed: vi.fn(),
+        noteProviderUsage: vi.fn(),
         emitSessionReady: vi.fn(),
         sendSessionEvent: vi.fn(),
         updateMetadata: vi.fn(),
@@ -165,6 +166,7 @@ describe('AgyHeadlessDriver', () => {
 
         // Delivery confirmation from the user_input step.
         expect(client.emitMessagesConsumed).toHaveBeenCalledWith(['local-1']);
+        expect(client.noteProviderUsage).toHaveBeenCalledWith({ input_tokens: 1 });
 
         // Conversation id adopted from init.
         expect(session.sessionId).toBe('conv-1');

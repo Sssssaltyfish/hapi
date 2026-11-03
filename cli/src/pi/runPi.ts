@@ -886,6 +886,8 @@ export async function runPi(opts: {
             return [];
         }
     };
+    apiSession.setNativeSlashCommandChecker?.(async name => (await getPiCommands())
+        .some(command => command.name.toLowerCase() === name.toLowerCase()));
 
     const getPiModels = async (): Promise<PiModelSummary[]> => {
         // Startup model discovery can be late or fail once; retry the RPC on

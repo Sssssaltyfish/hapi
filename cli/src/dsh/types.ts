@@ -1,4 +1,6 @@
 export type DshMode = {
+    /** Local queue ownership; a same-name project command must bypass native dispatch. */
+    customSlash?: true
     /** Opaque ACP config-option value (dsh: JSON-encoded provider+model tuple).
      * null = explicit reset to the server default ("Default" in the picker);
      * undefined = no preference (keep whatever the backend is running). */

@@ -144,6 +144,7 @@ class GrokRemoteLauncher extends RemoteLauncherBase {
         }
 
         session.registerExistingNativeSession(acpSessionId)
+        session.client.setNativeSlashCommandChecker?.(name => backend.hasAvailableCommand(acpSessionId, name))
         this.conversationHistory.setSession(acpSessionId, session.path)
         this.conversationHistory.setPublishCapabilities(async () => {
             const conversationHistory = this.conversationHistory.getCapabilitiesForMetadata()?.conversationHistory

@@ -11,6 +11,7 @@ import type { AgentState } from '@/api/types'
 import { DshRemoteLauncher } from './dshRemoteLauncher'
 import { DshSession } from './session'
 import { dshModeForPreference, type DshMode } from './types'
+import { isCustomSlashMessage } from '@/modules/common/remoteBuiltinCommands'
 
 export async function runDsh(opts: {
     startedBy?: 'runner' | 'terminal'
@@ -64,9 +65,18 @@ export async function runDsh(opts: {
     }
 
     session.onUserMessage((message, localId) => {
-        queue.push(
-            formatMessageWithAttachments(message.content.text, message.content.attachments),
-            dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()),
+        const customSlash = isCustomSlashMessage(message)
+        const compact = !customSlash && /^\/compact(?:\s|$)/.test(message.content.text.trim())
+        if (compact && message.content.attachments?.length) {
+            if (localId) session.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true })
+            session.sendSessionEvent({ type: 'message', message: 'DSH /compact does not accept attachments through this adapter. Send the command without attachments.' })
+            return
+        }
+        const push = /^\/[a-z][a-z0-9-]*(?:\s|$)/.test(message.content.text.trim())
+            ? queue.pushIsolated.bind(queue) : queue.push.bind(queue)
+        push(
+            compact ? message.content.text.trim() : formatMessageWithAttachments(message.content.text, message.content.attachments),
+            { ...dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()), ...(customSlash ? { customSlash: true as const } : {}) },
             localId
         )
         if (localId && message.meta?.deliveryMode === 'steer') sessionRef.current?.requestQueuedSteer(localId)

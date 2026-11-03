@@ -373,6 +373,7 @@ class CursorAcpRemoteLauncher extends RemoteLauncherBase {
             throw new Error('Failed to establish Cursor ACP session');
         }
         this.acpSessionId = acpSessionId;
+        session.client.setNativeSlashCommandChecker?.(name => backend.hasAvailableCommand(acpSessionId!, name));
         this.spawnedWithCliAuto = cursorSpawnModelId(spawnModel) === CURSOR_AUTO_MODEL_ID;
 
         if (acpSessionId !== resumeSessionId) {

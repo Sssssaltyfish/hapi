@@ -37,6 +37,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private unregisterQueuedSteer: (() => void) | null = null
     private readonly steerRequests = new Set<Promise<unknown>>()
     private readonly steerInvokedAt = new WeakMap<QueueReservation<DshMode>, number>()
+    private readonly nativeCommands = new Set<string>()
 
     private publishSteeringActive(active: boolean): void {
         this.session.client.updateAgentState?.(state => ({ ...state, steeringActive: active }))
@@ -257,6 +258,15 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 mcpServers: []
             })
             this.session.sessionId = acpSessionId
+            const commandCapability = backend.getAgentExtensionCapability('hapi.dshCommands') as { version?: unknown; method?: unknown } | undefined
+            if (commandCapability?.version === 1 && commandCapability.method === '_hapi/dsh/command') {
+                const catalog = await backend.sendExtensionRequest<{ commands?: Array<{ name?: unknown }> }>('_hapi/dsh/command',
+                    { sessionId: acpSessionId, operation: 'list' }, { timeoutMs: 10_000 })
+                for (const command of catalog.commands ?? []) {
+                    if (typeof command.name === 'string') this.nativeCommands.add(command.name)
+                }
+            }
+            this.session.client.updateMetadata(metadata => ({ ...metadata, slashCommands: [...this.nativeCommands] }))
         } catch (error) {
             markFailed(error)
             if (this.shouldExit) return
@@ -373,6 +383,27 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 }
             }
             if (configFailed) continue
+
+            const commandName = /^\/([a-z][a-z0-9-]*)(?:\s|$)/.exec(batch.message.trim())?.[1]
+            if (commandName && !batch.mode.customSlash && (this.nativeCommands.has(commandName) || commandName === 'compact')) {
+                if (!this.nativeCommands.has(commandName)) {
+                    this.session.sendSessionEvent({ type: 'message', message: `/${commandName} is not supported by this DSH ACP server. The command was not sent to the model.` })
+                    if (this.session.queue.size() === 0 && !this.shouldExit) this.session.sendSessionEvent({ type: 'ready' })
+                    continue
+                }
+                this.session.onThinkingChange(true)
+                try {
+                    const execution = await backend.sendExtensionRequest<{ result?: { kind?: string; text?: string } }>('_hapi/dsh/command',
+                        { sessionId: acpSessionId, operation: 'execute', text: batch.message.trim() }, { timeoutMs: 600_000 })
+                    this.session.sendSessionEvent({ type: 'message', message: execution.result?.text ?? 'DSH native command finished without a text result.' })
+                } catch (error) {
+                    this.session.sendSessionEvent({ type: 'message', message: `DSH native command failed: ${error instanceof Error ? error.message : String(error)}` })
+                } finally {
+                    this.session.onThinkingChange(false)
+                    if (this.session.queue.size() === 0 && !this.shouldExit) this.session.sendSessionEvent({ type: 'ready' })
+                }
+                continue
+            }
 
             this.session.onThinkingChange(true)
             this.messageBuffer.addMessage(batch.message, 'user')

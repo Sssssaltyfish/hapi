@@ -2,6 +2,7 @@ import type { SlashCommand } from './apiTypes'
 
 export const BUILTIN_SLASH_COMMANDS = {
     claude: [
+        { name: 'recap', description: 'Recap the current conversation in an isolated temporary session without tools', source: 'builtin' },
         { name: 'clear', description: 'Clear conversation history and free up context', source: 'builtin' },
         { name: 'compact', description: 'Clear conversation history but keep a summary in context', source: 'builtin' },
         { name: 'context', description: 'Visualize current context usage as a colored grid', source: 'builtin' },
@@ -10,6 +11,7 @@ export const BUILTIN_SLASH_COMMANDS = {
         { name: 'plan', description: 'View or open the current session plan', source: 'builtin' },
         { name: 'stats', description: 'Show your Claude Code usage statistics and activity', source: 'builtin' },
         { name: 'status', description: 'Show Claude Code status including version, model, account, and API connectivity', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
     ],
     codex: [
         { name: 'agent', description: 'Toggle proactive Codex multi-agent delegation', source: 'builtin' },
@@ -33,8 +35,10 @@ export const BUILTIN_SLASH_COMMANDS = {
         { name: 'clear', description: 'Clear the screen and conversation history', source: 'builtin' },
         { name: 'compress', description: 'Compress the context by replacing it with a summary', source: 'builtin' },
         { name: 'stats', description: 'Check session stats', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
     ],
     grok: [
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
         { name: 'compact', description: 'Compress conversation history to save context', source: 'builtin' },
         { name: 'context', description: 'Show context window usage and session stats', source: 'builtin' },
         { name: 'session-info', description: 'Show Grok session model, turns, and context usage', source: 'builtin' },
@@ -43,6 +47,8 @@ export const BUILTIN_SLASH_COMMANDS = {
         { name: 'auto', description: 'Let Grok classify safe tool calls for automatic approval', source: 'builtin' },
     ],
     opencode: [
+        { name: 'compact', description: 'Compact the current OpenCode session through its native API', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
         { name: 'help', description: 'Show supported HAPI OpenCode slash commands', source: 'builtin' },
         { name: 'status', description: 'Show current OpenCode session config', source: 'builtin' },
         { name: 'plan', description: 'Enable plan mode; use /plan off to return to default', source: 'builtin' },
@@ -51,6 +57,14 @@ export const BUILTIN_SLASH_COMMANDS = {
     ],
     cursor: [
         { name: 'compress', description: 'Compress conversation context to free window space (pass-through to Cursor agent)', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
+    ],
+    dsh: [
+        { name: 'compact', description: 'Compact older history through the DSH native command registry when available', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
+    ],
+    agy: [
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
     ],
     copilot: [
         { name: 'help', description: 'Show supported Copilot slash commands', source: 'builtin' },
@@ -72,14 +86,17 @@ export const BUILTIN_SLASH_COMMANDS = {
         { name: 'model', description: 'Show or switch the active model', source: 'builtin' },
         { name: 'permissions', description: 'Show or set permission mode', source: 'builtin' },
         { name: 'permission', description: 'Alias for /permissions', source: 'builtin' },
-        { name: 'usage', description: 'Show session usage metrics', source: 'builtin' },
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
     ],
-    kimi: [],
+    kimi: [
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
+    ],
     // Pi runs `pi --mode rpc` over stdio; only commands HAPI can translate
     // to Pi RPC calls are listed. Terminal-only Pi builtins (e.g. /tree,
     // /export, /reload) are intercepted with an explicit "not supported"
     // message instead of being passed to the model as plain text.
     pi: [
+        { name: 'usage', description: 'Show the latest reported session usage (account limits unavailable)', source: 'builtin' },
         { name: 'help', description: 'Show supported HAPI Pi slash commands', source: 'builtin' },
         { name: 'compact', description: 'Compress conversation history to save context (optional custom instructions)', source: 'builtin' },
         { name: 'session', description: 'Show Pi session stats (tokens, cost, context usage)', source: 'builtin' },
@@ -89,7 +106,7 @@ export const BUILTIN_SLASH_COMMANDS = {
 
 export function getBuiltinSlashCommands(agent: string): SlashCommand[] {
     const commands = BUILTIN_SLASH_COMMANDS[agent as keyof typeof BUILTIN_SLASH_COMMANDS]
-        ?? BUILTIN_SLASH_COMMANDS.claude
+        ?? []
     return commands.map((command) => ({ ...command }))
 }
 

@@ -197,11 +197,13 @@ describe('listSlashCommands', () => {
             'plan',
             'default',
             'init',
+            'compact',
+            'usage',
         ]))
         // Anything covered by composer buttons, plus aliases and unsupported
         // placeholders, must stay out of the autocomplete menu — the resolver
         // still accepts them when typed manually.
-        for (const hidden of ['model', 'reasoning', 'effort', 'permissions', 'permission', 'clear', 'compact']) {
+        for (const hidden of ['model', 'reasoning', 'effort', 'permissions', 'permission', 'clear']) {
             expect(names).not.toContain(hidden)
         }
     })
@@ -230,13 +232,14 @@ describe('listSlashCommands', () => {
         })
     })
 
-    it('exposes only Grok ACP-native built-ins', async () => {
+    it('exposes Grok native commands and the local usage report', async () => {
         const commands = await listSlashCommands('grok', projectDir)
         const builtinNames = commands
             .filter((command) => command.source === 'builtin')
             .map((command) => command.name)
 
         expect(builtinNames).toEqual([
+            'usage',
             'compact',
             'context',
             'session-info',
@@ -247,6 +250,12 @@ describe('listSlashCommands', () => {
         for (const composerControl of ['model', 'effort', 'plan', 'view-plan']) {
             expect(builtinNames).not.toContain(composerControl)
         }
+    })
+
+    it('advertises only the implemented DSH and AGY commands instead of Claude fallbacks', async () => {
+        expect((await listSlashCommands('dsh', projectDir)).map(command => command.name)).toEqual(['compact', 'usage'])
+        expect((await listSlashCommands('agy', projectDir)).map(command => command.name)).toEqual(['usage'])
+        expect(await listSlashCommands('unknown-provider', projectDir)).toEqual([])
     })
 
     it('lets project opencode prompts override same-name built-ins', async () => {

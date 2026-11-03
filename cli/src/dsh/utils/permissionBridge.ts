@@ -20,6 +20,7 @@ export const inject = acp.inject
 export function apply(ctx) {
     // Capture the public service in the plugin's apply scope (Cordis context).
     const agents = ctx.agents
+    const commands = ctx.get('commands')
     const sources = [...ctx.loader.entries()].filter(entry => entry.options.name === '@deepseek-ai/dsh-acp')
     if (sources.length !== 1 || !sources[0].disabled) throw new Error('HAPI requires one disabled original DSH ACP entry')
     const source = sources[0]
@@ -31,6 +32,7 @@ export function apply(ctx) {
     const owned = new Map()
     const sessions = new Map()
     const steerMethod = '_hapi/dsh/steer'
+    const commandMethod = '_hapi/dsh/command'
     const permissionId = 'hapi/permission-preset'
     const send = message => writer.write(message)
     const permissionOption = sessionId => {
@@ -62,6 +64,36 @@ export function apply(ctx) {
     })
     const readable = stream.readable.pipeThrough(new TransformStream({
         async transform(message, controller) {
+            if (message.method === commandMethod) {
+                // A summary can take time. Keep the transport readable so
+                // session/cancel can abort the public command invocation.
+                void (async () => {
+                    let state
+                    let operation
+                    try {
+                        const { sessionId, operation: action, text } = message.params ?? {}
+                        state = sessions.get(sessionId)
+                        if (!commands || !state || agents.get(sessionId) !== state.agent || state.closing) throw new Error('DSH native commands are unavailable for this ACP session')
+                        if (action === 'list') {
+                            await send({ jsonrpc: '2.0', id: message.id, result: { commands: commands.list(state.agent) } })
+                            return
+                        }
+                        if (action !== 'execute' || typeof text !== 'string' || !/^\/[a-z][a-z0-9-]*(?:\s|$)/.test(text)) throw new Error('Invalid DSH native command')
+                        if (state.commandController || state.promptId !== undefined || state.agent.status !== 'idle') throw new Error('DSH native command requires an idle session')
+                        operation = new AbortController()
+                        state.commandController = operation
+                        const execution = await commands.execute(state.agent, text, [], operation.signal)
+                        if (!execution) throw new Error('DSH native command is not registered')
+                        await ctx.sessions.flush(state.agent.session)
+                        await send({ jsonrpc: '2.0', id: message.id, result: execution })
+                    } catch (error) {
+                        await send({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: error instanceof Error ? error.message : String(error) } })
+                    } finally {
+                        if (operation && state?.commandController === operation) state.commandController = undefined
+                    }
+                })().catch(error => ctx.logger.warn('HAPI native command response failed: ' + String(error)))
+                return
+            }
             if (message.method === steerMethod) {
                 try {
                     const { sessionId, requestId, text } = message.params ?? {}
@@ -113,6 +145,7 @@ export function apply(ctx) {
                 }
                 if (message.method === 'session/cancel') state.cancelled = true
                 if (message.method === 'session/close') state.closing = true
+                if (message.method === 'session/cancel' || message.method === 'session/close') state.commandController?.abort()
             }
             if (message.id !== undefined && message.method) pending.set(message.id, { method: message.method, params: message.params })
             controller.enqueue(message)
@@ -139,7 +172,8 @@ export function apply(ctx) {
                     if (request.method === 'initialize') {
                         const capabilities = message.result.agentCapabilities ?? {}
                         message = { ...message, result: { ...message.result, agentCapabilities: { ...capabilities,
-                            _meta: { ...capabilities._meta, 'hapi.dshSteering': { version: 1, method: steerMethod } } } } }
+                            _meta: { ...capabilities._meta, 'hapi.dshSteering': { version: 1, method: steerMethod },
+                                ...(commands ? { 'hapi.dshCommands': { version: 1, method: commandMethod } } : {}) } } } }
                     }
                     if (id && ['session/new', 'session/load', 'session/resume'].includes(request.method)) {
                         const agent = agents.get(id)
