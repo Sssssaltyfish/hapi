@@ -117,9 +117,9 @@ export function getContextWarning(contextSize: number, maxContextSize: number): 
     const percentageUsed = (contextSize / maxContextSize) * 100
 
     if (percentageUsed >= CONTEXT_DANGER_THRESHOLD_PERCENT) {
-        return { color: 'text-red-500' }
+        return { color: 'text-[var(--app-badge-error-text)]' }
     } else if (percentageUsed >= CONTEXT_WARNING_THRESHOLD_PERCENT) {
-        return { color: 'text-amber-500' }
+        return { color: 'text-[var(--app-badge-warning-text)]' }
     } else {
         return { color: 'text-[var(--app-hint)]' }
     }
