@@ -303,6 +303,31 @@ describe('native bridge boundaries', () => {
         ])
         expect(clients[0].closed).toBe(true)
     })
+    test('reentry publishes current settings instead of the original attach defaults', async () => {
+        const { service, clients } = fixture()
+        const release = await service.subscribe('thread', () => {})
+        clients[0].emit({ method: 'thread/settings/updated', params: {
+            threadId: 'thread', threadSettings: { model: 'current-model', effort: 'high' },
+        } })
+        const events: NativeEvent[] = []
+        const releaseNext = await service.subscribe('thread', event => events.push(event))
+        expect(events[0]).toMatchObject({ method: 'hapi/ready', params: {
+            threadSettings: { model: 'current-model', effort: 'high' },
+        } })
+        clients[0].emit({ method: 'thread/settings/updated', params: {
+            threadId: 'thread', threadSettings: { effort: null },
+        } })
+        const resetEvents: NativeEvent[] = []
+        const releaseReset = await service.subscribe('thread', event => resetEvents.push(event))
+        expect(resetEvents[0]).toMatchObject({ method: 'hapi/ready', params: {
+            threadSettings: { model: 'current-model', effort: null },
+        } })
+        releaseReset()
+        releaseNext()
+        release()
+        service.dispose()
+    })
+
     test('visible subscriptions attach with no turns, isolate events, and replace failed connections', async () => {
         const { service, clients } = fixture(),
             events: NativeEvent[] = []

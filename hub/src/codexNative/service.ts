@@ -48,7 +48,7 @@ type Subscription = {
     denials?: CodexGuardianDenials
 }
 function settingsSnapshot(value: NativeRecord): NativeRecord {
-    return { ...value, effort: value.effort ?? value.reasoningEffort ?? null }
+    return { ...value, effort: Object.hasOwn(value, 'effort') ? value.effort : value.reasoningEffort ?? null }
 }
 function settingsMatch(current: NativeRecord, patch: NativeRecord): boolean {
     return Object.entries(patch).every(([key, value]) => key === 'collaborationMode'
@@ -217,7 +217,7 @@ export class NativeService {
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
                     const settings = record(params.threadSettings)
                     entry.snapshot = { ...entry.snapshot, ...settings }
-                    Object.assign(response, settings, { reasoningEffort: settings.effort })
+                    Object.assign(response, settings)
                 }
                 if (
                     event.method === 'hapi/disconnected' &&
@@ -495,6 +495,9 @@ export class NativeService {
                 method: 'hapi/ready',
                 params: {
                     ...record(state),
+                    // The attach response is retained for the subscription lifetime.
+                    // Other clients may have changed settings since it resolved.
+                    threadSettings: entry.snapshot ?? settingsSnapshot(record(state)),
                     requests: [...entry.client.requests.values()].filter(
                         (r) => record(r.params).threadId === threadId
                     ),

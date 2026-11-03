@@ -12,6 +12,22 @@ const deferredPage = () => {
 }
 
 describe('native thread window', () => {
+    it('keeps confirmed settings when an older detail read finishes late', async () => {
+        let resolve!: (value: Record<string, unknown>) => void
+        const response = new Promise<Record<string, unknown>>(done => { resolve = done })
+        const api = {
+            getCodexNativeThread: vi.fn().mockReturnValue(response),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'settings-race'))
+        act(() => result.current.applySettings({ model: 'model', effort: 'high' }))
+        await act(async () => resolve({ thread: { id: 'settings-race' }, threadSettings: { effort: 'low' } }))
+        expect(result.current.detail.threadSettings).toEqual({ model: 'model', effort: 'high' })
+        unmount()
+    })
+
     it('retains real live context across history/cache re-entry and clears it on rollback', async () => {
         let event!: (value: NativeEvent) => void
         const api = {
