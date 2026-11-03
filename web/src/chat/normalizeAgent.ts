@@ -3,6 +3,7 @@ import { inlineMediaSourceFromWire } from '@/chat/inlineMediaSource'
 import { AGENT_MESSAGE_PAYLOAD_TYPE, asNumber, asString, isObject } from '@hapi/protocol'
 import { isClaudeChatVisibleMessage } from '@hapi/protocol/messages'
 import { parseAgentTimestampMs } from '@/chat/agentTimestamp'
+import { codexContextUsage } from '@/lib/contextUsage'
 
 function normalizeToolResultPermissions(value: unknown): ToolResultPermission | undefined {
     if (!isObject(value)) return undefined
@@ -124,6 +125,7 @@ function normalizeCodexTokenUsage(value: unknown, data?: Record<string, unknown>
     const info = isObject(value) ? value : null
     if (!info) return null
     const scope = data && isObject(data.scope) ? data.scope : null
+    const context = codexContextUsage(info)
     // Codex reports both:
     // - `total`: cumulative usage for the whole session (can be millions).
     // - `last`: current turn/request usage, which matches the live context bar.
@@ -157,12 +159,7 @@ function normalizeCodexTokenUsage(value: unknown, data?: Record<string, unknown>
             ?? usageSource.cacheReadInputTokens
             ?? usageSource.cache_read_input_tokens
         ) ?? undefined,
-        context_tokens: asNumber(
-            info.contextTokens
-            ?? info.context_tokens
-            ?? usageSource.contextTokens
-            ?? usageSource.context_tokens
-        ) ?? inputTokens,
+        context_tokens: context?.used ?? null,
         context_window: asNumber(info.modelContextWindow ?? info.model_context_window) ?? undefined,
         thread_id: asString(
             data?.thread_id
@@ -348,7 +345,8 @@ function normalizeAssistantOutput(
             cache_creation_input_tokens: asNumber(usage?.cache_creation_input_tokens) ?? undefined,
             cache_read_input_tokens: asNumber(usage?.cache_read_input_tokens) ?? undefined,
             service_tier: asString(usage?.service_tier) ?? undefined,
-            context_window: asNumber(usage?.context_window) ?? undefined
+            context_window: asNumber(usage?.context_window) ?? undefined,
+            context_window_source: usage?.context_window_source === 'provider' ? 'provider' : 'estimate'
         } : undefined
     }
 }

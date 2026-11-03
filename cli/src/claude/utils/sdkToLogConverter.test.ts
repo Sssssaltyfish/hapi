@@ -401,6 +401,7 @@ describe('SDKToLogConverter', () => {
             // First assistant gets the 1M estimate from the [1m] suffix
             const first = converter.convert(makeAssistantMessage()) as any
             expect(first?.message?.usage?.context_window).toBe(1_000_000)
+            expect(first?.message?.usage?.context_window_source).toBe('estimate')
 
             // Result message reports authoritative contextWindow (say, 500k)
             const resultMsg: SDKResultMessage = {
@@ -421,6 +422,7 @@ describe('SDKToLogConverter', () => {
             // Subsequent assistant message uses the refined value
             const second = converter.convert(makeAssistantMessage()) as any
             expect(second?.message?.usage?.context_window).toBe(500_000)
+            expect(second?.message?.usage?.context_window_source).toBe('provider')
         })
 
         it('does not overwrite an explicit context_window already set by upstream', () => {

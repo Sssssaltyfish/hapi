@@ -4,8 +4,9 @@ import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequ
 import { mergeNativeItems, record } from './presentation'
 import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
+import { codexContextUsage, type ContextUsage } from '@/lib/contextUsage'
 
-type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; newerCursor: string | null; hasNewer: boolean; browsingOlder: boolean; savedAt: number }
+type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; newerCursor: string | null; hasNewer: boolean; browsingOlder: boolean; savedAt: number; contextUsage?: ContextUsage | null }
 const windowCache = new Map<string, NativeWindowSnapshot>()
 const MAX_CACHED_WINDOWS = 12
 const WINDOW_TTL_MS = 30 * 60 * 1000
@@ -21,6 +22,7 @@ function readCachedWindow(key?: string): NativeWindowSnapshot | null {
 export function useNativeThread(api: ApiClient, id: string, enabled = true, cacheKey?: string, preserveHistory = false) {
     const cached = useRef(readCachedWindow(cacheKey))
     const [detail, setDetail] = useState<NativeRecord>({})
+    const [contextUsage, setContextUsage] = useState<ContextUsage | null>(cached.current?.contextUsage ?? null)
     const [items, setItems] = useState<NativeItemEntry[]>(() => {
         if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
         return cached.current?.items ?? []
@@ -97,9 +99,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     useEffect(() => {
         if (!cacheKey || items.length === 0) return
         windowCache.delete(cacheKey)
-        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now() })
+        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now(), contextUsage })
         while (windowCache.size > MAX_CACHED_WINDOWS) windowCache.delete(windowCache.keys().next().value!)
-    }, [cacheKey, items, cursor, newerCursor, hasNewer])
+    }, [cacheKey, items, cursor, newerCursor, hasNewer, contextUsage])
     const applySettings = useCallback((settings: NativeRecord) => {
         // This is a confirmed daemon response, also used when SSE is reconnecting.
         setDetail(current => ({ ...current, threadSettings: settings }))
@@ -348,6 +350,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method.startsWith('item/') || event.method === 'turn/started' || event.method === 'turn/completed') tailRevision.current += 1
             if (event.method === 'hapi/heartbeat' || event.method === 'thread/goal/updated' || event.method === 'thread/goal/cleared') return
             if (event.method === 'thread/rolledBack') {
+                setContextUsage(null)
                 setHistoryResetRevision(value => value + 1)
                 void latest(true)
                 return
@@ -357,6 +360,12 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 if (event.params.thread) setDetail(current => ({ ...current, ...event.params }))
                 if (Array.isArray(event.params.requests)) setRequests((event.params.requests as NativeRequest[]).map(request => ({ ...request, receivedAt: Date.now() })))
                 invalidate()
+                return
+            }
+            if (event.method === 'thread/tokenUsage/updated') {
+                if (event.params.threadId !== id) return
+                const usage = codexContextUsage(event.params.tokenUsage)
+                if (usage) setContextUsage(usage)
                 return
             }
             if (event.method === 'thread/settings/updated') {
@@ -428,5 +437,5 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         }
     }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
 
-    return { detail, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
+    return { detail, contextUsage, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }

@@ -19,6 +19,7 @@ import type {
     SlashCommand
 } from '@/types/api'
 import type { ChatBlock, NormalizedMessage } from '@/chat/types'
+import type { ContextUsage } from '@/lib/contextUsage'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { ResponseAnnotationResolver } from '@/lib/responseAnnotationResolver'
@@ -583,6 +584,7 @@ type SessionChatProps = {
     nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
+    contextUsage?: ContextUsage | null
     cursorChatOnDisk?: boolean
     reopenDisabledReason?: string
     reopenHint?: string
@@ -2242,10 +2244,8 @@ function SessionChatInner(props: SessionChatProps) {
                         thinking={props.session.thinking}
                         agentState={props.session.agentState}
                         backgroundTaskCount={props.session.backgroundTaskCount}
-                        contextSize={reduced.latestUsage?.contextSize}
-                        contextCacheRead={reduced.latestUsage?.cacheRead}
-                        contextWindow={reduced.latestUsage?.contextWindow ?? piContextWindow}
-                        contextModel={reduced.latestUsage?.model ?? props.session.model}
+                        contextSize={props.contextUsage !== undefined ? props.contextUsage?.used : reduced.latestUsage?.contextSize}
+                        contextWindow={props.contextUsage !== undefined ? props.contextUsage?.max ?? piContextWindow : reduced.latestUsage?.contextWindow ?? piContextWindow}
                         controlledByUser={controlledByUser}
                         onCollaborationModeChange={
                             !native && codexCollaborationModeSupported && props.session.active && !controlledByUser

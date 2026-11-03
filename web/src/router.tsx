@@ -359,6 +359,7 @@ function HapiSessionPage() {
     const {
         messages,
         warning: messagesWarning,
+        contextUsage,
         isSyncingTail: messagesSyncingTail,
         isLoadingMore: messagesLoadingMore,
         hasMore: messagesHasMore,
@@ -801,6 +802,7 @@ function HapiSessionPage() {
             reopenHint={cursorReopenUnverifiedHint}
             messages={messages}
             messagesWarning={messagesWarning}
+            contextUsage={contextUsage}
             hasMoreMessages={messagesHasMore}
             isSyncingTail={messagesSyncingTail}
             isLoadingMoreMessages={messagesLoadingMore}

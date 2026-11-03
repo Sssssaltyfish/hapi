@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { I18nProvider } from '@/lib/i18n-context'
 import { StatusBar } from './StatusBar'
 
-describe('StatusBar context details popover', () => {
+describe('StatusBar context occupancy', () => {
     beforeEach(() => {
         localStorage.clear()
     })
@@ -168,7 +168,7 @@ describe('StatusBar context details popover', () => {
         expect(screen.queryByText('max')).not.toBeInTheDocument()
     })
 
-    it('opens from the mobile-accessible context trigger and keeps the requested detail order', async () => {
+    it('toggles actual occupancy beside effort on the same status row', () => {
         localStorage.setItem('hapi-lang', 'zh-CN')
         render(
             <I18nProvider>
@@ -177,8 +177,9 @@ describe('StatusBar context details popover', () => {
                     thinking={false}
                     agentState={null}
                     contextSize={90_000}
-                    contextCacheRead={86_000}
                     contextWindow={258_000}
+                    agentFlavor="codex"
+                    modelReasoningEffort="xhigh"
                 />
             </I18nProvider>
         )
@@ -201,23 +202,21 @@ describe('StatusBar context details popover', () => {
         const trigger = screen.getByRole('button', { name: '上下文详情' })
         expect(trigger.className.split(' ')).not.toContain('relative')
         expect(trigger.className.split(' ')).not.toContain('-top-px')
-        expect(trigger.className.split(' ')).toContain('text-[10px]')
-        expect(trigger.className.split(' ')).toContain('leading-4')
+        expect(trigger.className.split(' ')).toContain('text-xs')
         expect(trigger.className.split(' ')).toContain('text-[var(--app-hint)]')
-        expect(trigger.textContent).toBe('ctx 258k (65% left)35% · 90k / 258k')
+        expect(trigger.textContent).toBe('ctx 35%')
+        expect(rightStatusGroup).toContainElement(trigger)
+        expect(rightStatusGroup).toContainElement(screen.getByText('xhigh'))
+        expect(trigger).toHaveAttribute('aria-pressed', 'false')
         expect(trigger.className.split(' ')).not.toContain('hidden')
-        const progressTrack = trigger.querySelector('[aria-hidden="true"]')
-        expect((progressTrack?.firstElementChild as HTMLElement | null)?.style.width).toBe('35%')
-
         fireEvent.click(trigger)
-
-        const cacheLine = await screen.findByText('缓存：86k')
-        const details = cacheLine.parentElement
-        expect(details?.textContent).toBe('缓存：86k使用：90k（35%）剩余：168k（65%）')
-        expect(screen.queryByText('上下文详情')).toBeNull()
+        expect(trigger.textContent).toBe('ctx 90k / 258k')
+        expect(trigger).toHaveAttribute('aria-pressed', 'true')
+        fireEvent.click(trigger)
+        expect(trigger.textContent).toBe('ctx 35%')
     })
 
-    it('localizes the popover content without localizing the external left label', async () => {
+    it('does not invent a window from the model when only usage is known', () => {
         localStorage.setItem('hapi-lang', 'en')
         render(
             <I18nProvider>
@@ -226,18 +225,13 @@ describe('StatusBar context details popover', () => {
                     thinking={false}
                     agentState={null}
                     contextSize={90_000}
-                    contextCacheRead={86_000}
-                    contextWindow={258_000}
+                    agentFlavor="codex"
+                    model="gpt-6.1-sol"
                 />
             </I18nProvider>
         )
 
-        const trigger = screen.getByRole('button', { name: 'Context details' })
-        expect(trigger.textContent).toContain('ctx 258k (65% left)')
-
-        fireEvent.click(trigger)
-
-        const cacheLine = await screen.findByText('Cache: 86k')
-        expect(cacheLine.parentElement?.textContent).toBe('Cache: 86kUsed: 90k (35%)Remaining: 168k (65%)')
+        expect(screen.queryByRole('button', { name: 'Context details' })).not.toBeInTheDocument()
+        expect(screen.queryByText(/ctx/)).not.toBeInTheDocument()
     })
 })

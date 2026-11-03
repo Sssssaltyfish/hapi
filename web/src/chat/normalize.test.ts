@@ -1215,6 +1215,12 @@ describe('normalizeDecryptedMessage', () => {
                 data: {
                     type: 'token_count',
                     info: {
+                        last: {
+                            inputTokens: 82_503,
+                            cachedInputTokens: 71_808,
+                            outputTokens: 166,
+                            totalTokens: 82_669
+                        },
                         total: {
                             inputTokens: 82_503,
                             cachedInputTokens: 71_808,
@@ -1235,7 +1241,8 @@ describe('normalizeDecryptedMessage', () => {
             },
             usage: {
                 input_tokens: 82503,
-                output_tokens: 166
+                output_tokens: 166,
+                context_tokens: 82669
             }
         })
     })
@@ -1253,7 +1260,8 @@ describe('normalizeDecryptedMessage', () => {
                         last_token_usage: {
                             input_tokens: 321,
                             output_tokens: 12,
-                            cached_input_tokens: 100
+                            cached_input_tokens: 100,
+                            total_tokens: 333
                         },
                         model_context_window: 258_400
                     }
@@ -1269,7 +1277,7 @@ describe('normalizeDecryptedMessage', () => {
                 input_tokens: 321,
                 output_tokens: 12,
                 cache_read_input_tokens: 100,
-                context_tokens: 321,
+                context_tokens: 333,
                 context_window: 258400,
                 thread_id: 'child-thread',
                 scope_role: 'child'

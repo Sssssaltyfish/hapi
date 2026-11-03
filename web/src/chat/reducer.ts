@@ -178,14 +178,14 @@ export function reduceChatBlocks(
     let latestUsage: LatestUsage | null = null
     for (let i = normalized.length - 1; i >= 0; i--) {
         const msg = normalized[i]
-        if (msg.usage && isUsageVisibleInParentContext(msg)) {
+        if (msg.usage && msg.usage.context_tokens !== null && isUsageVisibleInParentContext(msg)) {
             latestUsage = {
                 inputTokens: msg.usage.input_tokens,
                 outputTokens: msg.usage.output_tokens,
                 cacheCreation: msg.usage.cache_creation_input_tokens ?? 0,
                 cacheRead: msg.usage.cache_read_input_tokens ?? 0,
                 contextSize: calculateContextSize(msg.usage),
-                contextWindow: msg.usage.context_window ?? null,
+                contextWindow: msg.usage.context_window_source === 'estimate' ? null : msg.usage.context_window ?? null,
                 model: msg.model ?? null,
                 timestamp: msg.createdAt
             }

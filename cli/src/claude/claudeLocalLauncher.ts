@@ -15,7 +15,10 @@ function stampContextWindow(message: RawJSONLines, contextModel: string | null):
     const base = contextModel.slice(0, -'[1m]'.length);
     const model = message.message.model;
     if (model === base || (!base.includes('-') && model?.startsWith(`claude-${base}-`))) {
-        message.message.usage.context_window ??= 1_000_000;
+        if (message.message.usage.context_window === undefined) {
+            message.message.usage.context_window = 1_000_000;
+            message.message.usage.context_window_source = 'estimate';
+        }
     }
 }
 

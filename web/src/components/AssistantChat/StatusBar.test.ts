@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-    formatCompactContextUsageLabel,
     formatContextUsageLabel,
     getContextWarning,
-    getContextUsageDetails,
     shouldShowCodexFastBadge
 } from './StatusBar'
 
@@ -24,31 +22,17 @@ describe('context warning colors', () => {
 })
 
 describe('context usage labels', () => {
-    it('keeps the desktop label compact and expresses used capacity', () => {
-        expect(formatContextUsageLabel(90_000, 258_000)).toBe('35% · 90k / 258k')
+    it('expresses actual used capacity as a percentage', () => {
+        expect(formatContextUsageLabel(90_000, 258_000)).toBe('ctx 35%')
+        expect(formatContextUsageLabel(110, 100)).toBe('ctx 110%')
     })
 
-    it('uses the compact parenthesized mobile label with a fixed English suffix', () => {
-        expect(formatCompactContextUsageLabel(186_000, 262_000)).toBe('ctx 262k (29% left)')
+    it('switches to the same actual numerator and denominator', () => {
+        expect(formatContextUsageLabel(186_000, 262_000, true)).toBe('ctx 186k / 262k')
     })
 
-    it('orders cache, used, and remaining metrics for the desktop details', () => {
-        expect(getContextUsageDetails(90_000, 258_000, 86_000)).toEqual({
-            cacheRead: '86k',
-            used: '90k',
-            usedPercentage: 35,
-            remaining: '168k',
-            remainingPercentage: 65
-        })
-    })
-
-    it('keeps external and detailed percentages complementary at rounding midpoints', () => {
-        expect(formatContextUsageLabel(69, 200)).toBe('35% · 69 / 200')
-        expect(formatCompactContextUsageLabel(69, 200)).toBe('ctx 200 (65% left)')
-        expect(getContextUsageDetails(69, 200, 0)).toMatchObject({
-            usedPercentage: 35,
-            remainingPercentage: 65
-        })
+    it('reports only the known usage when a provider has not supplied a limit', () => {
+        expect(formatContextUsageLabel(90_000, null)).toBe('ctx 90k')
     })
 })
 
