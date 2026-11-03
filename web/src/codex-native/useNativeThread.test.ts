@@ -32,9 +32,10 @@ describe('native thread window', () => {
         const next = renderHook(() => useNativeThread(api as unknown as ApiClient, 'context-state', true, 'context-state-cache', true))
         expect(next.result.current.contextUsage).toMatchObject({ used: 1200, max: 200000 })
         await waitFor(() => expect(next.result.current.loading).toBe(false))
-        act(() => { event({ method: 'thread/rolledBack', params: { threadId: 'context-state' } }) })
-        expect(next.result.current.contextUsage).toBeNull()
-        next.unmount()
+        act(() => { event({ method: 'thread/rolledBack', params: { threadId: 'context-state' } }); next.unmount() })
+        const restored = renderHook(() => useNativeThread(api as unknown as ApiClient, 'context-state', true, 'context-state-cache', true))
+        expect(restored.result.current.contextUsage).toBeNull()
+        restored.unmount()
     })
     it('keeps an actively read window stable when live items and a newer tail arrive', async () => {
         let event!: (value: NativeEvent) => void

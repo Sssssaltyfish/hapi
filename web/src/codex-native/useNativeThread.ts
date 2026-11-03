@@ -350,6 +350,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method.startsWith('item/') || event.method === 'turn/started' || event.method === 'turn/completed') tailRevision.current += 1
             if (event.method === 'hapi/heartbeat' || event.method === 'thread/goal/updated' || event.method === 'thread/goal/cleared') return
             if (event.method === 'thread/rolledBack') {
+                const saved = cacheKey ? windowCache.get(cacheKey) : undefined
+                if (cacheKey && saved) windowCache.set(cacheKey, { ...saved, contextUsage: null })
                 setContextUsage(null)
                 setHistoryResetRevision(value => value + 1)
                 void latest(true)
@@ -435,7 +437,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             clearTimeout(retry)
             clearTimeout(refreshTimer)
         }
-    }, [api, id, enabled, latest, refreshDetail, refreshActiveTurn])
+    }, [api, id, enabled, cacheKey, latest, refreshDetail, refreshActiveTurn])
 
     return { detail, contextUsage, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }
