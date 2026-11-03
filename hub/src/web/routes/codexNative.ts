@@ -10,6 +10,8 @@ import { record, type NativeRecord } from '../../codexNative/transport'
 import { createNativeMachinesRoutes, nativeMachineStatus } from './nativeMachines'
 import { createNativeMentionsRoutes } from './nativeMentions'
 import { createNativeCreationRoutes } from './nativeCreation'
+import { nativeThreadCommandRequest, NativeThreadCommandError } from '../../codexNative/threadCommands'
+import { queueNativeInput } from '../../codexNative/queueInput'
 
 const limit = (value: string | undefined) =>
     Math.min(100, Math.max(1, Number.parseInt(value ?? '50', 10) || 50))
@@ -305,6 +307,30 @@ export function createCodexNativeRoutes(
             return c.json({ error: 'Invalid native settings' }, 400)
         return c.json(await getService(c).settings(c.req.param('id'), parsed.data))
     })
+    app.get('/codex-native/threads/:id/commands', async (c) =>
+        c.json(await getService(c).threadCommandState(c.req.param('id')))
+    )
+    app.post('/codex-native/threads/:id/commands', async (c) => {
+        const parsed = nativeThreadCommandRequest.safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid native command', issues: parsed.error.flatten() }, 400)
+        const { command, clientId, attachments } = parsed.data
+        const endpoint = getEndpoint(c)!
+        const threadId = c.req.param('id')
+        let submission: { input: NativeRecord[]; clientId: string } | undefined
+        if (command.command === 'plan' && command.prompt && clientId) {
+            const input = await endpoint.service.messageInput(threadId, command.prompt)
+            input.push(...await attachmentInputs(endpoint.service, endpoint.config, threadId, (attachments ?? []).map(value => value.path)))
+            submission = { input, clientId }
+        }
+        try {
+            return c.json(await endpoint.service.threadCommand(threadId, command, submission))
+        } catch (error) {
+            if (error instanceof NativeThreadCommandError) {
+                return c.json({ error: error.message, ...error.details }, error.status)
+            }
+            throw error
+        }
+    })
     app.post('/codex-native/threads/:id/attachments', async (c) => {
         const parsed = z
             .object({ filename: z.string().min(1), mimeType: z.string(), dataBase64: z.string() })
@@ -359,61 +385,7 @@ export function createCodexNativeRoutes(
                     expectedTurnId,
                 })) as NativeRecord
             )
-        const creatingEmpty = getService(c).isCreatingEmpty(c.req.param('id'))
-        const queued = record(
-            await getService(c).control(c.req.param('id'), 'thread/queue/add', {
-                input,
-                clientUserMessageId: clientId,
-            })
-        )
-        if (creatingEmpty) return c.json({ ...queued, accepted: true })
-        // Native queue/add automatically schedules ordinary idle input. Explicit start is
-        // needed only after interruption; starting an already-dequeued ID races execution.
-        try {
-            const page = record(
-                await getService(c).control(c.req.param('id'), 'thread/turns/list', {
-                    limit: 1,
-                    sortDirection: 'desc',
-                    itemsView: 'notLoaded',
-                })
-            )
-            const latest = record(Array.isArray(page.data) ? page.data[0] : undefined)
-            if (latest.status !== 'interrupted') return c.json({ ...queued, accepted: true })
-            const [metadata, pending] = await Promise.all([
-                getService(c).readThread(c.req.param('id')).then(record),
-                getService(c)
-                    .control(c.req.param('id'), 'thread/queue/list', { limit: 1 })
-                    .then(record),
-            ])
-            if (
-                record(record(metadata.thread).status).type === 'active' ||
-                (Array.isArray(pending.data) && pending.data.length === 0)
-            ) {
-                return c.json({ ...queued, accepted: true })
-            }
-            let started: unknown
-            try {
-                started = await getService(c).control(c.req.param('id'), 'thread/queue/start', {})
-            } catch (error) {
-                // Another client or native auto-draining can consume the queue after
-                // our snapshot. Acceptance already succeeded; never replay this input.
-                if (error instanceof Error && error.message === 'queue is empty') {
-                    return c.json({ ...queued, accepted: true })
-                }
-                throw error
-            }
-            return c.json({
-                ...queued,
-                accepted: true,
-                started,
-            })
-        } catch (error) {
-            return c.json({
-                ...queued,
-                accepted: true,
-                startError: error instanceof Error ? error.message : String(error),
-            })
-        }
+        return c.json(await queueNativeInput(getService(c), c.req.param('id'), input, clientId))
     })
     app.post('/codex-native/threads/:id/interrupt', async (c) => {
         const parsed = interruptSchema.safeParse(await c.req.json())
