@@ -19,7 +19,7 @@ describe('remote builtin command routing', () => {
     })
 
     it('uses provider approval controls and preserves native approve commands', () => {
-        expect(resolve('/approve', 'claude')).toContain('pending approval card')
+        expect(resolve('/approve', 'claude')).toBe('Review pending requests in chat.')
         expect(resolve('/approve', 'pi')).toContain('Manual approval is unavailable')
         expect(resolveRemoteBuiltinCommand({ text: '/approve', flavor: 'dsh', customCommands: new Set(),
             nativeCommands: ['permission'], usage: new RemoteUsageSnapshot() })).toContain('/permission')
@@ -40,7 +40,7 @@ describe('remote builtin command routing', () => {
         const result = resolveRemoteBuiltinCommand({ text: '/usage', flavor: 'claude', customCommands: new Set(), usage })!
         expect(result).toContain('Input tokens: 42')
         expect(result).toContain('Output tokens: 0')
-        expect(result).toContain('Account limits\nUnavailable')
+        expect(result).not.toContain('Account limits')
         expect(result).not.toContain('input_tokens')
         expect(result).not.toContain('secret')
         expect(result).not.toContain('NaN')
@@ -54,7 +54,7 @@ describe('remote builtin command routing', () => {
         expect(usage.describe()).toContain('Input tokens: 1,000')
         expect(usage.describe()).toContain('Available context space: 198,800 tokens')
         expect(usage.describe()).toContain('Reported cost: $0.1234')
-        expect(usage.describe()).toContain('Account limits\nUnavailable')
+        expect(usage.describe()).not.toContain('Account limits')
         usage.observe({ contextTokens: 1200, context_window: 1000000, context_window_source: 'model-suffix' })
         expect(usage.describe()).not.toContain('Available context space')
         usage.observe({ modelContextWindow: 30000 })

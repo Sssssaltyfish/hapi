@@ -102,7 +102,7 @@ export class RemoteUsageSnapshot {
                 if (limit.resetsAt !== undefined && Number.isFinite(new Date(limit.resetsAt).getTime())) details.push(`resets ${new Date(limit.resetsAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC')}`)
                 return details.join(' · ')
             }).join('\n'))
-        } else sections.push('Account limits\nUnavailable')
+        }
         return sections.join('\n\n')
     }
 }
@@ -129,7 +129,7 @@ export function resolveRemoteBuiltinCommand(options: {
             return 'Use /permission or session settings to choose a permission preset. Review pending tool requests in their approval cards.'
         }
         if (options.flavor === 'pi') return 'Pi runs tools automatically. Manual approval is unavailable.'
-        return 'Use the pending approval card in this chat to review and allow or deny a waiting tool request. Open the session settings for this provider’s permission controls.'
+        return 'Review pending requests in chat.'
     }
     return `/${command.name} is unavailable for this provider.`
 }
