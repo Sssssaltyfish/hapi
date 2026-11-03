@@ -73,7 +73,7 @@ import type { MessageDeliveryMode } from '@hapi/protocol'
 import { moveAttachmentId, orderItemsById, reconcileAttachmentOrder, type AttachmentDropPosition } from '@/lib/attachmentOrder'
 import { useResponseAnnotationDraft } from '@/hooks/useResponseAnnotationDraft'
 import { ResponseAnnotationCards } from './ResponseAnnotationCards'
-import { splitResponseAnnotations, serializeResponseAnnotations } from '@/lib/responseAnnotations'
+import { splitResponseAnnotations } from '@/lib/responseAnnotations'
 
 export interface TextInputState {
     text: string
@@ -1136,14 +1136,14 @@ export function HappyComposer(props: {
 
         if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null) {
             if (commandInFlightRef.current) return
-            const snapshot = api.composer().getState()
+            const snapshotText = annotationDraft.getText()
             commandInFlightRef.current = true
             let outcome: ComposerCommandOutcome
-            try { outcome = await props.onSubmitCommand(splitResponseAnnotations(snapshot.text).body) }
+            try { outcome = await props.onSubmitCommand(splitResponseAnnotations(snapshotText).body) }
             finally { commandInFlightRef.current = false }
             if (outcome !== 'unhandled') {
-                if (outcome === 'handled' && snapshot.text === api.composer().getState().text) {
-                    api.composer().setText(serializeResponseAnnotations('', splitResponseAnnotations(snapshot.text).annotations))
+                if (outcome === 'handled' && snapshotText === annotationDraft.getText()) {
+                    annotationDraft.setBody('')
                 }
                 return
             }
@@ -1226,6 +1226,8 @@ export function HappyComposer(props: {
         // the error context while the new attempt is in flight.
     }, [
         api,
+        annotationDraft.getText,
+        annotationDraft.setBody,
         attachments,
         canSend,
         draftHydration.hasStoredAttachments,

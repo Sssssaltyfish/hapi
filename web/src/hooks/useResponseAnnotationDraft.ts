@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
 
 /** The original composer text remains the single persisted/send/retry payload. */
@@ -7,8 +7,11 @@ export function useResponseAnnotationDraft(
     writeText: (text: string) => void,
 ) {
     const latest = useRef(text)
-    latest.current = text
+    useLayoutEffect(() => { latest.current = text }, [text])
     const projected = useMemo(() => splitResponseAnnotations(text), [text])
+    // Imperative editor writes precede the assistant-ui React snapshot. Keep
+    // command dispatch and delayed clearing on the same original wire draft.
+    const getText = useCallback(() => latest.current, [])
     const setBody = useCallback((body: string) => {
         const current = splitResponseAnnotations(latest.current)
         const next = serializeResponseAnnotations(body, current.annotations)
@@ -32,5 +35,5 @@ export function useResponseAnnotationDraft(
         latest.current = next
         writeText(next)
     }, [writeText])
-    return { ...projected, setBody, remove, setAnnotation }
+    return { ...projected, getText, setBody, remove, setAnnotation }
 }
