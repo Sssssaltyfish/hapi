@@ -195,7 +195,7 @@ describe('ApiSessionClient lazy materialization', () => {
             client.noteProviderUsage({ input_tokens: 12, output_tokens: 3 })
             triggerIncomingUserMessage(socket, { seq: 3, text: '/usage', sentFrom: 'webapp' })
             triggerIncomingUserMessage(socket, { seq: 4, text: '/approve', sentFrom: 'webapp' })
-            await vi.waitFor(() => expect(JSON.stringify(socket.emitted)).toContain('no permission settings were changed'))
+            await vi.waitFor(() => expect(JSON.stringify(socket.emitted)).toContain('pending approval card'))
             expect(JSON.stringify(socket.emitted)).toContain('Input tokens: 12')
             expect(received).toEqual(['/recap', 'next message'])
             client.setNativeSlashCommandChecker(async name => name === 'usage')

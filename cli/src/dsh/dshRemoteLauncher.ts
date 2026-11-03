@@ -17,6 +17,7 @@ import type { DshMode } from './types'
 import type { QueueReservation } from '@/utils/MessageQueue2'
 import { isAcpIndeterminateError } from '@/agent/backends/acp/AcpStdioTransport'
 import { DSH_STEERING_CAPABILITY, DSH_STEERING_METHOD, hasDshSteeringCapability, isDshSteerReceipt } from './utils/steering'
+import { listProviderSlashCommands } from '@/modules/common/slashCommands'
 
 export class DshRemoteLauncher extends RemoteLauncherBase {
     private backend: ReturnType<typeof createDshBackend> | null = null
@@ -38,6 +39,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private readonly steerRequests = new Set<Promise<unknown>>()
     private readonly steerInvokedAt = new WeakMap<QueueReservation<DshMode>, number>()
     private readonly nativeCommands = new Set<string>()
+    private readonly nativeCommandDescriptions = new Map<string, string>()
 
     private publishSteeringActive(active: boolean): void {
         this.session.client.updateAgentState?.(state => ({ ...state, steeringActive: active }))
@@ -215,6 +217,11 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             markFailed = reject
         })
         void ready.catch(() => {})
+        this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.ListSlashCommands, async () => {
+            await ready
+            return { success: true, commands: await listProviderSlashCommands('dsh', this.session.path,
+                [...this.nativeCommands].map(name => ({ name, description: this.nativeCommandDescriptions.get(name) }))) }
+        })
         this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SetSessionConfigOption, async (raw: unknown) => {
             await ready
             const { configId, value } = SessionConfigOptionRequestSchema.parse(raw)
@@ -260,10 +267,13 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             this.session.sessionId = acpSessionId
             const commandCapability = backend.getAgentExtensionCapability('hapi.dshCommands') as { version?: unknown; method?: unknown } | undefined
             if (commandCapability?.version === 1 && commandCapability.method === '_hapi/dsh/command') {
-                const catalog = await backend.sendExtensionRequest<{ commands?: Array<{ name?: unknown }> }>('_hapi/dsh/command',
+                const catalog = await backend.sendExtensionRequest<{ commands?: Array<{ name?: unknown; description?: unknown }> }>('_hapi/dsh/command',
                     { sessionId: acpSessionId, operation: 'list' }, { timeoutMs: 10_000 })
                 for (const command of catalog.commands ?? []) {
-                    if (typeof command.name === 'string') this.nativeCommands.add(command.name)
+                    if (typeof command.name === 'string') {
+                        this.nativeCommands.add(command.name)
+                        if (typeof command.description === 'string') this.nativeCommandDescriptions.set(command.name, command.description)
+                    }
                 }
             }
             this.session.client.updateMetadata(metadata => ({ ...metadata, slashCommands: [...this.nativeCommands] }))

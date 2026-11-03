@@ -155,7 +155,7 @@ describe('DshRemoteLauncher', () => {
 
     it('executes compact through the advertised native command registry without a model prompt', async () => {
         harness.commandCapability = { version: 1, method: '_hapi/dsh/command' }
-        harness.commandCatalog = [{ name: 'compact' }]
+        harness.commandCatalog = [{ name: 'compact' }, { name: 'permission' }]
         const session = createSession()
         session.queue.reset()
         session.queue.pushIsolated('/compact', {})
@@ -166,6 +166,10 @@ describe('DshRemoteLauncher', () => {
         expect(harness.backend!.sendExtensionRequest).toHaveBeenCalledWith('_hapi/dsh/command',
             { sessionId: 'dsh-session-1', operation: 'execute', text: '/compact' }, { timeoutMs: 600_000 })
         expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'message', message: 'No compactable history yet.' })
+        const listCommands = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'listSlashCommands')![1] as () => Promise<{ commands: Array<{ name: string; source: string }> }>
+        const catalog = await listCommands()
+        expect(catalog.commands).toContainEqual(expect.objectContaining({ name: 'permission', source: 'plugin' }))
+        expect(catalog.commands).toContainEqual(expect.objectContaining({ name: 'approve', source: 'builtin' }))
     })
 
     it('preserves a same-name custom command instead of executing native compaction', async () => {

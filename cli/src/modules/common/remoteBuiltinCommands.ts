@@ -124,6 +124,12 @@ export function resolveRemoteBuiltinCommand(options: {
     // The DSH registry extension executes advertised commands without a model prompt.
     if (options.flavor === 'dsh' && options.nativeCommands?.includes(command.name)) return null
     if (command.name === 'usage') return command.args ? 'Usage: /usage (no arguments)' : options.usage.describe()
-    if (command.name === 'approve') return '/approve is not supported by this provider runner. It requires a native one-time retry of the most recently rejected action; no permission settings were changed.'
+    if (command.name === 'approve') {
+        if (options.flavor === 'dsh' && options.nativeCommands?.includes('permission')) {
+            return 'DSH provides /permission for its native permission presets. Use /permission or this chat’s permission setting to inspect or choose a preset. A tool request waiting for a decision can be handled in its approval card.'
+        }
+        if (options.flavor === 'pi') return 'Pi runs tools automatically in this session, without per-tool approval prompts. There is no manual approval or permission switch here; installed extension commands keep their own behavior.'
+        return 'Use the pending approval card in this chat to review and allow or deny a waiting tool request. Open the session settings for this provider’s permission controls.'
+    }
     return `/${command.name} is not supported by this provider runner. The command was not sent to the model.`
 }

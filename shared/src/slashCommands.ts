@@ -107,7 +107,12 @@ export const BUILTIN_SLASH_COMMANDS = {
 export function getBuiltinSlashCommands(agent: string): SlashCommand[] {
     const commands = BUILTIN_SLASH_COMMANDS[agent as keyof typeof BUILTIN_SLASH_COMMANDS]
         ?? []
-    return commands.map((command) => ({ ...command }))
+    const result: SlashCommand[] = commands.map((command) => ({ ...command }))
+    if (result.length && agent !== 'codex') result.push({ name: 'approve', source: 'builtin',
+        description: agent === 'dsh' ? 'Open pending approvals or DSH native permission controls'
+            : agent === 'pi' ? 'Show how approval works in the Pi RPC runner'
+                : 'Open a pending tool approval or this provider’s approval controls' })
+    return result
 }
 
 export function mergeSlashCommands(commands: readonly SlashCommand[]): SlashCommand[] {

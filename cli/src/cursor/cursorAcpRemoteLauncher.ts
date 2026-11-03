@@ -32,6 +32,7 @@ import {
 import { CURSOR_AUTO_MODEL_ID, cursorSpawnModelId, isCursorAutoModelId } from '@hapi/protocol';
 import { CURSOR_PLAN_CONTINUE } from './utils/cursorPlanContinue';
 import { cursorPassThroughStatusMessage, parseCursorSpecialCommand } from './cursorSpecialCommands';
+import { registerAcpSlashCommandCatalog } from '@/modules/common/slashCommands';
 import { buildCursorModelsSeedPayload, seedCursorModelsCache } from '@/modules/common/cursorModels';
 import { readSharedCursorModelsCache } from '@/modules/common/cursorModelsSharedCache';
 import type { AcpSdkBackend } from '@/agent/backends/acp';
@@ -373,7 +374,7 @@ class CursorAcpRemoteLauncher extends RemoteLauncherBase {
             throw new Error('Failed to establish Cursor ACP session');
         }
         this.acpSessionId = acpSessionId;
-        session.client.setNativeSlashCommandChecker?.(name => backend.hasAvailableCommand(acpSessionId!, name));
+        registerAcpSlashCommandCatalog(session.client, backend, 'cursor', session.path, acpSessionId);
         this.spawnedWithCliAuto = cursorSpawnModelId(spawnModel) === CURSOR_AUTO_MODEL_ID;
 
         if (acpSessionId !== resumeSessionId) {

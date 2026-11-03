@@ -18,8 +18,13 @@ describe('remote builtin command routing', () => {
         expect(resolve('/compact', 'dsh')).toBeNull()
     })
 
-    it('rejects unavailable native operations without changing approval policies or asking the model', () => {
-        expect(resolve('/approve')).toContain('no permission settings were changed')
+    it('uses provider approval controls and preserves native approve commands', () => {
+        expect(resolve('/approve', 'claude')).toContain('pending approval card')
+        expect(resolve('/approve', 'pi')).toContain('without per-tool approval prompts')
+        expect(resolveRemoteBuiltinCommand({ text: '/approve', flavor: 'dsh', customCommands: new Set(),
+            nativeCommands: ['permission'], usage: new RemoteUsageSnapshot() })).toContain('/permission')
+        expect(resolveRemoteBuiltinCommand({ text: '/approve current-action', flavor: 'cursor', customCommands: new Set(),
+            nativeCommandSupported: true, usage: new RemoteUsageSnapshot() })).toBeNull()
         expect(resolve('/recap')).toContain('not sent to the model')
         expect(resolve('/compact')).toContain('not supported')
         expect(resolve('/compact', 'cursor')).toContain('not supported')
