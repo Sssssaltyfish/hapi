@@ -97,7 +97,7 @@ export class RemoteUsageSnapshot {
             sections.push('Account limits and remaining quota · last reported\n' + [...this.limits.values()].map(limit => {
                 const details: string[] = [limit.name]
                 if (limit.resetsAt !== undefined && limit.resetsAt <= Date.now()) details.push('reported window has reset; current remaining quota is not reported')
-                else if (limit.usedPercent !== undefined) details.push(`used ${count(limit.usedPercent)}%`, `remaining ${count(Math.max(0, 100 - limit.usedPercent))}%`)
+                else if (limit.usedPercent !== undefined) details.push(`remaining ${count(Math.max(0, 100 - limit.usedPercent))}%`)
                 else if (limit.reached) details.push('limit reached')
                 if (limit.resetsAt !== undefined && Number.isFinite(new Date(limit.resetsAt).getTime())) details.push(`resets ${new Date(limit.resetsAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC')}`)
                 return details.join(' · ')

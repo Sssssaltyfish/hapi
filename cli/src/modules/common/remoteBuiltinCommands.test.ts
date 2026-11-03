@@ -59,7 +59,7 @@ describe('remote builtin command routing', () => {
     it('shows genuine reported account utilization separately and does not reuse an expired window', () => {
         const usage = new RemoteUsageSnapshot()
         usage.observeRateLimit({ status: 'allowed', rateLimitType: 'five_hour', utilization: 0.25, resetsAt: 4102444800 })
-        expect(usage.describe()).toContain('5-hour limit · used 25% · remaining 75%')
+        expect(usage.describe()).toContain('5-hour limit · remaining 75%')
         usage.observeRateLimit({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: 1 })
         expect(usage.describe()).toContain('current remaining quota is not reported')
         expect(usage.describe()).not.toContain('remaining 75%')
