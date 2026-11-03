@@ -228,6 +228,9 @@ export const AgentStateSchema = z.object({
     controlledByUser: z.boolean().nullish(),
     // Current actionable shared Codex proposal; content remains in the transcript.
     codexPlanProposalId: z.string().nullish(),
+    // Native root goal snapshot, independent of the transcript's visible window.
+    codexGoal: z.lazy(() => ThreadGoalSchema).nullish(),
+    codexGoalUnavailable: z.string().nullish(),
     // Observed dequeue during live context compaction; not a consumption ACK.
     codexCompactionPendingMessageIds: z.array(z.string()).nullish(),
     // True while the CLI is delivering a queued message into the active turn

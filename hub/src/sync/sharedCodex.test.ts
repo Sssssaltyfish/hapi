@@ -20,6 +20,21 @@ function fixture() {
 }
 
 describe('shared Codex hub binding', () => {
+    it('routes typed goal controls only to the active root in the caller namespace', async () => {
+        const { engine, create, rpc } = fixture()
+        try {
+            const source = create('goal-source')
+            const unsupported = create('goal-other', { flavor: 'claude' })
+            const calls: unknown[] = []
+            rpc.controlCodexGoal = async (...args) => { calls.push(args); return { goal: null, cleared: true } }
+            await expect(engine.controlCodexGoal(source.id, 'other-namespace', { action: 'clear' })).rejects.toThrow()
+            await expect(engine.controlCodexGoal(unsupported.id, 'default', { action: 'clear' })).rejects.toThrow()
+            expect(calls).toHaveLength(0)
+            expect(await engine.controlCodexGoal(source.id, 'default', { action: 'clear' })).toEqual({ goal: null, cleared: true })
+            expect(calls).toEqual([[source.id, { action: 'clear' }]])
+        } finally { engine.stop() }
+    })
+
     it('guards plan actions by namespace and runtime, leaving stale-plan and retry validation to CLI', async () => {
         const { engine, create, rpc } = fixture()
         try {

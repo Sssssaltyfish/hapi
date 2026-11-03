@@ -15,6 +15,7 @@
         "./codexInputContext": "./src/codexInputContext.ts",
         "./codexThreadCommands": "./src/codexThreadCommands.ts",
         "./codexManagement": "./src/codexManagement.ts",
+        "./codexGoalControl": "./src/codexGoalControl.ts",
         "./nativeSettings.server": "./src/nativeSettings.server.ts",
         "./modes": "./src/modes.ts",
         "./rpcMethods": "./src/rpcMethods.ts",

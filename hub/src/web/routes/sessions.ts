@@ -1,3 +1,4 @@
+import { CodexGoalControlRequestSchema } from '@hapi/protocol/codexGoalControl'
 import {
     CursorMigrateToAcpRequestSchema,
     DeleteUploadRequestSchema,
@@ -548,6 +549,23 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
                         : outcome.reason === 'no_legacy_store_on_disk' ? 404
                             : 500
         return c.json(outcome, status)
+    })
+
+    app.post('/sessions/:id/codex/goal', async (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const access = requireSessionFromParam(c, engine, { requireActive: true })
+        if (access instanceof Response) return access
+        if (access.session.metadata?.flavor !== 'codex' || !access.session.metadata.capabilities?.concurrentClients) {
+            return c.json({ error: 'An active shared Codex session is required' }, 409)
+        }
+        const parsed = CodexGoalControlRequestSchema.safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid goal control' }, 400)
+        try {
+            return c.json(await engine.controlCodexGoal(access.sessionId, c.get('namespace'), parsed.data))
+        } catch (error) {
+            return c.json({ error: error instanceof Error ? error.message : 'Goal update could not be confirmed' }, 502)
+        }
     })
 
     app.post('/sessions/:id/codex/plan/implement', async (c) => {

@@ -95,6 +95,7 @@ import { SessionHeader } from '@/components/SessionHeader'
 import { CursorMigrationBanner } from '@/components/CursorMigrationBanner'
 import { TeamPanel } from '@/components/TeamPanel'
 import { SessionStatusPanel } from '@/components/SessionStatusPanel'
+import { RunnerPlanButton, useRunnerCodexControls } from '@/hooks/useRunnerCodexControls'
 import { buildSessionStatusData } from '@/chat/sessionStatus'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useSessionActions } from '@/hooks/mutations/useSessionActions'
@@ -659,6 +660,7 @@ export function SessionChat(props: SessionChatProps) {
 
 function SessionChatInner(props: SessionChatProps) {
     const native = props.nativeCapabilities
+    const runnerControls = useRunnerCodexControls(props.api, props.session, Boolean(native))
     const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
     const { t } = useTranslation()
@@ -1503,14 +1505,14 @@ function SessionChatInner(props: SessionChatProps) {
     )
     const sessionStatus = useMemo(
         () => buildSessionStatusData({
-            goal: reduced.latestGoal,
+            goal: runnerControls.enabled && runnerControls.goal !== undefined ? runnerControls.goal : reduced.latestGoal,
             tasks: props.session.todos,
             blocks: reconciled.blocks,
             messages: normalizedMessages,
             backgroundTaskCount: props.session.backgroundTaskCount
         }),
         [
-            reduced.latestGoal,
+            reduced.latestGoal, runnerControls.enabled, runnerControls.goal,
             props.session.todos,
             props.session.backgroundTaskCount,
             reconciled.blocks,
@@ -2009,7 +2011,11 @@ function SessionChatInner(props: SessionChatProps) {
 
             <CursorMigrationBanner metadata={props.session.metadata} />
 
-            {sessionStatus ? <SessionStatusPanel data={sessionStatus} /> : null}
+            {sessionStatus ? <SessionStatusPanel data={sessionStatus} goalControls={runnerControls.enabled ? {
+                disabled: !props.session.active || Boolean(runnerControls.goalUnavailable), pending: runnerControls.pending,
+                onAction: action => { void runnerControls.controlGoal({ action }) }
+            } : undefined} /> : null}
+            {runnerControls.error ? <div role="alert" className="mx-3 py-1 text-xs text-red-600">{runnerControls.error}</div> : null}
 
             <div className="flex flex-col min-h-0 flex-1">
             {props.session.teamState && (
@@ -2153,7 +2159,7 @@ function SessionChatInner(props: SessionChatProps) {
                         </div>
 
                         <HappyComposer
-                        modeControls={native?.modeControls}
+                        modeControls={native?.modeControls ?? <RunnerPlanButton controls={runnerControls} session={props.session} />}
                         attachmentsDisabled={Boolean(native && !props.session.active)}
                         focusInputRef={focusComposerRef}
                         key={`composer-${props.session.id}`}

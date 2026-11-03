@@ -873,6 +873,12 @@ export class ApiClient {
         })
     }
 
+    async controlCodexGoal(sessionId: string, command: import('@hapi/protocol/codexGoalControl').CodexGoalControlRequest): Promise<import('@hapi/protocol/codexGoalControl').CodexGoalControlResult> {
+        return await this.request(`/api/sessions/${encodeURIComponent(sessionId)}/codex/goal`, {
+            method: 'POST', body: JSON.stringify(command)
+        })
+    }
+
     async forkConversation(sessionId: string, messageLocalId?: string): Promise<{ sessionId: string }> {
         return await this.request<{ sessionId: string }>(
             `/api/sessions/${encodeURIComponent(sessionId)}/fork`,
