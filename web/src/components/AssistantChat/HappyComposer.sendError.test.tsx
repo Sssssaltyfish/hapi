@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/lib/i18n-context'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import type { ComposerSendIntent } from '@/lib/messageDelivery'
-import { HappyComposer, type ComposerSendError } from './HappyComposer'
+import { HappyComposer, type ComposerSendError, type ComposerCommandOutcome } from './HappyComposer'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
 
 /**
@@ -164,6 +164,7 @@ function ComposerHarness(props: {
     initialText: string
     initialSchedule?: PendingSchedule | null
     piRunning?: boolean
+    onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>
     controls: { current: HarnessControls | null }
 }) {
     const [snapshot, setSnapshot] = useState<FakeRuntimeState>(() => ({
@@ -253,6 +254,7 @@ function ComposerHarness(props: {
                 piModels={[{ provider: 'pi', modelId: 'pi-model', name: 'Pi model' }]}
                 onModelChange={(model) => runtime.modelChanges.push(model)}
                 pendingSendIntentRef={pendingSendIntentRef}
+                onSubmitCommand={props.onSubmitCommand}
             />
         </I18nProvider>
     )
@@ -262,12 +264,13 @@ function renderComposer(
     initialText = 'failed text',
     initialSchedule: PendingSchedule | null = { type: 'absolute', ms: 1234 },
     piRunning = false,
+    onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>,
 ) {
     const controls: { current: HarnessControls | null } = { current: null }
     runtime.sentIntents = []
     runtime.sentTexts = []
     runtime.modelChanges = []
-    render(<ComposerHarness initialText={initialText} initialSchedule={initialSchedule} piRunning={piRunning} controls={controls} />)
+    render(<ComposerHarness initialText={initialText} initialSchedule={initialSchedule} piRunning={piRunning} onSubmitCommand={onSubmitCommand} controls={controls} />)
     return controls
 }
 
@@ -317,6 +320,37 @@ describe('HappyComposer send-error atomic restore', () => {
     afterEach(() => {
         cleanup()
         runtime.setSnapshot = null
+    })
+
+    it('handles local management before clearing and preserves selected quotes, notes and attachments', async () => {
+        const annotations = [{ text: 'Selected', annotation: 'Keep notes', source: { messageId: 'native-id', startOffset: 0, endOffset: 8 } }]
+        const command = vi.fn().mockResolvedValue('handled')
+        const controls = renderComposer(serializeResponseAnnotations('/goal pause', annotations), null, false, command)
+        act(() => controls.current!.addAttachment())
+        runtime.pendingSendIntentRef!.current = 'queue'
+        fireEvent.keyDown(input(), { key: 'Enter' })
+        await waitFor(() => expect(input()).toHaveValue(''))
+        expect(command).toHaveBeenCalledWith('/goal pause')
+        expect(splitResponseAnnotations(runtime.snapshot.composer.text)).toEqual({ body: '', annotations })
+        expect(runtime.snapshot.composer.attachments).toHaveLength(1)
+        expect(runtime.sentTexts).toEqual([])
+        expect(runtime.pendingSendIntentRef?.current).toBe('default')
+    })
+
+    it('does not send a failed command or erase a draft edited while a command completes', async () => {
+        const command = vi.fn().mockResolvedValueOnce('failed')
+        const controls = renderComposer('/goal pause', null, false, command)
+        send()
+        await waitFor(() => expect(command).toHaveBeenCalledOnce())
+        expect(input()).toHaveValue('/goal pause')
+        expect(runtime.sentTexts).toEqual([])
+        let complete!: (result: ComposerCommandOutcome) => void
+        command.mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))
+        send()
+        act(() => controls.current!.programmaticSetText('New draft'))
+        await act(async () => complete('handled'))
+        expect(input()).toHaveValue('New draft')
+        expect(runtime.sentTexts).toEqual([])
     })
 
     it('edits individual quote notes and preserves them with native sources through send failure and removal', () => {

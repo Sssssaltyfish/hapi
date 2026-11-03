@@ -73,11 +73,13 @@ import type { MessageDeliveryMode } from '@hapi/protocol'
 import { moveAttachmentId, orderItemsById, reconcileAttachmentOrder, type AttachmentDropPosition } from '@/lib/attachmentOrder'
 import { useResponseAnnotationDraft } from '@/hooks/useResponseAnnotationDraft'
 import { ResponseAnnotationCards } from './ResponseAnnotationCards'
+import { splitResponseAnnotations, serializeResponseAnnotations } from '@/lib/responseAnnotations'
 
 export interface TextInputState {
     text: string
     selection: { start: number; end: number }
 }
+export type ComposerCommandOutcome = 'unhandled' | 'handled' | 'failed'
 
 export function getComposerEscapeAction(input: {
     hasSuggestions: boolean
@@ -352,6 +354,8 @@ export function HappyComposer(props: {
     terminalUnsupported?: boolean
     autocompletePrefixes?: string[]
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
+    /** Local management commands run before send clears the composer. */
+    onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>
     // Voice assistant props
     voiceStatus?: ConversationStatus
     voiceMicMuted?: boolean
@@ -1178,6 +1182,7 @@ export function HappyComposer(props: {
         if (pendingSendIntentRef) pendingSendIntentRef.current = 'default'
     }, [pendingSendIntentRef])
 
+    const commandInFlightRef = useRef(false)
     const handleSend = useCallback(async (intent: ComposerSendIntent = 'default') => {
         // SessionChat preloads the ref only when restoring a rejected send:
         // queue retries remain queue, while an ordinary fresh send always
@@ -1196,6 +1201,21 @@ export function HappyComposer(props: {
         // scratchlist park snapshot (RichComposerInput contract).
         if (richMentionsEnabled && richInputRef.current) {
             richInputRef.current.flushSerializedText()
+        }
+
+        if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null) {
+            if (commandInFlightRef.current) return
+            const snapshot = api.composer().getState()
+            commandInFlightRef.current = true
+            let outcome: ComposerCommandOutcome
+            try { outcome = await props.onSubmitCommand(splitResponseAnnotations(snapshot.text).body) }
+            finally { commandInFlightRef.current = false }
+            if (outcome !== 'unhandled') {
+                if (outcome === 'handled' && snapshot.text === api.composer().getState().text) {
+                    api.composer().setText(serializeResponseAnnotations('', splitResponseAnnotations(snapshot.text).annotations))
+                }
+                return
+            }
         }
 
         // Scratchlist parks must not go through assistant-ui's send(): it
@@ -1284,6 +1304,7 @@ export function HappyComposer(props: {
         pendingSchedule,
         props.onParkScratchlist,
         props.onResumeStoredDraft,
+        props.onSubmitCommand,
         props.scratchlistMode,
         richMentionsEnabled,
         sendError,
