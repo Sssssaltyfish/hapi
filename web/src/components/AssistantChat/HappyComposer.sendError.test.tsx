@@ -42,6 +42,7 @@ vi.mock('@assistant-ui/react', async () => {
     return {
         useAui: () => ({
             composer: () => ({
+                getState: () => runtime.snapshot.composer,
                 setText: (text: string) => {
                     runtime.setSnapshot!((current) => ({
                         ...current,
