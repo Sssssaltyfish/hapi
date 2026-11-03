@@ -1,4 +1,13 @@
 export default {
+  'goalEditor.objective': '目标内容',
+  'goalEditor.placeholder': '希望 Codex 持续完成什么目标？',
+  'goalEditor.edit': '编辑目标',
+  'goalEditor.save': '保存目标',
+  'goalEditor.start': '开始目标',
+  'goalEditor.clear': '清除目标',
+  'goalEditor.cancelEditing': '取消编辑',
+  'goalEditor.changedElsewhere': '目标已在其他端修改。请取消编辑后重新打开最新目标。',
+  'goalEditor.usageReset': '修改目标内容会重新计算目标用量。',
   'nativeManagement.compactDescription': '在 Codex 空闲时压缩当前上下文。',
   'nativeManagement.approveDescription': '查看最近一次自动审查拒绝，并确认只重试一次。',
   'nativeManagement.recapDescription': '单独调用模型生成回顾，保留主对话上下文。',

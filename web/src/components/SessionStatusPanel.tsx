@@ -26,9 +26,7 @@ function elapsedSince(startedAt: number | null, now: number): string | null {
     return formatDuration(Math.max(0, now - startedAt))
 }
 
-export function SessionStatusPanel({ data, goalControls }: { data: SessionStatusData; goalControls?: {
-    disabled: boolean; pending: boolean; onAction: (action: 'pause' | 'resume' | 'clear') => void
-} }) {
+export function SessionStatusPanel({ data }: { data: SessionStatusData }) {
     const { t } = useTranslation()
     const completedTasks = data.tasks.filter((task) => task.status === 'completed').length
     const hasLiveElapsed = data.terminals.length > 0
@@ -55,16 +53,6 @@ export function SessionStatusPanel({ data, goalControls }: { data: SessionStatus
                             {t(`session.status.goal.${data.goal.status}`)}
                             {data.goal.timeUsedSeconds > 0 ? ` · ${formatDuration(data.goal.timeUsedSeconds * 1000)}` : ''}
                         </div>
-                        {goalControls ? <div className="mt-1 flex gap-2 text-xs text-[var(--app-link)]">
-                            {['active', 'paused', 'blocked'].includes(data.goal.status) ? <button type="button" disabled={goalControls.disabled || goalControls.pending}
-                                className="rounded px-1 py-1 hover:bg-[var(--app-bg)] disabled:opacity-50"
-                                onClick={() => goalControls.onAction(data.goal!.status === 'active' ? 'pause' : 'resume')}>
-                                {data.goal.status === 'active' ? t('nativeCommands.pause') : t('nativeCommands.resume')}
-                            </button> : null}
-                            <button type="button" disabled={goalControls.disabled || goalControls.pending}
-                                className="rounded px-1 py-1 hover:bg-[var(--app-bg)] disabled:opacity-50"
-                                onClick={() => goalControls.onAction('clear')}>{t('nativeCommands.clear')}</button>
-                        </div> : null}
                     </Section>
                 ) : null}
 

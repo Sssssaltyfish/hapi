@@ -651,10 +651,17 @@ export class SharedCodexRoot {
         // during it cannot supersede the control's authoritative reply.
         const revision = ++this.goalRevision;
         const params = { threadId: this.threadId };
+        if (command.action === 'edit') {
+            const current = record(await this.client.request('thread/goal/get', params));
+            if (!current.goal || record(current.goal).objective !== command.expectedObjective) {
+                throw new Error('The goal changed elsewhere. Reopen the editor before saving.');
+            }
+        }
         const response = record(command.action === 'show' ? await this.client.request('thread/goal/get', params)
             : command.action === 'clear' ? await this.client.request('thread/goal/clear', { ...params, origin: 'user' })
             : await this.client.request('thread/goal/set', { ...params, origin: 'user',
-                ...(command.action === 'set' ? { objective: command.objective, status: 'active' } : { status: command.action === 'pause' ? 'paused' : 'active' }) }));
+                ...(command.action === 'edit' ? { objective: command.objective }
+                    : command.action === 'set' ? { objective: command.objective, status: 'active' } : { status: command.action === 'pause' ? 'paused' : 'active' }) }));
         if (command.action === 'clear') {
             // A false clear is not an acknowledgement that the goal is absent.
             if (response.cleared === true && revision === this.goalRevision) this.acceptGoal(null);

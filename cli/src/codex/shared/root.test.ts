@@ -184,7 +184,11 @@ describe('typed native goal controls', () => {
         expect(await control({ action: 'set', objective: 'pause' })).toMatchObject({ goal: { objective: 'pause', status: 'active' } });
         expect(f.state().codexGoal).toMatchObject({ objective: 'pause', status: 'active' });
         expect(await control({ action: 'pause' })).toMatchObject({ goal: { objective: 'pause', status: 'paused' } });
-        expect(await control({ action: 'resume' })).toMatchObject({ goal: { objective: 'pause', status: 'active' } });
+        expect(await control({ action: 'edit', objective: 'Revised pause', expectedObjective: 'pause' })).toMatchObject({ goal: { objective: 'Revised pause', status: 'paused' } });
+        const edit = f.native.calls.filter(call => call.method === 'thread/goal/set').at(-1)!;
+        expect(edit.params).toEqual({ threadId: 'thread', origin: 'user', objective: 'Revised pause' });
+        await expect(control({ action: 'edit', objective: 'Stale', expectedObjective: 'pause' })).rejects.toThrow('changed elsewhere');
+        expect(await control({ action: 'resume' })).toMatchObject({ goal: { objective: 'Revised pause', status: 'active' } });
         expect(await control({ action: 'clear' })).toEqual({ goal: null, cleared: true });
         expect(f.state().codexGoal).toBeNull();
         expect(f.native.queue).toEqual([]);

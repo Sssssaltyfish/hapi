@@ -118,6 +118,25 @@ function fixture() {
 }
 
 describe('Native Plan and Goal commands', () => {
+    test('edits only a matching current objective and preserves its paused state and budget', async () => {
+        const { daemon, service, command } = fixture()
+        daemon.goal = { threadId: 'thread', objective: 'Original', status: 'paused', tokenBudget: 100,
+            tokensUsed: 10, timeUsedSeconds: 2, createdAt: 1, updatedAt: 1 }
+        try {
+            const response = await command({ command: 'goal', action: 'edit', objective: 'Revised', expectedObjective: 'Original' })
+            expect(response.status).toBe(200)
+            expect(await response.json()).toMatchObject({ command: 'goal', action: 'edit', goal: { objective: 'Revised', status: 'paused', tokenBudget: 100 } })
+            expect(daemon.calls.filter(call => call.method === 'thread/goal/set').map(call => call.params)).toEqual([
+                { threadId: 'thread', origin: 'user', objective: 'Revised' }
+            ])
+            expect((await command({ command: 'goal', action: 'edit', objective: 'Stale edit', expectedObjective: 'Original' })).status).toBe(409)
+            daemon.goal = null
+            expect((await command({ command: 'goal', action: 'edit', objective: 'Recreate', expectedObjective: 'Revised' })).status).toBe(409)
+            expect(daemon.calls.filter(call => call.method === 'thread/goal/set')).toHaveLength(1)
+            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
+        } finally { service.dispose() }
+    })
+
     test('runs compact, recap and usage through native management protocols without submitting chat input', async () => {
         const { daemon, service, command } = fixture()
         try {

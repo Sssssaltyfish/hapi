@@ -28,6 +28,12 @@ const goalCommand = z.union([
         objective: z.string().min(1)
             .refine(value => Array.from(value).length <= MAX_CODEX_GOAL_OBJECTIVE_CHARS, 'Goal objective is too long')
             .refine(value => value.trim().length > 0)
+    }).strict(),
+    z.object({
+        command: z.literal('goal'), action: z.literal('edit'),
+        objective: z.string().trim().min(1)
+            .refine(value => Array.from(value).length <= MAX_CODEX_GOAL_OBJECTIVE_CHARS, 'Goal objective is too long'),
+        expectedObjective: z.string().min(1)
     }).strict()
 ])
 const managementCommand = z.union([
@@ -203,6 +209,17 @@ export async function executeThreadCommand(
         throw new NativeThreadCommandError(409, state.unavailable.goal ?? 'Native goals are unavailable')
     }
     if (command.action === 'show') return { command: 'goal', action: 'show', goal: state.goal }
+    if (command.action === 'edit') {
+        const current = readGoal(await native.control(threadId, 'thread/goal/get', {}), threadId)
+        if (!current || current.objective !== command.expectedObjective) {
+            throw new NativeThreadCommandError(409, 'The goal changed elsewhere. Reopen the editor before saving.')
+        }
+        // Objective-only updates preserve the daemon's current lifecycle state
+        // and budget, including a pause/resume that happened after the read.
+        const goal = readGoal(await native.control(threadId, 'thread/goal/set', { origin: 'user', objective: command.objective }), threadId)
+        if (!goal) throw new NativeThreadCommandError(502, 'Native goal update was not confirmed')
+        return { command: 'goal', action: 'edit', goal }
+    }
     if (command.action === 'clear') {
         const response = record(await native.control(threadId, 'thread/goal/clear', { origin: 'user' }))
         if (typeof response.cleared !== 'boolean') throw new NativeThreadCommandError(502, 'Native goal clear was not confirmed')

@@ -1,4 +1,13 @@
 export default {
+  'goalEditor.objective': 'Goal objective',
+  'goalEditor.placeholder': 'What should Codex work toward?',
+  'goalEditor.edit': 'Edit goal',
+  'goalEditor.save': 'Save goal',
+  'goalEditor.start': 'Start goal',
+  'goalEditor.clear': 'Clear goal',
+  'goalEditor.cancelEditing': 'Cancel editing',
+  'goalEditor.changedElsewhere': 'The goal changed elsewhere. Cancel editing and reopen the latest goal.',
+  'goalEditor.usageReset': 'Changing the objective restarts goal usage accounting.',
   'nativeManagement.compactDescription': 'Compact the current context when Codex is idle.',
   'nativeManagement.approveDescription': 'Review a recent automatic-review denial and confirm one retry.',
   'nativeManagement.recapDescription': 'Generate a recap with a separate model call; keep the main context.',

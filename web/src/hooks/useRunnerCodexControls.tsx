@@ -10,6 +10,7 @@ export function useRunnerCodexControls(api: ApiClient, session: Session, native:
     const snapshotKey = JSON.stringify(snapshot)
     const [goal, setGoal] = useState<ThreadGoal | null | undefined>(snapshot)
     const [pending, setPending] = useState(false)
+    const [goalEditorOpen, setGoalEditorOpen] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const busy = useRef(false)
     const revision = useRef({ key: snapshotKey, value: 0 })
@@ -18,9 +19,9 @@ export function useRunnerCodexControls(api: ApiClient, session: Session, native:
     // goal. Only a changed native snapshot supersedes an acknowledged result.
     useEffect(() => { setGoal(snapshot) }, [snapshotKey])
     const perform = useCallback(async (work: () => Promise<void>) => {
-        if (!enabled || !session.active || busy.current) return
+        if (!enabled || !session.active || busy.current) return false
         busy.current = true; setPending(true); setError(null)
-        try { await work() } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)) }
+        try { await work(); return true } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return false }
         finally { busy.current = false; setPending(false) }
     }, [enabled, session.active])
     const controlGoal = useCallback((command: CodexGoalControlRequest) => perform(async () => {
@@ -28,10 +29,14 @@ export function useRunnerCodexControls(api: ApiClient, session: Session, native:
         const result = await api.controlCodexGoal(session.id, command)
         if (command.action === 'clear' && result.cleared === false) throw new Error('The goal was not cleared. Refresh and try again.')
         if (before === revision.current.value) setGoal(result.goal)
+        if (command.action === 'show') setGoalEditorOpen(true)
     }), [api, session.id, perform])
     const leavePlan = useCallback(() => perform(() => api.setCollaborationMode(session.id, 'default')), [api, session.id, perform])
     const goalUnavailable = session.agentState?.codexGoalUnavailable
-    return { enabled, goal, pending, error: error ?? (enabled && goal ? goalUnavailable : null), goalUnavailable, controlGoal, leavePlan }
+    // Older shared Runners do not publish this snapshot/control capability.
+    // Keep their /goal command on its existing Runner path.
+    const goalControlsAvailable = enabled && snapshot !== undefined && !goalUnavailable
+    return { enabled, goalControlsAvailable, goal, pending, goalEditorOpen, setGoalEditorOpen, error: error ?? (enabled && goal ? goalUnavailable : null), goalUnavailable, controlGoal, leavePlan }
 }
 
 export function RunnerPlanButton({ controls, session }: { controls: ReturnType<typeof useRunnerCodexControls>; session: Session }) {
