@@ -585,7 +585,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
     resolveSlashCommands?: () => Promise<SlashCommand[] | null>
@@ -2361,14 +2361,15 @@ function SessionChatInner(props: SessionChatProps) {
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={props.autocompleteSuggestions}
-                        onSubmitCommand={native?.onSubmitCommand ?? (async text => {
+                        onSubmitCommand={native?.onSubmitCommand ?? (text => {
                             if (runnerControls.goalControlsAvailable) {
                                 const command = parseCodexThreadCommand(text)
                                 if (command?.command === 'goal' && command.action === 'show') {
-                                    return await runnerControls.controlGoal({ action: 'show' }) ? 'handled' : 'failed'
+                                    return runnerControls.controlGoal({ action: 'show' }).then(success => success ? 'handled' as const : 'failed' as const)
                                 }
                             }
-                            return await submitApproveCommand({ text, flavor: agentFlavor ?? 'claude', active: props.session.active,
+                            if (!/^\s*\/approve\s*$/i.test(text) || agentFlavor === 'codex') return 'unhandled'
+                            return submitApproveCommand({ text, flavor: agentFlavor ?? 'claude', active: props.session.active,
                                 state: props.session.agentState, commands: props.availableSlashCommands ?? [],
                                 nativeCommands: props.session.metadata?.slashCommands,
                                 resolveCommands: props.resolveSlashCommands, open: setApprovalRequestId })

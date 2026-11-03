@@ -46,6 +46,23 @@ it('refreshes goal/settings after external daemon events and never retries a com
     expect(result.current.feedback?.error).toBe(true)
 })
 
+it('keeps independent command results when responses arrive in reverse order', async () => {
+    let finishRecap!: (result: unknown) => void
+    const post = vi.fn().mockImplementationOnce(() => new Promise(resolve => { finishRecap = resolve }))
+        .mockResolvedValueOnce({ command: 'compact' })
+    const { result } = setup({ getCodexNativeCommands: vi.fn().mockResolvedValue(initial), codexNativeCommand: post })
+    await waitFor(() => expect(result.current.state).toEqual(initial))
+    let recap!: Promise<unknown>
+    act(() => { recap = result.current.execute({ command: { command: 'recap' } }) })
+    await act(async () => { await result.current.execute({ command: { command: 'compact' } }) })
+    expect(result.current.pending).toBe(true)
+    expect(result.current.managementResult?.command).toBe('compact')
+    await act(async () => { finishRecap({ command: 'recap', text: 'Earlier request' }); await recap })
+    expect(result.current.pending).toBe(false)
+    act(() => result.current.dismissManagementResult())
+    expect(result.current.managementResult).toEqual({ command: 'recap', text: 'Earlier request' })
+})
+
 it('finishes a status read after at most one re-read while newer goal counters keep arriving', async () => {
     let first!: (state: NativeCommandState) => void
     let second!: (state: NativeCommandState) => void
