@@ -1,7 +1,8 @@
 import type { SessionSummary } from '@/types/api'
 import { normalizeSearch, prepareSidebarSessions, sessionMatchesQuery } from '@/components/SessionList'
 import { truncateGraphemes } from '@/lib/graphemes'
-import { getSessionTitle } from '@/lib/sessionTitle'
+import { getSessionTitle, shortSessionId } from '@/lib/sessionTitle'
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
 import { SESSION_REFERENCE_STEER_SUFFIX } from '@hapi/protocol/sessionCitation'
 
 export function buildSessionReferencePath(sessionId: string): string {
@@ -27,6 +28,8 @@ export function buildSessionReferenceText(sessionTitle: string, sessionId: strin
 export type MatchSessionsForMentionOptions = {
     excludeId?: string
     limit?: number
+    /** Runner citations are resolved by HAPI's inspect_peer, not the native daemon. */
+    runnerOnly?: boolean
     /** Same resolver share/sidebar pass into `sessionMatchesQuery`. */
     resolveMachineLabel?: (machineId: string | null) => string
 }
@@ -38,7 +41,7 @@ export type MatchSessionsForMentionOptions = {
 function scoreMatchedSession(session: SessionSummary, query: string): number {
     const title = getSessionTitle(session).toLowerCase()
     const id = session.id.toLowerCase()
-    const idPrefix = id.slice(0, 8)
+    const idPrefix = shortSessionId(id)
 
     // Matched via summary/path/machine/etc. — keep below id/title tiers.
     let score = 150
@@ -74,7 +77,10 @@ export function matchSessionsForMention(
     const excludeId = options.excludeId
     const resolveMachineLabel = options.resolveMachineLabel ?? (() => '')
     const normalized = normalizeSearch(query)
-    const candidates = prepareSidebarSessions([...sessions], excludeId)
+    const pool = options.runnerOnly
+        ? sessions.filter(session => !session.metadata?.nativeCodex && !parseCodexNativeSessionId(session.id))
+        : [...sessions]
+    const candidates = prepareSidebarSessions(pool, excludeId)
 
     const scored: { session: SessionSummary; score: number }[] = []
     for (const session of candidates) {
@@ -154,7 +160,7 @@ export function formatSessionMentionTooltip(
     fallbackTitle: string,
     id: string
 ): SessionMentionTooltipModel {
-    const shortId = id.slice(0, 8)
+    const shortId = shortSessionId(id)
     const rawTitle = (session?.title || fallbackTitle || shortId).replace(/\s+/g, ' ').trim()
     const title = rawTitle || shortId
 

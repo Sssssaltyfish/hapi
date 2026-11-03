@@ -32,6 +32,7 @@ import {
     type SessionMentionTooltipModel,
 } from '@/lib/sessionReference'
 import { SessionRowSummary } from '@/components/SessionRowSummary'
+import { shortSessionId } from '@/lib/sessionTitle'
 import type { SessionSummary } from '@/types/api'
 
 export type RichComposerInputHandle = {
@@ -98,7 +99,7 @@ function createMentionSpan(
     span.dataset.composerMention = 'session'
     span.className =
         'mx-0.5 inline-flex max-w-[12rem] items-center truncate rounded-md bg-[var(--app-subtle-bg)] px-1.5 py-0.5 align-baseline text-[0.95em] font-medium text-[var(--app-link)]'
-    span.textContent = `@${title || id.slice(0, 8)}`
+    span.textContent = `@${title || shortSessionId(id)}`
     const tip = resolveTooltip?.(id, title)?.model
         ?? formatSessionMentionTooltip(null, title, id)
     span.setAttribute('aria-label', tip.ariaLabel)
@@ -262,7 +263,7 @@ function mapComposerEditorDom(root: HTMLElement): ComposerDomMapping {
                 segments.push({
                     type: 'session',
                     id,
-                    title: el.dataset.sessionTitle || id.slice(0, 8),
+                    title: el.dataset.sessionTitle || shortSessionId(id),
                 })
                 mirrorLength += 1
             }
@@ -926,7 +927,7 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
     const showMentionTooltipForChip = useCallback((chip: HTMLElement) => {
         const id = chip.dataset.sessionId
         if (!id) return
-        const title = chip.dataset.sessionTitle || id.slice(0, 8)
+        const title = chip.dataset.sessionTitle || shortSessionId(id)
         const resolved = resolveSessionMentionTooltip?.(id, title)
         const model = resolved?.model ?? formatSessionMentionTooltip(null, title, id)
         chip.setAttribute('aria-label', model.ariaLabel)

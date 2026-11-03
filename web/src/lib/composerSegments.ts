@@ -1,5 +1,6 @@
 import { buildSessionReferencePath, parseSessionPathHref } from '@/lib/sessionReference'
 import { truncateGraphemes } from '@/lib/graphemes'
+import { shortSessionId } from '@/lib/sessionTitle'
 import { findActiveWord } from '@/utils/findActiveWord'
 
 /** Object Replacement Character — one mirror slot per session atom. */
@@ -51,7 +52,7 @@ export function serializeComposerSegments(segments: readonly ComposerSegment[]):
         const id = segment.id.trim()
         if (!id) continue
         const path = buildSessionReferencePath(id)
-        const label = escapeMarkdownLinkLabel(segment.title) || id.slice(0, 8)
+        const label = escapeMarkdownLinkLabel(segment.title) || shortSessionId(id)
         out += `[${label}](${path})`
     }
     return out
@@ -176,7 +177,7 @@ export function insertSessionMentionInComposerSegments(
 
     const { before } = splitMirrorAt(segments, replaceStart)
     const { after } = splitMirrorAt(segments, replaceEnd)
-    const title = sanitizeMentionTitle(mention.title) || mention.id.slice(0, 8)
+    const title = sanitizeMentionTitle(mention.title) || shortSessionId(mention.id)
     const afterMirror = mirrorComposerSegments(after)
     const needsTrailingSpace = afterMirror.length === 0 || afterMirror[0] !== ' '
     const inserted: ComposerSegment[] = [

@@ -37,7 +37,7 @@ import { useCursorChatStoreStatus } from '@/hooks/queries/useCursorChatStoreStat
 import { useSessions } from '@/hooks/queries/useSessions'
 import { useSlashCommands } from '@/hooks/queries/useSlashCommands'
 import { useSkills } from '@/hooks/queries/useSkills'
-import { getSessionTitle } from '@/lib/sessionTitle'
+import { getSessionTitle, shortSessionId } from '@/lib/sessionTitle'
 import { buildSessionReferenceText, matchSessionsForMention } from '@/lib/sessionReference'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { useSendMessage, type SendErrorInfo } from '@/hooks/mutations/useSendMessage'
@@ -686,13 +686,14 @@ function HapiSessionPage() {
             // v2: segmented rich composer with inline session tokens — #1215.
             // Match via sessionMatchesQuery (share/sidebar); label/insert via getSessionTitle.
             const sessionHits = matchSessionsForMention(allSessions, search, {
+                runnerOnly: true,
                 excludeId: sessionId,
                 limit: 20,
                 resolveMachineLabel: resolveMentionMachineLabel,
             }).map((s) => {
                 const title = getSessionTitle(s)
                 const mentionText = buildSessionReferenceText(title, s.id)
-                const idPrefix = s.id.slice(0, 8)
+                const idPrefix = shortSessionId(s.id)
                 return {
                     key: `session:${s.id}`,
                     group: 'threads' as const,
