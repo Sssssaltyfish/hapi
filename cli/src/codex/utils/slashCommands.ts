@@ -1,5 +1,5 @@
 import { CODEX_PERMISSION_MODES } from '@hapi/protocol/modes';
-import { MAX_CODEX_GOAL_OBJECTIVE_CHARS, parseCodexThreadCommand } from '@hapi/protocol/codexThreadCommands';
+import { MAX_CODEX_GOAL_OBJECTIVE_CHARS, parseCodexThreadCommand, type CodexThreadCommand } from '@hapi/protocol/codexThreadCommands';
 import type { CodexPermissionMode } from '@hapi/protocol/types';
 import type { ReasoningEffort } from '../appServerTypes';
 import type { CodexPersonality, EnhancedMode } from '../loop';
@@ -27,6 +27,7 @@ const UNSUPPORTED_CODEX_BUILTIN_COMMANDS = new Set([
 
 export type CodexSlashResolution =
     | { kind: 'passthrough' }
+    | { kind: 'management'; command: Extract<CodexThreadCommand, { command: 'compact' | 'recap' | 'usage' | 'approve' }> }
     | {
         kind: 'handled';
         message: string;
@@ -93,6 +94,13 @@ export function resolveCodexSlashCommand(
     }
 
     const threadCommand = parseCodexThreadCommand(text);
+    if (threadCommand && (threadCommand.command === 'compact' || threadCommand.command === 'recap'
+        || threadCommand.command === 'usage' || threadCommand.command === 'approve')) {
+        return { kind: 'management', command: threadCommand };
+    }
+    if (['compact', 'recap', 'usage', 'approve'].includes(command)) {
+        return { kind: 'handled', message: command === 'approve' ? 'Usage: /approve [reviewId]' : `Usage: /${command}` };
+    }
     if (threadCommand?.command === 'plan') {
         const updates = { collaborationMode: threadCommand.mode };
         const message = threadCommand.mode === 'plan' ? 'Codex plan mode enabled' : 'Codex plan mode disabled';
@@ -276,9 +284,8 @@ export function resolveCodexSlashCommand(
                 '**Supported Codex slash commands**',
                 '',
                 '- `/plan [prompt]` — enable plan mode, optionally send prompt',
-                '- `/plan off` — return to default mode',
                 '- `/goal [objective]` — set or view the persistent goal',
-                '- `/goal pause|resume|clear` — update the current goal',
+                '- `/default` or `/execute` — return to default mode',
                 '- `/clear` — reset current Codex thread context',
                 '- `/compact` — compact current Codex thread context',
                 '- `/status` — show current Codex session config',

@@ -23,7 +23,7 @@ export function useNativeSuggestions(api: ApiClient, threadId: string, context?:
             const controller = new AbortController()
             pending.current = controller
             if (query.startsWith('/')) return (context?.commands ?? []).filter(command => command.name.startsWith(query.slice(1).toLowerCase()))
-                .map(command => ({ key: `/${command.name}`, text: `/${command.name}`, label: `/${command.name}`, description: command.description, source: 'builtin' }))
+                .map(command => ({ key: `/${command.name}`, text: `/${command.name}`, label: `/${command.name}`, description: command.description, source: 'builtin', submitOnSelect: true }))
             if (!query.startsWith('@') && !query.startsWith('$')) return []
             try {
                 const response = await api.getCodexNativeSuggestions(

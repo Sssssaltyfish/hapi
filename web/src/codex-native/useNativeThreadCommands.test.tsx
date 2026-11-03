@@ -27,7 +27,7 @@ it('rejects a pre-ACK read without SSE and keeps the command successful if its f
     await act(async () => oldRead(initial))
     await waitFor(() => expect(result.current.readError).toBeTruthy())
     expect(result.current.state).toBeUndefined()
-    expect(result.current.feedback?.error).toBe(false)
+    expect(result.current.feedback).toBeNull()
     expect(read).toHaveBeenCalledTimes(2)
     expect(post).toHaveBeenCalledOnce()
 })

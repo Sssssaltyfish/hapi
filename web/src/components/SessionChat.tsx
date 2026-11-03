@@ -579,7 +579,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -2153,6 +2153,7 @@ function SessionChatInner(props: SessionChatProps) {
                         </div>
 
                         <HappyComposer
+                        modeControls={native?.modeControls}
                         attachmentsDisabled={Boolean(native && !props.session.active)}
                         focusInputRef={focusComposerRef}
                         key={`composer-${props.session.id}`}

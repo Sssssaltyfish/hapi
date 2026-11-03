@@ -7,6 +7,7 @@ import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePic
 import type { ComposerSendIntent } from '@/lib/messageDelivery'
 import { HappyComposer, type ComposerSendError, type ComposerCommandOutcome } from './HappyComposer'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
+import type { Suggestion } from '@/hooks/useActiveSuggestions'
 
 /**
  * HappyComposer owns the recovery guard, while assistant-ui owns the live
@@ -35,6 +36,7 @@ const runtime = vi.hoisted(() => ({
     sentIntents: [] as ComposerSendIntent[],
     sentTexts: [] as string[],
     modelChanges: [] as Array<{ provider: string; modelId: string } | string | null>,
+    suggestions: [] as Suggestion[],
 }))
 
 vi.mock('@assistant-ui/react', async () => {
@@ -44,10 +46,11 @@ vi.mock('@assistant-ui/react', async () => {
             composer: () => ({
                 getState: () => runtime.snapshot.composer,
                 setText: (text: string) => {
-                    runtime.setSnapshot!((current) => ({
-                        ...current,
-                        composer: { ...current.composer, text },
-                    }))
+                    // The real runtime store publishes imperative writes before
+                    // getState/send returns, independently of React rendering.
+                    runtime.snapshot = { ...runtime.snapshot, composer: { ...runtime.snapshot.composer, text } }
+                    const next = runtime.snapshot
+                    runtime.setSnapshot!(() => next)
                 },
                 send: () => {
                     runtime.sentTexts.push(runtime.snapshot.composer.text)
@@ -108,9 +111,10 @@ vi.mock('@/hooks/useComposerEnterBehavior', () => ({ useComposerEnterBehavior: (
 vi.mock('@/hooks/usePlatform', () => ({ usePlatform: () => ({ haptic: { impact: () => {}, notification: () => {} }, isTouch: false }) }))
 vi.mock('@/hooks/usePWAInstall', () => ({ usePWAInstall: () => ({ isStandalone: false, isIOS: false }) }))
 vi.mock('@/hooks/useActiveWord', () => ({ useActiveWord: () => null }))
-vi.mock('@/hooks/useActiveSuggestions', () => ({ useActiveSuggestions: () => [[], -1, () => {}, () => {}, () => {}] }))
+vi.mock('@/hooks/useActiveSuggestions', () => ({ useActiveSuggestions: () => [runtime.suggestions, 0, () => {}, () => {}, () => { runtime.suggestions = [] }, () => {}] }))
 vi.mock('@/components/ChatInput/FloatingOverlay', () => ({ FloatingOverlay: ({ children }: { children: ReactNode }) => <>{children}</> }))
-vi.mock('@/components/ChatInput/Autocomplete', () => ({ Autocomplete: () => null }))
+vi.mock('@/components/ChatInput/Autocomplete', () => ({ Autocomplete: ({ suggestions, onSelect }: { suggestions: Suggestion[]; onSelect: (index: number) => void }) =>
+    <>{suggestions.map((suggestion, index) => <button key={suggestion.key} type="button" onClick={() => onSelect(index)}>{suggestion.label}</button>)}</> }))
 vi.mock('@/components/AssistantChat/StatusBar', () => ({ StatusBar: () => null }))
 vi.mock('@/components/AssistantChat/SortableComposerAttachments', () => ({
     SortableComposerAttachments: () => null,
@@ -321,6 +325,7 @@ describe('HappyComposer send-error atomic restore', () => {
     afterEach(() => {
         cleanup()
         runtime.setSnapshot = null
+        runtime.suggestions = []
     })
 
     it('handles local management before clearing and preserves selected quotes, notes and attachments', async () => {
@@ -336,6 +341,21 @@ describe('HappyComposer send-error atomic restore', () => {
         expect(runtime.snapshot.composer.attachments).toHaveLength(1)
         expect(runtime.sentTexts).toEqual([])
         expect(runtime.pendingSendIntentRef?.current).toBe('default')
+    })
+
+    it.each(['click', 'Enter', 'Tab'])('dispatches a selected native command with %s through the normal management path', async gesture => {
+        const annotations = [{ text: 'Selected', annotation: 'Keep notes' }]
+        const command = vi.fn().mockResolvedValue('handled')
+        runtime.suggestions = [{ key: '/plan', label: '/plan', text: '/plan', submitOnSelect: true }]
+        const controls = renderComposer(serializeResponseAnnotations('/pl', annotations), null, false, command)
+        act(() => controls.current!.addAttachment())
+        if (gesture === 'click') fireEvent.click(screen.getByRole('button', { name: '/plan' }))
+        else fireEvent.keyDown(input(), { key: gesture })
+        await waitFor(() => expect(command).toHaveBeenCalledWith('/plan '))
+        expect(command).toHaveBeenCalledOnce()
+        expect(splitResponseAnnotations(runtime.snapshot.composer.text)).toEqual({ body: '', annotations })
+        expect(runtime.snapshot.composer.attachments).toHaveLength(1)
+        expect(runtime.sentTexts).toEqual([])
     })
 
     it('does not send a failed command or erase a draft edited while a command completes', async () => {

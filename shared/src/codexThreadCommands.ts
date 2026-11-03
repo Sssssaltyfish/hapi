@@ -4,6 +4,9 @@ export type CodexThreadCommand =
     | { command: 'plan'; mode: 'plan' | 'default'; prompt?: string }
     | { command: 'goal'; action: 'show' | 'pause' | 'resume' | 'clear' }
     | { command: 'goal'; action: 'set'; objective: string }
+    | { command: 'compact' | 'recap' | 'usage' }
+    | { command: 'approve'; action: 'show' }
+    | { command: 'approve'; action: 'retry'; reviewId: string }
 
 export type NativeGoal = {
     threadId: string
@@ -41,19 +44,27 @@ export type NativeCommandResult =
     | { command: 'plan'; applied: Record<string, unknown>; submission?: Record<string, unknown> & { accepted: true; startError?: string } }
     | { command: 'goal'; action: 'show' | 'set' | 'pause' | 'resume'; goal: NativeGoal | null; cleared?: never }
     | { command: 'goal'; action: 'clear'; cleared: boolean; goal?: never }
+    | { command: 'compact'; accepted: true }
+    | { command: 'recap'; text: string; sourceTurnId: string }
+    | { command: 'usage'; usage: Record<string, unknown> | null; rateLimits: Record<string, unknown> | null; unavailable: { usage?: string; rateLimits?: string } }
+    | { command: 'approve'; action: 'show'; denial: { reviewId: string; turnId: string; action: Record<string, unknown>; rationale: string | null } | null }
+    | { command: 'approve'; action: 'retry'; reviewId: string; accepted: true }
 
 export function parseCodexThreadCommand(text: string): CodexThreadCommand | null {
-    const match = /^\/(plan|goal)(?:\s+([\s\S]*))?$/i.exec(text.trim())
+    const match = /^\/(plan|goal|compact|recap|usage|approve)(?:\s+([\s\S]*))?$/i.exec(text.trim())
     if (!match) return null
 
     const argument = (match[2] ?? '').trim()
-    const action = argument.toLowerCase()
-    if (match[1].toLowerCase() === 'plan') {
-        if (['off', 'default', 'exit', 'disable'].includes(action)) return { command: 'plan', mode: 'default' }
+    const command = match[1].toLowerCase()
+    if (command === 'compact' || command === 'recap' || command === 'usage') return argument ? null : { command }
+    if (command === 'approve') {
+        if (!argument) return { command, action: 'show' }
+        return /^\S+$/.test(argument) ? { command, action: 'retry', reviewId: argument } : null
+    }
+    if (command === 'plan') {
         return argument ? { command: 'plan', mode: 'plan', prompt: argument } : { command: 'plan', mode: 'plan' }
     }
 
     if (!argument) return { command: 'goal', action: 'show' }
-    if (action === 'pause' || action === 'resume' || action === 'clear') return { command: 'goal', action }
     return { command: 'goal', action: 'set', objective: argument }
 }

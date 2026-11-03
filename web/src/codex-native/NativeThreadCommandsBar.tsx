@@ -1,20 +1,26 @@
 import type { ReturnTypeOfNativeCommands } from './useNativeThreadCommands'
 import { useTranslation } from '@/lib/use-translation'
 
+export function NativePlanButton({ commands, disabled }: { commands: ReturnTypeOfNativeCommands; disabled: boolean }) {
+    const { t } = useTranslation()
+    if (!commands.state?.capabilities.plan || commands.state.collaborationMode?.mode !== 'plan') return null
+    return <button type="button" data-testid="native-plan-toggle" aria-pressed="true"
+        aria-label={t('nativeCommands.planOff')} title={t('nativeCommands.plan')}
+        className="flex h-8 shrink-0 items-center gap-1 rounded-full bg-[var(--app-link)]/10 px-2 text-xs text-[var(--app-link)] transition-colors hover:bg-[var(--app-link)]/20 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled || commands.pending}
+        onClick={() => void commands.execute({ command: { command: 'plan', mode: 'default' } }).catch(() => {})}>
+        Plan <span aria-hidden="true">×</span>
+    </button>
+}
+
 export function NativeThreadCommandsBar({ commands, disabled }: { commands: ReturnTypeOfNativeCommands; disabled: boolean }) {
     const { t } = useTranslation()
     const state = commands.state
-    const mode = state?.collaborationMode?.mode
     const goal = state?.goal
-    const expanded = Boolean(goal || mode === 'plan' || commands.feedback || commands.readError)
+    const expanded = Boolean(goal || commands.feedback || commands.readError)
     if (!expanded) return null
     const actionClass = 'rounded px-1.5 py-1 text-[var(--app-link)] hover:bg-[var(--app-subtle-bg)] disabled:cursor-not-allowed disabled:opacity-50'
     return <div className="mx-auto w-full max-w-content px-3 py-1 text-xs text-[var(--app-hint)]" data-testid="native-thread-commands">
-        {state?.capabilities.plan ? <div className="flex flex-wrap items-center gap-2">
-            <span>{t('nativeCommands.plan')}: {mode === 'plan' ? t('nativeCommands.on') : mode === 'default' ? t('nativeCommands.off') : t('nativeCommands.unknown')}</span>
-            <button type="button" className={actionClass} disabled={disabled || commands.pending || mode !== 'plan' && mode !== 'default'}
-                onClick={() => void commands.execute({ command: { command: 'plan', mode: mode === 'plan' ? 'default' : 'plan' } }).catch(() => {})}>{mode === 'plan' ? t('nativeCommands.planOff') : t('nativeCommands.planOn')}</button>
-        </div> : null}
         {goal ? <div className="py-1">
             <div className="flex flex-wrap items-center gap-2"><span>{t('nativeCommands.goal')}: {t(`nativeCommands.goalStatus.${goal.status}`)}</span>
                 {state?.capabilities.goal ? <>

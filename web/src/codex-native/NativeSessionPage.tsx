@@ -23,7 +23,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useSessions } from '@/hooks/queries/useSessions'
 import { nativeThreadReferenceMessage } from './nativeThreadReferences'
 import { useNativeThreadCommands } from './useNativeThreadCommands'
-import { NativeThreadCommandsBar } from './NativeThreadCommandsBar'
+import { NativePlanButton, NativeThreadCommandsBar } from './NativeThreadCommandsBar'
 import { isNativeCommandSubmissionUnconfirmed } from './nativeThreadCommands'
 import { parseCodexThreadCommand, MAX_CODEX_GOAL_OBJECTIVE_CHARS } from '@hapi/protocol/codexThreadCommands'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
@@ -194,6 +194,7 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
+                modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
                 queueContent: <><NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
                     activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
                 onSubmitCommand: async text => {

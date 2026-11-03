@@ -40,22 +40,26 @@ it('runs management commands without a chat message, queue mutation or new model
     expect(api.codexNativeCommand).toHaveBeenCalledWith('native-thread', { command: { command: 'goal', action: 'show' } })
     expect(api.codexNativeAction).not.toHaveBeenCalled()
     expect(queue.refresh).not.toHaveBeenCalled()
+    for (const objective of ['pause', 'resume', 'clear', 'show']) {
+        await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!(`/goal ${objective}`)).toBe('handled') })
+        expect(api.codexNativeCommand).toHaveBeenLastCalledWith('native-thread', { command: { command: 'goal', action: 'set', objective } })
+    }
     await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!(`/goal ${'😀'.repeat(4000)}`)).toBe('handled') })
-    expect(api.codexNativeCommand).toHaveBeenCalledTimes(2)
+    expect(api.codexNativeCommand).toHaveBeenCalledTimes(6)
     await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!(`/goal ${'😀'.repeat(4001)}`)).toBe('failed') })
-    expect(api.codexNativeCommand).toHaveBeenCalledTimes(2)
+    expect(api.codexNativeCommand).toHaveBeenCalledTimes(6)
 })
 
-it('submits a quoted plan prompt once through the queue command even when explicit steer was requested', async () => {
+it.each(['Explain this', 'off'])('submits a quoted plan prompt %s once through the queue command even when explicit steer was requested', async prompt => {
     const post = vi.fn().mockResolvedValue({ command: 'plan', applied: { collaborationMode: { mode: 'plan' } }, submission: { accepted: true } })
     const api = setup(post)
     const annotations = [{ text: 'Selected', annotation: 'Keep note', source: { messageId: 'source', startOffset: 0, endOffset: 8 } }]
-    const text = serializeResponseAnnotations('/plan Explain this', annotations)
+    const text = serializeResponseAnnotations(`/plan ${prompt}`, annotations)
     await act(async () => { expect(await ui.props!.onSend(text, [{ path: '/native/file' }] as AttachmentMetadata[], null, 'steer')).toBeTruthy() })
     expect(post).toHaveBeenCalledOnce()
     const request = post.mock.calls[0][1]
     expect(request.command.command).toBe('plan')
-    expect(splitResponseAnnotations(request.command.prompt)).toEqual({ body: 'Explain this', annotations })
+    expect(splitResponseAnnotations(request.command.prompt)).toEqual({ body: prompt, annotations })
     expect(request.attachments).toEqual([{ path: '/native/file' }])
     expect(request.expectedTurnId).toBeUndefined()
     expect(api.codexNativeAction).not.toHaveBeenCalled()

@@ -80,11 +80,13 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
                 if (result.command === 'goal' && result.goal !== undefined) return { ...previous, goal: result.goal }
                 return previous
             })
-            setFeedback({ text: result.command === 'plan'
-                ? result.submission?.startError ? t('nativeCommands.queuedStartError', { error: result.submission.startError })
-                    : result.submission ? t('nativeCommands.planQueued') : t('nativeCommands.updated')
-                : result.action === 'clear' && result.cleared === false ? t('nativeCommands.notCleared')
-                    : result.goal === null ? t('nativeCommands.noGoal') : t('nativeCommands.updated'), error: false })
+            setFeedback(result.command === 'plan' && result.submission?.startError
+                ? { text: t('nativeCommands.queuedStartError', { error: result.submission.startError }), error: true }
+                : result.command === 'goal' && result.action === 'clear' && result.cleared === false
+                    ? { text: t('nativeCommands.notCleared'), error: true }
+                    : result.command === 'goal' && result.action === 'show' && result.goal === null
+                        ? { text: t('nativeCommands.noGoal'), error: false }
+                        : null)
             void query.refetch()
             return result
         } catch (error) {
