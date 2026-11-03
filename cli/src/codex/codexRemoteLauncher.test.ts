@@ -2047,7 +2047,7 @@ describe('codexRemoteLauncher', () => {
         await codexRemoteLauncher(session as never);
 
         expect(harness.startTurnParams).toHaveLength(0);
-        expect(harness.goalSetCalls.map(call => call.objective)).toEqual(['improve benchmark coverage', 'pause', 'resume', 'clear']);
+        expect(harness.goalSetCalls).toMatchObject(['improve benchmark coverage', 'pause', 'resume', 'clear'].map(objective => ({ objective })));
     });
 
     it('tracks externally started turns used by app-server goals', async () => {
