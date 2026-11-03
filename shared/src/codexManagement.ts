@@ -85,9 +85,21 @@ function guardianAction(action: RecordValue): RecordValue | null {
                 connector_id: action.connectorId, connector_name: action.connectorName, tool_title: action.toolTitle,
             }
         case 'requestPermissions':
-            return { type: 'request_permissions', reason: action.reason, permissions: action.permissions }
+            return { type: 'request_permissions', reason: action.reason, permissions: guardianPermissions(record(action.permissions)) }
         default:
             return null
+    }
+}
+
+function guardianPermissions(permissions: RecordValue): RecordValue {
+    const fileSystem = record(permissions.fileSystem)
+    return {
+        network: permissions.network ?? null,
+        file_system: permissions.fileSystem == null ? null
+            : Array.isArray(fileSystem.entries) ? {
+                entries: fileSystem.entries,
+                ...(fileSystem.globScanMaxDepth === undefined ? {} : { glob_scan_max_depth: fileSystem.globScanMaxDepth }),
+            } : { read: fileSystem.read ?? null, write: fileSystem.write ?? null },
     }
 }
 

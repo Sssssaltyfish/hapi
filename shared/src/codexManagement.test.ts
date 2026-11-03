@@ -20,6 +20,13 @@ describe('Codex management protocol', () => {
         denials.observe('thread', 'item/autoApprovalReview/completed', { ...event, reviewId: 'next' })
         denials.observe('thread', 'turn/started', { threadId: 'thread', turn: { id: 'later' } })
         expect(denials.show()).toBeNull()
+        denials.observe('thread', 'item/autoApprovalReview/completed', { ...event, reviewId: 'permission', action: {
+            type: 'requestPermissions', reason: 'One directory', permissions: { network: null, fileSystem: {
+                read: null, write: null, entries: [{ path: { type: 'path', path: '/project/only' }, access: 'write' }], globScanMaxDepth: 2,
+            } },
+        } })
+        expect(denials.claim('permission')?.action).toEqual({ type: 'request_permissions', reason: 'One directory',
+            permissions: { network: null, file_system: { entries: [{ path: { type: 'path', path: '/project/only' }, access: 'write' }], glob_scan_max_depth: 2 } } })
     })
 
     test('uses the exact raw guardian assessment without accepting a user-authored RPC payload', () => {
