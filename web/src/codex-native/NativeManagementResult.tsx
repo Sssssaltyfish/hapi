@@ -28,12 +28,12 @@ export function NativeManagementResult({ result, pendingCommand, pending, disabl
 }) {
     const { t } = useTranslation()
     const [attempted, setAttempted] = useState<Set<string>>(() => new Set())
-    if (pendingCommand === 'recap') return <div role="status" className="mx-3 rounded-lg border p-3 text-sm">{t('nativeManagement.recapPending')}</div>
+    if (!result && pendingCommand === 'recap') return <div role="status" className="px-4 py-3 text-sm text-[var(--app-hint)]">{t('nativeManagement.recapPending')}</div>
     if (!result) return null
-    return <section aria-label={t('nativeManagement.resultLabel')} className="mx-3 max-h-[min(45vh,24rem)] overflow-y-auto overscroll-contain rounded-lg border p-3">
+    return <section aria-label={t('nativeManagement.resultLabel')} className="max-h-[min(45vh,24rem)] overflow-y-auto overscroll-contain px-4 py-3">
         <div className="float-right ml-2"><button type="button" aria-label={t('nativeManagement.close')} onClick={dismiss}>×</button></div>
         {result.command === 'compact' && <p className="text-sm" role="status">{t('nativeManagement.compactAccepted')}</p>}
-        {result.command === 'recap' && <><p className="text-sm font-medium">{t('nativeManagement.recapTitle')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{result.text}</p><p className="mt-2 text-xs text-[var(--app-hint)]">{t('nativeManagement.recapSeparate')}</p></>}
+        {result.command === 'recap' && <><p className="text-sm font-medium">{t('nativeManagement.recapTitle')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{result.text}</p></>}
         {result.command === 'usage' && <CodexUsagePanel snapshot={result.snapshot} />}
         {result.command === 'approve' && (result.action === 'retry' ? <p className="text-sm" role="status">{t('nativeManagement.retryAccepted')}</p>
             : result.denial ? <>
@@ -42,8 +42,7 @@ export function NativeManagementResult({ result, pendingCommand, pending, disabl
                 {result.denial.action.type === 'request_permissions' && <pre className="mt-2 whitespace-pre-wrap break-words text-sm">{JSON.stringify(result.denial.action.permissions, null, 2)}</pre>}
                 {typeof result.denial.action.cwd === 'string' && <p className="mt-1 break-all text-xs text-[var(--app-hint)]">{result.denial.action.cwd}</p>}
                 {result.denial.rationale && <p className="mt-2 whitespace-pre-wrap text-sm">{result.denial.rationale}</p>}
-                <p className="mt-2 text-xs text-[var(--app-hint)]">{t('nativeManagement.retryPolicy')}</p>
-                <button type="button" className="mt-2 rounded-md border px-3 py-1.5 text-sm disabled:opacity-50"
+                <button type="button" className="mt-2 rounded-md bg-[var(--app-secondary-bg)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-2 focus-visible:outline-[var(--app-link)] disabled:opacity-50"
                     disabled={disabled || pending || attempted.has(result.denial.reviewId)}
                     onClick={() => {
                         const reviewId = result.denial!.reviewId

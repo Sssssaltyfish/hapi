@@ -212,7 +212,7 @@ export function codexUsageSummary(snapshot: CodexUsageSnapshot): string {
     if (snapshot.thread?.creditsMicros !== null && snapshot.thread?.creditsMicros !== undefined) {
         lines.push(`Estimated thread credits consumed: ${codexMicroAmount(snapshot.thread.creditsMicros)}`)
     }
-    if (snapshot.ordinaryUsageAllowed === false) lines.push('The native account currently does not allow ordinary included usage.')
+    if (snapshot.ordinaryUsageAllowed === false) lines.push('Included usage: unavailable')
     for (const error of Object.values(snapshot.unavailable)) if (error) lines.push(error)
     lines.push(`Read at ${new Date(snapshot.readAt).toISOString()}`)
     return lines.join('\n')

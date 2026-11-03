@@ -38,7 +38,7 @@ function Window({ value, label }: { value: CodexUsageWindow; label: string }) {
         ? t('codexUsage.days', { count: duration / 1440 })
         : duration >= 60 && duration % 60 === 0 ? t('codexUsage.hours', { count: duration / 60 })
             : t('codexUsage.minutes', { count: duration })}`
-    return <div className="rounded-md bg-[var(--app-bg)] p-3" aria-label={windowLabel}>
+    return <div className="space-y-2" aria-label={windowLabel}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h4 className="text-sm font-medium">{windowLabel}</h4>
             <p className="text-base font-semibold tabular-nums">{value.remainingPercent === null
@@ -49,7 +49,7 @@ function Window({ value, label }: { value: CodexUsageWindow; label: string }) {
             <div className="h-full rounded bg-[var(--app-link)]" style={{ width: `${value.remainingPercent}%` }} />
         </div>}
         <Rows values={[
-            [t('codexUsage.resets'), date(value.resetsAt) ?? t('codexUsage.unknown')],
+            [t('codexUsage.resets'), date(value.resetsAt)],
         ]} />
     </div>
 }
@@ -65,7 +65,7 @@ function Limit({ value }: { value: CodexUsageLimit }) {
     }
     const credits = value.credits
     const spending = value.spending
-    return <section className="space-y-3 rounded-lg border p-3">
+    return <section className="space-y-3">
         <div className="flex flex-wrap justify-between gap-2">
             <h3 className="font-medium">{value.name ?? value.id ?? t('codexUsage.allowance')}</h3>
             {value.plan && <span className="rounded bg-[var(--app-bg)] px-2 py-0.5 text-xs">{t('codexUsage.plan')}: {value.plan.replace(/_/g, ' ')}</span>}
@@ -75,7 +75,7 @@ function Limit({ value }: { value: CodexUsageLimit }) {
         {value.secondary && <Window value={value.secondary} label={t('codexUsage.secondary')} />}
         {!value.primary && !value.secondary && <p className="text-sm text-[var(--app-hint)]">{t('codexUsage.remainingUnknown')}</p>}
         {value.reachedReason && <p className="text-sm">{reasons[value.reachedReason] ?? t('codexUsage.limitReported')}</p>}
-        {credits && <div className="space-y-2 border-t pt-2">
+        {credits && (credits.balance !== null || credits.available !== null || credits.unlimited !== null) && <div className="space-y-2 pt-2">
             <h4 className="text-sm font-medium">{t('codexUsage.credits')}</h4>
             <Rows values={[
                 [t('codexUsage.creditBalance'), credits.balance === null ? null : decimal(credits.balance)],
@@ -83,7 +83,7 @@ function Limit({ value }: { value: CodexUsageLimit }) {
                 [t('codexUsage.creditLimit'), credits.unlimited === null ? null : credits.unlimited ? t('codexUsage.unlimitedCredits') : t('codexUsage.limitedCredits')],
             ]} />
         </div>}
-        {(spending || value.spendControlReached !== null) && <div className="space-y-2 border-t pt-2">
+        {(spending || value.spendControlReached !== null) && <div className="space-y-2 pt-2">
             <h4 className="text-sm font-medium">{t('codexUsage.spending')}</h4>
             <Rows values={[
                 [t('codexUsage.remaining'), spending?.remainingPercent == null ? null : `${spending.remainingPercent.toLocaleString()}%`],
@@ -101,17 +101,21 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
     const { t } = useTranslation()
     const summary = snapshot.summary
     const thread = snapshot.thread
+    const hasSummary = summary && Object.values(summary).some(value => value !== null)
+    const hasThread = thread && (thread.creditsMicros !== null || thread.usdMicros !== null || thread.groups.length > 0)
+    const hasUsage = snapshot.ordinaryUsageAllowed !== null || snapshot.limits.length > 0 || snapshot.resetCredits
+        || hasSummary || hasThread || snapshot.daily?.length || Object.values(snapshot.unavailable).some(Boolean)
     return <div className="space-y-3 text-left text-[var(--app-fg)]" aria-label={t('codexUsage.title')}>
         <div>
             <h2 className="font-semibold">{t('codexUsage.title')}</h2>
             <p className="mt-1 text-xs text-[var(--app-hint)]">{t('codexUsage.snapshotAt')} {date(snapshot.readAt, false)}</p>
         </div>
-        <p className="text-sm">{snapshot.ordinaryUsageAllowed === null ? t('codexUsage.permissionUnknown')
-            : snapshot.ordinaryUsageAllowed ? t('codexUsage.permissionAllowed') : t('codexUsage.permissionBlocked')}</p>
-        {snapshot.limits.map((value, index) => <Limit key={value.id ?? index} value={value} />)}
-        {snapshot.limits.length > 0 && <p className="text-xs text-[var(--app-hint)]">{t('codexUsage.percentNote')}</p>}
+        {!hasUsage && <p className="text-sm text-[var(--app-hint)]">{t('codexUsage.usageUnavailable')}</p>}
+        <Rows values={[[t('codexUsage.includedUsage'), snapshot.ordinaryUsageAllowed === null ? null
+            : snapshot.ordinaryUsageAllowed ? t('codexUsage.available') : t('codexUsage.unavailable')]]} />
+        <div className="space-y-5">{snapshot.limits.map((value, index) => <Limit key={value.id ?? index} value={value} />)}</div>
         {snapshot.unavailable.rateLimits && <p className="whitespace-pre-wrap text-sm text-[var(--app-hint)]">{t('codexUsage.limitsUnavailable')} {snapshot.unavailable.rateLimits}</p>}
-        {snapshot.resetCredits && <section className="space-y-2 rounded-lg border p-3">
+        {snapshot.resetCredits && <section className="space-y-2 pt-2">
             <h3 className="text-sm font-medium">{t('codexUsage.resetCredits')}</h3>
             <Rows values={[[t('codexUsage.availableResets'), count(snapshot.resetCredits.available) ?? t('codexUsage.unknown')]]} />
             {snapshot.resetCredits.credits?.length ? <details>
@@ -123,16 +127,15 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
                 </div>)}</div>
             </details> : null}
         </section>}
-        {thread && <section className="space-y-2 rounded-lg border p-3">
+        {thread && hasThread && <section className="space-y-2 pt-2">
             <h3 className="text-sm font-medium">{t('codexUsage.threadConsumption')}</h3>
             <Rows values={[
-                [t('codexUsage.estimatedCredits'), thread.creditsMicros === null ? t('codexUsage.unknown') : decimal(codexMicroAmount(thread.creditsMicros))],
+                [t('codexUsage.estimatedCredits'), thread.creditsMicros === null ? null : decimal(codexMicroAmount(thread.creditsMicros))],
                 [t('codexUsage.estimatedUsd'), thread.usdMicros === null ? null : `$${decimal(codexMicroAmount(thread.usdMicros))}`],
             ]} />
-            <p className="text-xs text-[var(--app-hint)]">{t('codexUsage.estimateNote')}</p>
             {thread.groups.length > 0 && <details>
                 <summary className="cursor-pointer text-sm">{t('codexUsage.modelBreakdown')}</summary>
-                <div className="mt-2 space-y-3">{thread.groups.map((group, index) => <div key={index} className="rounded-md bg-[var(--app-bg)] p-2">
+                <div className="mt-3 space-y-4">{thread.groups.map((group, index) => <div key={index}>
                     <p className="mb-2 break-words text-sm font-medium">{[group.model, group.reasoning, group.speed].filter(Boolean).join(' · ') || t('codexUsage.modelUnknown')}</p>
                     <Rows values={[
                         [t('codexUsage.estimatedCredits'), group.creditsMicros === null ? null : decimal(codexMicroAmount(group.creditsMicros))],
@@ -145,8 +148,8 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
                 </div>)}</div>
             </details>}
         </section>}
-        {summary && <section className="space-y-2 rounded-lg border p-3">
-            <h3 className="text-sm font-medium">{t('codexUsage.accountActivity')}</h3>
+        {summary && hasSummary && <details className="space-y-2 pt-2">
+            <summary className="cursor-pointer text-sm font-medium">{t('codexUsage.accountActivity')}</summary>
             <Rows values={[
                 [t('codexUsage.lifetimeTokens'), count(summary.lifetimeTokens)],
                 [t('codexUsage.peakDailyTokens'), count(summary.peakDailyTokens)],
@@ -154,8 +157,8 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
                 [t('codexUsage.currentStreak'), summary.currentStreakDays === null ? null : t('codexUsage.days', { count: count(summary.currentStreakDays)! })],
                 [t('codexUsage.longestStreak'), summary.longestStreakDays === null ? null : t('codexUsage.days', { count: count(summary.longestStreakDays)! })],
             ]} />
-        </section>}
-        {snapshot.daily?.length ? <details className="rounded-lg border p-3 text-sm">
+        </details>}
+        {snapshot.daily?.length ? <details className="pt-2 text-sm">
             <summary className="cursor-pointer">{t('codexUsage.dailyConsumption')}</summary>
             <div className="mt-2 max-h-64 overflow-y-auto"><Rows values={[...snapshot.daily].sort((a, b) => b.date.localeCompare(a.date)).map(day => [day.date, count(day.tokens)])} /></div>
         </details> : null}

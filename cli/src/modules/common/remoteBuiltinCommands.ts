@@ -92,17 +92,17 @@ export class RemoteUsageSnapshot {
         if (this.duration !== undefined) costs.push(`Reported duration: ${this.duration < 1000 ? count(this.duration) + ' ms' : count(this.duration / 1000) + ' s'}`)
         if (costs.length) sections.push('Cost and duration\n' + costs.join('\n'))
         if (this.messages !== undefined) sections.push(`Activity\nMessages: ${count(this.messages)}`)
-        if (sections.length === 1) sections.push('No session usage has been reported by this provider yet.')
+        if (sections.length === 1) sections.push('Session usage unavailable.')
         if (this.limits.size) {
             sections.push('Account limits and remaining quota · last reported\n' + [...this.limits.values()].map(limit => {
                 const details: string[] = [limit.name]
-                if (limit.resetsAt !== undefined && limit.resetsAt <= Date.now()) details.push('reported window has reset; current remaining quota is not reported')
+                if (limit.resetsAt !== undefined && limit.resetsAt <= Date.now()) details.push('remaining quota unavailable')
                 else if (limit.usedPercent !== undefined) details.push(`remaining ${count(Math.max(0, 100 - limit.usedPercent))}%`)
                 else if (limit.reached) details.push('limit reached')
                 if (limit.resetsAt !== undefined && Number.isFinite(new Date(limit.resetsAt).getTime())) details.push(`resets ${new Date(limit.resetsAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC')}`)
                 return details.join(' · ')
             }).join('\n'))
-        } else sections.push('Account limits and remaining quota\nNot reported by this provider. Context space is not account quota.')
+        } else sections.push('Account limits\nUnavailable')
         return sections.join('\n\n')
     }
 }
@@ -126,10 +126,10 @@ export function resolveRemoteBuiltinCommand(options: {
     if (command.name === 'usage') return command.args ? 'Usage: /usage (no arguments)' : options.usage.describe()
     if (command.name === 'approve') {
         if (options.flavor === 'dsh' && options.nativeCommands?.includes('permission')) {
-            return 'DSH provides /permission for its native permission presets. Use /permission or this chat’s permission setting to inspect or choose a preset. A tool request waiting for a decision can be handled in its approval card.'
+            return 'Use /permission or session settings to choose a permission preset. Review pending tool requests in their approval cards.'
         }
-        if (options.flavor === 'pi') return 'Pi runs tools automatically in this session, without per-tool approval prompts. There is no manual approval or permission switch here; installed extension commands keep their own behavior.'
+        if (options.flavor === 'pi') return 'Pi runs tools automatically. Manual approval is unavailable.'
         return 'Use the pending approval card in this chat to review and allow or deny a waiting tool request. Open the session settings for this provider’s permission controls.'
     }
-    return `/${command.name} is not supported by this provider runner. The command was not sent to the model.`
+    return `/${command.name} is unavailable for this provider.`
 }
