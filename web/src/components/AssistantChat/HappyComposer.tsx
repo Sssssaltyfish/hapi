@@ -53,7 +53,6 @@ import { StatusBar } from '@/components/AssistantChat/StatusBar'
 import {
     ComposerButtons,
     UnifiedButton,
-    isComposerPrimaryFillHeight,
 } from '@/components/AssistantChat/ComposerButtons'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import { SortableComposerAttachments } from '@/components/AssistantChat/SortableComposerAttachments'
@@ -1667,13 +1666,6 @@ export function HappyComposer(props: {
     const showAbortButton = true
     const voiceEnabled = Boolean(effectiveVoiceToggle)
     const routesToScratchlist = (props.scratchlistMode ?? false) && pendingSchedule == null
-    const primaryFillHeight = isComposerPrimaryFillHeight({
-        canSend,
-        voiceEnabled,
-        voiceStatus: effectiveVoiceStatus,
-        routesToScratchlist,
-        expanded: isExpanded,
-    })
 
     const invokeDictateHotkey = useCallback(() => {
         if (!shouldInvokeComposerDictateShortcut({
@@ -2313,27 +2305,25 @@ export function HappyComposer(props: {
                     ) : null}
 
                     <div
-                        className={`flex overflow-hidden rounded-[20px] bg-[var(--app-secondary-bg)] ${
+                        className={`flex flex-col overflow-hidden rounded-[20px] bg-[var(--app-secondary-bg)] ${
                             isExpanded ? 'min-h-0 flex-1' : ''
                         } ${
                             sendError ? 'ring-1 ring-red-500' : ''
                         }`}
                         data-testid="composer-card"
                     >
-                        <div className={`flex min-w-0 flex-1 flex-col ${
-                            isExpanded ? 'min-h-0' : ''
-                        }`}>
-                            {annotationDraft.annotations.length > 0 ? <div className="px-4 pt-3">
-                                <ResponseAnnotationCards annotations={annotationDraft.annotations}
-                                    onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
-                                        handleUserEdit()
-                                        annotationDraft.setAnnotation(index, annotation)
-                                    }}
-                                    onRemove={controlsDisabled ? undefined : (index) => {
-                                        handleUserEdit()
-                                        annotationDraft.remove(index)
-                                    }} />
-                            </div> : null}
+                        {annotationDraft.annotations.length > 0 ? <div className="max-h-[min(14rem,35dvh)] shrink-0 overflow-y-auto px-4 pt-2" data-testid="composer-quotes" data-hapi-nested-scroll="true">
+                            <ResponseAnnotationCards annotations={annotationDraft.annotations}
+                                onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
+                                    handleUserEdit()
+                                    annotationDraft.setAnnotation(index, annotation)
+                                }}
+                                onRemove={controlsDisabled ? undefined : (index) => {
+                                    handleUserEdit()
+                                    annotationDraft.remove(index)
+                                }} />
+                        </div> : null}
+                        <div className={`flex min-h-0 min-w-0 flex-col ${isExpanded ? 'flex-1' : ''}`} data-testid="composer-input-row">
                             {attachments.length > 0 ? (
                                 <div className={`flex flex-wrap gap-2 px-4 pt-3 ${
                                     isExpanded ? 'max-h-[35%] shrink-0 overflow-y-auto' : ''
@@ -2347,9 +2337,9 @@ export function HappyComposer(props: {
                                 </div>
                             ) : null}
 
-                            <div className={`flex px-4 py-3 ${
-                                isExpanded ? 'min-h-0 flex-1 items-stretch' : 'items-center'
-                            }`}>
+                            <div className={`relative flex min-h-16 px-4 py-3 pr-16 ${
+                                isExpanded ? 'flex-1 items-stretch' : 'items-center'
+                            }`} data-testid="composer-editor">
                                 {richMentionsEnabled ? (
                                     <div
                                         ref={richComposerFueAnchorRef}
@@ -2399,7 +2389,7 @@ export function HappyComposer(props: {
                                         onSelect={handleSelect}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
-                                        className={`${isExpanded ? 'h-full min-h-0' : 'max-h-40'} flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50`}
+                                        className={`${isExpanded ? 'h-full min-h-0' : 'max-h-40'} flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50`}
                                     />
                                 ) : isExpanded ? (
                                     <ComposerPrimitive.Input
@@ -2419,7 +2409,7 @@ export function HappyComposer(props: {
                                                 showContinueHint,
                                             }))}
                                             disabled={controlsDisabled}
-                                            className="h-full min-h-0 flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                            className="h-full min-h-0 flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                     </ComposerPrimitive.Input>
                                 ) : (
@@ -2438,9 +2428,21 @@ export function HappyComposer(props: {
                                         onSelect={handleSelect}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
-                                        className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex-1 resize-none bg-transparent text-base leading-snug text-[var(--app-fg)] hapi-composer-field focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                     />
                                 )}
+                                <div className="absolute bottom-2 right-3">
+                                    <UnifiedButton
+                                        canSend={canSend}
+                                        voiceStatus={effectiveVoiceStatus}
+                                        voiceEnabled={voiceEnabled}
+                                        controlsDisabled={controlsDisabled}
+                                        onSend={handleSend}
+                                        onVoiceToggle={effectiveVoiceToggle ?? (() => {})}
+                                        voiceLabel={dictationActive ? t('composer.dictate') : undefined}
+                                        routesToScratchlist={routesToScratchlist}
+                                    />
+                                </div>
                             </div>
                             {richMentionsEnabled && sessionMentionsEnabled && richComposerFueStatus === 'engaging' ? (
                                 <FueCallout
@@ -2502,26 +2504,6 @@ export function HappyComposer(props: {
                                 scratchlistCount={props.scratchlistCount}
                                 onScratchlistToggle={props.onScratchlistToggle}
                                 omitPrimaryButton
-                            />
-                        </div>
-                        {/* Collapsed card: fill-height primary (empty → voice; draft → Send). Expanded: compact. */}
-                        <div
-                            className={
-                                primaryFillHeight
-                                    ? 'flex shrink-0 self-stretch items-stretch'
-                                    : 'flex shrink-0 items-end self-stretch py-3 pr-3'
-                            }
-                        >
-                            <UnifiedButton
-                                canSend={canSend}
-                                voiceStatus={effectiveVoiceStatus}
-                                voiceEnabled={voiceEnabled}
-                                controlsDisabled={controlsDisabled}
-                                onSend={handleSend}
-                                onVoiceToggle={effectiveVoiceToggle ?? (() => {})}
-                                voiceLabel={dictationActive ? t('composer.dictate') : undefined}
-                                fillHeight={primaryFillHeight}
-                                routesToScratchlist={routesToScratchlist}
                             />
                         </div>
                     </div>

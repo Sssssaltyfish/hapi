@@ -149,7 +149,7 @@ function palette(accent: string, background: string, foreground: string, hint: s
         code: isDark ? mix(background, '#ffffff', 0.11) : mix(background, '#000000', 0.045),
         border: withAlpha(isDark ? '#ffffff' : '#0f172a', isDark ? 0.11 : 0.10),
         subtle: withAlpha(isDark ? '#ffffff' : '#0f172a', isDark ? 0.06 : 0.045),
-        buttonText: readableText(accent),
+        buttonText: themeButtonTextColor(accent),
     }
 }
 
@@ -352,8 +352,49 @@ function compositeOnBackground(rgba: string, background: string): string {
     return toHex(blend(Number(match[1]), base.r), blend(Number(match[2]), base.g), blend(Number(match[3]), base.b))
 }
 
-function readableText(hex: string): string {
-    return relativeLuminance(hex) > 0.45 ? '#111827' : '#ffffff'
+export function themeButtonTextColor(hex: string): string {
+    const background = relativeLuminance(hex)
+    const dark = '#111827'
+    const darkContrast = (background + 0.05) / (relativeLuminance(dark) + 0.05)
+    const lightContrast = 1.05 / (background + 0.05)
+    return darkContrast >= lightContrast ? dark : '#ffffff'
+}
+
+export function composerHintColors(hint: string, surface: string, text: string) {
+    const background = relativeLuminance(surface)
+    const contrast = (color: string) => {
+        const ink = relativeLuminance(color)
+        return (Math.max(background, ink) + 0.05) / (Math.min(background, ink) + 0.05)
+    }
+    const base = mix(hint, surface, 0.22)
+    let readableInk = text
+    if (contrast(text) < 4.5) {
+        readableInk = contrast('#ffffff') > contrast('#000000') ? '#ffffff' : '#000000'
+    }
+
+    // Keep the palette's hint hue. Move toward the surface if it is already
+    // legible, or toward the text color if it needs more contrast.
+    function shade(target: number): string {
+        const soften = contrast(base) >= target
+        const from = soften ? surface : base
+        const to = soften ? base : readableInk
+        let result = to
+        let low = 0
+        let high = 1
+        for (let i = 0; i < 8; i++) {
+            const amount = (low + high) / 2
+            const candidate = mix(from, to, amount)
+            if (contrast(candidate) >= target) {
+                result = candidate
+                high = amount
+            } else {
+                low = amount
+            }
+        }
+        return result
+    }
+
+    return { idle: shade(5), focused: shade(3.6) }
 }
 
 function relativeLuminance(hex: string): number {

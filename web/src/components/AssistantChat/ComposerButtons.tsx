@@ -71,42 +71,6 @@ function VoiceAssistantIcon(props: { size?: number }) {
 }
 
 /**
- * Primary composer control fills the collapsed card height (Quest / touch).
- * Empty → giant voice/dictate; draft → giant Send. Draft voice stays a
- * compact toolbar circle (no width stolen from the text column).
- * Expanded editor: stay compact — fill-height would become a full-shell strip.
- */
-export function isComposerPrimaryFillHeight(args: {
-    canSend: boolean
-    voiceEnabled: boolean
-    voiceStatus: ConversationStatus
-    routesToScratchlist?: boolean
-    expanded?: boolean
-}): boolean {
-    if (args.expanded) return false
-    if (args.voiceStatus === 'connecting' || args.voiceStatus === 'connected') return true
-    if (args.routesToScratchlist) return true
-    if (args.canSend) return true
-    if (args.voiceEnabled) return true
-    // Disabled grey Send when empty + voice off — still fill so layout does not jump.
-    return true
-}
-
-/** Empty idle voice/dictate — FUE + morph target (not the fill-height gate). */
-export function isLargeEmptyVoicePrimary(args: {
-    canSend: boolean
-    voiceEnabled: boolean
-    voiceStatus: ConversationStatus
-    routesToScratchlist?: boolean
-}): boolean {
-    if (args.canSend) return false
-    if (args.routesToScratchlist) return false
-    if (!args.voiceEnabled) return false
-    if (args.voiceStatus === 'connecting' || args.voiceStatus === 'connected') return false
-    return true
-}
-
-/**
  * When draft steals the primary for Send, keep voice/dictate reachable via the
  * compact toolbar DictationButton (under the text — does not eat composer width).
  */
@@ -121,18 +85,6 @@ export function shouldShowDraftVoiceButton(args: {
     if (args.routesToScratchlist) return false
     if (args.voiceStatus === 'connecting' || args.voiceStatus === 'connected') return false
     return true
-}
-
-export function unifiedButtonSizeClass(fillHeight: boolean): string {
-    // Fill the composer card column: fixed width, stretch height, soft square.
-    // Compact remains for isolated toolbar previews / legacy callers.
-    return fillHeight
-        ? 'h-full min-h-14 w-16 self-stretch rounded-none rounded-r-[20px]'
-        : 'h-8 w-8 rounded-full'
-}
-
-export function draftVoiceCompanionSizeClass(): string {
-    return 'h-full min-h-14 w-12 self-stretch rounded-none'
 }
 
 function SpeakerIcon(props: { muted?: boolean }) {
@@ -424,8 +376,11 @@ export function ComposerToolbarItemPreview(props: { item: ComposerToolbarItemId;
     )
 }
 
+const PRIMARY_BUTTON_COLORS = 'bg-[color-mix(in_srgb,var(--app-button)_16%,var(--app-secondary-bg))] text-[var(--app-fg)] enabled:hover:bg-[var(--app-button)] enabled:hover:text-[var(--app-button-text)] enabled:active:bg-[var(--app-button)] enabled:active:text-[var(--app-button-text)]'
+const ACTIVE_PRIMARY_BUTTON_COLORS = 'bg-[var(--app-button)] text-[var(--app-button-text)] enabled:hover:opacity-90'
+
 export function ComposerSendButtonPreview() {
-    return <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-white dark:bg-white dark:text-black" aria-hidden="true"><SendIcon /></span>
+    return <span className={`flex h-10 w-10 items-center justify-center rounded-full ${PRIMARY_BUTTON_COLORS}`} aria-hidden="true"><SendIcon /></span>
 }
 
 /**
@@ -605,11 +560,6 @@ export function UnifiedButton(props: {
     onVoiceToggle: () => void
     voiceLabel?: string
     /**
-     * When true, stretch to the composer card height (beside input + toolbar).
-     * Default true — Quest / touch need a full-height primary control.
-     */
-    fillHeight?: boolean
-    /**
      * When true, the send button repaints amber and the aria-label
      * announces "Send to scratchlist" instead of "Send message". The
      * actual routing happens in SessionChat's wrapped onSend - the
@@ -629,8 +579,6 @@ export function UnifiedButton(props: {
     const isVoiceActive = isConnecting || isConnected
     const hasText = props.canSend
     const routesToScratchlist = props.routesToScratchlist ?? false
-    const fillHeight = props.fillHeight ?? true
-    const iconSize = fillHeight ? 28 : 18
 
     const handleClick = () => {
         if (isVoiceActive) {
@@ -648,30 +596,30 @@ export function UnifiedButton(props: {
 
     if (isConnecting) {
         icon = <LoadingIcon />
-        className = 'bg-black text-white'
+        className = ACTIVE_PRIMARY_BUTTON_COLORS
         ariaLabel = t('voice.connecting')
     } else if (isConnected) {
         icon = <StopIcon />
-        className = 'bg-black text-white'
+        className = ACTIVE_PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.stop')
     } else if (routesToScratchlist) {
         // Amber send button - matches the scratchlist drawer accent.
         // Single visual signal carries the "this goes to the scratchlist"
         // contract; without it, the modal state is invisible to the user.
         icon = <SendIcon />
-        className = 'bg-amber-500 text-white hover:bg-amber-600'
+        className = 'bg-[var(--app-badge-warning-bg)] text-[var(--app-badge-warning-text)] ring-1 ring-inset ring-[var(--app-badge-warning-border)] enabled:hover:opacity-90'
         ariaLabel = t('scratchlist.sendToScratchlist')
     } else if (hasText) {
         icon = <SendIcon />
-        className = 'bg-black text-white'
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.send')
     } else if (props.voiceEnabled) {
-        icon = <VoiceAssistantIcon size={iconSize} />
-        className = 'bg-black text-white'
+        icon = <VoiceAssistantIcon size={22} />
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = props.voiceLabel ?? t('composer.voice')
     } else {
         icon = <SendIcon />
-        className = 'bg-[#C0C0C0] text-white'
+        className = PRIMARY_BUTTON_COLORS
         ariaLabel = t('composer.send')
     }
 
@@ -694,8 +642,8 @@ export function UnifiedButton(props: {
             aria-label={ariaLabel}
             title={ariaLabel}
             data-testid="composer-unified-button"
-            data-size={fillHeight ? 'fill' : 'compact'}
-            className={`flex ${unifiedButtonSizeClass(fillHeight)} items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+            data-size="round"
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--app-secondary-bg)] disabled:cursor-not-allowed disabled:bg-[var(--app-subtle-bg)] disabled:text-[var(--app-hint)] disabled:ring-0 ${className}`}
         >
             {icon}
         </button>
@@ -715,8 +663,6 @@ export function DictationButton(props: {
     onVoiceToggle: () => void
     /** Override aria/title (dictate vs voice assistant). */
     voiceLabel?: string
-    /** Flush companion beside fill-height Send (HappyComposer omitPrimary). */
-    variant?: 'toolbar' | 'companion'
     routesToScratchlist?: boolean
 }) {
     const { t } = useTranslation()
@@ -729,8 +675,6 @@ export function DictationButton(props: {
     })) return null
 
     const label = props.voiceLabel ?? t('composer.dictate')
-    const companion = props.variant === 'companion'
-    const iconSize = companion ? 24 : 18
 
     return (
         <button
@@ -740,14 +684,10 @@ export function DictationButton(props: {
             aria-label={label}
             title={label}
             data-testid="composer-draft-voice-button"
-            data-variant={companion ? 'companion' : 'toolbar'}
-            className={
-                companion
-                    ? `flex ${draftVoiceCompanionSizeClass()} items-center justify-center bg-black text-white transition-colors hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-50`
-                    : 'flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50'
-            }
+            data-variant="toolbar"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)] disabled:cursor-not-allowed disabled:opacity-50"
         >
-            <VoiceAssistantIcon size={iconSize} />
+            <VoiceAssistantIcon />
         </button>
     )
 }
@@ -809,8 +749,7 @@ export function ComposerButtons(props: {
     scratchlistCount?: number
     onScratchlistToggle?: () => void
     /**
-     * When true, omit UnifiedButton — HappyComposer places it in a
-     * full-height column beside the input + toolbar.
+     * When true, omit UnifiedButton — HappyComposer places it inside the editor.
      */
     omitPrimaryButton?: boolean
 }) {
@@ -1048,8 +987,7 @@ export function ComposerButtons(props: {
 
             {/*
               Draft voice/dictate: compact circle in the toolbar row (under text).
-              Primary column stays a single fill-height Send/voice control so we
-              do not steal horizontal space from the composer.
+              The primary action inside the editor switches to Send.
             */}
             <DictationButton
                 enabled={props.voiceEnabled}
@@ -1074,7 +1012,6 @@ export function ComposerButtons(props: {
                     onSend={props.onSend}
                     onVoiceToggle={props.onVoiceToggle}
                     voiceLabel={props.dictationEnabled ? t('composer.dictate') : undefined}
-                    fillHeight={false}
                     /*
                      * Derived, NOT raw scratchlistMode. Mirror SessionChat's
                      * shouldRouteToScratchlist: amber + "Send to scratchlist"

@@ -12,6 +12,8 @@
     --app-banner-bg: var(--tg-theme-button-color, #111827);
     --app-banner-text: var(--tg-theme-button-text-color, #ffffff);
     --app-secondary-bg: var(--tg-theme-secondary-bg-color, #f3f4f6);
+    --app-composer-placeholder: var(--app-hint);
+    --app-composer-placeholder-focused: var(--app-composer-placeholder);
 
     --app-dialog-bg: #ffffff;
     --app-chat-user-bg: #f2f4f6;
@@ -463,6 +465,18 @@ html:has(.chat-scroll-y) #root {
     opacity: 1;
 }
 
+.hapi-disclosure-chevron,
+.hapi-disclosure-content {
+    transition-duration: var(--app-disclosure-duration);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hapi-disclosure-chevron,
+    .hapi-disclosure-content {
+        transition: none;
+    }
+}
+
 /* Scale content area to use available space on wide screens */
 @media (min-width: 1280px) {
     :root {
@@ -544,6 +558,34 @@ html:has(.chat-scroll-y) #root {
 .happy-chat-text {
     font-size: var(--app-chat-font-size);
     line-height: var(--app-chat-line-height);
+}
+
+.aui-reasoning-content {
+    color: var(--app-hint);
+    font-size: calc(var(--app-chat-font-size) * 0.875);
+    font-weight: 400;
+    line-height: 1.6;
+}
+
+.aui-reasoning-content :where(p, li, table, th, td) {
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6, strong, th) {
+    color: inherit;
+    font-size: inherit;
+    font-weight: 500;
+    line-height: inherit;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6) {
+    margin-block: 0.75em 0.25em;
+}
+
+.aui-reasoning-content :where(h1, h2, h3, h4, h5, h6):first-child {
+    margin-top: 0;
 }
 
 
@@ -758,6 +800,32 @@ html[data-theme="oled"] .shiki span:not([data-line-number]) {
 .tsqd-open-btn-container {
   bottom: 50% !important;
   transform: translateY(50%);
+}
+
+.hapi-composer-field::placeholder,
+.hapi-composer-placeholder {
+    color: var(--app-composer-placeholder);
+    opacity: 1;
+    transition: color 180ms ease-out;
+}
+
+.hapi-composer-field:focus::placeholder,
+.hapi-composer-field:focus-within > .hapi-composer-placeholder {
+    color: var(--app-composer-placeholder-focused);
+}
+
+@media (prefers-contrast: more) {
+    .hapi-composer-field:focus::placeholder,
+    .hapi-composer-field:focus-within > .hapi-composer-placeholder {
+        color: var(--app-composer-placeholder);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hapi-composer-field::placeholder,
+    .hapi-composer-placeholder {
+        transition: none;
+    }
 }
 
 /* Composer attachment controls stay discoverable on touch, but stay quiet

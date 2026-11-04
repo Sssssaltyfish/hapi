@@ -53,11 +53,8 @@ function renderGroup() {
     )
 }
 
-// The collapsible region is the direct div child of .aui-reasoning-group
-// (the header is a button). Collapsed state is signalled by the max-h-0 class.
 function isCollapsed(container: HTMLElement): boolean {
-    const region = container.querySelector('.aui-reasoning-group > div') as HTMLElement
-    return region.className.includes('max-h-0')
+    return container.querySelector('.aui-reasoning-group > button')?.getAttribute('aria-expanded') === 'false'
 }
 
 function setStreaming() {

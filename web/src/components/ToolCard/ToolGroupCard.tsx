@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { ToolGroupBlock } from '@/chat/toolGroups'
 import type { ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
@@ -9,6 +9,7 @@ import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/use-translation'
 import { formatDuration } from '@/chat/presentation'
@@ -39,14 +40,6 @@ export function getToolGroupTiming(tools: ToolCallBlock[], now: number): {
         : null
 
     return { startedAt, completedAt, durationMs, running }
-}
-
-function DetailsIcon(props: { open: boolean }) {
-    return (
-        <svg className={cn('h-4 w-4 transition-transform duration-200', props.open ? 'rotate-90' : null)} viewBox="0 0 16 16" fill="none" data-state={props.open ? 'open' : 'closed'}>
-            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    )
 }
 
 function SummaryBadge(props: { className: string; text: string }) {
@@ -200,6 +193,7 @@ export function ToolGroupCard(props: {
     const { t } = useTranslation()
     const ctx = useHappyChatContext()
     const minimal = ctx.terminalToolDisplayMode === 'minimal'
+    const panelId = useId()
     const expansion = useToolGroupExpansionState()
     const [, setExpansionRevision] = useState(0)
     const toolIds = props.block.tools.map(tool => tool.id)
@@ -258,12 +252,13 @@ export function ToolGroupCard(props: {
                     }}
                     className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                     aria-expanded={open}
+                    aria-controls={panelId}
                 >
                     <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex flex-1 flex-col gap-1">
                             <div className="min-w-0 flex items-center gap-2">
                                 <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
-                                    <DetailsIcon open={open} />
+                                    <DisclosureChevron open={open} />
                                 </div>
                                 <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'text-xs font-normal' : 'text-sm font-medium')} title={minimal ? primaryTitle : undefined}>
                                     {primaryTitle}
@@ -321,40 +316,41 @@ export function ToolGroupCard(props: {
                 </button>
             </CardHeader>
 
-            {open ? (
-                <CardContent className="px-3 pb-3 pt-1">
-                    <div className="flex flex-col gap-2">
-                        {props.block.presentationMode === 'codex-exploration' && !minimal ? (
-                            <CodexExplorationRows tools={props.block.tools} onSelect={setSelectedToolId} />
-                        ) : props.block.tools.map((tool) => {
-                            const timing = getToolTimingDetails(tool.tool, now)
-                            return (
-                                <button
-                                    key={tool.id}
-                                    data-hapi-scroll-anchor={`tool:${tool.id}`}
-                                    type="button"
-                                    className="flex min-w-0 items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
-                                    onClick={() => setSelectedToolId(tool.id)}
-                                >
-                                    <span className={cn('shrink-0', toolStatusColorClass(tool.tool.state))}>
-                                        <ToolStatusIcon state={tool.tool.state} />
-                                    </span>
-                                    <RowLabel block={tool} metadata={props.metadata} minimal={minimal} />
-                                    {!minimal ? <div className="flex shrink-0 items-center gap-2">
-                                        {timing.durationMs != null ? (
-                                            <span className="font-mono text-xs text-[var(--app-hint)]">
-                                                {formatDuration(timing.durationMs)}
-                                            </span>
-                                        ) : null}
-                                        <RowStatusBadge block={tool} />
-                                    </div> : null}
-                                </button>
-                            )
-                        })}
-                    </div>
-
-                </CardContent>
-            ) : null}
+            <DisclosureContent open={open} id={panelId}>
+                {() => (
+                    <CardContent className="px-3 pb-3 pt-1">
+                        <div className="flex flex-col gap-2">
+                            {props.block.presentationMode === 'codex-exploration' && !minimal ? (
+                                <CodexExplorationRows tools={props.block.tools} onSelect={setSelectedToolId} />
+                            ) : props.block.tools.map((tool) => {
+                                const timing = getToolTimingDetails(tool.tool, now)
+                                return (
+                                    <button
+                                        key={tool.id}
+                                        data-hapi-scroll-anchor={`tool:${tool.id}`}
+                                        type="button"
+                                        className="flex min-w-0 items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                                        onClick={() => setSelectedToolId(tool.id)}
+                                    >
+                                        <span className={cn('shrink-0', toolStatusColorClass(tool.tool.state))}>
+                                            <ToolStatusIcon state={tool.tool.state} />
+                                        </span>
+                                        <RowLabel block={tool} metadata={props.metadata} minimal={minimal} />
+                                        {!minimal ? <div className="flex shrink-0 items-center gap-2">
+                                            {timing.durationMs != null ? (
+                                                <span className="font-mono text-xs text-[var(--app-hint)]">
+                                                    {formatDuration(timing.durationMs)}
+                                                </span>
+                                            ) : null}
+                                            <RowStatusBadge block={tool} />
+                                        </div> : null}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </CardContent>
+                )}
+            </DisclosureContent>
 
             <Dialog open={selectedTool !== null} onOpenChange={(nextOpen) => {
                 if (!nextOpen) {

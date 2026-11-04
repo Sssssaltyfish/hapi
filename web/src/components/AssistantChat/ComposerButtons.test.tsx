@@ -12,11 +12,8 @@ import {
     ComposerExpandButton,
     DictationButton,
     getComposerToolbarJustifyContent,
-    isComposerPrimaryFillHeight,
-    isLargeEmptyVoicePrimary,
     shouldShowDraftVoiceButton,
     UnifiedButton,
-    unifiedButtonSizeClass,
 } from './ComposerButtons'
 
 const adapter: ChatModelAdapter = {
@@ -73,10 +70,10 @@ describe('UnifiedButton — routesToScratchlist visual state', () => {
             />,
         )
         const btn = getButton(/scratchlist/i)
-        expect(btn.className).toContain('bg-amber-500')
+        expect(btn.className).toContain('bg-[var(--app-badge-warning-bg)]')
     })
 
-    it('paints chat black + announces "Send" when routesToScratchlist=false (e.g. pending schedule)', () => {
+    it('uses the theme primary + announces "Send" when routesToScratchlist=false (e.g. pending schedule)', () => {
         // Caller computed routesToScratchlist=false because a pending schedule
         // forces chat fallback. The button must look like a normal chat send.
         renderInProviders(
@@ -91,8 +88,8 @@ describe('UnifiedButton — routesToScratchlist visual state', () => {
             />,
         )
         const btn = getButton('Send')
-        expect(btn.className).not.toContain('bg-amber-500')
-        expect(btn.className).toContain('bg-black')
+        expect(btn.className).not.toContain('bg-[var(--app-badge-warning-bg)]')
+        expect(btn.className).toContain('var(--app-button)')
     })
 
     it('defaults routesToScratchlist to false when omitted', () => {
@@ -107,7 +104,7 @@ describe('UnifiedButton — routesToScratchlist visual state', () => {
             />,
         )
         const btn = getButton('Send')
-        expect(btn.className).not.toContain('bg-amber-500')
+        expect(btn.className).not.toContain('bg-[var(--app-badge-warning-bg)]')
     })
 })
 
@@ -165,101 +162,25 @@ describe('UnifiedButton — default send intent', () => {
     })
 })
 
-describe('UnifiedButton — fill-height primary (voice ↔ send)', () => {
+describe('UnifiedButton — voice and send actions', () => {
     afterEach(cleanup)
 
-    it('fills height when empty with voice/dictate afforded', () => {
-        expect(isLargeEmptyVoicePrimary({
-            canSend: false,
-            voiceEnabled: true,
-            voiceStatus: 'disconnected',
-        })).toBe(true)
-        expect(isComposerPrimaryFillHeight({
-            canSend: false,
-            voiceEnabled: true,
-            voiceStatus: 'disconnected',
-        })).toBe(true)
-        expect(unifiedButtonSizeClass(true)).toContain('h-full')
-        expect(unifiedButtonSizeClass(true)).toContain('w-16')
-        expect(unifiedButtonSizeClass(true)).toContain('rounded-r-[20px]')
-
-        renderInProviders(
-            <UnifiedButton
-                canSend={false}
-                voiceStatus="disconnected"
-                voiceEnabled
-                controlsDisabled={false}
-                onSend={() => {}}
-                onVoiceToggle={() => {}}
-                voiceLabel="Dictate"
-                fillHeight
-            />,
-        )
-        const btn = getButton(/^Dictate/)
-        expect(btn.getAttribute('data-size')).toBe('fill')
-        expect(btn.className).toContain('h-full')
-        expect(btn.className).toContain('w-16')
-    })
-
-    it('keeps the same fill-height layout when a draft swaps the icon to Send', () => {
-        // Draft → Send morph; still fill-height. Empty-voice FUE helper stays false.
-        expect(isLargeEmptyVoicePrimary({
-            canSend: true,
-            voiceEnabled: true,
-            voiceStatus: 'disconnected',
-        })).toBe(false)
-        expect(isComposerPrimaryFillHeight({
-            canSend: true,
-            voiceEnabled: true,
-            voiceStatus: 'disconnected',
-        })).toBe(true)
-
-        renderInProviders(
-            <UnifiedButton
-                canSend
-                voiceStatus="disconnected"
-                voiceEnabled
-                controlsDisabled={false}
-                onSend={() => {}}
-                onVoiceToggle={() => {}}
-                fillHeight
-            />,
-        )
-        const btn = getButton('Send')
-        expect(btn.getAttribute('data-size')).toBe('fill')
-        expect(btn.className).toContain('h-full')
-        expect(btn.className).toContain('w-16')
-    })
-
-    it('fills height while voice is connected (stop)', () => {
-        renderInProviders(
-            <UnifiedButton
-                canSend={false}
-                voiceStatus="connected"
-                voiceEnabled
-                controlsDisabled={false}
-                onSend={() => {}}
-                onVoiceToggle={() => {}}
-                fillHeight
-            />,
-        )
-        const btn = getButton('Stop')
-        expect(btn.getAttribute('data-size')).toBe('fill')
-    })
-
-    it('stays compact when the composer editor is expanded', () => {
-        expect(isComposerPrimaryFillHeight({
-            canSend: true,
-            voiceEnabled: true,
-            voiceStatus: 'disconnected',
-            expanded: true,
-        })).toBe(false)
-        expect(isComposerPrimaryFillHeight({
-            canSend: false,
-            voiceEnabled: true,
-            voiceStatus: 'connected',
-            expanded: true,
-        })).toBe(false)
+    it('keeps voice start, default send and voice stop available as the primary action changes', () => {
+        const onSend = vi.fn()
+        const onVoiceToggle = vi.fn()
+        const primary = (canSend: boolean, voiceStatus: 'disconnected' | 'connected') => <I18nProvider><UnifiedButton
+            canSend={canSend} voiceStatus={voiceStatus} voiceEnabled controlsDisabled={false}
+            onSend={onSend} onVoiceToggle={onVoiceToggle} voiceLabel="Dictate" /></I18nProvider>
+        const view = render(primary(false, 'disconnected'))
+        fireEvent.click(getButton('Dictate'))
+        expect(onVoiceToggle).toHaveBeenCalledOnce()
+        view.rerender(primary(true, 'disconnected'))
+        fireEvent.click(getButton('Send'))
+        expect(onSend).toHaveBeenCalledWith('default')
+        view.rerender(primary(true, 'connected'))
+        fireEvent.click(getButton('Stop'))
+        expect(onVoiceToggle).toHaveBeenCalledTimes(2)
+        expect(onSend).toHaveBeenCalledOnce()
     })
 })
 

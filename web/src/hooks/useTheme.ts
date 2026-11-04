@@ -191,7 +191,7 @@ export function initializeTheme(): void {
         const tg = getTelegramWebApp()
         if (tg?.onEvent) {
             // Telegram theme changes
-            tg.onEvent('themeChanged', () => updateScheme())
+            tg.onEvent('themeChanged', () => updateScheme(true))
         } else if (typeof window !== 'undefined' && window.matchMedia) {
             // Browser system preference changes
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')

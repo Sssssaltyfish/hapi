@@ -138,12 +138,11 @@ vi.mock('@/components/AssistantChat/ComposerButtons', () => ({
             <output data-testid="pending-schedule">{JSON.stringify(props.pendingSchedule)}</output>
         </div>
     ),
-    // HappyComposer places UnifiedButton beside the card (omitPrimaryButton).
+    // HappyComposer places UnifiedButton inside the editor (omitPrimaryButton).
     UnifiedButton: (props: { onSend: () => void }) => (
         <button type="button" onClick={props.onSend}>send</button>
     ),
     DictationButton: () => null,
-    isComposerPrimaryFillHeight: () => true,
 }))
 
 type HarnessControls = {

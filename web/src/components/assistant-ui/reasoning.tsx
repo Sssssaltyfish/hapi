@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef, type FC, type KeyboardEvent, type PropsWithChildren, type UIEvent } from 'react'
+import { useState, useCallback, useEffect, useId, useLayoutEffect, useRef, type FC, type KeyboardEvent, type PropsWithChildren, type UIEvent } from 'react'
 import {
     useAuiState,
     type ReasoningGroupProps,
@@ -8,6 +8,7 @@ import { MarkdownTextPrimitive } from '@assistant-ui/react-markdown'
 import { cn } from '@/lib/utils'
 import { useReasoningCollapse } from '@/hooks/useReasoningCollapse'
 import { useOptionalHappyChatContext } from '@/components/AssistantChat/context'
+import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 import {
     MARKDOWN_CLASSNAME,
     MARKDOWN_COMPONENTS_BY_LANGUAGE,
@@ -17,29 +18,6 @@ import {
     denyOnlyTransform,
     UriConfirmProvider,
 } from '@/components/assistant-ui/markdown-text'
-
-function ChevronIcon(props: { className?: string; open?: boolean }) {
-    return (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={cn(
-                'transition-transform duration-200',
-                props.open ? 'rotate-90' : '',
-                props.className
-            )}
-        >
-            <polyline points="9 18 15 12 9 6" />
-        </svg>
-    )
-}
 
 function ShimmerDot() {
     return (
@@ -78,7 +56,7 @@ export const Reasoning: ReasoningMessagePartComponent = ({ text, status }) => {
                 components={defaultComponents}
                 componentsByLanguage={MARKDOWN_COMPONENTS_BY_LANGUAGE}
                 urlTransform={denyOnlyTransform}
-                className={cn(MARKDOWN_CLASSNAME, 'aui-reasoning-content text-[13.5px] text-[var(--app-hint)]')}
+                className={cn(MARKDOWN_CLASSNAME, 'aui-reasoning-content')}
             />
         </UriConfirmProvider>
     )
@@ -93,7 +71,7 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
     startIndex = 0,
     endIndex,
 }) => {
-    const [isOpen, setIsOpen] = useState(false)
+    const panelId = useId()
     const scrollRef = useRef<HTMLDivElement | null>(null)
     const followLatestRef = useRef(true)
     const pointerActiveRef = useRef(false)
@@ -105,9 +83,10 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
         return parts.some((part) => part.type === 'reasoning' && part.status.type === 'running')
     })
     const { reasoningCollapsed } = useReasoningCollapse()
+    const [isOpen, setIsOpen] = useState(() => isStreaming && !reasoningCollapsed)
     const chatContext = useOptionalHappyChatContext()
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!isStreaming) return
         const nextOpen = !reasoningCollapsed
         if (nextOpen) {
@@ -206,6 +185,8 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
         <div data-hapi-share-exclude="true" className="aui-reasoning-group my-3 overflow-hidden rounded-2xl bg-[var(--app-reasoning-bg)]">
             <button
                 type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
                 onClick={handleToggle}
                 className={cn(
                     'flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left text-xs font-medium',
@@ -213,7 +194,7 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                     'transition-colors cursor-pointer select-none'
                 )}
             >
-                <ChevronIcon open={isOpen} />
+                <DisclosureChevron open={isOpen} className="h-3 w-3" />
                 <span>Reasoning</span>
                 {isStreaming && (
                     <span className="ml-1 flex items-center gap-1 text-[var(--app-hint)]">
@@ -222,12 +203,7 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                 )}
             </button>
 
-            <div
-                className={cn(
-                    'overflow-hidden transition-all duration-200 ease-in-out',
-                    isOpen ? 'max-h-[5000px] opacity-100' : 'max-h-0 opacity-0'
-                )}
-            >
+            <DisclosureContent open={isOpen} id={panelId} keepMounted>
                 <div
                     ref={scrollRef}
                     data-hapi-nested-scroll="true"
@@ -236,17 +212,13 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
                     onPointerDown={claimNestedPointerScroll}
                     onWheel={claimNestedWheelScroll}
                     onKeyDown={claimNestedKeyboardScroll}
-                    // No overscroll containment: native scroll chaining must pass
-                    // to the outer chat viewport once the panel reaches its
-                    // bottom (see #1264). The follow-tail coordination above
-                    // (onNestedScrollFollowChange) already pauses the outer
-                    // auto-follow while the user scrolls inside this panel, so
-                    // contain is not needed to stop the two from fighting.
+                    // Let wheel/touch events chain to the chat at the edge
+                    // of the panel. Nested follow-tail is handled above.
                     className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
                 >
                     {children}
                 </div>
-            </div>
+            </DisclosureContent>
         </div>
     )
 }

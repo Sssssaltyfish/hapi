@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { CodeBlock } from '@/components/CodeBlock'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { DisclosureChevron } from '@/components/ui/disclosure'
 import { PermissionFooter } from '@/components/ToolCard/PermissionFooter'
 import { CodexPlanFooter } from '@/components/ToolCard/CodexPlanFooter'
 import { AskUserQuestionFooter } from '@/components/ToolCard/AskUserQuestionFooter'
@@ -346,14 +347,6 @@ export function toolStatusColorClass(state: ToolCallBlock['tool']['state']): str
     return 'text-[var(--app-hint)]'
 }
 
-function DetailsIcon() {
-    return (
-        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    )
-}
-
 const INLINE_PREVIEW_INTERACTIVE_SELECTOR = 'a, button, input, textarea, select, summary, [role="button"], [contenteditable="true"]'
 
 function isNestedInteractiveElement(event: MouseEvent<HTMLElement> | KeyboardEvent<HTMLElement>): boolean {
@@ -506,7 +499,7 @@ function ToolCardInner(props: ToolCardProps) {
                 {minimalPreview}
             </span>
             {pendingLabel ? <span className="max-w-[40%] shrink-0 truncate whitespace-nowrap text-xs text-amber-600" title={pendingLabel}>{pendingLabel}</span> : null}
-            <span className="shrink-0 text-[var(--app-hint)]"><DetailsIcon /></span>
+            <span className="shrink-0 text-[var(--app-hint)]"><DisclosureChevron open={detailsOpen} /></span>
         </div>
     ) : (
         <div className="flex items-center justify-between gap-3">
@@ -550,7 +543,7 @@ function ToolCardInner(props: ToolCardProps) {
                     <ToolStatusIcon state={props.block.tool.state} />
                 </span>
                 <span className="text-[var(--app-hint)]">
-                    <DetailsIcon />
+                    <DisclosureChevron open={detailsOpen} />
                 </span>
             </div>
         </div>
