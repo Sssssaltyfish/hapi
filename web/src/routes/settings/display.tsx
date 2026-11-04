@@ -59,7 +59,7 @@ function ColorThemeOption(props: { theme: ColorThemePreset; label: string; selec
                 <span className="absolute inset-y-0 right-0 w-1/2" style={{ backgroundColor: preview.dark }} />
                 <span className="absolute inset-x-1 bottom-1 h-1 rounded-full" style={{ backgroundColor: preview.accent }} />
             </span>
-            <span className="min-w-0 truncate font-medium">{props.label}</span>
+            <span className="min-w-0 whitespace-normal break-words font-medium">{props.label}</span>
         </label>
     )
 }
@@ -161,7 +161,7 @@ export default function SettingsDisplayPage() {
     ]
 
     return (
-        <SettingsPageContent description={t('settings.display.description')}>
+        <SettingsPageContent>
             <SettingsSection title={t('settings.display.appearance')}>
                 <SettingsChoiceGroup
                     label={t('settings.display.appearanceMode')}
@@ -181,7 +181,7 @@ export default function SettingsDisplayPage() {
 
             <SettingsSection title={t('settings.display.sessions')}>
                 <SessionPreviewLimitControl />
-                <SettingsSwitch label={t('settings.display.sessionListAgentLabel')} description={t('settings.display.sessionListAgentLabel.desc')} checked={showSessionListAgentLabel} onChange={setShowSessionListAgentLabel} />
+                <SettingsSwitch label={t('settings.display.sessionListAgentLabel')} checked={showSessionListAgentLabel} onChange={setShowSessionListAgentLabel} />
                 <SettingsSwitch label={t('settings.display.activeSessionsOnly')} description={t('settings.display.activeSessionsOnly.desc')} checked={showActiveSessionsOnly} onChange={setShowActiveSessionsOnly} />
                 <SettingsSwitch label={t('settings.display.pinInProgressSessions')} description={t('settings.display.pinInProgressSessions.desc')} checked={pinInProgressSessions} onChange={setPinInProgressSessions} />
                 <SettingsSwitch label={t('settings.display.fixedSessionOrder')} description={t('settings.display.fixedSessionOrder.desc')} checked={fixedSessionOrder} onChange={setFixedSessionOrder} />
@@ -209,7 +209,6 @@ export default function SettingsDisplayPage() {
             <SettingsSection title={t('settings.display.links')}>
                 <SettingsSwitch
                     label={t('settings.display.openExternalLinksInNewTab')}
-                    description={t('settings.display.openExternalLinksInNewTab.desc')}
                     checked={openExternalLinksInNewTab}
                     onChange={setOpenExternalLinksInNewTab}
                 />

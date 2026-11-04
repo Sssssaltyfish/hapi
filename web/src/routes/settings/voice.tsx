@@ -39,7 +39,7 @@ export default function SettingsVoicePage() {
     }
 
     return (
-        <SettingsPageContent description={t('settings.voice.description')}>
+        <SettingsPageContent>
             <SettingsSection title={t('settings.voice.inputMode.title')} description={t('settings.voice.inputMode.hint')}>
                 <SettingsChoiceGroup
                     hideLabel
@@ -153,7 +153,7 @@ export default function SettingsVoicePage() {
                         <VoiceRespondsControls t={t} voiceBackend={voice.backend} />
                     </SettingsSection>
                     <SettingsSection>
-                        <SettingsLinkRow label={t('settings.voice.advanced.title')} description={t('settings.voice.advanced.hint')} onClick={() => navigate({ to: '/settings/voice/advanced' })} />
+                        <SettingsLinkRow label={t('settings.voice.advanced.title')} onClick={() => navigate({ to: '/settings/voice/advanced' })} />
                     </SettingsSection>
                 </>
             ) : null}
