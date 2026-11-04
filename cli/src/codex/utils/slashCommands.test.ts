@@ -9,6 +9,16 @@ const state = {
 };
 
 describe('resolveCodexSlashCommand', () => {
+    it('dispatches management commands separately from model prompts', () => {
+        for (const command of ['compact', 'recap', 'usage']) {
+            expect(resolveCodexSlashCommand(`/${command}`, state)).toEqual({ kind: 'management', command: { command } });
+            expect(resolveCodexSlashCommand(`/${command} ignored`, state)).toEqual({ kind: 'handled', message: `Usage: /${command}` });
+        }
+        expect(resolveCodexSlashCommand('/approve review-123', state)).toEqual({
+            kind: 'management', command: { command: 'approve', action: 'retry', reviewId: 'review-123' }
+        });
+    });
+
     it('toggles proactive multi-agent mode', () => {
         expect(resolveCodexSlashCommand('/agent', state)).toMatchObject({
             updates: { proactiveMultiAgent: true }
@@ -39,12 +49,13 @@ describe('resolveCodexSlashCommand', () => {
         });
     });
 
-    it('returns to default collaboration mode', () => {
-        expect(resolveCodexSlashCommand('/plan off', { ...state, collaborationMode: 'plan' })).toEqual({
-            kind: 'handled',
-            message: 'Codex plan mode disabled',
-            updates: { collaborationMode: 'default' }
-        });
+    it('preserves every plan argument as the planning prompt', () => {
+        for (const text of ['off', 'default', 'exit', 'disable']) {
+            expect(resolveCodexSlashCommand(`/plan ${text}`, state)).toEqual({
+                kind: 'replace', text, message: 'Codex plan mode enabled',
+                updates: { collaborationMode: 'plan' }
+            });
+        }
     });
 
     it('sets model, reasoning effort, and permission mode', () => {
@@ -148,18 +159,11 @@ describe('resolveCodexSlashCommand', () => {
             action: 'set',
             objective: 'improve benchmark coverage'
         });
-        expect(resolveCodexSlashCommand('/goal pause', state)).toEqual({
-            kind: 'goal',
-            action: 'pause'
-        });
-        expect(resolveCodexSlashCommand('/goal resume', state)).toEqual({
-            kind: 'goal',
-            action: 'resume'
-        });
-        expect(resolveCodexSlashCommand('/goal clear', state)).toEqual({
-            kind: 'goal',
-            action: 'clear'
-        });
+        for (const objective of ['pause', 'resume', 'clear', 'show']) {
+            expect(resolveCodexSlashCommand(`/goal ${objective}`, state)).toEqual({
+                kind: 'goal', action: 'set', objective
+            });
+        }
     });
 
     it('rejects oversized Codex goal objectives', () => {

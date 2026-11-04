@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { SessionChat } from '@/components/SessionChat'
-import type { ApiClient } from '@/api/client'
+import { ApiError, type ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
 import type { SendMessageSettlement } from '@/hooks/mutations/useSendMessage'
 import type { ComposerSendError } from '@/components/AssistantChat/HappyComposer'
@@ -22,6 +22,12 @@ import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
 import { useQuery } from '@tanstack/react-query'
 import { useSessions } from '@/hooks/queries/useSessions'
 import { nativeThreadReferenceMessage } from './nativeThreadReferences'
+import { useNativeThreadCommands } from './useNativeThreadCommands'
+import { NativePlanButton, NativeThreadCommandsBar } from './NativeThreadCommandsBar'
+import { isNativeCommandSubmissionUnconfirmed } from './nativeThreadCommands'
+import { parseCodexThreadCommand, MAX_CODEX_GOAL_OBJECTIVE_CHARS } from '@hapi/protocol/codexThreadCommands'
+import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
+import { useTranslation } from '@/lib/use-translation'
 
 function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
     const messages = projectNativeItems(entries, [], false).messages
@@ -69,11 +75,19 @@ function NativeSessionChat({
 }) {
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
+    const { t } = useTranslation()
+    const commands = useNativeThreadCommands(api, native.threadId, native.endpointId, native.available !== false, thread.subscribeEvents)
+    const commandMenu = useMemo(() => [
+        ...(commands.state?.capabilities.plan ? [{ name: 'plan', description: t('nativeCommands.planDescription') }] : []),
+        ...(commands.state?.capabilities.goal ? [{ name: 'goal', description: t('nativeCommands.goalDescription') }] : []),
+    ], [commands.state?.capabilities.plan, commands.state?.capabilities.goal, t])
+    const unconfirmedPlan = useRef<string | null>(null)
     const queue = useNativeQueue(api, native.threadId, native.available !== false, thread.subscribeEvents)
     const { sessions: mentionSessions } = useSessions(api)
     const nativeEndpoints = useQuery({ queryKey: ['codex-native', 'endpoints'], queryFn: () => api.getCodexNativeEndpoints(), staleTime: 30_000, retry: false })
     const autocompleteSuggestions = useNativeSuggestions(api, native.threadId, {
         endpointId: native.endpointId, sessions: mentionSessions, endpoints: nativeEndpoints.data?.endpoints ?? [],
+        commands: commandMenu,
     })
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
@@ -180,8 +194,31 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
-                queueContent: <NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
-                    activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} />,
+                modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
+                queueContent: <><NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
+                    activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
+                onSubmitCommand: async text => {
+                    const command = parseCodexThreadCommand(text)
+                    if (!command) return 'unhandled'
+                    if (command.command === 'plan' && command.prompt) {
+                        if (unconfirmedPlan.current && splitResponseAnnotations(unconfirmedPlan.current).body === text) {
+                            commands.reportError(t('nativeCommands.unconfirmed'))
+                            setSendError({ id: Date.now(), text: unconfirmedPlan.current, message: t('nativeCommands.unconfirmed'),
+                                scheduledAt: null, mutationStarted: false, restoreSuppressed: true,
+                                action: { label: t('nativeCommands.allowRetry'), onClick: () => { unconfirmedPlan.current = null; setSendError(null) } } })
+                            return 'failed'
+                        }
+                        return 'unhandled'
+                    }
+                    if (unavailable || !thread.connected) { commands.reportError(t('nativeCommands.disconnected')); return 'failed' }
+                    if (command.command === 'goal' && command.action === 'set' && Array.from(command.objective).length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
+                        commands.reportError(t('nativeCommands.goalTooLong', { max: MAX_CODEX_GOAL_OBJECTIVE_CHARS })); return 'failed'
+                    }
+                    try {
+                        await commands.execute({ command })
+                        return 'handled'
+                    } catch { return 'failed' }
+                },
                 approvalSettings: <NativeApprovalSettings
                     settings={settings}
                     disabled={unavailable || !thread.connected}
@@ -202,7 +239,7 @@ function NativeSessionChat({
             hasNewerMessages={thread.hasNewer}
             isSyncingTail={thread.loading}
             isLoadingMoreMessages={thread.olderLoading}
-            isSending={sending}
+            isSending={sending || commands.pending}
             sendSettlement={settlement}
             viewMode={viewMode}
             messagesVersion={revision.current.value}
@@ -281,9 +318,26 @@ function NativeSessionChat({
                 if (sending || unavailable) return false
                 if (scheduledAt) throw new Error('Native scheduled messages are unavailable')
                 const attemptId = crypto.randomUUID()
+                const annotated = splitResponseAnnotations(text)
+                const command = parseCodexThreadCommand(annotated.body)
+                if (command && (command.command !== 'plan' || !command.prompt)) {
+                    commands.reportError(t('nativeCommands.managementOnly'))
+                    return false
+                }
+                if (command && unconfirmedPlan.current === text) { commands.reportError(t('nativeCommands.unconfirmed')); return false }
+                let commandPosted = false
                 setSending(true)
                 setSendError(null)
                 try {
+                    if (command?.command === 'plan' && command.prompt) {
+                        const prompt = await nativeThreadReferenceMessage(api, native, serializeResponseAnnotations(command.prompt, annotated.annotations))
+                        commandPosted = true
+                        await commands.execute({ command: { ...command, prompt }, clientId: attemptId,
+                            ...(attachments?.length ? { attachments: attachments.map(({ path }) => ({ path })) } : {}) })
+                        setSettlement({ attemptId, status: 'success' })
+                        void thread.latest(); void queue.refresh()
+                        return { attemptId }
+                    }
                     const expectedTurnId =
                         deliveryMode === 'steer'
                             ? nativeAsyncReplyTurn(thread.detail.activeTurn)
@@ -311,12 +365,14 @@ function NativeSessionChat({
                     void queue.refresh()
                     return { attemptId }
                 } catch (error) {
+                    const uncertain = commandPosted && (isNativeCommandSubmissionUnconfirmed(error) || !(error instanceof ApiError) || error.status >= 500)
+                    if (uncertain) { unconfirmedPlan.current = text; void queue.refresh() }
                     setSettlement({ attemptId, status: 'error' })
                     setSendError({
                         id: Date.now(),
                         text,
-                        message: String(error),
-                        action: null,
+                        message: uncertain ? t('nativeCommands.unconfirmed') : String(error),
+                        action: uncertain ? { label: t('nativeCommands.allowRetry'), onClick: () => { unconfirmedPlan.current = null; setSendError(null) } } : null,
                         scheduledAt: null,
                         mutationStarted: true,
                         restoreSuppressed: false,

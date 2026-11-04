@@ -36,7 +36,7 @@ import {
     supportsCodexReasoningEffort
 } from '@/lib/codexModelCapabilities'
 import { createSerialAsyncQueue } from '@/lib/serialAsyncQueue'
-import { HappyComposer, type ComposerSendError } from '@/components/AssistantChat/HappyComposer'
+import { HappyComposer, type ComposerSendError, type ComposerCommandOutcome } from '@/components/AssistantChat/HappyComposer'
 import { SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
 import { useComposerSendMode } from '@/hooks/useComposerSendMode'
 import {
@@ -579,7 +579,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome> }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -2153,6 +2153,7 @@ function SessionChatInner(props: SessionChatProps) {
                         </div>
 
                         <HappyComposer
+                        modeControls={native?.modeControls}
                         attachmentsDisabled={Boolean(native && !props.session.active)}
                         focusInputRef={focusComposerRef}
                         key={`composer-${props.session.id}`}
@@ -2342,6 +2343,7 @@ function SessionChatInner(props: SessionChatProps) {
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={props.autocompleteSuggestions}
+                        onSubmitCommand={native?.onSubmitCommand}
                         voiceStatus={voice?.status}
                         voiceMicMuted={voice?.micMuted}
                         onVoiceToggle={voice && voiceBackendReady ? handleVoiceToggle : undefined}

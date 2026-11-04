@@ -78,6 +78,7 @@ import type {
 } from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
 import type { ConversationOutlineContinuation, ConversationOutlinePage } from '@/chat/outline'
+import type { NativeCommandRequest, NativeCommandResult, NativeCommandState } from '@/codex-native/nativeThreadCommands'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
 
@@ -400,6 +401,14 @@ export class ApiClient {
 
     async getCodexNativeThread(id: string): Promise<NativeRecord> {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}`)
+    }
+
+    getCodexNativeCommands(id: string, signal?: AbortSignal): Promise<NativeCommandState> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/commands`, { signal })
+    }
+
+    codexNativeCommand(id: string, payload: NativeCommandRequest): Promise<NativeCommandResult> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/commands`, { method: 'POST', body: JSON.stringify(payload) })
     }
 
     async getCodexNativeActiveTurn(id: string): Promise<NativeRecord> {

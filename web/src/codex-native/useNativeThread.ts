@@ -346,7 +346,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (!alive.current) return
             for (const listener of eventListeners.current) listener(event)
             if (event.method.startsWith('item/') || event.method === 'turn/started' || event.method === 'turn/completed') tailRevision.current += 1
-            if (event.method === 'hapi/heartbeat') return
+            if (event.method === 'hapi/heartbeat' || event.method === 'thread/goal/updated' || event.method === 'thread/goal/cleared') return
             if (event.method === 'thread/rolledBack') {
                 setHistoryResetRevision(value => value + 1)
                 void latest(true)
@@ -382,7 +382,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setRequests(current => current.filter(value => value.id !== event.params.id))
                 return
             }
-            if (event.method === 'item/agentMessage/delta') {
+            if (event.method === 'item/agentMessage/delta' || event.method === 'item/plan/delta') {
                 const itemId = event.params.itemId
                 const delta = event.params.delta
                 if (typeof itemId === 'string' && typeof delta === 'string' && !browsingOlder.current) {

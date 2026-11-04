@@ -13,6 +13,7 @@ export function useNativeSuggestions(api: ApiClient, threadId: string, context?:
     endpointId: string
     sessions: readonly SessionSummary[]
     endpoints: readonly NativeEndpoint[]
+    commands?: readonly { name: string; description: string }[]
 }) {
     const pending = useRef<AbortController | null>(null)
     useEffect(() => () => pending.current?.abort(), [api, threadId])
@@ -21,6 +22,8 @@ export function useNativeSuggestions(api: ApiClient, threadId: string, context?:
             pending.current?.abort()
             const controller = new AbortController()
             pending.current = controller
+            if (query.startsWith('/')) return (context?.commands ?? []).filter(command => command.name.startsWith(query.slice(1).toLowerCase()))
+                .map(command => ({ key: `/${command.name}`, text: `/${command.name}`, label: `/${command.name}`, description: command.description, source: 'builtin', submitOnSelect: true }))
             if (!query.startsWith('@') && !query.startsWith('$')) return []
             try {
                 const response = await api.getCodexNativeSuggestions(
@@ -56,6 +59,6 @@ export function useNativeSuggestions(api: ApiClient, threadId: string, context?:
                 throw error
             }
         },
-        [api, threadId, context?.endpointId, context?.sessions, context?.endpoints]
+        [api, threadId, context?.endpointId, context?.sessions, context?.endpoints, context?.commands]
     )
 }

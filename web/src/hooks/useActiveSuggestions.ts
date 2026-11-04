@@ -15,6 +15,8 @@ export interface Suggestion {
     expandGroup?: { group: SuggestionGroup; remaining: number }
     /** When set, rich composer inserts an inline session atom instead of `text`. */
     sessionMention?: { id: string; title: string }
+    /** Native commands share the normal composer submit path when selected. */
+    submitOnSelect?: boolean
 }
 
 type SuggestionHandler = (query: string) => Promise<Suggestion[]>

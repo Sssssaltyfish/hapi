@@ -752,6 +752,7 @@ export function ComposerButtons(props: {
      * When true, omit UnifiedButton — HappyComposer places it inside the editor.
      */
     omitPrimaryButton?: boolean
+    modeControls?: ReactNode
 }) {
     const { t } = useTranslation()
     const { layout } = useComposerToolbarLayout()
@@ -784,6 +785,7 @@ export function ComposerButtons(props: {
                 className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 style={{ justifyContent: toolbarJustifyContent }}
             >
+                {props.modeControls}
                 <OrderedToolbarItems layout={effectiveLayout}>
                 <ToolbarItemSlot item="attachment">
                 <ComposerPrimitive.AddAttachment

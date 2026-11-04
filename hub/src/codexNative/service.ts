@@ -1,10 +1,14 @@
 import { readFile, stat } from 'node:fs/promises'
+import { isDeepStrictEqual } from 'node:util'
+import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
+import type { CodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
 import { nativeOutlinePage } from '../sync/conversationOutline'
 import { nativeTurnContext } from './turnContext'
 import { nativeItemLookup } from './itemLookup'
+import { discoverThreadCommands, executeThreadCommand } from './threadCommands'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
@@ -39,6 +43,16 @@ type Subscription = {
     attached: Promise<unknown>
     creating?: boolean
     empty?: boolean
+    snapshot?: NativeRecord
+}
+function settingsSnapshot(value: NativeRecord): NativeRecord {
+    return { ...value, effort: value.effort ?? value.reasoningEffort ?? null }
+}
+function settingsMatch(current: NativeRecord, patch: NativeRecord): boolean {
+    return Object.entries(patch).every(([key, value]) => key === 'collaborationMode'
+        && value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? nativeModeSettingsMatch(record(current[key]), record(value))
+        : isDeepStrictEqual(current[key], value))
 }
 export function fallbackThread(thread: NativeRecord): boolean {
     const source = thread.source
@@ -69,6 +83,7 @@ export class NativeService {
     }
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
+    private commandRuns = new Map<string, Promise<unknown>>()
     private identities = createWorkspaceIdentityReader()
     private daemonIdentities = createWorkspaceIdentityReader(async (path, args, timeout) => {
         const response = record(await this.call('command/exec', {
@@ -188,6 +203,7 @@ export class NativeService {
                 attached: Promise.resolve(response),
                 creating: true,
                 empty: true,
+                snapshot: settingsSnapshot(response),
             }
             this.subscriptions.set(threadId, entry)
             client.listeners.add((event) => {
@@ -196,6 +212,7 @@ export class NativeService {
                     entry.empty = false
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
                     const settings = record(params.threadSettings)
+                    entry.snapshot = { ...entry.snapshot, ...settings }
                     Object.assign(response, settings, { reasoningEffort: settings.effort })
                 }
                 if (
@@ -422,7 +439,14 @@ export class NativeService {
                 attached: client.request('thread/resume', { threadId, excludeTurns: true }),
             }
             const current = entry
+            void current.attached.then(state => {
+                current.snapshot ??= settingsSnapshot(record(state))
+            }).catch(() => {})
             client.listeners.add((event) => {
+                const params = record(event.params)
+                if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
+                    current.snapshot = { ...current.snapshot, ...record(params.threadSettings) }
+                }
                 if (
                     event.method === 'hapi/disconnected' &&
                     this.subscriptions.get(threadId) === current
@@ -498,7 +522,36 @@ export class NativeService {
         // Controls use a separate connection and never wait for the subscription or history page.
         return this.call(method, { ...params, threadId })
     }
-    async settings(threadId: string, patch: NativeRecord): Promise<NativeRecord> {
+    async threadCommandState(threadId: string) {
+        const entry = this.subscriptions.get(threadId)
+        let snapshot: NativeRecord | null = null
+        if (entry) {
+            try {
+                const attached = await entry.attached
+                snapshot = entry.snapshot ?? settingsSnapshot(record(attached))
+            } catch { /* A read never attaches or resumes a thread just to discover settings. */ }
+        }
+        const state = await this.withConnection(client => discoverThreadCommands(
+            (method, params) => client.request(method, params), threadId, snapshot
+        ))
+        const current = this.subscriptions.get(threadId)
+        const latest = current?.snapshot ?? (current === entry ? snapshot : null)
+        state.collaborationMode = latest?.collaborationMode && typeof latest.collaborationMode === 'object'
+            ? record(latest.collaborationMode) : null
+        return state
+    }
+    async threadCommand(threadId: string, command: CodexThreadCommand, submission?: { input: NativeRecord[]; clientId: string }) {
+        // Serialize control RPCs only. Submitted input remains in the daemon's queue.
+        const previous = this.commandRuns.get(threadId) ?? Promise.resolve()
+        const running = previous.catch(() => {}).then(() => executeThreadCommand(this, threadId, command, submission))
+        this.commandRuns.set(threadId, running)
+        try {
+            return await running
+        } finally {
+            if (this.commandRuns.get(threadId) === running) this.commandRuns.delete(threadId)
+        }
+    }
+    async settings(threadId: string, update: NativeRecord | ((current: NativeRecord) => NativeRecord)): Promise<NativeRecord> {
         const creating = this.subscriptions.get(threadId)
         const borrowed = creating?.creating === true
         const client = borrowed ? creating.client : this.connection()
@@ -510,12 +563,9 @@ export class NativeService {
                     ? creating.attached
                     : client.request('thread/resume', { threadId, excludeTurns: true }))
             )
-            const current = { ...resumed, effort: resumed.reasoningEffort }
-            if (
-                Object.entries(patch).every(
-                    ([key, value]) => current[key as keyof typeof current] === value
-                )
-            )
+            const current = settingsSnapshot(resumed)
+            const patch = typeof update === 'function' ? update(current) : update
+            if (settingsMatch(current, patch))
                 return { applied: current }
             const applied = new Promise<NativeRecord>((resolve, reject) => {
                 listener = (event) => {
@@ -524,7 +574,7 @@ export class NativeService {
                     if (
                         event.method === 'thread/settings/updated' &&
                         params.threadId === threadId &&
-                        Object.entries(patch).every(([key, value]) => settings[key] === value)
+                        settingsMatch(settings, patch)
                     )
                         resolve(settings)
                     if (event.method === 'hapi/disconnected')
@@ -543,7 +593,8 @@ export class NativeService {
             })
             void applied.catch(() => {})
             await client.request('thread/settings/update', { ...patch, threadId })
-            return { applied: await applied }
+            const confirmed = await applied
+            return { applied: confirmed }
         } finally {
             clearTimeout(timer)
             if (listener) client.listeners.delete(listener)

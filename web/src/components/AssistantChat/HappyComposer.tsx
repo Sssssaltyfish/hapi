@@ -73,11 +73,13 @@ import type { MessageDeliveryMode } from '@hapi/protocol'
 import { moveAttachmentId, orderItemsById, reconcileAttachmentOrder, type AttachmentDropPosition } from '@/lib/attachmentOrder'
 import { useResponseAnnotationDraft } from '@/hooks/useResponseAnnotationDraft'
 import { ResponseAnnotationCards } from './ResponseAnnotationCards'
+import { splitResponseAnnotations, serializeResponseAnnotations } from '@/lib/responseAnnotations'
 
 export interface TextInputState {
     text: string
     selection: { start: number; end: number }
 }
+export type ComposerCommandOutcome = 'unhandled' | 'handled' | 'failed'
 
 export function getComposerEscapeAction(input: {
     hasSuggestions: boolean
@@ -301,6 +303,7 @@ export function HappyComposer(props: {
     availablePermissionModes?: readonly PermissionMode[]
     approvalSettings?: ReactNode
     approvalSettingsTitle?: string
+    modeControls?: ReactNode
     collaborationMode?: CodexCollaborationMode
     copilotAgentMode?: CopilotAgentMode
     model?: string | null
@@ -312,10 +315,7 @@ export function HappyComposer(props: {
     agentState?: AgentState | null
     backgroundTaskCount?: number
     contextSize?: number
-    contextCacheRead?: number
     contextWindow?: number | null
-    /** Model for the context-window heuristic; see StatusBar.contextModel. */
-    contextModel?: string | null
     controlledByUser?: boolean
     concurrentClients?: boolean
     agentFlavor?: string | null
@@ -352,6 +352,8 @@ export function HappyComposer(props: {
     terminalUnsupported?: boolean
     autocompletePrefixes?: string[]
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
+    /** Local management commands run before send clears the composer. */
+    onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>
     // Voice assistant props
     voiceStatus?: ConversationStatus
     voiceMicMuted?: boolean
@@ -426,9 +428,7 @@ export function HappyComposer(props: {
         agentState,
         backgroundTaskCount,
         contextSize,
-        contextCacheRead,
         contextWindow,
-        contextModel,
         controlledByUser = false,
         concurrentClients = false,
         agentFlavor,
@@ -952,71 +952,6 @@ export function HappyComposer(props: {
         else textareaRef.current?.focus()
     }, [richMentionsEnabled])
 
-    const handleSuggestionSelect = useCallback((index: number) => {
-        const suggestion = suggestions[index]
-        if (!suggestion) return
-        if (suggestion.expandGroup) {
-            expandSuggestionGroup(suggestion.expandGroup.group)
-            return
-        }
-        if (suggestion.text.startsWith('$')) {
-            markSkillUsed(suggestion.text.slice(1))
-        }
-
-        // Suggestions edit composer content programmatically, so neither the
-        // textarea onChange nor RichComposerInput.onEdit sees this path.
-        handleUserEdit()
-
-        if (richMentionsEnabled && richInputRef.current) {
-            // insert*/apply* emit mirror state via onMirrorChange (keep inputState in mirror space).
-            if (suggestion.sessionMention) {
-                richInputRef.current.insertSessionMention(
-                    suggestion.sessionMention,
-                    autocompletePrefixes
-                )
-            } else {
-                richInputRef.current.applyPlainSuggestion(
-                    suggestion.text,
-                    autocompletePrefixes
-                )
-            }
-            setTimeout(() => {
-                richInputRef.current?.focus()
-            }, 0)
-            haptic('light')
-            return
-        }
-
-        if (!textareaRef.current) return
-
-        const result = applySuggestion(
-            inputState.text,
-            inputState.selection,
-            suggestion.text,
-            autocompletePrefixes,
-            true
-        )
-
-        setComposerText(result.text)
-        setInputState({
-            text: result.text,
-            selection: { start: result.cursorPosition, end: result.cursorPosition }
-        })
-
-        setTimeout(() => {
-            const el = textareaRef.current
-            if (!el) return
-            el.setSelectionRange(result.cursorPosition, result.cursorPosition)
-            try {
-                el.focus({ preventScroll: true })
-            } catch {
-                el.focus()
-            }
-        }, 0)
-
-        haptic('light')
-    }, [setComposerText, suggestions, inputState, autocompletePrefixes, haptic, richMentionsEnabled, handleUserEdit, expandSuggestionGroup])
-
     const abortDisabled = controlsDisabled || isAborting || !threadIsRunning
     const switchDisabled = controlsDisabled || isSwitching || !controlledByUser
     const showSwitchButton = Boolean(controlledByUser && onSwitchToRemote)
@@ -1178,6 +1113,7 @@ export function HappyComposer(props: {
         if (pendingSendIntentRef) pendingSendIntentRef.current = 'default'
     }, [pendingSendIntentRef])
 
+    const commandInFlightRef = useRef(false)
     const handleSend = useCallback(async (intent: ComposerSendIntent = 'default') => {
         // SessionChat preloads the ref only when restoring a rejected send:
         // queue retries remain queue, while an ordinary fresh send always
@@ -1196,6 +1132,21 @@ export function HappyComposer(props: {
         // scratchlist park snapshot (RichComposerInput contract).
         if (richMentionsEnabled && richInputRef.current) {
             richInputRef.current.flushSerializedText()
+        }
+
+        if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null) {
+            if (commandInFlightRef.current) return
+            const snapshot = api.composer().getState()
+            commandInFlightRef.current = true
+            let outcome: ComposerCommandOutcome
+            try { outcome = await props.onSubmitCommand(splitResponseAnnotations(snapshot.text).body) }
+            finally { commandInFlightRef.current = false }
+            if (outcome !== 'unhandled') {
+                if (outcome === 'handled' && snapshot.text === api.composer().getState().text) {
+                    api.composer().setText(serializeResponseAnnotations('', splitResponseAnnotations(snapshot.text).annotations))
+                }
+                return
+            }
         }
 
         // Scratchlist parks must not go through assistant-ui's send(): it
@@ -1284,6 +1235,7 @@ export function HappyComposer(props: {
         pendingSchedule,
         props.onParkScratchlist,
         props.onResumeStoredDraft,
+        props.onSubmitCommand,
         props.scratchlistMode,
         richMentionsEnabled,
         sendError,
@@ -1295,6 +1247,46 @@ export function HappyComposer(props: {
     const flushAndSend = useCallback((intent: ComposerSendIntent = 'default') => {
         void handleSend(intent)
     }, [handleSend])
+
+    const handleSuggestionSelect = useCallback((index: number) => {
+        const suggestion = suggestions[index]
+        if (!suggestion) return
+        if (suggestion.expandGroup) {
+            expandSuggestionGroup(suggestion.expandGroup.group)
+            return
+        }
+        if (suggestion.text.startsWith('$')) markSkillUsed(suggestion.text.slice(1))
+
+        // Programmatic edits bypass both editor onChange handlers.
+        handleUserEdit()
+        if (richMentionsEnabled && richInputRef.current) {
+            if (suggestion.sessionMention) {
+                richInputRef.current.insertSessionMention(suggestion.sessionMention, autocompletePrefixes)
+            } else {
+                richInputRef.current.applyPlainSuggestion(suggestion.text, autocompletePrefixes)
+            }
+            setTimeout(() => richInputRef.current?.focus(), 0)
+        } else {
+            if (!textareaRef.current) return
+            const result = applySuggestion(inputState.text, inputState.selection, suggestion.text, autocompletePrefixes, true)
+            setComposerText(result.text)
+            setInputState({ text: result.text, selection: { start: result.cursorPosition, end: result.cursorPosition } })
+            setTimeout(() => {
+                const el = textareaRef.current
+                if (!el) return
+                el.setSelectionRange(result.cursorPosition, result.cursorPosition)
+                try { el.focus({ preventScroll: true }) } catch { el.focus() }
+            }, 0)
+        }
+        haptic('light')
+        if (suggestion.submitOnSelect) {
+            clearSuggestions()
+            // Pointer, touch, Enter and Tab selections use the same dispatcher
+            // as Send, preserving management drafts and normal send intent.
+            void handleSend()
+        }
+    }, [suggestions, expandSuggestionGroup, handleUserEdit, richMentionsEnabled, autocompletePrefixes,
+        inputState, setComposerText, haptic, clearSuggestions, handleSend])
 
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
         const key = e.key
@@ -2253,9 +2245,7 @@ export function HappyComposer(props: {
                         agentState={agentState}
                         backgroundTaskCount={backgroundTaskCount}
                         contextSize={contextSize}
-                        contextCacheRead={contextCacheRead}
                         contextWindow={contextWindow}
-                        contextModel={contextModel}
                         model={model}
                         modelReasoningEffort={modelReasoningEffort}
                         effort={effort}
@@ -2457,6 +2447,7 @@ export function HappyComposer(props: {
                             ) : null}
 
                             <ComposerButtons
+                                modeControls={props.modeControls}
                                 attachmentsDisabled={props.attachmentsDisabled}
                                 canSend={canSend}
                                 controlsDisabled={controlsDisabled}
