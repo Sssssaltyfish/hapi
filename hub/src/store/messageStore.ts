@@ -41,6 +41,7 @@ import {
     getAllMessages,
     getMessagesAfterSeq,
     getMessageSeqById,
+    getMessageById,
     truncateMessagesFromLocalId,
     type CancelQueuedMessageResult,
     type LookupQueuedMessageResult,
@@ -96,6 +97,10 @@ export class MessageStore {
 
     getSeqById(sessionId: string, messageId: string): number | null {
         return getMessageSeqById(this.db, sessionId, messageId)
+    }
+
+    getById(sessionId: string, messageId: string): StoredMessage | null {
+        return getMessageById(this.db, sessionId, messageId)
     }
 
     getMessages(sessionId: string, limit: number = 200): StoredMessage[] {

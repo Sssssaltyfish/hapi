@@ -6,6 +6,7 @@ export default {
   'queuedMessages.title': 'Queued',
   'nativeQueue.disconnected': 'Showing the last known queue while reconnecting.',
   'nativeQueue.cancel': 'Cancel queued message',
+  'nativeQueue.steerCleanupFailed': 'Delivered to the current turn. Cancel the queued entry to prevent it from running again.',
   'queuedMessages.steerPending': 'Waiting for the agent to confirm delivery…',
   'nativeQueue.quotes': '{count} quoted selections',
   'nativeQueue.attachments': '{count} attachments',

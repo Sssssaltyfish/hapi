@@ -215,6 +215,24 @@ export function createCodexNativeRoutes(
             })) as NativeRecord
         )
     )
+    app.get('/codex-native/threads/:id/items/:itemId', async (c) => {
+        const parsed = z.object({
+            turnId: z.string().min(1).max(500), itemId: z.string().min(1).max(500),
+        }).safeParse({ turnId: c.req.query('turnId'), itemId: c.req.param('itemId') })
+        if (!parsed.success) return c.json({ error: 'Invalid source item locator' }, 400)
+        const entry = await getService(c).item(c.req.param('id'), parsed.data.turnId, parsed.data.itemId)
+        return entry ? c.json({ entry }) : c.json({ error: 'Source item is no longer available' }, 404)
+    })
+    app.post('/codex-native/threads/:id/turn-items/read', async (c) => {
+        const parsed = z.object({
+            turnId: z.string().min(1).max(500),
+            cursor: z.union([z.string().min(1).max(16_384), z.object({ type: z.literal('item'), itemId: z.string().min(1).max(500) }).strict()]).optional(),
+            sortDirection: z.enum(['asc', 'desc']).default('desc'),
+            limit: z.number().int().min(1).max(100).default(50),
+        }).strict().safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid source history locator' }, 400)
+        return c.json(await getService(c).items(c.req.param('id'), parsed.data) as NativeRecord)
+    })
     app.get('/codex-native/threads/:id/outline', async (c) => {
         let boundaries: unknown
         try { boundaries = c.req.query('stopIds') ? JSON.parse(c.req.query('stopIds')!) : c.req.query('stopId') ? [c.req.query('stopId')] : [] }
@@ -240,6 +258,45 @@ export function createCodexNativeRoutes(
         const parsed = z.object({ queuedSubmissionId: z.string().min(1).max(500) }).strict().safeParse(await c.req.json().catch(() => null))
         if (!parsed.success) return c.json({ error: 'Invalid native queue ID' }, 400)
         return c.json(await getService(c).control(c.req.param('id'), 'thread/queue/delete', parsed.data) as NativeRecord)
+    })
+    app.post('/codex-native/threads/:id/queue/steer', async (c) => {
+        const parsed = z.object({
+            queuedSubmissionId: z.string().min(1).max(500),
+            expectedTurnId: z.string().min(1).max(500),
+        }).strict().safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid native queued steer' }, 400)
+        const native = getService(c)
+        const threadId = c.req.param('id')
+        let queued: NativeRecord | undefined
+        let cursor: string | undefined
+        const cursors = new Set<string>()
+        do {
+            const page = record(await native.control(threadId, 'thread/queue/list', { limit: 100, cursor }))
+            queued = (Array.isArray(page.data) ? page.data.map(record) : [])
+                .find(item => item.id === parsed.data.queuedSubmissionId)
+            if (queued) break
+            cursor = typeof page.nextCursor === 'string' ? page.nextCursor : undefined
+            if (cursor && cursors.has(cursor)) throw new Error('Native queue pagination did not advance')
+            if (cursor) cursors.add(cursor)
+        } while (cursor)
+        if (!queued) return c.json({ error: 'Native queued message is no longer available' }, 409)
+        if (!Array.isArray(queued.input) || typeof queued.clientUserMessageId !== 'string' || !queued.clientUserMessageId)
+            return c.json({ error: 'Native queued message cannot be steered' }, 409)
+        // Match Desktop send-now: retain the original input and identity, then remove
+        // the queued entry only after the active-turn precondition accepts the steer.
+        const result = record(await native.control(threadId, 'turn/steer', {
+            input: queued.input,
+            clientUserMessageId: queued.clientUserMessageId,
+            expectedTurnId: parsed.data.expectedTurnId,
+        }))
+        try {
+            await native.control(threadId, 'thread/queue/delete', { queuedSubmissionId: queued.id })
+            return c.json({ ...result, accepted: true })
+        } catch (error) {
+            // Delivery already succeeded. A cleanup failure must never look like a
+            // failed send that invites resubmitting the same input.
+            return c.json({ ...result, accepted: true, cleanupError: error instanceof Error ? error.message : String(error) })
+        }
     })
     app.post('/codex-native/threads/:id/settings', async (c) => {
         const parsed = settingsSchema.safeParse(await c.req.json())

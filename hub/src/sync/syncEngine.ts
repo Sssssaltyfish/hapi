@@ -457,6 +457,10 @@ export class SyncEngine {
         return this.messageService.getMessagesPage(sessionId, options)
     }
 
+    getMessageContext(sessionId: string, messageId: string) {
+        return this.messageService.getMessageContext(sessionId, messageId)
+    }
+
     getQueuedState(sessionId: string, localIds: string[]): QueuedStateResponse {
         return this.messageService.getQueuedState(sessionId, localIds)
     }

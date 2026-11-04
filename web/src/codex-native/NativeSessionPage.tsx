@@ -173,7 +173,8 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
-                queueContent: <NativeQueuedMessagesBar api={api} threadId={native.threadId} queue={queue} connected={thread.connected} />,
+                queueContent: <NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
+                    activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} />,
                 approvalSettings: <NativeApprovalSettings
                     settings={settings}
                     disabled={unavailable || !thread.connected}

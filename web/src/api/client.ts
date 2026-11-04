@@ -159,6 +159,20 @@ function parseErrorCode(bodyText: string): string | undefined {
     }
 }
 
+export type RunnerMessageContext = {
+    message: DecryptedMessage
+    page: MessagesResponse
+    position: { at: number; seq: number }
+    epoch: number
+}
+
+export type NativeTurnItemsOptions = {
+    cursor?: string | { type: 'item'; itemId: string }
+    sortDirection?: 'asc' | 'desc'
+    limit?: number
+    signal?: AbortSignal
+}
+
 export class ApiError extends Error {
     status: number
     code?: string
@@ -404,6 +418,22 @@ export class ApiClient {
         return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline-context?${params}`, { signal })
     }
 
+    async getCodexNativeItem(id: string, turnId: string, itemId: string, signal?: AbortSignal): Promise<{ entry: NativeItemEntry }> {
+        const params = new URLSearchParams({ turnId })
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items/${encodeURIComponent(itemId)}?${params}`, { signal })
+    }
+
+    async getCodexNativeTurnItems(id: string, turnId: string, options: NativeTurnItemsOptions = {}): Promise<NativePage<NativeItemEntry>> {
+        const { signal, ...params } = options
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/turn-items/read`, {
+            method: 'POST', body: JSON.stringify({ turnId, ...params }), signal,
+        })
+    }
+
+    async getRunnerMessageContext(sessionId: string, rawMessageId: string, signal?: AbortSignal): Promise<RunnerMessageContext> {
+        return this.request(`/api/sessions/${encodeURIComponent(sessionId)}/messages/${encodeURIComponent(rawMessageId)}/context`, { signal })
+    }
+
     /** Only a stable authenticated principal can own a persistent prompt index. */
     getConversationCacheScope(): { key: string; persistent: boolean } {
         const token = this.getToken?.() ?? this.token
@@ -447,7 +477,7 @@ export class ApiClient {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/queue?${params}`)
     }
 
-    async codexNativeAction(id: string, action: 'settings' | 'messages' | 'interrupt' | 'queue/delete' | `requests/${string}`, payload: NativeRecord): Promise<NativeRecord> {
+    async codexNativeAction(id: string, action: 'settings' | 'messages' | 'interrupt' | 'queue/delete' | 'queue/steer' | `requests/${string}`, payload: NativeRecord): Promise<NativeRecord> {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/${action}`, {
             method: 'POST', body: JSON.stringify(payload)
         })

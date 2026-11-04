@@ -346,6 +346,18 @@ export function getMessagesAfterSeq(
     return rows.map(toStoredMessage)
 }
 
+/** Exact persisted source lookup, scoped to the currently authorized session. */
+export function getMessageById(
+    db: Database,
+    sessionId: string,
+    messageId: string
+): StoredMessage | null {
+    const row = prepareCached(db,
+        'SELECT * FROM messages WHERE id = ? AND session_id = ?'
+    ).get(messageId, sessionId) as DbMessageRow | undefined
+    return row ? toStoredMessage(row) : null
+}
+
 /** Current seq for a message that still lives on this session (merge-stable id). */
 export function getMessageSeqById(
     db: Database,

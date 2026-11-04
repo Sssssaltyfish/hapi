@@ -15,7 +15,10 @@ class FakeConnection {
     runtimeStatus = 'idle'
     itemsUnavailable = false
     queueEmpty = false
+    queueSecondPage = false
     startFailure?: string
+    steerFailure?: string
+    queueDeleteFailure?: string
     nativeSettings = {
         approvalPolicy: { granular: { sandbox_approval: true, rules: false, skill_approval: true, request_permissions: true, mcp_elicitations: false } } as unknown,
         approvalsReviewer: 'auto_review',
@@ -59,8 +62,20 @@ class FakeConnection {
             return {}
         }
         if (method === 'thread/queue/add') return { queuedSubmission: { id: 'queued' } }
-        if (method === 'thread/queue/list')
-            return { data: this.queueEmpty ? [] : [{ id: 'queued' }] }
+        if (method === 'thread/queue/list') {
+            if (this.queueSecondPage && !(params as { cursor?: string }).cursor)
+                return { data: [{ id: 'other' }], nextCursor: 'queue-page-2' }
+            return { data: this.queueEmpty ? [] : [{ id: 'queued', clientUserMessageId: 'original-message',
+                input: [{ type: 'text', text: 'original input', text_elements: [] }, { type: 'localImage', path: '/repo/image.png' }] }] }
+        }
+        if (method === 'turn/steer') {
+            if (this.steerFailure) throw new Error(this.steerFailure)
+            return { turnId: 'active-turn' }
+        }
+        if (method === 'thread/queue/delete') {
+            if (this.queueDeleteFailure) throw new Error(this.queueDeleteFailure)
+            return { deleted: true }
+        }
         if (method === 'thread/queue/start' && this.startFailure) throw new Error(this.startFailure)
         if (method === 'thread/turns/list')
             return { data: [{ id: 'turn', status: this.latestStatus, items: [] }] }
@@ -77,12 +92,13 @@ class FakeConnection {
         this.listeners.clear()
     }
 }
-function fixture() {
+function fixture(setup?: (client: FakeConnection) => void) {
     const clients: FakeConnection[] = []
     const service = new NativeService(
         { endpoint: 'unix:///existing.sock', namespace: 'owner' },
         () => {
             const client = new FakeConnection()
+            setup?.(client)
             clients.push(client)
             return client as unknown as NativeConnection
         }
@@ -99,6 +115,50 @@ function routes(service: NativeService, namespace: string) {
     return app
 }
 describe('native bridge boundaries', () => {
+    test('steers the original queued input and identity before deleting it', async () => {
+        const { service, clients } = fixture(client => { client.queueSecondPage = true })
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/queue/steer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ queuedSubmissionId: 'queued', expectedTurnId: 'active-turn' }),
+        })
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ accepted: true, turnId: 'active-turn' })
+        expect(clients.flatMap(client => client.calls)).toEqual([
+            { method: 'thread/queue/list', params: { threadId: 'thread', limit: 100, cursor: undefined } },
+            { method: 'thread/queue/list', params: { threadId: 'thread', limit: 100, cursor: 'queue-page-2' } },
+            { method: 'turn/steer', params: { threadId: 'thread', expectedTurnId: 'active-turn', clientUserMessageId: 'original-message',
+                input: [{ type: 'text', text: 'original input', text_elements: [] }, { type: 'localImage', path: '/repo/image.png' }] } },
+            { method: 'thread/queue/delete', params: { threadId: 'thread', queuedSubmissionId: 'queued' } },
+        ])
+        expect((await routes(service, 'other').request('/api/codex-native/threads/thread/queue/steer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ queuedSubmissionId: 'queued', expectedTurnId: 'active-turn' }),
+        })).status).toBe(404)
+    })
+    test('retains the queued message when the daemon rejects the active-turn steer', async () => {
+        const { service, clients } = fixture(client => { client.steerFailure = 'expected turn is no longer active' })
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/queue/steer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ queuedSubmissionId: 'queued', expectedTurnId: 'old-turn' }),
+        })
+        expect(response.status).toBe(502)
+        expect(await response.json()).toEqual({ error: 'expected turn is no longer active' })
+        expect(clients.flatMap(client => client.calls).map(call => call.method)).toEqual(['thread/queue/list', 'turn/steer'])
+    })
+    test('reports accepted delivery separately from a later queue cleanup failure', async () => {
+        const { service, clients } = fixture(client => { client.queueDeleteFailure = 'queue cleanup disconnected' })
+        const app = routes(service, 'owner')
+        const request = () => app.request('/api/codex-native/threads/thread/queue/steer', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ queuedSubmissionId: 'queued', expectedTurnId: 'active-turn' }),
+        })
+        const response = await request()
+        expect(response.status).toBe(200)
+        expect(await response.json()).toEqual({ accepted: true, turnId: 'active-turn', cleanupError: 'queue cleanup disconnected' })
+        await request()
+        expect(clients.flatMap(client => client.calls).filter(call => call.method === 'turn/steer')
+            .map(call => (call.params as { clientUserMessageId: string }).clientUserMessageId)).toEqual(['original-message', 'original-message'])
+    })
     test('reads and cancels the daemon queue directly with namespace isolation', async () => {
         const { service, clients } = fixture()
         const app = routes(service, 'owner')

@@ -44,6 +44,17 @@ export function createMessagesRoutes(getSyncEngine: () => SyncEngine | null): Ho
         }))
     })
 
+    app.get('/sessions/:id/messages/:messageId/context', (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const session = requireSessionFromParam(c, engine)
+        if (session instanceof Response) return session
+        const parsed = z.string().min(1).max(1000).safeParse(c.req.param('messageId'))
+        if (!parsed.success) return c.json({ error: 'Invalid source message ID' }, 400)
+        const context = engine.getMessageContext(session.sessionId, parsed.data)
+        return context ? c.json(context) : c.json({ error: 'Source message is no longer available' }, 404)
+    })
+
     app.get('/sessions/:id/outline', (c) => {
         const engine = requireSyncEngine(c, getSyncEngine)
         if (engine instanceof Response) return engine
