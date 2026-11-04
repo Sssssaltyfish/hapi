@@ -8,7 +8,9 @@ export function MachineSettingsRow(props: {
     label: string
     displayName?: string
     fallbackName?: string
-    subtitle?: string
+    platforms?: string[]
+    address?: string
+    status?: string
     onRename: (displayName: string) => Promise<unknown>
     onRenamed: () => void
     trailing?: ReactNode
@@ -44,8 +46,8 @@ export function MachineSettingsRow(props: {
     }
 
     return (
-        <div className="px-3 py-3">
-            <div className="flex min-h-9 items-center justify-between gap-3">
+        <div role="group" aria-label={props.label} className="px-3 py-3">
+            <div className="flex min-h-8 items-center gap-3">
                 <div className="min-w-0 flex-1">
                     {editing ? (
                         <input
@@ -83,14 +85,16 @@ export function MachineSettingsRow(props: {
                             {props.label}
                         </button>
                     )}
-                    {props.subtitle ? (
-                        <div className="mt-0.5 break-all text-xs leading-snug text-[var(--app-hint)]">
-                            {props.subtitle}
-                        </div>
-                    ) : null}
                 </div>
+                {props.status ? <span className="shrink-0 text-xs text-[var(--app-hint)]">{props.status}</span> : null}
                 {props.trailing}
             </div>
+            {props.platforms?.length ? (
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--app-fg)]">
+                    {props.platforms.map(platform => <span key={platform}>{platform}</span>)}
+                </div>
+            ) : null}
+            {props.address ? <div className="mt-1 text-xs leading-snug text-[var(--app-hint)] [overflow-wrap:anywhere]">{props.address}</div> : null}
             {props.children}
             {error ? (
                 <div role="alert" className="mt-1 text-xs text-red-600 dark:text-red-400">{error}</div>

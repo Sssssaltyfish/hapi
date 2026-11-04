@@ -153,12 +153,14 @@ export type MachineOsLabel =
     | { kind: 'raw'; value: string }
 
 export function resolveMachineOsLabel(platform: string | null | undefined): MachineOsLabel {
-    switch (platform) {
+    switch (platform?.trim().toLowerCase()) {
         case 'win32':
+        case 'windows':
             return { kind: 'i18n', key: 'machine.os.windows' }
         case 'linux':
             return { kind: 'i18n', key: 'machine.os.linux' }
         case 'darwin':
+        case 'macos':
             return { kind: 'i18n', key: 'machine.os.macos' }
         default:
             if (platform?.trim()) {
@@ -166,6 +168,12 @@ export function resolveMachineOsLabel(platform: string | null | undefined): Mach
             }
             return { kind: 'i18n', key: 'machine.os.unknown' }
     }
+}
+
+export function formatMachinePlatform(platform: string | null | undefined, t: (key: string) => string): string | undefined {
+    if (!platform?.trim()) return undefined
+    const label = resolveMachineOsLabel(platform)
+    return label.kind === 'i18n' ? t(label.key) : label.value
 }
 
 export function shouldShowMachineHostSubtitle(label: string, host: string | null | undefined): boolean {

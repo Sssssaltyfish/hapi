@@ -2,6 +2,7 @@ import type { Machine } from '@/types/api'
 import { isMachineCapabilitySkewed } from '@hapi/protocol/runnerCapabilities'
 import { useTranslation } from '@/lib/use-translation'
 import { SelectControl } from '@/components/ui/select-control'
+import { formatMachinePlatform } from '@/lib/machineHealth'
 
 function getMachineTitle(machine: Machine): string {
     if (machine.metadata?.displayName) return machine.metadata.displayName
@@ -9,14 +10,15 @@ function getMachineTitle(machine: Machine): string {
     return machine.id.slice(0, 8)
 }
 
-function getMachineOptionLabel(machine: Machine, updateRequiredLabel: string): string {
+function getMachineOptionLabel(machine: Machine, t: (key: string) => string): string {
     const title = getMachineTitle(machine)
-    const platform = machine.metadata?.platform ? ` (${machine.metadata.platform})` : ''
+    const os = formatMachinePlatform(machine.metadata?.platform, t)
+    const platform = os ? ` (${os})` : ''
     const version = machine.metadata?.happyCliVersion
         ? ` · CLI ${machine.metadata.happyCliVersion}`
         : ''
     const skew = machine.active && isMachineCapabilitySkewed(machine.metadata?.capabilities)
-        ? ` · ${updateRequiredLabel}`
+        ? ` · ${t('runner.skew.updateRequired')}`
         : ''
     return `${title}${platform}${version}${skew}`
 }
@@ -35,7 +37,7 @@ export function MachineSelector(props: {
             options={props.machines.map((machine) => ({
                 kind: 'runner',
                 id: machine.id,
-                label: getMachineOptionLabel(machine, t('runner.skew.updateRequired')),
+                label: getMachineOptionLabel(machine, t),
             }))}
             value={props.machineId}
             isLoading={props.isLoading}
@@ -84,11 +86,12 @@ export function MachineSelectionField(props: {
                 {!props.isLoading && props.options.length > 0 && props.placeholder ? (
                     <option value="">{props.placeholder}</option>
                 ) : null}
-                {props.options.map((option) => (
-                    <option key={`${option.kind}:${option.id}`} value={option.id}>
-                        {option.label}{option.platform ? ` (${option.platform})` : ''}
+                {props.options.map((option) => {
+                    const platform = formatMachinePlatform(option.platform, t)
+                    return <option key={`${option.kind}:${option.id}`} value={option.id}>
+                        {option.label}{platform ? ` (${platform})` : ''}
                     </option>
-                ))}
+                })}
             </SelectControl>
         </div>
     )

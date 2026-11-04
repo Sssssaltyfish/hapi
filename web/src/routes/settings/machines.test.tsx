@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/lib/i18n-context'
@@ -71,7 +71,11 @@ describe('SettingsMachinesPage', () => {
         endpointsMock.mockResolvedValue({ endpoints: [{ id: 'endpoint-uuid', label: 'Windows box', displayName: 'Windows box', address: 'wss://remote.example:8443', source: 'settings' }] })
         renderPage()
         const rename = await screen.findByRole('button', { name: 'Rename Windows box' })
-        await screen.findByText('Codex Native · Windows daemon · wss://remote.example:8443 · Connected')
+        const row = within(screen.getByRole('group', { name: 'Windows box' }))
+        await row.findByText('Windows daemon')
+        expect(row.getByText('Codex Native')).toBeTruthy()
+        expect(row.getByText('wss://remote.example:8443')).toBeTruthy()
+        expect(row.getByText('Connected')).toBeTruthy()
         expect(rename.closest('section')).toBe(screen.getByRole('button', { name: 'Rename workstation.local' }).closest('section'))
         fireEvent.click(rename)
         const input = screen.getByRole('textbox')
@@ -87,8 +91,12 @@ describe('SettingsMachinesPage', () => {
         ] })
         endpointStatusMock.mockImplementation(async (id: string) => ({ available: true, platformOs: id === 'local' ? 'windows' : 'linux' }))
         renderPage()
-        await screen.findByText('Windows Desktop · Windows daemon · ws://local · Connected')
-        await screen.findByText('Windows Desktop · Linux daemon · unix:///wsl.sock · Connected')
+        const local = within(await screen.findByRole('group', { name: 'My Desktop' }))
+        const remote = within(screen.getByRole('group', { name: 'My WSL' }))
+        await local.findByText('Windows Desktop')
+        expect(local.getByText('Windows daemon')).toBeTruthy()
+        await remote.findByText('Linux daemon')
+        expect(remote.getByText('Windows Desktop')).toBeTruthy()
     })
 
     it('adds a native machine using the server-generated identity and refreshes the shared list', async () => {
@@ -110,7 +118,7 @@ describe('SettingsMachinesPage', () => {
         renderPage()
 
         expect(screen.getByRole('button', { name: 'Rename workstation.local' })).toBeTruthy()
-        expect(screen.getByText('workstation.local · linux')).toBeTruthy()
+        expect(screen.getByText('Linux Runner')).toBeTruthy()
     })
 
     it('shows the custom name while keeping the hostname visible', () => {
@@ -121,7 +129,8 @@ describe('SettingsMachinesPage', () => {
         renderPage()
 
         expect(screen.getByRole('button', { name: 'Rename Workstation' })).toBeTruthy()
-        expect(screen.getByText('workstation.local · linux')).toBeTruthy()
+        expect(screen.getByText('workstation.local')).toBeTruthy()
+        expect(screen.getByText('Linux Runner')).toBeTruthy()
     })
 
     it('seeds the input with the current custom name, not the hostname', () => {

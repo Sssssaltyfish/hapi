@@ -7,16 +7,9 @@ import { queryKeys } from '@/lib/query-keys'
 import { Button } from '@/components/ui/button'
 import { MACHINE_DISPLAY_NAME_MAX_LENGTH } from '@hapi/protocol'
 import { MachineSettingsRow } from './MachineSettingsRow'
+import { formatMachinePlatform } from '@/lib/machineHealth'
 
 const endpointsKey = ['codex-native', 'endpoints'] as const
-function platformName(value?: string): string | undefined {
-    switch (value?.toLowerCase()) {
-        case 'windows': case 'win32': return 'Windows'
-        case 'macos': case 'darwin': return 'macOS'
-        case 'linux': return 'Linux'
-        default: return undefined
-    }
-}
 
 function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
     const { t } = useTranslation()
@@ -35,9 +28,9 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
     })
     const localPlatform = desktop?.localEndpointId === props.endpoint.id ? status.data?.platformOs : local.data?.platformOs
     const desktopPlatform = desktop?.platform ?? (desktop?.localEndpointId ? localPlatform : undefined)
-    const desktopName = platformName(desktopPlatform)
+    const desktopName = formatMachinePlatform(desktopPlatform, t)
     const deviceKind = desktop ? (desktopName ? `${desktopName} Desktop` : 'Codex Desktop') : 'Codex Native'
-    const daemon = status.data?.platformOs ?? status.data?.platformFamily
+    const daemon = formatMachinePlatform(status.data?.platformOs ?? status.data?.platformFamily, t)
     const error = status.error?.message ?? status.data?.error
     const connection = t(status.isPending
         ? 'settings.native.checking'
@@ -50,12 +43,9 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
             label={props.endpoint.label}
             displayName={props.endpoint.displayName}
             fallbackName={props.endpoint.baseLabel ?? props.endpoint.label}
-            subtitle={[
-                deviceKind,
-                daemon ? t('settings.native.daemonPlatform', { platform: platformName(daemon) ?? daemon }) : null,
-                props.endpoint.address,
-                connection,
-            ].filter(Boolean).join(' · ')}
+            platforms={daemon ? [deviceKind, `${daemon} daemon`] : [deviceKind]}
+            address={props.endpoint.address}
+            status={connection}
             onRename={(displayName) => props.api.renameCodexNativeEndpoint(props.endpoint.id, displayName)}
             onRenamed={() => {
                 void queryClient.invalidateQueries({ queryKey: endpointsKey })

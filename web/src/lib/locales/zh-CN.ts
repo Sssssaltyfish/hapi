@@ -198,7 +198,6 @@ export default {
   'settings.display.sessionListAgentLabel.desc': '在各会话标题旁显示代理名称标签。',
   'settings.native.checking': '检查连接中…',
   'settings.native.connected': '已连接',
-  'settings.native.daemonPlatform': '{platform} 守护进程',
   'settings.native.disconnected': '无法连接',
   'settings.native.refresh': '刷新',
   'settings.native.directory': '默认目录：',

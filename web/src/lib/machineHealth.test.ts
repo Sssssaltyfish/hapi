@@ -65,8 +65,10 @@ describe('formatMachineUptimeSeconds', () => {
 describe('resolveMachineOsLabel', () => {
     it('maps known platforms to i18n keys', () => {
         expect(resolveMachineOsLabel('win32')).toEqual({ kind: 'i18n', key: 'machine.os.windows' })
+        expect(resolveMachineOsLabel('windows')).toEqual(resolveMachineOsLabel('win32'))
         expect(resolveMachineOsLabel('linux')).toEqual({ kind: 'i18n', key: 'machine.os.linux' })
         expect(resolveMachineOsLabel('darwin')).toEqual({ kind: 'i18n', key: 'machine.os.macos' })
+        expect(resolveMachineOsLabel('macOS')).toEqual(resolveMachineOsLabel('darwin'))
     })
 
     it('falls back to raw platform string when unknown', () => {
