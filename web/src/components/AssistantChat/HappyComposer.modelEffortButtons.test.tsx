@@ -153,6 +153,34 @@ describe('HappyComposer generic model/effort value buttons', () => {
         expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
     })
 
+    it('displays advertised defaults while retaining default selections', () => {
+        const changeModel = vi.fn()
+        const changeEffort = vi.fn()
+        renderComposer('codex', {
+            model: null, modelReasoningEffort: null,
+            resolvedDefaultModelLabel: 'GPT-6.1 Sol', resolvedDefaultReasoningEffort: 'high',
+            availableModelOptions: [{ value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' }],
+            availableModelReasoningEffortOptions: [{ value: 'high' }, { value: 'ultra' }],
+            onModelChange: changeModel, onModelReasoningEffortChange: changeEffort,
+        })
+        expect(screen.getByRole('button', { name: 'GPT-6.1 Sol' })).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: 'Reasoning Effort: High' }))
+        expect(changeModel).not.toHaveBeenCalled()
+        expect(changeEffort).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        expect(changeEffort).toHaveBeenCalledWith(null)
+    })
+
+    it('keeps explicit effort ahead of the advertised default', () => {
+        renderComposer('codex', {
+            model: 'gpt-6.1-sol', modelReasoningEffort: 'ultra',
+            resolvedDefaultReasoningEffort: 'high',
+            availableModelReasoningEffortOptions: [{ value: 'high' }, { value: 'ultra' }],
+            onModelReasoningEffortChange: vi.fn(),
+        })
+        expect(screen.getByRole('button', { name: 'Reasoning Effort: Ultra' })).toBeTruthy()
+    })
+
     it('shows only the model button for flavors without effort support', () => {
         renderComposer('codex')
         expect(screen.getByRole('button', { name: 'Sonnet 4' })).toBeTruthy()

@@ -1074,6 +1074,10 @@ function SessionChatInner(props: SessionChatProps) {
         () => codexSupportedReasoningEfforts?.map((value) => ({ value })),
         [codexSupportedReasoningEfforts]
     )
+    const resolvedCodexModel = agentFlavor === 'codex'
+        ? codexModelsState.models.find(model => props.session.model && !['auto', 'default'].includes(props.session.model)
+            ? model.id === props.session.model : model.isDefault)
+        : undefined
     const opencodeModelsState = useOpencodeModels({
         api: props.api,
         sessionId: props.session.id,
@@ -2237,6 +2241,8 @@ function SessionChatInner(props: SessionChatProps) {
                                         : undefined
                         }
                         piModels={piModels}
+                        resolvedDefaultModelLabel={resolvedCodexModel?.displayName}
+                        resolvedDefaultReasoningEffort={resolvedCodexModel?.defaultReasoningEffort}
                         piSelectedModel={agentFlavor === 'pi' ? piSelectedModel : undefined}
                         availableModelReasoningEffortOptions={
                             agentFlavor === 'codex'
