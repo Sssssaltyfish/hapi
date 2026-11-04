@@ -7,6 +7,7 @@ import {
     type NativeCommandState as NativeThreadCommandState,
     type NativeCommandResult as NativeThreadCommandResult
 } from '@hapi/protocol/codexThreadCommands'
+import { codexRecap, codexUsage } from '@hapi/protocol/codexManagement'
 import type { NativeService } from './service'
 import { queueNativeInput } from './queueInput'
 import { record, type NativeRecord } from './transport'
@@ -29,8 +30,13 @@ const goalCommand = z.union([
             .refine(value => value.trim().length > 0)
     }).strict()
 ])
+const managementCommand = z.union([
+    z.object({ command: z.enum(['compact', 'recap', 'usage']) }).strict(),
+    z.object({ command: z.literal('approve'), action: z.literal('show') }).strict(),
+    z.object({ command: z.literal('approve'), action: z.literal('retry'), reviewId: z.string().min(1).max(500) }).strict(),
+])
 export const nativeThreadCommandRequest: z.ZodType<NativeCommandRequest> = z.object({
-    command: z.union([planCommand, goalCommand]),
+    command: z.union([planCommand, goalCommand, managementCommand]),
     clientId: z.string().min(1).max(200).optional(),
     attachments: z.array(z.object({ path: z.string().min(1) }).strict()).optional()
 }).strict().superRefine((value, context) => {
@@ -149,6 +155,24 @@ export async function executeThreadCommand(
     command: CodexThreadCommand,
     submission?: { input: NativeRecord[]; clientId: string }
 ): Promise<NativeThreadCommandResult> {
+    const request: Request = (method, params) => native.control(threadId, method, params)
+    if (command.command === 'usage') return codexUsage((method, params) => method.startsWith('account/')
+        ? native.call(method, params) : request(method, params), threadId)
+    if (command.command === 'recap') {
+        try { return await codexRecap(request, threadId) }
+        catch (error) { throw new NativeThreadCommandError(409, error instanceof Error ? error.message : String(error)) }
+    }
+    if (command.command === 'compact') {
+        const runtime = record(record(await native.readThread(threadId)).thread)
+        if (record(runtime.status).type === 'active') throw new NativeThreadCommandError(409, 'Wait for the native turn to finish before compacting')
+        await request('thread/compact/start', {})
+        return { command: 'compact', accepted: true }
+    }
+    if (command.command === 'approve') {
+        if (command.action === 'show') return { command: 'approve', action: 'show', denial: native.guardianDenial(threadId) }
+        await native.retryGuardianDenial(threadId, command.reviewId)
+        return { command: 'approve', action: 'retry', reviewId: command.reviewId, accepted: true }
+    }
     const state = await native.threadCommandState(threadId)
     if (command.command === 'plan') {
         const preset = state.planPresets.find(value => value.mode === command.mode)

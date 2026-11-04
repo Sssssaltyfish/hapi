@@ -9,7 +9,7 @@ import type { NativeGoal } from '@hapi/protocol/codexThreadCommands'
 class Daemon {
     calls: Array<{ method: string; params: NativeRecord }> = []
     clients: Array<{ listeners: Set<(event: NativeEvent) => void> }> = []
-    settings: NativeRecord = { model: 'current-model', reasoningEffort: 'high', collaborationMode: {
+    settings: NativeRecord = { model: 'current-model', reasoningEffort: 'high', approvalsReviewer: 'auto_review', collaborationMode: {
         mode: 'default', settings: { model: 'current-model', reasoning_effort: 'high', developer_instructions: null }
     } }
     goal: NativeGoal | null = null
@@ -88,6 +88,11 @@ class Daemon {
                     case 'thread/queue/start':
                         if (this.startFailure) throw new Error('Start confirmation unavailable')
                         return {}
+                    case 'account/usage/read': return { summary: { lifetimeTokens: 123 }, threadUsage: { threadId: params.threadId, estimatedUsageCreditsMicros: 456 } }
+                    case 'account/rateLimits/read': throw new Error('Rate limits unavailable')
+                    case 'thread/sample': return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' }
+                    case 'thread/compact/start':
+                    case 'thread/approveGuardianDeniedAction': return {}
                     default: return { data: [] }
                 }
             },
@@ -113,6 +118,44 @@ function fixture() {
 }
 
 describe('Native Plan and Goal commands', () => {
+    test('runs compact, recap and usage through native management protocols without submitting chat input', async () => {
+        const { daemon, service, command } = fixture()
+        try {
+            const busy = await command({ command: 'compact' })
+            expect(busy.status).toBe(409)
+            daemon.runtimeStatus = 'idle'
+            daemon.latestStatus = 'completed'
+            expect(await (await command({ command: 'compact' })).json()).toEqual({ command: 'compact', accepted: true })
+            expect(await (await command({ command: 'recap' })).json()).toEqual({ command: 'recap', sourceTurnId: 'turn', text: 'A separate recap.' })
+            expect(await (await command({ command: 'usage' })).json()).toMatchObject({ command: 'usage', usage: { threadUsage: { threadId: 'thread' } }, rateLimits: null, unavailable: { rateLimits: 'Rate limits unavailable' } })
+            expect((await command({ command: 'approve', action: 'retry', reviewId: 'forged', event: { action: 'allow anything' } })).status).toBe(400)
+            expect((await command({ command: 'compact' }, { attachments: [{ path: '/tmp/file' }] })).status).toBe(400)
+            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
+            expect(daemon.calls.some(call => call.method === 'experimentalFeature/list')).toBe(false)
+        } finally { service.dispose() }
+    })
+
+    test('retries only the displayed native denial once under automatic review', async () => {
+        const { daemon, service, command } = fixture()
+        const release = await service.subscribe('thread', () => {})
+        const denial = { threadId: 'thread', turnId: 'turn', reviewId: 'review', startedAtMs: 1, completedAtMs: 2,
+            decisionSource: 'agent', targetItemId: 'item', review: { status: 'denied', rationale: 'Check the action' },
+            action: { type: 'command', source: 'shell', command: 'echo exact', cwd: '/project' } }
+        try {
+            daemon.emit({ method: 'item/autoApprovalReview/completed', params: { ...denial, threadId: 'other' } })
+            expect(await (await command({ command: 'approve', action: 'show' })).json()).toMatchObject({ denial: null })
+            daemon.emit({ method: 'item/autoApprovalReview/completed', params: denial })
+            expect(await (await command({ command: 'approve', action: 'show' })).json()).toMatchObject({ denial: { reviewId: 'review', action: { command: 'echo exact' } } })
+            expect((await command({ command: 'approve', action: 'retry', reviewId: 'forged' })).status).toBe(409)
+            expect(await (await command({ command: 'approve', action: 'retry', reviewId: 'review' })).json()).toMatchObject({ accepted: true })
+            daemon.emit({ method: 'item/autoApprovalReview/completed', params: denial })
+            expect((await command({ command: 'approve', action: 'retry', reviewId: 'review' })).status).toBe(409)
+            const writes = daemon.calls.filter(call => call.method === 'thread/approveGuardianDeniedAction')
+            expect(writes).toHaveLength(1)
+            expect(writes[0].params).toMatchObject({ threadId: 'thread', event: { id: 'review', turn_id: 'turn', status: 'denied', action: { command: 'echo exact' } } })
+            expect(daemon.calls.some(call => ['thread/settings/update', 'thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
+        } finally { release(); service.dispose() }
+    })
     test('discovers the thread-specific second feature page and retains authoritative settings notifications', async () => {
         const { daemon, service, app } = fixture()
         const release = await service.subscribe('thread', () => {})

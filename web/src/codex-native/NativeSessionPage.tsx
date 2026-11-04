@@ -28,6 +28,7 @@ import { isNativeCommandSubmissionUnconfirmed } from './nativeThreadCommands'
 import { parseCodexThreadCommand, MAX_CODEX_GOAL_OBJECTIVE_CHARS } from '@hapi/protocol/codexThreadCommands'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
 import { useTranslation } from '@/lib/use-translation'
+import { NativeManagementResult } from './NativeManagementResult'
 
 function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
     const messages = projectNativeItems(entries, [], false).messages
@@ -80,6 +81,10 @@ function NativeSessionChat({
     const commandMenu = useMemo(() => [
         ...(commands.state?.capabilities.plan ? [{ name: 'plan', description: t('nativeCommands.planDescription') }] : []),
         ...(commands.state?.capabilities.goal ? [{ name: 'goal', description: t('nativeCommands.goalDescription') }] : []),
+        { name: 'compact', description: t('nativeManagement.compactDescription') },
+        { name: 'approve', description: t('nativeManagement.approveDescription') },
+        { name: 'recap', description: t('nativeManagement.recapDescription') },
+        { name: 'usage', description: t('nativeManagement.usageDescription') },
     ], [commands.state?.capabilities.plan, commands.state?.capabilities.goal, t])
     const unconfirmedPlan = useRef<string | null>(null)
     const queue = useNativeQueue(api, native.threadId, native.available !== false, thread.subscribeEvents)
@@ -191,15 +196,24 @@ function NativeSessionChat({
             api={adapter}
             autocompleteSuggestions={autocompleteSuggestions}
             session={liveSession}
+            contextUsage={thread.contextUsage}
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
                 modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
-                queueContent: <><NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
+                queueContent: <><NativeManagementResult result={commands.managementResult} pendingCommand={commands.pendingCommand}
+                    pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult} />
+                    <NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
                     activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
                 onSubmitCommand: async text => {
                     const command = parseCodexThreadCommand(text)
-                    if (!command) return 'unhandled'
+                    if (!command) {
+                        if (/^\s*\/(compact|recap|usage|approve)(?:\s|$)/i.test(text)) {
+                            commands.reportError(t('nativeManagement.invalidArguments'))
+                            return 'failed'
+                        }
+                        return 'unhandled'
+                    }
                     if (command.command === 'plan' && command.prompt) {
                         if (unconfirmedPlan.current && splitResponseAnnotations(unconfirmedPlan.current).body === text) {
                             commands.reportError(t('nativeCommands.unconfirmed'))
@@ -320,6 +334,10 @@ function NativeSessionChat({
                 const attemptId = crypto.randomUUID()
                 const annotated = splitResponseAnnotations(text)
                 const command = parseCodexThreadCommand(annotated.body)
+                if (!command && /^\s*\/(compact|recap|usage|approve)(?:\s|$)/i.test(annotated.body)) {
+                    commands.reportError(t('nativeManagement.invalidArguments'))
+                    return false
+                }
                 if (command && (command.command !== 'plan' || !command.prompt)) {
                     commands.reportError(t('nativeCommands.managementOnly'))
                     return false

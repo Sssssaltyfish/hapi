@@ -2,13 +2,14 @@ import { readFile, stat } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
 import type { CodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
+import { CodexGuardianDenials } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
 import { nativeOutlinePage } from '../sync/conversationOutline'
 import { nativeTurnContext } from './turnContext'
 import { nativeItemLookup } from './itemLookup'
-import { discoverThreadCommands, executeThreadCommand } from './threadCommands'
+import { discoverThreadCommands, executeThreadCommand, NativeThreadCommandError } from './threadCommands'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
@@ -44,6 +45,7 @@ type Subscription = {
     creating?: boolean
     empty?: boolean
     snapshot?: NativeRecord
+    denials?: CodexGuardianDenials
 }
 function settingsSnapshot(value: NativeRecord): NativeRecord {
     return { ...value, effort: value.effort ?? value.reasoningEffort ?? null }
@@ -204,10 +206,12 @@ export class NativeService {
                 creating: true,
                 empty: true,
                 snapshot: settingsSnapshot(response),
+                denials: new CodexGuardianDenials(),
             }
             this.subscriptions.set(threadId, entry)
             client.listeners.add((event) => {
                 const params = record(event.params)
+                entry.denials?.observe(threadId, event.method, params)
                 if (event.method === 'turn/started' && params.threadId === threadId)
                     entry.empty = false
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
@@ -439,11 +443,13 @@ export class NativeService {
                 attached: client.request('thread/resume', { threadId, excludeTurns: true }),
             }
             const current = entry
+            current.denials = new CodexGuardianDenials()
             void current.attached.then(state => {
                 current.snapshot ??= settingsSnapshot(record(state))
             }).catch(() => {})
             client.listeners.add((event) => {
                 const params = record(event.params)
+                current.denials?.observe(threadId, event.method, params)
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
                     current.snapshot = { ...current.snapshot, ...record(params.threadSettings) }
                 }
@@ -521,6 +527,23 @@ export class NativeService {
     async control(threadId: string, method: string, params: NativeRecord): Promise<unknown> {
         // Controls use a separate connection and never wait for the subscription or history page.
         return this.call(method, { ...params, threadId })
+    }
+    guardianDenial(threadId: string) {
+        return this.subscriptions.get(threadId)?.denials?.show() ?? null
+    }
+    async retryGuardianDenial(threadId: string, reviewId: string): Promise<void> {
+        const entry = this.subscriptions.get(threadId)
+        if (entry?.snapshot?.approvalsReviewer !== 'auto_review') {
+            throw new NativeThreadCommandError(409, 'Automatic review must be active to retry a denied action')
+        }
+        const event = entry.denials?.claim(reviewId)
+        if (!event) throw new NativeThreadCommandError(409, 'This native denial is no longer available for a one-time retry')
+        try {
+            await this.control(threadId, 'thread/approveGuardianDeniedAction', { event })
+        } catch (error) {
+            throw new NativeThreadCommandError(502,
+                `Native retry was not confirmed; check the conversation before another attempt: ${error instanceof Error ? error.message : String(error)}`)
+        }
     }
     async threadCommandState(threadId: string) {
         const entry = this.subscriptions.get(threadId)
