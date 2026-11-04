@@ -87,7 +87,7 @@ describe('SettingsMachinesPage', () => {
         ] })
         endpointStatusMock.mockImplementation(async (id: string) => ({ available: true, platformOs: id === 'local' ? 'windows' : 'linux' }))
         renderPage()
-        await screen.findByText('Windows Desktop · ws://local · Connected')
+        await screen.findByText('Windows Desktop · Windows daemon · ws://local · Connected')
         await screen.findByText('Windows Desktop · Linux daemon · unix:///wsl.sock · Connected')
     })
 

@@ -52,7 +52,7 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
             fallbackName={props.endpoint.baseLabel ?? props.endpoint.label}
             subtitle={[
                 deviceKind,
-                daemon && desktop?.localEndpointId !== props.endpoint.id ? t('settings.native.daemonPlatform', { platform: platformName(daemon) ?? daemon }) : null,
+                daemon ? t('settings.native.daemonPlatform', { platform: platformName(daemon) ?? daemon }) : null,
                 props.endpoint.address,
                 connection,
             ].filter(Boolean).join(' · ')}
