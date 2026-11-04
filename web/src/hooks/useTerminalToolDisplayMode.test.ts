@@ -12,6 +12,7 @@ describe('useTerminalToolDisplayMode helpers', () => {
 
     it('returns the allowed terminal tool display options', () => {
         expect(getTerminalToolDisplayModeOptions()).toEqual([
+            { value: 'minimal', labelKey: 'settings.chat.terminalToolDisplay.minimal' },
             { value: 'compact', labelKey: 'settings.chat.terminalToolDisplay.compact' },
             { value: 'detailed', labelKey: 'settings.chat.terminalToolDisplay.detailed' },
         ])
@@ -24,9 +25,9 @@ describe('useTerminalToolDisplayMode helpers', () => {
         expect(getInitialTerminalToolDisplayMode()).toBe(DEFAULT_TERMINAL_TOOL_DISPLAY_MODE)
     })
 
-    it('reads a valid stored terminal tool display mode', () => {
-        window.localStorage.setItem('hapi-terminal-tool-display-mode', 'detailed')
+    it.each(['minimal', 'detailed'])('reads the stored %s tool display mode', (mode) => {
+        window.localStorage.setItem('hapi-terminal-tool-display-mode', mode)
 
-        expect(getInitialTerminalToolDisplayMode()).toBe('detailed')
+        expect(getInitialTerminalToolDisplayMode()).toBe(mode)
     })
 })

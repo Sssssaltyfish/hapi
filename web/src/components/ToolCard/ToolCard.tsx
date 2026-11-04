@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/use-translation'
 import { TraceSection } from '@/components/ToolCard/trace'
 import { isSubagentToolName } from '@/chat/subagentTool'
+import { getMinimalToolPreview } from './toolPreview'
 
 const ELAPSED_INTERVAL_MS = 1000
 const TERMINAL_RELATED_TOOL_NAMES = new Set(['Bash', 'CodexBash', 'shell_command', 'run_shell_command'])
@@ -39,6 +40,7 @@ export function shouldShowInlineToolCardBody(
     presentationMinimal: boolean,
     terminalToolDisplayMode: TerminalToolDisplayMode
 ): boolean {
+    if (terminalToolDisplayMode === 'minimal') return false
     if (isSubagentToolName(toolName)) return false
     if (TERMINAL_RELATED_TOOL_NAMES.has(toolName)) {
         return terminalToolDisplayMode === 'detailed'
@@ -375,6 +377,7 @@ type ToolCardProps = {
 export function ToolDetailDialogContent(props: {
     block: ToolCallBlock
     metadata: SessionMetadataSummary | null
+    footer?: ReactNode
 }) {
     const { t } = useTranslation()
     const toolName = props.block.tool.name
@@ -407,6 +410,7 @@ export function ToolDetailDialogContent(props: {
                     <ResultToolView block={props.block} metadata={props.metadata} surface="dialog" />
                 </div>
             ) : null}
+            {props.footer}
         </div>
     )
 }
@@ -440,6 +444,8 @@ function ToolCardInner(props: ToolCardProps) {
         ? getSubagentModel(props.block.children, getInputStringAny(props.block.tool.input, ['model']))
         : null
     const isCodexAgentCard = toolName === 'CodexAgent'
+    const useMinimalCard = props.terminalToolDisplayMode === 'minimal'
+    const minimalPreview = useMinimalCard ? getMinimalToolPreview(props.block.tool, presentation) : ''
     const useCompactTerminalCard = shouldUseCompactTerminalToolCard(toolName, props.terminalToolDisplayMode)
     const showInline = shouldShowInlineToolCardBody(toolName, presentation.minimal, props.terminalToolDisplayMode)
     const CompactToolView = showInline ? getToolViewComponent(toolName, props.block.tool) : null
@@ -453,7 +459,7 @@ function ToolCardInner(props: ToolCardProps) {
         permission.status === 'resolved' || permission.status === 'pending'
         || ((permission.status === 'denied' || permission.status === 'canceled') && Boolean(permission.reason))
     ))
-    const hasBody = showInline || taskSummary !== null || showsPermissionFooter
+    const hasBody = !useMinimalCard && (showInline || taskSummary !== null || showsPermissionFooter)
     // Header/content padding already supplies 12-16px below timing; add only
     // the remainder needed to match the detail dialog's 16px section gap.
     const inlineBodySpacing = props.block.tool.state === 'pending'
@@ -477,7 +483,32 @@ function ToolCardInner(props: ToolCardProps) {
         }
     }
 
-    const header = (
+    const footer = <>
+        {(toolName === 'ExitPlanMode' || toolName === 'exit_plan_mode') && !permission ? <CodexPlanFooter planId={props.block.tool.id} /> : null}
+        {isAskUserQuestion && permission?.status === 'pending' ? (
+            <AskUserQuestionFooter api={props.api} sessionId={props.sessionId} tool={props.block.tool} disabled={props.disabled} onDone={props.onDone} />
+        ) : isRequestUserInput && permission?.status === 'pending' ? (
+            <RequestUserInputFooter api={props.api} sessionId={props.sessionId} tool={props.block.tool} disabled={props.disabled} onDone={props.onDone} />
+        ) : (
+            <PermissionFooter api={props.api} sessionId={props.sessionId} metadata={props.metadata} tool={props.block.tool} disabled={props.disabled} onDone={props.onDone} />
+        )}
+    </>
+    const pendingLabel = permission?.status === 'pending'
+        ? t(isQuestionTool ? 'tool.waitingForAnswer' : 'tool.waitingForApproval')
+        : props.block.tool.state === 'pending' ? t('toolGroup.rowStatus.pending') : null
+
+    const header = useMinimalCard ? (
+        <div className="flex min-w-0 items-center gap-2">
+            <span className={cn('shrink-0', pendingLabel ? 'text-amber-600' : stateColor)}>
+                <ToolStatusIcon state={pendingLabel ? 'pending' : props.block.tool.state} />
+            </span>
+            <span className="min-w-0 flex-1 truncate whitespace-nowrap font-mono text-xs text-[var(--app-fg)]" title={minimalPreview}>
+                {minimalPreview}
+            </span>
+            {pendingLabel ? <span className="max-w-[40%] shrink-0 truncate whitespace-nowrap text-xs text-amber-600" title={pendingLabel}>{pendingLabel}</span> : null}
+            <span className="shrink-0 text-[var(--app-hint)]"><DetailsIcon /></span>
+        </div>
+    ) : (
         <div className="flex items-center justify-between gap-3">
             <div className="min-w-0 flex flex-1 flex-col gap-1">
                 <div className="min-w-0 flex items-center gap-2">
@@ -527,7 +558,7 @@ function ToolCardInner(props: ToolCardProps) {
 
     return (
         <Card className="overflow-hidden rounded-[20px] bg-[var(--app-tool-card-bg)] shadow-none">
-            <CardHeader className={cn('space-y-0 p-3', subtitle ? 'pb-2' : null)}>
+            <CardHeader className={cn('space-y-0', useMinimalCard ? 'px-3 py-2' : 'p-3', !useMinimalCard && subtitle ? 'pb-2' : null)}>
                 <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
                     <DialogTrigger asChild>
                         <button
@@ -558,7 +589,7 @@ function ToolCardInner(props: ToolCardProps) {
                         <DialogHeader className="text-left">
                             <DialogTitle>{toolTitle}</DialogTitle>
                         </DialogHeader>
-                        <ToolDetailDialogContent block={props.block} metadata={props.metadata} />
+                        <ToolDetailDialogContent block={props.block} metadata={props.metadata} footer={useMinimalCard ? footer : undefined} />
                     </DialogContent>
                 </Dialog>
             </CardHeader>
@@ -615,35 +646,7 @@ function ToolCardInner(props: ToolCardProps) {
                         )
                     ) : null}
 
-                    {(toolName === 'ExitPlanMode' || toolName === 'exit_plan_mode') && !permission ? (
-                        <CodexPlanFooter planId={props.block.tool.id} />
-                    ) : null}
-                    {isAskUserQuestion && permission?.status === 'pending' ? (
-                        <AskUserQuestionFooter
-                            api={props.api}
-                            sessionId={props.sessionId}
-                            tool={props.block.tool}
-                            disabled={props.disabled}
-                            onDone={props.onDone}
-                        />
-                    ) : isRequestUserInput && permission?.status === 'pending' ? (
-                        <RequestUserInputFooter
-                            api={props.api}
-                            sessionId={props.sessionId}
-                            tool={props.block.tool}
-                            disabled={props.disabled}
-                            onDone={props.onDone}
-                        />
-                    ) : (
-                        <PermissionFooter
-                            api={props.api}
-                            sessionId={props.sessionId}
-                            metadata={props.metadata}
-                            tool={props.block.tool}
-                            disabled={props.disabled}
-                            onDone={props.onDone}
-                        />
-                    )}
+                    {footer}
                 </CardContent>
             ) : null}
         </Card>
