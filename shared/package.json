@@ -15,6 +15,7 @@
         "./conversationHistory": "./src/conversationHistory.ts",
         "./codexInputContext": "./src/codexInputContext.ts",
         "./codexThreadCommands": "./src/codexThreadCommands.ts",
+        "./codexNativeVisibility": "./src/codexNativeVisibility.ts",
         "./codexManagement": "./src/codexManagement.ts",
         "./codexUsage": "./src/codexUsage.ts",
         "./commandNumber": "./src/commandNumber.ts",

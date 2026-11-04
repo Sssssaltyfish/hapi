@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { withSettingsFileLock } from '@hapi/protocol/settingsFileLock'
 
 export interface Settings {
+    /** Hub-only display selections and bounded native directory snapshots. */
+    nativeCodexVisibility?: unknown
     /** Native machine connections only; conversation state remains daemon-owned. */
     nativeCodexEndpoints?: Array<{
         id: string
