@@ -12,6 +12,31 @@ const deferredPage = () => {
 }
 
 describe('native thread window', () => {
+    it('retains real live context across history/cache re-entry and clears it on rollback', async () => {
+        let event!: (value: NativeEvent) => void
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'context-state' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValue({ data: [entry('context-item')], nextCursor: 'older' }),
+            streamCodexNativeEvents: vi.fn((_id: string, _signal: AbortSignal, onEvent: typeof event) => { event = onEvent; return new Promise<void>(() => {}) }),
+        }
+        const first = renderHook(() => useNativeThread(api as unknown as ApiClient, 'context-state', true, 'context-state-cache'))
+        await waitFor(() => expect(first.result.current.loading).toBe(false))
+        expect(first.result.current.contextUsage).toBeNull()
+        act(() => { event({ method: 'thread/tokenUsage/updated', params: { threadId: 'different-thread', tokenUsage: { last: { totalTokens: 1 }, modelContextWindow: 200000 } } }) })
+        expect(first.result.current.contextUsage).toBeNull()
+        act(() => { event({ method: 'thread/tokenUsage/updated', params: { threadId: 'context-state', tokenUsage: { last: { inputTokens: 1000, totalTokens: 1200 }, total: { totalTokens: 9_000_000 }, modelContextWindow: 200000 } } }); first.result.current.browseHistory() })
+        await act(async () => { await first.result.current.older() })
+        expect(first.result.current.contextUsage).toMatchObject({ used: 1200, max: 200000 })
+        first.unmount()
+        const next = renderHook(() => useNativeThread(api as unknown as ApiClient, 'context-state', true, 'context-state-cache', true))
+        expect(next.result.current.contextUsage).toMatchObject({ used: 1200, max: 200000 })
+        await waitFor(() => expect(next.result.current.loading).toBe(false))
+        act(() => { event({ method: 'thread/rolledBack', params: { threadId: 'context-state' } }); next.unmount() })
+        const restored = renderHook(() => useNativeThread(api as unknown as ApiClient, 'context-state', true, 'context-state-cache', true))
+        expect(restored.result.current.contextUsage).toBeNull()
+        restored.unmount()
+    })
     it('keeps an actively read window stable when live items and a newer tail arrive', async () => {
         let event!: (value: NativeEvent) => void
         const api = {

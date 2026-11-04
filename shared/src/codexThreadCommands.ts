@@ -1,3 +1,5 @@
+import type { CodexUsageSnapshot } from './codexUsage'
+
 export const MAX_CODEX_GOAL_OBJECTIVE_CHARS = 4_000
 
 export type CodexThreadCommand =
@@ -49,7 +51,7 @@ export type NativeCommandResult =
     | { command: 'goal'; action: 'clear'; cleared: boolean; goal?: never }
     | { command: 'compact'; accepted: true }
     | { command: 'recap'; text: string; sourceTurnId: string }
-    | { command: 'usage'; usage: Record<string, unknown> | null; rateLimits: Record<string, unknown> | null; unavailable: { usage?: string; rateLimits?: string } }
+    | { command: 'usage'; snapshot: CodexUsageSnapshot }
     | { command: 'approve'; action: 'show'; denial: { reviewId: string; turnId: string; action: Record<string, unknown>; rationale: string | null } | null }
     | { command: 'approve'; action: 'retry'; reviewId: string; accepted: true }
 

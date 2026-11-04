@@ -146,7 +146,7 @@ describe('Native Plan and Goal commands', () => {
             daemon.latestStatus = 'completed'
             expect(await (await command({ command: 'compact' })).json()).toEqual({ command: 'compact', accepted: true })
             expect(await (await command({ command: 'recap' })).json()).toEqual({ command: 'recap', sourceTurnId: 'turn', text: 'A separate recap.' })
-            expect(await (await command({ command: 'usage' })).json()).toMatchObject({ command: 'usage', usage: { threadUsage: { threadId: 'thread' } }, rateLimits: null, unavailable: { rateLimits: 'Rate limits unavailable' } })
+            expect(await (await command({ command: 'usage' })).json()).toMatchObject({ command: 'usage', snapshot: { thread: { id: 'thread' }, limits: [], unavailable: { rateLimits: 'Rate limits unavailable' } } })
             expect((await command({ command: 'approve', action: 'retry', reviewId: 'forged', event: { action: 'allow anything' } })).status).toBe(400)
             expect((await command({ command: 'compact' }, { attachments: [{ path: '/tmp/file' }] })).status).toBe(400)
             expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)

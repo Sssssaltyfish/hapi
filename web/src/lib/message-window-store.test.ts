@@ -1294,6 +1294,28 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('keeps live context independent of old pages, session switches and resets', async () => {
+        const id = sessionId('reported-context')
+        const usage = (seq: number, used: number, max: number): DecryptedMessage => ({
+            ...makeAgentMessage({ id: `usage-${seq}`, seq, at: seq * 1000 }),
+            content: { role: 'agent', content: { type: 'codex', data: { type: 'token_count', info: { last: { inputTokens: used, outputTokens: 0, totalTokens: used }, modelContextWindow: max } } } },
+        })
+        ingestIncomingMessages(id, [usage(20, 500, 1000)])
+        const older = makeUserMessage({ id: 'older', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const api = createApi(vi.fn()
+            .mockResolvedValueOnce(beforeResponse([usage(9, 90, 2000), older], { epoch: 1, hasMore: true, nextBeforeAt: 9000, nextBeforeSeq: 9 }))
+            .mockResolvedValueOnce(beforeResponse([usage(8, 80, 2000)], { epoch: 1, nextBeforeAt: null, nextBeforeSeq: null })))
+        expect(await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 11000, beforeSeq: 11, epoch: 1 }, 'user-text:older')).toBe(true)
+        expect(getMessageWindowState(id).contextUsage).toMatchObject({ used: 500, max: 1000 })
+        ingestIncomingMessages(id, [usage(30, 600, 1000)])
+        expect(getMessageWindowState(id).messages.some(message => message.id === 'usage-30')).toBe(false)
+        expect(getMessageWindowState(id).contextUsage).toMatchObject({ used: 600, max: 1000 })
+        await fetchOlderMessages(api, id)
+        expect(getMessageWindowState(id).contextUsage).toMatchObject({ used: 600, max: 1000 })
+        expect(getMessageWindowState(sessionId('different-context-session')).contextUsage).toBeNull()
+        invalidateMessageWindow(id)
+        expect(getMessageWindowState(id).contextUsage).toBeNull()
+    })
     it('rehydrates a known row with context on both sides and rejects stale epochs', async () => {
         const id = sessionId('virtual-row-hydration')
         const current = makeUserMessage({ id: 'current', seq: 20, createdAt: 20000, invokedAt: 20000 })

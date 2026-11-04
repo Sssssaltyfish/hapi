@@ -225,7 +225,7 @@ describe('claudeLocalLauncher context window seed (#1858)', () => {
         harness.scannerOnMessage!(assistant('claude-opus-5'))
         harness.scannerOnMessage!(assistant('claude-haiku-4-5-20251001'))
 
-        expect(sentMessages[0]).toMatchObject({ message: { usage: { context_window: 1_000_000 } } })
+        expect(sentMessages[0]).toMatchObject({ message: { usage: { context_window: 1_000_000, context_window_source: 'estimate' } } })
         expect((sentMessages[1].message as { usage: Record<string, unknown> }).usage.context_window).toBeUndefined()
     })
 

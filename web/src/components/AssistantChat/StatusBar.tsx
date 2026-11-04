@@ -6,11 +6,9 @@ import {
     isPermissionModeAllowedForFlavor
 } from '@hapi/protocol'
 import type { PermissionModeTone } from '@hapi/protocol'
-import * as Popover from '@radix-ui/react-popover'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { AgentState, CodexCollaborationMode, PermissionMode } from '@/types/api'
 import type { ConversationStatus } from '@/realtime/types'
-import { getContextBudgetTokens } from '@/chat/modelConfig'
 import {
     formatReasoningLabel,
     formatCompactReasoningLabel,
@@ -119,9 +117,9 @@ export function getContextWarning(contextSize: number, maxContextSize: number): 
     const percentageUsed = (contextSize / maxContextSize) * 100
 
     if (percentageUsed >= CONTEXT_DANGER_THRESHOLD_PERCENT) {
-        return { color: 'text-red-500' }
+        return { color: 'text-[var(--app-badge-error-text)]' }
     } else if (percentageUsed >= CONTEXT_WARNING_THRESHOLD_PERCENT) {
-        return { color: 'text-amber-500' }
+        return { color: 'text-[var(--app-badge-warning-text)]' }
     } else {
         return { color: 'text-[var(--app-hint)]' }
     }
@@ -133,55 +131,11 @@ function formatTokenCount(value: number): string {
     return String(value)
 }
 
-function getContextPercentages(contextSize: number, maxContextSize: number): {
-    usedPercentage: number
-    remainingPercentage: number
-} {
-    const usedPercentage = Math.min(100, Math.max(0, Math.round((contextSize / maxContextSize) * 100)))
-    return { usedPercentage, remainingPercentage: 100 - usedPercentage }
-}
-
-export function formatContextUsageLabel(contextSize: number, maxContextSize: number | null | undefined): string {
-    if (!maxContextSize) return `${formatTokenCount(contextSize)} used`
-    const { usedPercentage } = getContextPercentages(contextSize, maxContextSize)
-    return `${usedPercentage}% · ${formatTokenCount(contextSize)} / ${formatTokenCount(maxContextSize)}`
-}
-
-export function formatCompactContextUsageLabel(contextSize: number, maxContextSize: number | null | undefined): string {
+export function formatContextUsageLabel(contextSize: number, maxContextSize: number | null | undefined, showTokens = false): string {
     if (!maxContextSize) return `ctx ${formatTokenCount(contextSize)}`
-    const { remainingPercentage } = getContextPercentages(contextSize, maxContextSize)
-    return `ctx ${formatTokenCount(maxContextSize)} (${remainingPercentage}% left)`
-}
-
-export function getContextUsageDetails(
-    contextSize: number,
-    maxContextSize: number | null | undefined,
-    contextCacheRead: number | null | undefined
-): {
-    cacheRead: string | null
-    used: string
-    usedPercentage: number | null
-    remaining: string | null
-    remainingPercentage: number | null
-} {
-    if (!maxContextSize) {
-        return {
-            cacheRead: contextCacheRead && contextCacheRead > 0 ? formatTokenCount(contextCacheRead) : null,
-            used: formatTokenCount(contextSize),
-            usedPercentage: null,
-            remaining: null,
-            remainingPercentage: null
-        }
-    }
-
-    const { usedPercentage, remainingPercentage } = getContextPercentages(contextSize, maxContextSize)
-    return {
-        cacheRead: contextCacheRead && contextCacheRead > 0 ? formatTokenCount(contextCacheRead) : null,
-        used: formatTokenCount(contextSize),
-        usedPercentage,
-        remaining: formatTokenCount(Math.max(0, maxContextSize - contextSize)),
-        remainingPercentage
-    }
+    return showTokens
+        ? `ctx ${formatTokenCount(contextSize)} / ${formatTokenCount(maxContextSize)}`
+        : `ctx ${Math.round(contextSize / maxContextSize * 100)}%`
 }
 
 export function shouldShowCodexFastBadge(
@@ -197,15 +151,7 @@ export function StatusBar(props: {
     agentState: AgentState | null | undefined
     backgroundTaskCount?: number
     contextSize?: number
-    contextCacheRead?: number
     contextWindow?: number | null
-    /**
-     * Model to use for the context-window fallback heuristic when
-     * contextWindow is absent. Falls back to `model`. Callers pass the
-     * usage-bearing message's own model here so local Claude sessions (whose
-     * session.model is often null) still resolve a plausible window.
-     */
-    contextModel?: string | null
     model?: string | null
     modelReasoningEffort?: string | null
     effort?: string | null
@@ -223,32 +169,11 @@ export function StatusBar(props: {
         [props.active, props.thinking, props.agentState, props.voiceStatus, props.backgroundTaskCount, t]
     )
 
-    const contextHeuristicModel = props.contextModel ?? props.model
-    const contextWarning = useMemo(
-        () => {
-            if (props.contextSize === undefined) return null
-            const maxContextSize = props.contextWindow ?? getContextBudgetTokens(contextHeuristicModel, props.agentFlavor)
-            if (!maxContextSize) return null
-            return getContextWarning(props.contextSize, maxContextSize)
-        },
-        [props.contextSize, props.contextWindow, contextHeuristicModel, props.agentFlavor]
-    )
-    const contextUsageLabel = useMemo(() => {
-        if (props.contextSize === undefined) return null
-        const maxContextSize = props.contextWindow ?? getContextBudgetTokens(contextHeuristicModel, props.agentFlavor)
-        return formatContextUsageLabel(props.contextSize, maxContextSize)
-    }, [props.contextSize, props.contextWindow, contextHeuristicModel, props.agentFlavor])
-    const compactContextUsageLabel = useMemo(() => {
-        if (props.contextSize === undefined) return null
-        const maxContextSize = props.contextWindow ?? getContextBudgetTokens(contextHeuristicModel, props.agentFlavor)
-        return formatCompactContextUsageLabel(props.contextSize, maxContextSize)
-    }, [props.contextSize, props.contextWindow, contextHeuristicModel, props.agentFlavor])
-    const contextUsageDetails = useMemo(() => {
-        if (props.contextSize === undefined) return null
-        const maxContextSize = props.contextWindow ?? getContextBudgetTokens(contextHeuristicModel, props.agentFlavor)
-        return getContextUsageDetails(props.contextSize, maxContextSize, props.contextCacheRead)
-    }, [props.contextSize, props.contextCacheRead, props.contextWindow, contextHeuristicModel, props.agentFlavor])
-    const contextUsedPercentage = contextUsageDetails?.usedPercentage ?? null
+    const [showContextTokens, setShowContextTokens] = useState(false)
+    const contextSize = typeof props.contextSize === 'number' && Number.isSafeInteger(props.contextSize) && props.contextSize >= 0 ? props.contextSize : null
+    const contextWindow = typeof props.contextWindow === 'number' && Number.isSafeInteger(props.contextWindow) && props.contextWindow > 0 ? props.contextWindow : null
+    const contextWarning = contextSize !== null && contextWindow ? getContextWarning(contextSize, contextWindow) : null
+    const contextUsageLabel = contextSize !== null && contextWindow ? formatContextUsageLabel(contextSize, contextWindow, showContextTokens) : null
 
     const permissionMode = props.permissionMode
     // Copilot always shows permission (including Default) so model=auto sessions
@@ -302,66 +227,6 @@ export function StatusBar(props: {
                         {connectionStatus.text}
                     </span>
                 </div>
-                {contextUsageLabel ? (
-                    <Popover.Root>
-                        <Popover.Trigger asChild>
-                            <button
-                                type="button"
-                                aria-label={t('misc.contextDetails')}
-                                className={`min-w-0 cursor-pointer whitespace-nowrap rounded-sm bg-transparent p-0 text-[10px] leading-4 outline-none focus-visible:ring-1 focus-visible:ring-[var(--app-link)] ${contextWarning?.color ?? 'text-[var(--app-hint)]'}`}
-                            >
-                                <span className="sm:hidden">{compactContextUsageLabel}</span>
-                                <span className="hidden items-center gap-2 sm:inline-flex">
-                                    {contextUsedPercentage !== null ? (
-                                        <span
-                                            aria-hidden="true"
-                                            className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-[var(--app-link-muted)]"
-                                        >
-                                            <span
-                                                className="block h-full rounded-full bg-current"
-                                                style={{ width: `${contextUsedPercentage}%` }}
-                                            />
-                                        </span>
-                                    ) : null}
-                                    <span>{contextUsageLabel}</span>
-                                </span>
-                            </button>
-                        </Popover.Trigger>
-                        <Popover.Portal>
-                            <Popover.Content
-                                side="top"
-                                align="start"
-                                sideOffset={6}
-                                collisionPadding={8}
-                                className="z-50 rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 shadow-lg"
-                            >
-                                <div className="flex max-w-[min(22rem,calc(100vw-1rem))] flex-col gap-1 text-xs leading-tight text-[var(--app-fg)]">
-                                    {contextUsageDetails?.cacheRead ? (
-                                        <span className="break-words">
-                                            {t('misc.contextCache', { value: contextUsageDetails.cacheRead })}
-                                        </span>
-                                    ) : null}
-                                    <span className="break-words">
-                                        {contextUsageDetails?.usedPercentage === null
-                                            ? t('misc.contextUsedTokens', { value: contextUsageDetails.used })
-                                            : t('misc.contextUsed', {
-                                                value: contextUsageDetails?.used ?? '',
-                                                percent: contextUsageDetails?.usedPercentage ?? 0
-                                            })}
-                                    </span>
-                                    {contextUsageDetails?.remaining && contextUsageDetails.remainingPercentage !== null ? (
-                                        <span className="break-words">
-                                            {t('misc.contextRemaining', {
-                                                value: contextUsageDetails.remaining,
-                                                percent: contextUsageDetails.remainingPercentage
-                                            })}
-                                        </span>
-                                    ) : null}
-                                </div>
-                            </Popover.Content>
-                        </Popover.Portal>
-                    </Popover.Root>
-                ) : null}
             </div>
 
             <div className="flex min-w-0 shrink-0 items-baseline gap-2">
@@ -370,6 +235,19 @@ export function StatusBar(props: {
                         <span className="sm:hidden">{compactReasoningLabel}</span>
                         <span className="hidden sm:inline">{reasoningLabel}</span>
                     </span>
+                ) : null}
+                {contextUsageLabel ? (
+                    <button
+                        type="button"
+                        aria-label={t('misc.contextDetails')}
+                        aria-pressed={showContextTokens}
+                        disabled={!contextWindow}
+                        onClick={() => setShowContextTokens(value => !value)}
+                        title={contextSize !== null ? formatContextUsageLabel(contextSize, contextWindow, true) : undefined}
+                        className={`whitespace-nowrap rounded-sm bg-transparent p-0 text-xs outline-none focus-visible:ring-1 focus-visible:ring-[var(--app-link)] ${contextWarning?.color ?? 'text-[var(--app-hint)]'}`}
+                    >
+                        {contextUsageLabel}
+                    </button>
                 ) : null}
                 {codexFastMode ? (
                     <span className="whitespace-nowrap text-xs text-[#34C759]">

@@ -8,6 +8,7 @@ import type { AttachmentMetadata, Session } from '@/types/api'
 import type { SessionChat } from '@/components/SessionChat'
 import { serializeResponseAnnotations, splitResponseAnnotations } from '@/lib/responseAnnotations'
 import { NativeSessionPage } from './NativeSessionPage'
+import { normalizeCodexUsage } from '@hapi/protocol/codexUsage'
 
 type ChatProps = ComponentProps<typeof SessionChat>
 const { ui, thread, queue } = vi.hoisted(() => ({
@@ -54,7 +55,7 @@ it('dispatches the four native commands without chat input or discovery refresh 
     const post = vi.fn().mockImplementation(async (_id, request) => ({ ...request.command,
         ...(request.command.command === 'compact' ? { accepted: true }
             : request.command.command === 'recap' ? { sourceTurnId: 'turn', text: 'Recap' }
-                : request.command.command === 'usage' ? { usage: null, rateLimits: null, unavailable: {} }
+                : request.command.command === 'usage' ? { snapshot: normalizeCodexUsage(null, null) }
                     : { denial: null }) }))
     const api = setup(post)
     await waitFor(() => expect(api.getCodexNativeCommands).toHaveBeenCalledOnce())

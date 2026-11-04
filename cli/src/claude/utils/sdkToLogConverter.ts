@@ -103,6 +103,7 @@ export class SDKToLogConverter {
     // — rather than a single sticky number — means a mid-session model switch picks up the
     // new model's own window immediately instead of inheriting the previous model's.
     private modelContextWindows = new Map<string, number>()
+    private reportedContextWindows = new Set<string>()
 
     constructor(
         context: Omit<ConversionContext, 'parentUuid'>,
@@ -316,10 +317,14 @@ export class SDKToLogConverter {
                 const contextWindow = this.resolvedContextWindowKey
                     ? this.modelContextWindows.get(this.resolvedContextWindowKey)
                     : undefined
-                if (contextWindow !== undefined && message && typeof message.usage === 'object' && message.usage !== null) {
+                if (message && typeof message.usage === 'object' && message.usage !== null) {
                     const usage = message.usage as Record<string, unknown>
-                    if (usage.context_window === undefined) {
+                    if (usage.context_window === undefined && contextWindow !== undefined) {
                         usage.context_window = contextWindow
+                        usage.context_window_source = this.resolvedContextWindowKey && this.reportedContextWindows.has(this.resolvedContextWindowKey)
+                            ? 'provider' : 'estimate'
+                    } else if (typeof usage.context_window === 'number' && usage.context_window_source === undefined) {
+                        usage.context_window_source = 'provider'
                     }
                 }
                 logMessage = {
@@ -411,6 +416,7 @@ export class SDKToLogConverter {
                                 ? (this.resolvedContextWindowKey ?? model)
                                 : model
                             this.modelContextWindows.set(key, cw)
+                            this.reportedContextWindows.add(key)
                         }
                     }
                 }

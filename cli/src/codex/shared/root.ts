@@ -26,6 +26,7 @@ import { initializeSharedClient, type SharedLaunchOptions } from './launch';
 import { inheritedSandbox, settingsMatch } from './settings';
 import { planImplementationMessageId, planProposalForItem, planProposalForTurn } from './plan';
 import { CodexGuardianDenials, codexRecap, codexUsage } from '@hapi/protocol/codexManagement';
+import { codexUsageSummary } from '@hapi/protocol/codexUsage';
 
 type RuntimeSettings = NonNullable<Parameters<ApiSessionClient['keepAlive']>[2]>;
 export type RootHost = {
@@ -698,7 +699,8 @@ export class SharedCodexRoot {
                 this.notice('Generating a conversation recap with a separate model call; the main context remains unchanged.');
                 this.notice((await codexRecap(request, this.threadId)).text);
             } else if (slash.command.command === 'usage') {
-                this.notice(JSON.stringify(await codexUsage(request, this.threadId), null, 2));
+                const { snapshot } = await codexUsage(request, this.threadId);
+                this.session.sendSessionEvent({ type: 'message', message: codexUsageSummary(snapshot), codexUsage: snapshot });
             } else if (slash.command.action === 'show') {
                 const denial = this.guardianDenials.show();
                 this.notice(denial

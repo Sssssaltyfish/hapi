@@ -11,6 +11,8 @@ import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
+import type { ContextUsage } from '@/lib/contextUsage'
+import { mergeSessionContextUsage, type SessionContextSnapshot } from '@/lib/sessionContextUsage'
 
 export type MessageViewMode = 'tail' | 'history'
 
@@ -32,6 +34,7 @@ export type OlderLoadOutcome =
 
 export type MessageWindowState = {
     sessionId: string
+    contextUsage?: ContextUsage | null
     messages: DecryptedMessage[]
     hasMore: boolean
     oldestSeq: number | null
@@ -62,6 +65,7 @@ type MessagePosition = {
 }
 
 type InternalState = MessageWindowState & {
+    contextSnapshot?: SessionContextSnapshot | null
     oldestPositionAt: number | null
     oldestPositionSeq: number | null
     newestPositionAt: number | null
@@ -287,6 +291,8 @@ function schedulePersist(sessionId: string): void {
 function createState(sessionId: string): InternalState {
     return {
         sessionId,
+        contextUsage: null,
+        contextSnapshot: null,
         messages: [],
         hasMore: false,
         oldestSeq: null,
@@ -466,14 +472,23 @@ function buildState(
         | 'olderGeneration'
         | 'historyVersion'
         | 'tailRevision'
+        | 'contextSnapshot'
     >>
 ): InternalState {
     const messages = updates.messages ?? previous.messages
     const bounds = deriveSeqBounds(messages)
+    const reset = previous.epoch !== null && updates.epoch !== undefined && updates.epoch !== previous.epoch
+    let contextSnapshot = reset ? null : previous.contextSnapshot ?? null
+    if (updates.contextSnapshot !== undefined) contextSnapshot = updates.contextSnapshot
+    else if (messages !== previous.messages && (updates.viewMode ?? previous.viewMode) === 'tail') {
+        contextSnapshot = mergeSessionContextUsage(contextSnapshot, messages)
+    }
     return {
         ...previous,
         ...updates,
         messages,
+        contextSnapshot,
+        contextUsage: contextSnapshot?.usage ?? null,
         oldestSeq: bounds.oldestSeq,
         newestSeq: bounds.newestSeq,
         messagesVersion: messages === previous.messages
@@ -1363,6 +1378,7 @@ export function setMessageViewMode(sessionId: string, mode: MessageViewMode): vo
 export function ingestIncomingMessages(sessionId: string, incoming: DecryptedMessage[]): void {
     if (incoming.length === 0) return
     updateState(sessionId, (previous) => {
+        previous = buildState(previous, { contextSnapshot: mergeSessionContextUsage(previous.contextSnapshot ?? null, incoming) })
         if (previous.viewMode === 'history' && previous.requiresLatestReset) {
             // A detached history window has a continuous forward boundary.
             // A fresh SSE tail row is beyond that range and must not create a
@@ -1446,6 +1462,7 @@ function markMessageWindowForLatestReset(sessionId: string, messages: DecryptedM
     setState(sessionId, buildState(previous, {
         messages,
         epoch: null,
+        contextSnapshot: null,
         oldestPositionAt: null,
         oldestPositionSeq: null,
         newestPositionAt: null,
@@ -1507,6 +1524,7 @@ export function seedMessageWindowFromSession(fromSessionId: string, toSessionId:
     const target = getState(toSessionId)
     const seeded = buildState(createState(toSessionId), {
         messages: [...source.messages],
+        contextSnapshot: null,
         hasMore: source.hasMore,
         tailRevision: source.tailRevision,
         oldestPositionAt: source.oldestPositionAt,

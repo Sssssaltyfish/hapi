@@ -1,4 +1,6 @@
 import type { NativeCommandResult } from './codexThreadCommands'
+import { normalizeCodexUsage } from './codexUsage'
+import { SESSION_RECAP_PROMPT, normalizeSessionRecap } from './recap'
 
 type RecordValue = Record<string, unknown>
 type Request = (method: string, params: RecordValue) => Promise<unknown>
@@ -117,7 +119,9 @@ export async function codexUsage(request: Request, threadId: string): Promise<Ex
             : 'The native host returned no usage data'
         return null
     }
-    return { command: 'usage', usage: read(usage, 'usage'), rateLimits: read(limits, 'rateLimits'), unavailable }
+    const usageValue = read(usage, 'usage')
+    const limitsValue = read(limits, 'rateLimits')
+    return { command: 'usage', snapshot: normalizeCodexUsage(usageValue, limitsValue, unavailable) }
 }
 
 /** A read-only sample binds its source turn atomically in the daemon; it does not append chat input. */
@@ -130,10 +134,10 @@ export async function codexRecap(request: Request, threadId: string): Promise<Ex
     }
     const response = record(await request('thread/sample', {
         threadId, expectedTurnId: turnId, disableMcp: true,
-        prompt: 'Summarize this conversation for the user in their language. Briefly state the goal, work completed, important decisions, and the next action if any. Do not execute tools or change anything. Return only the recap.',
+        prompt: SESSION_RECAP_PROMPT,
     }))
     if (response.sourceTurnId !== turnId || !string(response.text)?.trim()) {
         throw new Error('The native host did not return a confirmed conversation recap')
     }
-    return { command: 'recap', sourceTurnId: turnId, text: String(response.text).trim() }
+    return { command: 'recap', sourceTurnId: turnId, text: normalizeSessionRecap(String(response.text)) }
 }

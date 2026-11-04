@@ -1248,6 +1248,7 @@ export class ApiSessionClient extends EventEmitter {
     } | {
         type: 'message'
         message: string
+        codexUsage?: import('@hapi/protocol/codexUsage').CodexUsageSnapshot
     } | {
         type: 'error'
         message: string

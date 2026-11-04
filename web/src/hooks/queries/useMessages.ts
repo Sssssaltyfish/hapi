@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { DecryptedMessage } from '@/types/api'
+import type { ContextUsage } from '@/lib/contextUsage'
 import {
     activateMessageWindow,
     cancelOlderMessageLoad,
@@ -34,6 +35,7 @@ export const EMPTY_STATE: MessageWindowState = {
 
 export function useMessages(api: ApiClient | null, sessionId: string | null): {
     messages: DecryptedMessage[]
+    contextUsage?: ContextUsage | null
     warning: string | null
     isSyncingTail: boolean
     isLoadingMore: boolean
@@ -106,6 +108,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
 
     return {
         messages: state.messages,
+        contextUsage: state.contextUsage,
         warning: state.warning,
         isSyncingTail: state.isSyncingTail,
         isLoadingMore: state.isLoadingMore,

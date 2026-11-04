@@ -1,6 +1,7 @@
 import type { AttachmentMetadata, MessageStatus } from '@/types/api'
 import type { ThreadGoal } from '@/types/api'
 import type { InlineMediaSource } from '@/chat/inlineMediaSource'
+import type { CodexUsageSnapshot } from '@hapi/protocol/codexUsage'
 
 export type UsageData = {
     input_tokens: number
@@ -46,7 +47,7 @@ export type AgentActivityEvent = {
 export type AgentEvent =
     | AgentActivityEvent
     | { type: 'switch'; mode: 'local' | 'remote' }
-    | { type: 'message'; message: string }
+    | { type: 'message'; message: string; codexUsage?: CodexUsageSnapshot }
     | { type: 'error'; message: string }
     | { type: 'title-changed'; title: string }
     | { type: 'limit-reached'; endsAt: number; limitType: string }
