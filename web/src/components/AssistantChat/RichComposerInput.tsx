@@ -109,33 +109,6 @@ function createMentionSpan(
 const BLOCK_TAGS = new Set(['DIV', 'P', 'LI', 'TR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE'])
 /** Zero-width pad so a trailing linebreak keeps a caret line-box (pre-wrap / br). */
 const CARET_PAD = '\u200B'
-const PLACEHOLDER_MAX_FONT_SIZE_PX = 16
-const PLACEHOLDER_FIT_GUTTER_PX = 1
-
-export function fitSingleLineFontSize(
-    availableWidth: number,
-    contentWidth: number,
-    maxFontSize = PLACEHOLDER_MAX_FONT_SIZE_PX
-): number {
-    const resolvedMaxFontSize = Number.isFinite(maxFontSize) && maxFontSize > 0
-        ? maxFontSize
-        : PLACEHOLDER_MAX_FONT_SIZE_PX
-    if (
-        !Number.isFinite(availableWidth)
-        || !Number.isFinite(contentWidth)
-        || availableWidth <= 0
-        || contentWidth <= 0
-        || contentWidth <= availableWidth
-    ) {
-        return resolvedMaxFontSize
-    }
-
-    // Keep a tiny buffer for fractional glyph metrics: scrollWidth is rounded
-    // to an integer, while the browser can paint glyphs on sub-pixels.
-    return resolvedMaxFontSize
-        * Math.max(0, availableWidth - PLACEHOLDER_FIT_GUTTER_PX)
-        / contentWidth
-}
 
 function stripCaretPad(text: string): string {
     return text.replaceAll(CARET_PAD, '')
@@ -1065,48 +1038,6 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
     // No onDrop: intercepting without caretRangeFromPoint appends at EOF / no-ops
     // in-editor moves. Native CE drop + plaintext-only / paste path is enough for #1215.
 
-    const placeholderRef = useRef<HTMLDivElement>(null)
-
-    useLayoutEffect(() => {
-        const element = placeholderRef.current
-        if (!element || !domIsEmpty || !placeholder) return
-
-        let cancelled = false
-        const fitPlaceholder = () => {
-            if (cancelled) return
-
-            // Restore the configured text-base size before measuring. Measuring
-            // the already-shrunk text would make successive resizes compound.
-            element.style.removeProperty('font-size')
-            const baseFontSize = Number.parseFloat(getComputedStyle(element).fontSize)
-            const fontSize = fitSingleLineFontSize(
-                element.clientWidth,
-                element.scrollWidth,
-                baseFontSize
-            )
-            element.style.fontSize = `${fontSize}px`
-        }
-
-        fitPlaceholder()
-
-        const resizeObserver = typeof ResizeObserver === 'undefined'
-            ? null
-            : new ResizeObserver(fitPlaceholder)
-        resizeObserver?.observe(element)
-        window.addEventListener('resize', fitPlaceholder)
-
-        const fonts = document.fonts
-        void fonts?.ready.then(fitPlaceholder)
-        fonts?.addEventListener?.('loadingdone', fitPlaceholder)
-
-        return () => {
-            cancelled = true
-            resizeObserver?.disconnect()
-            window.removeEventListener('resize', fitPlaceholder)
-            fonts?.removeEventListener?.('loadingdone', fitPlaceholder)
-        }
-    }, [domIsEmpty, placeholder])
-
     const handleKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
         if (e.nativeEvent.isComposing || composingRef.current) {
             return
@@ -1163,13 +1094,12 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
     ])
 
     return (
-        <div className="hapi-composer-field relative min-w-0 flex-1">
+        <div className="hapi-composer-field relative grid min-w-0 flex-1">
             {domIsEmpty && placeholder ? (
                 <div
-                    ref={placeholderRef}
                     aria-hidden
                     data-testid="rich-composer-placeholder"
-                    className="hapi-composer-placeholder pointer-events-none absolute inset-0 overflow-hidden whitespace-nowrap text-base leading-[1.375rem]"
+                    className="hapi-composer-placeholder pointer-events-none col-start-1 row-start-1 self-start whitespace-pre-wrap break-words text-base leading-snug"
                 >
                     {placeholder}
                 </div>
@@ -1185,7 +1115,7 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
                 contentEditable={contentEditableValue(disabled)}
                 suppressContentEditableWarning
                 data-testid="rich-composer-input"
-                className={`${className ?? ''}${disabled ? ' cursor-not-allowed opacity-50' : ''}`}
+                className={`col-start-1 row-start-1 min-w-0 ${className ?? ''}${disabled ? ' cursor-not-allowed opacity-50' : ''}`}
                 onInput={handleInput}
                 onFocus={onFocus}
                 onKeyDown={handleKeyDown}

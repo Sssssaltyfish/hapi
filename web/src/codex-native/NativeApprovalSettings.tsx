@@ -3,6 +3,7 @@ import { CODEX_APPROVAL_POLICIES, CODEX_APPROVALS_REVIEWERS } from '@hapi/protoc
 import type { NativeApprovalSettingsPatch } from './nativeSessionApiAdapter'
 import { record } from './presentation'
 import { useTranslation } from '@/lib/use-translation'
+import { SelectControl } from '@/components/ui/select-control'
 
 export function NativeApprovalSettings(props: {
     settings: Record<string, unknown>
@@ -35,7 +36,7 @@ export function NativeApprovalSettings(props: {
         <div className="space-y-3 px-3 text-sm">
             <label className="block space-y-1">
                 <span className="text-xs text-[var(--app-hint)]">{t('nativeApproval.reviewer')}</span>
-                <select
+                <SelectControl
                     aria-label={t('nativeApproval.reviewer')}
                     className="w-full rounded border border-[var(--app-divider)] bg-[var(--app-bg)] px-2 py-1.5 disabled:opacity-50"
                     value={reviewerKnown && typeof reviewer === 'string' ? reviewer : ''}
@@ -44,11 +45,11 @@ export function NativeApprovalSettings(props: {
                 >
                     {!reviewerKnown && <option value="" disabled>{t('nativeApproval.custom')}</option>}
                     {CODEX_APPROVALS_REVIEWERS.map(value => <option key={value} value={value}>{t(`nativeApproval.reviewer.${value}`)}</option>)}
-                </select>
+                </SelectControl>
             </label>
             <label className="block space-y-1">
                 <span className="text-xs text-[var(--app-hint)]">{t('nativeApproval.policy')}</span>
-                <select
+                <SelectControl
                     aria-label={t('nativeApproval.policy')}
                     className="w-full rounded border border-[var(--app-divider)] bg-[var(--app-bg)] px-2 py-1.5 disabled:opacity-50"
                     value={policyKnown && typeof policy === 'string' ? policy : ''}
@@ -57,7 +58,7 @@ export function NativeApprovalSettings(props: {
                 >
                     {!policyKnown && <option value="" disabled>{t('nativeApproval.custom')}</option>}
                     {CODEX_APPROVAL_POLICIES.map(value => <option key={value} value={value}>{t(`nativeApproval.policy.${value}`)}</option>)}
-                </select>
+                </SelectControl>
             </label>
             <p className="text-xs text-[var(--app-hint)]">{t('nativeApproval.sandbox', { sandbox: sandboxLabel })}</p>
             <p className="text-xs text-[var(--app-hint)]">{t('nativeApproval.subsequentTurns')}</p>

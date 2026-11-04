@@ -484,6 +484,7 @@ function TerminalButton(props: {
                 type="button"
                 aria-label={props.label}
                 title={props.label}
+                data-testid="composer-terminal-button"
                 className="relative flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => {
                     if (fue.status !== 'acknowledged') {
@@ -778,11 +779,13 @@ export function ComposerButtons(props: {
     const hasAttachments = props.hasAttachments ?? false
     const toolbarJustifyContent = getComposerToolbarJustifyContent(layout.mode)
 
+    // Horizontal scrolling clips vertical overflow too; keep onboarding dots
+    // and counters inside the scrollport's padding.
     return (
-        <div className="flex shrink-0 items-center gap-1 px-2 pb-2">
+        <div className="flex shrink-0 items-center gap-1 px-2">
             <div
                 data-testid="composer-toolbar-items"
-                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 style={{ justifyContent: toolbarJustifyContent }}
             >
                 {props.modeControls}
