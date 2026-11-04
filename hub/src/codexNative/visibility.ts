@@ -16,9 +16,17 @@ export type VisibilityEndpoint = z.infer<typeof endpointSchema>
 const empty = (namespace: string, endpointId: string): VisibilityEndpoint => ({ namespace, endpointId,
     initialized: false, individual: [], hidden: [], projects: [], threads: {}, threadVersions: {}, projectVersions: {} })
 const fields = ['id', 'name', 'preview', 'cwd', 'model', 'reasoningEffort', 'createdAt', 'updatedAt', 'status',
-    'projectId', 'desktopProjectId', 'desktopProject', 'hasConversationContent', 'source', 'threadSource', 'originator']
+    'projectId', 'desktopProjectId', 'desktopProject', 'hasConversationContent', 'source', 'threadSource', 'originator',
+    'workspaceKind', 'ephemeral', 'parentThreadId', 'parent_thread_id']
 export function directorySnapshot(value: NativeRecord): NativeRecord {
     return Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]))
+}
+/** The daemon assignment wins. A Desktop sidebar group can exist without a daemon project. */
+export function directoryProjectId(thread: NativeRecord): string | undefined {
+    return text(thread.projectId) ?? text(record(thread.desktopProject).nativeId)
+}
+export function directoryGroupId(thread: NativeRecord): string | undefined {
+    return directoryProjectId(thread) ?? text(record(thread.desktopProject).id)
 }
 export function visibleThreadIds(state: VisibilityEndpoint): string[] {
     const hidden = new Set(state.hidden)
@@ -39,9 +47,23 @@ export function observeDirectoryThread(state: VisibilityEndpoint, value: NativeR
     const id = text(value.id)
     if (!id) return
     const known = state.threads[id]
-    const selected = state.projects.find(project => project.id === value.projectId)
+    const selected = state.projects.find(project => project.id === directoryProjectId(value))
     if (!known && (!selected || isNativeBackgroundThread(value))) return
     const next = { ...known, ...directorySnapshot(value) }
+    if (Object.hasOwn(value, 'projectId')) {
+        if (text(value.projectId)) {
+            delete next.desktopProjectCleared
+            if (known?.projectId !== value.projectId && !Object.hasOwn(value, 'desktopProject')) {
+                delete next.desktopProject
+                delete next.desktopProjectId
+            }
+        } else if (known?.projectId || known?.desktopProjectCleared || value.desktopProjectCleared) {
+            // A clear from a user or daemon must survive future Desktop inference from cwd.
+            next.desktopProjectCleared = true
+            delete next.desktopProject
+            delete next.desktopProjectId
+        }
+    }
     if (isDeepStrictEqual(known, next)) return
     const wasVisible = visible ? visible.has(id) : visibleThreadIds(state).includes(id)
     state.threads[id] = next
@@ -49,19 +71,14 @@ export function observeDirectoryThread(state: VisibilityEndpoint, value: NativeR
     if (Object.hasOwn(value, 'projectId')) {
         // Moving a displayed chat is not a request to hide it. Preserve its
         // visibility even when it leaves the project that originally imported it.
-        if (known?.projectId !== value.projectId && wasVisible && !state.individual.includes(id)) state.individual.push(id)
+        if (known && directoryGroupId(known) !== directoryGroupId(next) && wasVisible && !state.individual.includes(id)) state.individual.push(id)
         for (const project of state.projects) {
             project.members = project.members.filter(member => member !== id)
             if (project.scanMembers) project.scanMembers = project.scanMembers.filter(member => member !== id)
-            if (project.id === value.projectId) {
+            if (project.id === directoryProjectId(next)) {
                 project.members.push(id)
                 if (project.scanMembers) project.scanMembers.push(id)
             }
-        }
-        // Desktop's inferred membership may be stale after an authoritative move.
-        if (known?.projectId !== value.projectId) {
-            delete state.threads[id].desktopProject
-            delete state.threads[id].desktopProjectId
         }
     }
 }
@@ -72,12 +89,12 @@ export function observeDirectoryProject(state: VisibilityEndpoint, project: Nati
     const selected = state.projects.find(value => value.id === id)
     let changed = false
     if (selected && text(project.name) && selected.name !== text(project.name)) { selected.name = text(project.name); changed = true }
-    for (const thread of Object.values(state.threads)) if (thread.projectId === id) {
+    for (const thread of Object.values(state.threads)) if (directoryProjectId(thread) === id) {
         const existing = record(thread.desktopProject)
-        const next = { id, name: text(project.name) ?? text(existing.name) ?? id,
+        const next = { ...(thread.projectId ? { id } : { id: existing.id, nativeId: id }), name: text(project.name) ?? text(existing.name) ?? id,
             path: Array.isArray(project.roots) ? text(record(project.roots[0]).path) ?? '' : text(existing.path) ?? '' }
-        if (thread.desktopProjectId !== id || !isDeepStrictEqual(existing, next)) {
-            thread.desktopProjectId = id; thread.desktopProject = next; changed = true
+        if (thread.desktopProjectId !== next.id || !isDeepStrictEqual(existing, next)) {
+            thread.desktopProjectId = next.id; thread.desktopProject = next; changed = true
         }
     }
     if (changed) state.projectVersions[id] = (state.projectVersions[id] ?? 0) + 1

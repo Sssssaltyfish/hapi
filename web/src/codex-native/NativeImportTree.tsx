@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { NativeVisibilityState } from '@hapi/protocol/codexNativeVisibility'
-import type { NativeDaemonProject, NativeEndpoint, NativeRecord } from './types'
+import type { NativeImportProject, NativeEndpoint, NativeRecord } from './types'
 import { nativeCatalogKey, refreshNativeCatalog } from './catalogQueries'
 import { importNativeSelection, isNativeBackgroundThread, nativeImportSelectionKey, nativeImportTitle, type NativeImportSelection } from './nativeImport'
 import { useTranslation } from '@/lib/use-translation'
@@ -16,17 +16,17 @@ type TreeSelection = {
 }
 const rowClass = 'flex min-w-0 flex-1 items-center gap-2 py-2 text-left text-sm'
 
-function ImportMembers({ api, endpointId, projectId, name, visibility, selection, background = false }: {
-    api: ApiClient; endpointId: string; projectId: string | null; name: string; visibility?: NativeVisibilityState; selection: TreeSelection; background?: boolean
+function ImportMembers({ api, endpointId, projectId, desktopProjectId, name, visibility, selection, background = false }: {
+    api: ApiClient; endpointId: string; projectId: string | null; desktopProjectId?: string; name: string; visibility?: NativeVisibilityState; selection: TreeSelection; background?: boolean
 }) {
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
-    const parent: NativeImportSelection = { endpointId, kind: background ? 'background' : projectId === null ? 'projectless' : 'project', id: projectId ?? '', name }
+    const parent: NativeImportSelection = { endpointId, kind: background ? 'background' : desktopProjectId ? 'desktop-project' : projectId === null ? 'projectless' : 'project', id: desktopProjectId ?? projectId ?? '', name }
     const whole = selection.selected.has(nativeImportSelectionKey(parent))
     const query = useInfiniteQuery({
-        queryKey: nativeCatalogKey(api, endpointId, 'members', background ? 'background' : projectId ?? 'projectless'),
+        queryKey: nativeCatalogKey(api, endpointId, 'members', background ? 'background' : desktopProjectId ? `desktop:${desktopProjectId}` : projectId ?? 'projectless'),
         queryFn: async ({ pageParam, signal }) => {
-            const page = background ? await api.listCodexNativeBackgroundThreads(endpointId, pageParam, signal) : await api.listCodexNativeProjectThreads(endpointId, projectId, pageParam, signal)
+            const page = background ? await api.listCodexNativeBackgroundThreads(endpointId, pageParam, signal) : await api.listCodexNativeProjectThreads(endpointId, projectId, pageParam, signal, desktopProjectId)
             if (pageParam && page.nextCursor === pageParam) throw new Error('This page did not advance. Retry to continue.')
             return page
         },
@@ -54,10 +54,10 @@ function ImportMembers({ api, endpointId, projectId, name, visibility, selection
     return <div className="min-w-0">
         <div className="flex items-center gap-2">
             <input type="checkbox" checked={whole} disabled={selection.busy} aria-label={t('native.import.selectProject', { name })} onChange={() => selection.toggle(parent)} />
-            <button type="button" className={rowClass} aria-expanded={open} data-testid={background ? `native-import-background-${endpointId}` : projectId === null ? `native-import-projectless-${endpointId}` : `native-import-project-${endpointId}-${projectId}`} onClick={() => setOpen(!open)}>
+            <button type="button" className={rowClass} aria-expanded={open} data-testid={background ? `native-import-background-${endpointId}` : desktopProjectId ? `native-import-desktop-project-${endpointId}-${desktopProjectId}` : projectId === null ? `native-import-projectless-${endpointId}` : `native-import-project-${endpointId}-${projectId}`} onClick={() => setOpen(!open)}>
                 <span aria-hidden="true">{open ? '▾' : '▸'}</span><span className="truncate">{name}</span>
             </button>
-            {projectId && visibility?.projects.some(project => project.id === projectId) ? <NativeProjectActions api={api} endpointId={endpointId} projectId={projectId} name={name} /> : null}
+            {desktopProjectId || (projectId && visibility?.projects.some(project => project.id === projectId)) ? <NativeProjectActions api={api} endpointId={endpointId} projectId={desktopProjectId ?? projectId!} name={name} desktopOnly={Boolean(desktopProjectId)} /> : null}
         </div>
         {open ? <div className="ml-5 border-l border-[var(--app-divider)] pl-3">
             {query.isPending ? <p className="py-2 text-xs text-[var(--app-hint)]">{t('loading')}</p> : null}
@@ -73,9 +73,9 @@ function ImportEndpoint({ api, endpoint, selection }: { api: ApiClient; endpoint
     const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const projects = useInfiniteQuery({
-        queryKey: nativeCatalogKey(api, endpoint.id, 'projects'),
+        queryKey: nativeCatalogKey(api, endpoint.id, 'import-projects'),
         queryFn: async ({ pageParam, signal }) => {
-            const page = await api.listCodexNativeProjects(endpoint.id, pageParam, signal)
+            const page = await api.listCodexNativeImportProjects(endpoint.id, pageParam, signal)
             if (pageParam && page.nextCursor === pageParam) throw new Error('This page did not advance. Retry to continue.')
             return page
         },
@@ -86,16 +86,16 @@ function ImportEndpoint({ api, endpoint, selection }: { api: ApiClient; endpoint
         retry: false,
     })
     const visibility = useQuery({ queryKey: nativeCatalogKey(api, endpoint.id, 'visibility'), queryFn: ({ signal }) => api.getCodexNativeVisibility(endpoint.id, signal), enabled: open, staleTime: 0, retry: false })
-    const rows = [...new Map<string, NativeDaemonProject>([
-        ...(visibility.data?.projects ?? []).map(project => [project.id, { id: project.id, name: project.name ?? project.id, roots: [] as NativeDaemonProject['roots'] }] as const),
-        ...(projects.data?.pages.flatMap(page => page.data) ?? []).map(project => [project.id, project] as const),
+    const rows = [...new Map<string, NativeImportProject>([
+        ...(visibility.data?.projects ?? []).map(project => [`daemon:${project.id}`, { id: project.id, name: project.name ?? project.id, roots: [] as NativeImportProject['roots'] }] as const),
+        ...(projects.data?.pages.flatMap(page => page.data) ?? []).map(project => [`${project.desktopProjectId ? 'desktop' : 'daemon'}:${project.id}`, project] as const),
     ]).values()]
     return <div className="min-w-0">
         <button type="button" className={`${rowClass} w-full font-medium`} aria-expanded={open} data-testid={`native-import-endpoint-${endpoint.id}`} onClick={() => setOpen(!open)}>
             <span aria-hidden="true">{open ? '▾' : '▸'}</span>{endpoint.label}
         </button>
         {open ? <div className="ml-3 pl-2">
-            {rows.map(project => <ImportMembers key={project.id} api={api} endpointId={endpoint.id} projectId={project.id} name={project.name} visibility={visibility.data} selection={selection} />)}
+            {rows.map(project => <ImportMembers key={`${project.desktopProjectId ? 'desktop' : 'daemon'}:${project.id}`} api={api} endpointId={endpoint.id} projectId={project.desktopProjectId ? null : project.id} desktopProjectId={project.desktopProjectId} name={project.name} visibility={visibility.data} selection={selection} />)}
             <ImportMembers api={api} endpointId={endpoint.id} projectId={null} name={t('newSession.native.noWorkspace')} visibility={visibility.data} selection={selection} />
             {projects.isPending ? <p className="py-2 text-xs text-[var(--app-hint)]">{t('loading')}</p> : null}
             {projects.hasNextPage ? <button type="button" className="py-2 text-xs text-[var(--app-link)]" disabled={projects.isFetchingNextPage} onClick={() => void projects.fetchNextPage()}>{t('newSession.native.moreWorkspaces')}</button> : null}

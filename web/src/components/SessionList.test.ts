@@ -727,10 +727,12 @@ describe('groupSessionsByDirectory (固定会话顺序 fixed session order)', ()
         const metadata = { path: '/repo', machineId: 'codex-native:machine', nativeCodex: { endpointId: 'machine', threadId: 'thread', available: true } }
         const groups = groupSessionsByDirectory([
             makeSession({ id: 'projectless', metadata }),
+            makeSession({ id: 'desktop', metadata: { ...metadata, nativeCodex: { ...metadata.nativeCodex, desktopProjectId: 'legacy', projectName: 'Desktop workspace' } } }),
             makeSession({ id: 'assigned', metadata: { ...metadata, nativeCodex: { ...metadata.nativeCodex, projectId: 'project', projectName: 'Saved workspace', projectPath: '/repo' } } }),
             makeSession({ id: 'worktree', metadata: { ...metadata, path: '/worktree', nativeCodex: { ...metadata.nativeCodex, projectId: 'project', projectName: 'Saved workspace', projectPath: '/repo' } } }),
         ])
-        expect(groups).toHaveLength(2)
+        expect(groups).toHaveLength(3)
+        expect(groups.find(group => group.nativeProjectId === 'legacy')).toMatchObject({ displayName: 'Desktop workspace', nativeDesktopOnly: true })
         expect(groups.find(group => group.displayName === 'Saved workspace')?.sessions.map(session => session.id)).toEqual(['assigned', 'worktree'])
         expect(groups.find(group => group.sessions.some(session => session.id === 'projectless'))?.sessions).toHaveLength(1)
     })

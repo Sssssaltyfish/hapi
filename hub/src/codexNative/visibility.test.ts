@@ -108,6 +108,23 @@ describe('local native home visibility', () => {
         expect(remaining.map(session => session.id)).toEqual(['codex-native:endpoint:member-0'])
         expect(remaining[0].metadata?.nativeCodex?.projectId).toBeUndefined()
     })
+    test('groups migrated chats with their workspace and respects an explicit clear even when the daemon ID was already null', async () => {
+        const { registry } = fixture()
+        const inferred = { id: 'imported', projectId: null, cwd: '/repo', desktopProject: { id: 'desktop', nativeId: 'project', name: 'Workspace', path: '/repo' } }
+        await registry.trackCreated('owner', 'endpoint', inferred)
+        await registry.trackCreated('owner', 'endpoint', { id: 'assigned', projectId: 'project' })
+        await registry.observeProject('owner', 'endpoint', { id: 'project', name: 'Renamed workspace' })
+        const { sessions } = await registry.list('owner', [])
+        expect(sessions.map(session => session.metadata?.nativeCodex?.projectId)).toEqual(['project', 'project'])
+        expect(sessions.every(session => session.metadata?.nativeCodex?.projectName === 'Renamed workspace')).toBe(true)
+
+        await registry.observeCatalogEvent('owner', 'endpoint', { method: 'thread/project/updated', params: { threadId: inferred.id, projectId: null } })
+        const snapshot = await registry.trackedDirectorySnapshot('owner', 'endpoint')
+        await registry.applyDirectoryReconciliation('owner', 'endpoint', { threads: [inferred] }, snapshot.versions)
+        await registry.changeVisibility('owner', 'endpoint', { action: 'hide-project', projectId: 'project' })
+        const remaining = (await registry.list('owner', [])).sessions
+        expect(remaining.map(session => session.metadata?.nativeCodex)).toEqual([{ endpointId: 'endpoint', threadId: 'imported', available: true }])
+    })
     test('does not repeat a failed migration on every home request', async () => {
         const clock = spyOn(Date, 'now').mockReturnValue(100_000)
         try {

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { RenameSessionDialog } from '@/components/RenameSessionDialog'
 import { nativeCatalogKey, refreshNativeCatalog } from './catalogQueries'
 
-export function NativeProjectActions({ api, endpointId, projectId, name }: { api: ApiClient; endpointId: string; projectId: string; name: string }) {
+export function NativeProjectActions({ api, endpointId, projectId, name, desktopOnly }: { api: ApiClient; endpointId: string; projectId: string; name: string; desktopOnly?: boolean }) {
     const { t } = useTranslation()
     const client = useQueryClient()
     const [menu, setMenu] = useState(false)
@@ -26,7 +26,7 @@ export function NativeProjectActions({ api, endpointId, projectId, name }: { api
         <Popover.Root open={menu} onOpenChange={setMenu}>
             <Popover.Trigger asChild><button type="button" data-testid={`native-project-actions-${projectId}`} aria-label={t('native.catalog.projectActions', { name })} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] hover:bg-[var(--app-subtle-bg)]" onClick={event => event.stopPropagation()}>⋯</button></Popover.Trigger>
             <Popover.Portal><Popover.Content align="end" sideOffset={4} className="z-50 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-1 shadow-lg" onClick={event => event.stopPropagation()}>
-                <button type="button" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-[var(--app-subtle-bg)]" onClick={() => { setMenu(false); setDialog('rename') }}>{t('native.catalog.renameProject')}</button>
+                {!desktopOnly ? <button type="button" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-[var(--app-subtle-bg)]" onClick={() => { setMenu(false); setDialog('rename') }}>{t('native.catalog.renameProject')}</button> : null}
                 <button type="button" className="block w-full rounded px-3 py-2 text-left text-sm hover:bg-[var(--app-subtle-bg)]" onClick={() => { setMenu(false); setDialog('hide') }}>{t('native.catalog.hide')}</button>
             </Popover.Content></Popover.Portal>
         </Popover.Root>
@@ -45,7 +45,8 @@ export function NativeThreadDialogs({ api, session, mode, onClose }: { api: ApiC
     const native = session.metadata!.nativeCodex!
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
-    const [projectId, setProjectId] = useState(native.projectId ?? '')
+    const currentProjectId = native.projectId ?? native.desktopProjectId ?? ''
+    const [projectId, setProjectId] = useState(currentProjectId)
     const projects = useInfiniteQuery({
         queryKey: nativeCatalogKey(api, native.endpointId, 'projects'),
         queryFn: ({ pageParam, signal }) => api.listCodexNativeProjects(native.endpointId, pageParam, signal),
@@ -70,11 +71,11 @@ export function NativeThreadDialogs({ api, session, mode, onClose }: { api: ApiC
         <DialogHeader><DialogTitle>{t('native.catalog.move')}</DialogTitle></DialogHeader>
         <SelectControl aria-label={t('newSession.native.workspace')} value={projectId} disabled={busy || projects.isPending} className="rounded border border-[var(--app-border)] bg-[var(--app-bg)] p-2 text-sm" onChange={event => setProjectId(event.target.value)}>
             <option value="">{t('newSession.native.noWorkspace')}</option>
-            {native.projectId && !rows.some(project => project.id === native.projectId) ? <option value={native.projectId}>{native.projectName ?? native.projectId}</option> : null}
+            {currentProjectId && !rows.some(project => project.id === currentProjectId) ? <option value={currentProjectId}>{native.projectName ?? currentProjectId}</option> : null}
             {rows.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}
         </SelectControl>
         {projects.hasNextPage ? <button type="button" className="text-left text-xs text-[var(--app-link)]" disabled={busy || projects.isFetchingNextPage} onClick={() => void projects.fetchNextPage()}>{t('newSession.native.moreWorkspaces')}</button> : null}
         {projects.error || error ? <p role="alert" className="text-xs text-red-600">{error || projects.error?.message} {projects.error ? <button type="button" className="underline" onClick={() => void projects.refetch()}>{t('button.retry')}</button> : null}</p> : null}
-        <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={onClose}>{t('button.cancel')}</Button><Button disabled={busy || projectId === (native.projectId ?? '')} onClick={() => void move()}>{t('native.catalog.move')}</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={onClose}>{t('button.cancel')}</Button><Button disabled={busy || projectId === currentProjectId} onClick={() => void move()}>{t('native.catalog.move')}</Button></div>
     </DialogContent></Dialog>
 }

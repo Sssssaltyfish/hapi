@@ -35,6 +35,20 @@ describe('ApiClient error mapping', () => {
         expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal)
     })
 
+    it('keeps Desktop import buckets separate from daemon project selection and writes', async () => {
+        fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: [], nextCursor: null }), { status: 200 }))
+        const api = new ApiClient('test-token')
+        await api.listCodexNativeProjects('endpoint')
+        await api.listCodexNativeImportProjects('endpoint')
+        await api.listCodexNativeProjectThreads('endpoint', null, 'opaque-cursor', undefined, 'desktop/legacy')
+        expect(fetchMock.mock.calls.map(call => call[0])).toEqual([
+            '/api/codex-native/endpoints/endpoint/projects?limit=50',
+            '/api/codex-native/endpoints/endpoint/projects?limit=50&includeDesktop=true',
+            '/api/codex-native/endpoints/endpoint/desktop-projects/desktop%2Flegacy/threads?limit=50&includeDesktop=true&cursor=opaque-cursor'
+        ])
+        expect(fetchMock.mock.calls.every(call => !call[1]?.method || call[1]?.method === 'GET')).toBe(true)
+    })
+
     it('prefers the stable `code` field over the human-readable `error` message in ApiError.code', async () => {
         // Match the shape /sessions/:id/reopen actually returns on a 503.
         fetchMock.mockResolvedValueOnce(

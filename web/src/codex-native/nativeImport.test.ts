@@ -38,4 +38,17 @@ describe('explicit native imports', () => {
         expect(isNativeBackgroundThread({ source: { subAgent: { parentThreadId: 'parent' } } })).toBe(true)
         expect(isNativeBackgroundThread({ source: 'appServer', parentThreadId: 'parent' })).toBe(true)
     })
+
+    it('reimports a Desktop-only workspace page by page without restoring individually hidden threads', async () => {
+        const list = vi.fn().mockResolvedValueOnce({ data: [{ id: 'one' }, { id: 'hidden' }], nextCursor: 'local-next' }).mockResolvedValueOnce({ data: [{ id: 'two' }], nextCursor: null })
+        const update = vi.fn().mockResolvedValue(response(null, ['one', 'two']))
+        const api = { listCodexNativeProjectThreads: list, updateCodexNativeVisibility: update, getCodexNativeVisibility: vi.fn().mockResolvedValue({ hiddenThreadIds: ['hidden'] }) } as unknown as ApiClient
+        const desktop = { endpointId: 'windows', kind: 'desktop-project' as const, id: 'desktop-only', name: 'Workspace' }
+        await importNativeSelection(api, [desktop], () => false, () => {})
+        expect(list.mock.calls.map(call => [call[1], call[2], call[4]])).toEqual([[null, undefined, 'desktop-only'], [null, 'local-next', 'desktop-only']])
+        expect(update.mock.calls.map(call => call[1])).toEqual([{ action: 'track-thread', threadId: 'one' }, { action: 'track-thread', threadId: 'two' }])
+        update.mockClear()
+        await importNativeSelection(api, [{ ...desktop, kind: 'thread', id: 'hidden' }], () => false, () => {})
+        expect(update.mock.calls[0]?.[1]).toEqual({ action: 'track-thread', threadId: 'hidden' })
+    })
 })

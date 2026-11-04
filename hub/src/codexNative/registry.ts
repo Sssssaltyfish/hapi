@@ -1,12 +1,11 @@
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
-import { isDeepStrictEqual } from 'node:util'
 import { toSessionSummary, type Session, type SessionSummary } from '@hapi/protocol'
 import { NativeService, nativeConfig, type NativeConfig } from './service'
 import { record, text, type NativeRecord } from './transport'
 import { NativeMachineSettings, nativeDisplayAddress, nativeMachineError, type NewNativeEndpoint } from './machineSettings'
 import { isNativeBackgroundThread, NATIVE_ORDINARY_SOURCE_KINDS, type NativeVisibilityAction, type NativeVisibilityResponse } from '@hapi/protocol/codexNativeVisibility'
-import { NativeVisibilityStore, directorySnapshot, observeDirectoryThread, observeDirectoryProject, visibleThreadIds, visibilityState, type VisibilityEndpoint } from './visibility'
+import { NativeVisibilityStore, directoryGroupId, directoryProjectId, directorySnapshot, observeDirectoryThread, observeDirectoryProject, visibleThreadIds, visibilityState, type VisibilityEndpoint } from './visibility'
 
 export type NativeEndpointConfig = NativeConfig & {
     id: string
@@ -60,7 +59,8 @@ export function nativeSession(endpoint: NativeEndpointConfig, thread: NativeReco
     const now = Date.now()
     const id = String(thread.id)
     const project = record(thread.desktopProject)
-    const projectId = text(thread.projectId)
+    const projectId = directoryProjectId(thread)
+    const groupId = directoryGroupId(thread)
     const updatedAt = timestamp(thread.updatedAt, legacy?.updatedAt ?? now)
     const active = record(thread.status).type === 'active'
     return {
@@ -88,7 +88,7 @@ export function nativeSession(endpoint: NativeEndpointConfig, thread: NativeReco
                 threadId: id,
                 available,
                 ...(error ? { error } : {}),
-                ...(projectId ? { projectId,
+                ...(groupId ? { ...(projectId ? { projectId } : { desktopProjectId: groupId }),
                     ...(text(project.name) ? { projectName: text(project.name) } : {}),
                     ...(text(project.path) ? { projectPath: text(project.path) } : {}) } : {})
             },
@@ -244,7 +244,8 @@ export class NativeRegistry {
         try {
             const response = record(await endpoint.service.readThread(threadId))
             await this.observeThread(namespace, endpoint.config.id, record(response.thread))
-            return nativeSession(endpoint.config, { ...record(response.thread), id: threadId }, true, undefined, legacy)
+            const tracked = (await this.visibility.read(namespace, endpoint.config.id)).threads[threadId]
+            return nativeSession(endpoint.config, { ...tracked, ...record(response.thread), id: threadId }, true, undefined, legacy)
         } catch (error) {
             return nativeSession(endpoint.config, { id: threadId }, false, nativeMachineError(error, endpoint.config), legacy)
         }
@@ -252,6 +253,13 @@ export class NativeRegistry {
     private summaries(endpoint: { config: NativeEndpointConfig }, state: VisibilityEndpoint): SessionSummary[] {
         const error = this.migrationErrors.get(JSON.stringify([endpoint.config.namespace, endpoint.config.id]))
         return visibleThreadIds(state).map(id => toSessionSummary(nativeSession(endpoint.config, state.threads[id], !error, error)))
+    }
+    async cachedDirectorySessions(namespace: string, endpointId: string): Promise<SessionSummary[]> {
+        const endpoint = this.get(namespace, endpointId)
+        if (!endpoint) throw new Error('Native endpoint unavailable')
+        const state = await this.visibility.read(namespace, endpointId)
+        return Object.values(state.threads).filter(thread => !isNativeBackgroundThread(thread))
+            .map(thread => toSessionSummary(nativeSession(endpoint.config, thread)))
     }
     subscribeVisibility(namespace: string, endpointId: string, listener: () => void): () => void {
         const key = JSON.stringify([namespace, endpointId])
@@ -277,7 +285,7 @@ export class NativeRegistry {
         const observed = threads.filter(thread => {
             const id = text(thread.id)
             const classified = thread.source !== undefined || thread.threadSource === 'user'
-            return id && (current.threads[id] || (classified && !isNativeBackgroundThread(thread) && current.projects.some(project => project.id === thread.projectId)))
+            return id && (current.threads[id] || (classified && !isNativeBackgroundThread(thread) && current.projects.some(project => project.id === directoryProjectId(thread))))
         })
         if (!observed.length) return
         this.migrationErrors.delete(JSON.stringify([namespace, endpointId]))
@@ -290,14 +298,14 @@ export class NativeRegistry {
         const id = text(project.id)
         if (!id || !this.get(namespace, endpointId)) return
         const current = await this.visibility.read(namespace, endpointId)
-        if (!current.projects.some(value => value.id === id) && !Object.values(current.threads).some(thread => thread.projectId === id)) return
+        if (!current.projects.some(value => value.id === id) && !Object.values(current.threads).some(thread => directoryProjectId(thread) === id)) return
         await this.changeState(namespace, endpointId, state => observeDirectoryProject(state, project), notify)
     }
     async trackedDirectorySnapshot(namespace: string, endpointId: string): Promise<{ threadIds: string[]; projectIds: string[]; versions: Record<string, number> }> {
         if (!this.get(namespace, endpointId)) throw new Error('Native endpoint unavailable')
         const state = await this.visibility.read(namespace, endpointId)
         const threadIds = visibleThreadIds(state)
-        const projectIds = [...new Set([...state.projects.map(project => project.id), ...threadIds.flatMap(id => text(state.threads[id].projectId) ?? [])])]
+        const projectIds = [...new Set([...state.projects.map(project => project.id), ...threadIds.flatMap(id => directoryProjectId(state.threads[id]) ?? [])])]
         const eventVersions = this.captureDirectoryEvents(namespace, endpointId,
             [...threadIds.map(id => `thread:${id}`), ...projectIds.map(id => `project:${id}`)], true)
         return { threadIds, projectIds, versions: { ...eventVersions, ...Object.fromEntries([
@@ -331,10 +339,14 @@ export class NativeRegistry {
         return Boolean(guard && !guard.inFlight && versions[`event:${key}`] === guard.epoch)
     }
     async applyDirectoryReconciliation(namespace: string, endpointId: string, data: { threads?: NativeRecord[]; projects?: NativeRecord[] }, versions: Record<string, number>): Promise<void> {
-        if (!this.get(namespace, endpointId)) return
+        const endpoint = this.get(namespace, endpointId)
+        if (!endpoint) return
+        const threads = endpoint.config.desktopStatePath && data.threads?.length
+            ? await endpoint.service.withDesktopWorkspaces(data.threads)
+            : data.threads ?? []
         await this.changeState(namespace, endpointId, state => {
             const visible = new Set(visibleThreadIds(state))
-            for (const thread of data.threads ?? []) {
+            for (const thread of threads) {
                 const id = text(thread.id)
                 if (!id || !visible.has(id) || (state.threadVersions[id] ?? 0) !== versions[`thread:${id}`]) continue
                 if (!this.eventVersionMatches(namespace, endpointId, `thread:${id}`, versions)) continue
@@ -344,7 +356,7 @@ export class NativeRegistry {
                 const id = text(project.id)
                 if (!id || (state.projectVersions[id] ?? 0) !== versions[`project:${id}`]) continue
                 if (!this.eventVersionMatches(namespace, endpointId, `project:${id}`, versions)) continue
-                if (!state.projects.some(project => project.id === id) && ![...visible].some(threadId => state.threads[threadId]?.projectId === id)) continue
+                if (!state.projects.some(project => project.id === id) && ![...visible].some(threadId => directoryProjectId(state.threads[threadId]) === id)) continue
                 observeDirectoryProject(state, project)
             }
         })
@@ -376,15 +388,17 @@ export class NativeRegistry {
         if (event.method === 'project/changed') {
             const project = record(params.project), projectId = text(project.id) ?? text(params.projectId)
             if (!projectId) return
+            const endpoint = this.get(namespace, endpointId)!
+            if (endpoint.config.desktopStatePath) endpoint.service.invalidateDesktopWorkspaces()
             const state = await this.visibility.read(namespace, endpointId)
-            if (!state.projects.some(project => project.id === projectId) && !Object.values(state.threads).some(thread => thread.projectId === projectId)) return
+            if (!state.projects.some(project => project.id === projectId) && !Object.values(state.threads).some(thread => directoryProjectId(thread) === projectId)) return
             if (params.changeType === 'deleted') {
                 await this.changeState(namespace, endpointId, current => {
                     const visible = new Set(visibleThreadIds(current))
-                    for (const thread of Object.values(current.threads)) if (thread.projectId === projectId) {
+                    for (const thread of Object.values(current.threads)) if (directoryProjectId(thread) === projectId) {
                         const id = String(thread.id)
                         if (visible.has(id) && !current.individual.includes(id)) current.individual.push(id)
-                        thread.projectId = null; delete thread.desktopProject; delete thread.desktopProjectId
+                        thread.projectId = null; thread.desktopProjectCleared = true; delete thread.desktopProject; delete thread.desktopProjectId
                         current.threadVersions[id] = (current.threadVersions[id] ?? 0) + 1
                     }
                     current.projects = current.projects.filter(project => project.id !== projectId)
@@ -392,8 +406,6 @@ export class NativeRegistry {
                 }, false)
                 return
             }
-            const endpoint = this.get(namespace, endpointId)
-            if (!endpoint) return
             const metadata = text(project.name) ? project : record(record(await endpoint.service.call('project/read', { projectId })).project)
             await this.observeProject(namespace, endpointId, metadata, false)
             return
@@ -415,6 +427,7 @@ export class NativeRegistry {
         }
         let observed: NativeRecord = { ...record(params.thread), id,
             ...(Object.hasOwn(params, 'projectId') ? { projectId: params.projectId } : {}),
+            ...(event.method === 'thread/project/updated' && params.projectId === null ? { desktopProjectCleared: true } : {}),
             ...(typeof params.name === 'string' || params.name === null ? { name: params.name } : {}),
             ...(typeof params.threadName === 'string' || params.threadName === null ? { name: params.threadName } : {}),
             ...(params.status ? { status: params.status } : {}) }
@@ -446,9 +459,10 @@ export class NativeRegistry {
             state.initialized = true
             if (!state.individual.includes(id)) state.individual.push(id)
             state.hidden = state.hidden.filter(value => value !== id)
-            const snapshot = { ...state.threads[id], ...directorySnapshot(thread) }
-            if (!isDeepStrictEqual(state.threads[id], snapshot)) {
-                state.threads[id] = snapshot
+            if (state.threads[id]) {
+                observeDirectoryThread(state, thread)
+            } else {
+                state.threads[id] = directorySnapshot(thread)
                 state.threadVersions[id] = (state.threadVersions[id] ?? 0) + 1
             }
         })
@@ -464,7 +478,8 @@ export class NativeRegistry {
         if (!endpoint) throw new Error('Native endpoint unavailable')
         if (action.action === 'track-thread') {
             const response = record(await endpoint.service.readThread(action.threadId))
-            const thread: NativeRecord = { ...record(response.thread), id: action.threadId }
+            let thread: NativeRecord = { ...record(response.thread), id: action.threadId }
+            if (endpoint.config.desktopStatePath) [thread] = await endpoint.service.withDesktopWorkspaces([thread])
             await this.trackCreated(namespace, endpointId, thread)
             if (text(thread.projectId)) {
                 const project = record(await endpoint.service.call('project/read', { projectId: thread.projectId }))
@@ -478,8 +493,7 @@ export class NativeRegistry {
                 } else {
                     const removed = new Set([
                         ...(state.projects.find(project => project.id === action.projectId)?.members ?? []),
-                        ...Object.entries(state.threads).filter(([, thread]) => thread.projectId === action.projectId ||
-                            thread.desktopProjectId === action.projectId || record(thread.desktopProject).id === action.projectId).map(([id]) => id),
+                        ...Object.entries(state.threads).filter(([, thread]) => directoryGroupId(thread) === action.projectId).map(([id]) => id),
                     ])
                     state.individual = state.individual.filter(id => !removed.has(id))
                     state.projects = state.projects.filter(project => project.id !== action.projectId)
@@ -542,7 +556,11 @@ export class NativeRegistry {
                 if (!current.members.includes(id)) current.members.push(id)
                 if (!(current.scanMembers ??= []).includes(id)) current.scanMembers.push(id)
             }
-            if (current.complete) { current.members = current.scanMembers ?? current.members; delete current.scanMembers; delete current.visitedCursors }
+            if (current.complete) {
+                const inferred = Object.entries(state.threads).filter(([, thread]) => !text(thread.projectId) && directoryProjectId(thread) === projectId && !isNativeBackgroundThread(thread))
+                current.members = [...new Set([...(current.scanMembers ?? current.members), ...inferred.map(([id]) => id)])]
+                delete current.scanMembers; delete current.visitedCursors
+            }
         })
         if (text(metadata.id)) await this.applyDirectoryReconciliation(namespace, endpointId, { projects: [metadata] }, {
             ...eventVersions,

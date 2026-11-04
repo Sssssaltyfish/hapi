@@ -75,6 +75,7 @@ export const MetadataSchema = z.object({
         available: z.boolean().optional(),
         error: z.string().optional(),
         projectId: z.string().optional(),
+        desktopProjectId: z.string().optional(),
         projectName: z.string().optional(),
         projectPath: z.string().optional()
     }).optional(),

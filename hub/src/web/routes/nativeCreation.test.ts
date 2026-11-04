@@ -114,6 +114,55 @@ describe('Native creation routes', () => {
         expect(calls[1]).toMatchObject({ method: 'thread/list', params: { projectId: null, limit: 1 } })
         expect(observed).toHaveLength(2)
     })
+    test('pages cached Desktop groups and members in home groups without sending Desktop IDs to the daemon', async () => {
+        const { app, calls, service, registry } = fixture()
+        const session = (id: string, group: Record<string, string>) => ({
+            id: `codex-native:native:${id}`, createdAt: 1, updatedAt: 2,
+            metadata: { name: id, path: '/work', nativeCodex: { endpointId: 'native', threadId: id, ...group } },
+        })
+        registry.cachedDirectorySessions = async () => [
+            session('mapped', { projectId: 'canonical-id', projectName: 'Repo' }),
+            session('desktop-one', { desktopProjectId: 'desktop-only', projectName: 'Desktop workspace' }),
+            session('desktop-two', { desktopProjectId: 'desktop-only', projectName: 'Desktop workspace' }),
+            session('unassigned', {}),
+        ] as any
+        let projectPage = await (await app.request('/api/codex-native/endpoints/native/projects?includeDesktop=true&limit=1')).json() as any
+        expect(projectPage.data).toEqual([{ id: 'canonical-id', name: 'Repo', roots: [] }])
+        expect(calls).toHaveLength(0)
+        projectPage = await (await app.request(`/api/codex-native/endpoints/native/projects?includeDesktop=true&limit=1&cursor=${encodeURIComponent(projectPage.nextCursor)}`)).json() as any
+        expect(projectPage.data).toEqual([{ id: 'desktop-only', desktopProjectId: 'desktop-only', name: 'Desktop workspace', roots: [] }])
+        expect(calls).toHaveLength(0)
+        service.call = async (method, params) => {
+            calls.push({ method, params })
+            return { data: [{ id: 'canonical-id', name: 'Repo', roots: [] }, { id: 'untracked-project', name: 'Other workspace', roots: [] }], nextCursor: null }
+        }
+        const mixed = await (await app.request('/api/codex-native/endpoints/native/projects?includeDesktop=true&limit=5')).json() as any
+        expect(mixed.data.map((project: any) => project.id)).toEqual(['canonical-id', 'desktop-only', 'untracked-project'])
+        expect(mixed.nextCursor).toBeNull()
+        expect(calls).toEqual([{ method: 'project/list', params: { limit: 3 } }])
+        calls.length = 0
+        for (let index = 0, cursor; index < 2; index++) {
+            const suffix = cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''
+            const page = await (await app.request(`/api/codex-native/endpoints/native/desktop-projects/desktop-only/threads?limit=1${suffix}`)).json() as any
+            expect(page.data.map((thread: any) => thread.id)).toEqual([index === 0 ? 'desktop-one' : 'desktop-two'])
+            cursor = page.nextCursor
+            expect(Boolean(cursor)).toBe(index === 0)
+        }
+        expect(calls).toHaveLength(0)
+        const mapped = await (await app.request('/api/codex-native/endpoints/native/projects/canonical-id/threads?includeDesktop=true&limit=1')).json() as any
+        expect(mapped.data.map((thread: any) => thread.id)).toEqual(['mapped'])
+        expect(calls).toHaveLength(0)
+        service.call = async (method, params) => {
+            calls.push({ method, params })
+            return { data: [{ id: 'mapped', projectId: null }, { id: 'desktop-one', projectId: null }, { id: 'unassigned', projectId: null }, { id: 'new', projectId: null }], nextCursor: null }
+        }
+        const unassigned = await (await app.request('/api/codex-native/endpoints/native/projectless/threads?includeDesktop=true&limit=1')).json() as any
+        expect(unassigned.data.map((thread: any) => thread.id)).toEqual(['unassigned'])
+        const continuation = await (await app.request(`/api/codex-native/endpoints/native/projectless/threads?includeDesktop=true&limit=4&cursor=${encodeURIComponent(unassigned.nextCursor)}`)).json() as any
+        expect(continuation).toEqual({ data: [{ id: 'new', projectId: null }], nextCursor: null })
+        expect(calls).toEqual([{ method: 'thread/list', params: expect.objectContaining({ projectId: null, limit: 4 }) }])
+        expect((await app.request(`/api/codex-native/endpoints/native/desktop-projects/another/threads?cursor=${encodeURIComponent(mapped.nextCursor)}`)).status).toBe(400)
+    })
     test('reports an unconfirmed mutation once without changing the local cache', async () => {
         const { app, calls, service, registry } = fixture()
         let observes = 0

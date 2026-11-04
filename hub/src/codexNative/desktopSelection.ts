@@ -4,14 +4,15 @@ import { posix } from 'node:path'
 import { promisify } from 'node:util'
 import { record, text as string } from './transport'
 
-export type DesktopProject = { id: string; name: string; path: string; rootPaths?: string[] }
+export type DesktopProject = { id: string; name: string; path: string; rootPaths?: string[]; nativeId?: string }
 export type GitOrigin = { root: string; commonDir: string; originUrl?: string }
 export type WorkspaceIdentity = { path: string; git?: GitOrigin }
 const execute = promisify(execFile)
-const normalize = (path: string) => {
+export const normalizeWorkspacePath = (path: string) => {
     const value = posix.normalize(path.replaceAll('\\', '/')).replace(/\/$/, '') || '/'
     return /^[a-z]:\//i.test(value) ? value.toLowerCase() : value
 }
+const normalize = normalizeWorkspacePath
 const within = (path: string, root: string) => path === root || path.startsWith(`${root}/`)
 
 export function desktopProjects(value: unknown, hostId: string): DesktopProject[] {
@@ -88,7 +89,8 @@ export function desktopThreadSelection(
     value: unknown,
     hostId: string,
     threads: Record<string, unknown>[],
-    identities: Map<string, WorkspaceIdentity> = new Map()
+    identities: Map<string, WorkspaceIdentity> = new Map(),
+    projectKeys?: ReadonlyMap<string, string>
 ): Map<string, DesktopProject> {
     const state = record(value),
         projects = desktopProjects(state, hostId)
@@ -101,6 +103,9 @@ export function desktopThreadSelection(
     const identity = (path: string): WorkspaceIdentity =>
         identities.get(path) ?? { path: normalize(path) }
     const result = new Map<string, DesktopProject>()
+    const projectKey = (project: DesktopProject) => projectKeys?.get(project.id) ?? (projectKeys ? `legacy:${project.id}` : project.id)
+    const unique = <T>(values: T[], key: (value: T) => string): T | undefined =>
+        new Set(values.map(key)).size === 1 ? values[0] : undefined
     for (const thread of threads) {
         const id = string(thread.id),
             cwd = string(thread.cwd)
@@ -134,11 +139,12 @@ export function desktopThreadSelection(
         if (daemonProject) { result.set(id, daemonProject); continue }
         const current = identity(cwd)
         const projectRoots = projects.flatMap((project) => (project.rootPaths ?? [project.path]).map((path) => ({ ...project, path })))
-        const exact =
-            projectRoots.find((project) => normalize(project.path) === normalize(cwd)) ??
-            projectRoots.find((project) => normalize(identity(project.path).path) === normalize(current.path))
-        if (exact) {
-            result.set(id, exact)
+        const literal = projectRoots.filter((project) => normalize(project.path) === normalize(cwd))
+        const exact = literal.length ? literal
+            : projectRoots.filter((project) => normalize(identity(project.path).path) === normalize(current.path))
+        if (exact.length) {
+            const project = projectKeys ? unique(exact, projectKey) : exact[0]
+            if (project) result.set(id, project)
             continue
         }
         const git = current.git
@@ -162,20 +168,21 @@ export function desktopThreadSelection(
         })
         const relative = git ? posix.relative(git.root, current.path) : ''
         const matching = candidates.filter((candidate) => candidate.relative === relative)
-        const hinted = candidates.find(
+        const hintsForRoot = candidates.filter(
             (candidate) => normalize(candidate.project.path) === hints[id]
         )
+        const hinted = projectKeys ? unique(hintsForRoot, candidate => projectKey(candidate.project)) : hintsForRoot[0]
         const roots = candidates.filter((candidate) => candidate.relative === '')
         // Ambiguous clones require the desktop's root hint, never a hard-coded thread list.
         const resolved =
-            matching.length === 1
-                ? matching[0]
-                : (hinted ?? (roots.length === 1 ? roots[0] : undefined))
+            (projectKeys ? unique(matching, candidate => projectKey(candidate.project)) : matching.length === 1 ? matching[0] : undefined)
+                ?? hinted ?? (projectKeys ? unique(roots, candidate => projectKey(candidate.project)) : roots.length === 1 ? roots[0] : undefined)
         if (resolved) result.set(id, resolved.project)
         else if (!git && typeof hints[id] === 'string') {
-            const hint = projects.find(
+            const hintedProjects = projects.filter(
                 (project) => normalize(project.path) === normalize(hints[id] as string)
             )
+            const hint = projectKeys ? unique(hintedProjects, projectKey) : hintedProjects[0]
             if (hint) result.set(id, hint)
         }
     }

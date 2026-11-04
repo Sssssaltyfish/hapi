@@ -67,6 +67,7 @@ import type {
     NativeEndpoint,
     NativeEndpointStatus,
     NativeDaemonProject,
+    NativeImportProject,
     NativeDirectory,
     NativeEvent,
     NativeItemEntry,
@@ -373,6 +374,11 @@ export class ApiClient {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects?${query}`, { signal })
     }
 
+    listCodexNativeImportProjects(endpointId: string, cursor?: string, signal?: AbortSignal): Promise<NativePage<NativeImportProject>> {
+        const query = new URLSearchParams({ limit: '50', includeDesktop: 'true', ...(cursor ? { cursor } : {}) })
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects?${query}`, { signal })
+    }
+
     async getCodexNativeVisibility(endpointId: string, signal?: AbortSignal): Promise<NativeVisibilityState> {
         const response = await this.request<NativeVisibilityResponse>(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/visibility`, { signal })
         return response.visibility
@@ -382,9 +388,9 @@ export class ApiClient {
         return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/visibility`, { method: 'POST', body: JSON.stringify(action) })
     }
 
-    listCodexNativeProjectThreads(endpointId: string, projectId: string | null, cursor?: string, signal?: AbortSignal): Promise<NativePage<NativeRecord>> {
-        const project = projectId === null ? 'projectless' : `projects/${encodeURIComponent(projectId)}`
-        const query = new URLSearchParams({ limit: '50', ...(cursor ? { cursor } : {}) })
+    listCodexNativeProjectThreads(endpointId: string, projectId: string | null, cursor?: string, signal?: AbortSignal, desktopProjectId?: string): Promise<NativePage<NativeRecord>> {
+        const project = desktopProjectId ? `desktop-projects/${encodeURIComponent(desktopProjectId)}` : projectId === null ? 'projectless' : `projects/${encodeURIComponent(projectId)}`
+        const query = new URLSearchParams({ limit: '50', includeDesktop: 'true', ...(cursor ? { cursor } : {}) })
         return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/${project}/threads?${query}`, { signal })
     }
 

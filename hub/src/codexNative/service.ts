@@ -6,6 +6,7 @@ import { CodexGuardianDenials } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
+import { DesktopWorkspaceLookup, type DesktopWorkspaceState } from './desktopWorkspaces'
 import { NativeCatalogEvents, type NativeCatalogObserver } from './catalogEvents'
 import { nativeOutlinePage } from '../sync/conversationOutline'
 import { nativeTurnContext } from './turnContext'
@@ -72,6 +73,7 @@ export function fallbackThread(thread: NativeRecord): boolean {
 }
 export class NativeService {
     dispose(): void {
+        this.invalidateDesktopWorkspaces()
         this.catalogEvents.dispose()
         for (const entry of this.subscriptions.values()) clearTimeout(entry.timer)
         this.subscriptions.clear()
@@ -89,6 +91,7 @@ export class NativeService {
     private connections = new Set<NativeConnection>()
     private commandRuns = new Map<string, Promise<unknown>>()
     private catalogEvents = new NativeCatalogEvents(() => this.connection())
+    private desktopWorkspaces?: DesktopWorkspaceLookup
     private identities = createWorkspaceIdentityReader()
     private daemonIdentities = createWorkspaceIdentityReader(async (path, args, timeout) => {
         const response = record(await this.call('command/exec', {
@@ -281,6 +284,44 @@ export class NativeService {
             return { projects: [], membership: 'fallback' }
         }
     }
+    invalidateDesktopWorkspaces(): void { this.desktopWorkspaces?.invalidate() }
+
+    async withDesktopWorkspaces(threads: NativeRecord[]): Promise<NativeRecord[]> {
+        if (!this.config.desktopStatePath || !this.config.desktopHostId || !threads.length) return threads
+        this.desktopWorkspaces ??= new DesktopWorkspaceLookup({
+            hostId: this.config.desktopHostId,
+            desktop: deadline => this.desktop(deadline),
+            projects: deadline => listDaemonProjects(this, deadline),
+            select: (values, desktop, deadline, keys) => this.selectDesktopProjects(values, desktop, deadline, keys),
+        })
+        return this.desktopWorkspaces.enrich(threads)
+    }
+
+    /** Shared by catalog migration and page/known-thread display enrichment. */
+    private async selectDesktopProjects(threads: NativeRecord[], desktop: DesktopWorkspaceState, deadline: number,
+        projectKeys?: ReadonlyMap<string, string>): Promise<Map<string, DesktopProject>> {
+        if (!desktop.state) return new Map()
+        const hostId = this.config.desktopHostId!
+        const selected = desktopThreadSelection(desktop.state, hostId, threads, new Map(), projectKeys)
+        const unresolved = threads.filter(thread => !selected.has(String(thread.id)) && needsDesktopIdentity(desktop.state, thread))
+        if (!unresolved.length) return selected
+        const paths = [...new Set([
+            ...desktop.projects.flatMap(project => project.rootPaths ?? [project.path]),
+            ...unresolved.map(thread => text(thread.cwd)).filter((path): path is string => Boolean(path)),
+        ])].slice(0, 512)
+        const identities = new Map<string, WorkspaceIdentity>()
+        const windowsDesktop = hostId === 'local' && !this.config.endpoint?.startsWith('unix://')
+        for (let offset = 0; (this.config.endpoint?.startsWith('unix://') || hostId === 'local') && offset < paths.length; offset += 4) {
+            if (windowsDesktop && Date.now() >= deadline) break
+            if (Date.now() >= deadline) throw new Error('Native directory operation timed out')
+            const results = await Promise.allSettled(paths.slice(offset, offset + 4).map(async path => {
+                const reader = this.config.endpoint?.startsWith('unix://') ? this.identities : this.daemonIdentities
+                identities.set(path, await reader(path, deadline))
+            }))
+            if (!windowsDesktop) for (const result of results) if (result.status === 'rejected') throw result.reason
+        }
+        return desktopThreadSelection(desktop.state, hostId, threads, identities, projectKeys)
+    }
     async catalog(params: {
         cursor?: string
         limit: number
@@ -368,43 +409,8 @@ export class NativeService {
                 checkBudget()
             }, deadline)
         }
-        let selected = new Map<string, DesktopProject>()
+        const selected = await this.selectDesktopProjects(threads, desktop, deadline)
         const windowsDesktop = this.config.desktopHostId === 'local' && !this.config.endpoint?.startsWith('unix://')
-        if (desktop.state) {
-            selected = desktopThreadSelection(desktop.state, this.config.desktopHostId!, threads)
-            const unresolved = windowsDesktop ? threads.filter((thread) =>
-                !selected.has(String(thread.id)) && needsDesktopIdentity(desktop.state, thread)
-            ) : threads
-            const paths = [
-                ...new Set([
-                    ...(unresolved.length ? desktop.projects.flatMap((p) => p.rootPaths ?? [p.path]) : []),
-                    ...unresolved.map((t) => text(t.cwd)).filter((p): p is string => Boolean(p)),
-                ]),
-            ].slice(0, 512)
-            const identities = new Map<string, WorkspaceIdentity>()
-            for (
-                let offset = 0;
-                (this.config.endpoint?.startsWith('unix://') || this.config.desktopHostId === 'local') && offset < paths.length;
-                offset += 4
-            ) {
-                if (windowsDesktop && Date.now() >= deadline) break
-                checkBudget()
-                const results = await Promise.allSettled(
-                    paths.slice(offset, offset + 4).map(async (path) => {
-                        const reader = this.config.endpoint?.startsWith('unix://') ? this.identities : this.daemonIdentities
-                        identities.set(path, await reader(path, deadline))
-                    })
-                )
-                if (!windowsDesktop)
-                    for (const result of results) if (result.status === 'rejected') throw result.reason
-            }
-            selected = desktopThreadSelection(
-                desktop.state,
-                this.config.desktopHostId!,
-                threads,
-                identities
-            )
-        }
         if (!windowsDesktop || !desktop.state) checkBudget()
         // Migration examines exactly its bounded interactive thread page. Native
         // project IDs prove membership without enumerating the global project list.

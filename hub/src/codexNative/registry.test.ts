@@ -100,8 +100,9 @@ describe('native identities integrated into original sessions', () => {
         const result = await registry.list('owner', [legacy])
         expect(result.sessions).toHaveLength(1)
         expect(result.sessions[0].metadata).toMatchObject({ path: '/repo/worktree', nativeCodex: { projectId: 'canonical-project', projectPath: '/repo', projectName: 'Project' } })
-        expect(nativeSession(config, { id: 'unassigned', projectId: null, cwd: '/repo', desktopProject: { id: 'legacy-project', name: 'Old inferred group', path: '/repo' } }).metadata?.nativeCodex?.projectId).toBeUndefined()
-        expect(nativeSession(config, { id: 'unknown-membership', cwd: '/repo', desktopProject: { id: 'legacy-project', name: 'Old inferred group' } }).metadata?.nativeCodex?.projectId).toBeUndefined()
+        const inferred = nativeSession(config, { id: 'inferred', projectId: null, cwd: '/repo', desktopProject: { id: 'legacy-project', name: 'Desktop workspace', path: '/repo' } })
+        expect(inferred.metadata?.nativeCodex).toMatchObject({ desktopProjectId: 'legacy-project', projectName: 'Desktop workspace', projectPath: '/repo' })
+        expect(inferred.metadata?.nativeCodex?.projectId).toBeUndefined()
         expect(nativeSession(config, { id: 'unnamed', preview: 'Native preview title' }).metadata?.name).toBe('Native preview title')
     })
     test('home returns every tracked endpoint member without a daemon cursor or page cap', async () => {

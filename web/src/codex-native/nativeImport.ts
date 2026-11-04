@@ -2,7 +2,7 @@ import type { ApiClient } from '@/api/client'
 import type { NativeRecord } from './types'
 export { isNativeBackgroundThread } from '@hapi/protocol/codexNativeVisibility'
 
-export type NativeImportSelection = { endpointId: string; kind: 'thread' | 'project' | 'projectless' | 'background'; id: string; name: string }
+export type NativeImportSelection = { endpointId: string; kind: 'thread' | 'project' | 'desktop-project' | 'projectless' | 'background'; id: string; name: string }
 export const nativeImportSelectionKey = (value: NativeImportSelection) => JSON.stringify([value.endpointId, value.kind, value.id])
 
 export function nativeImportTitle(thread: NativeRecord): string {
@@ -37,14 +37,17 @@ export async function importNativeSelection(api: ApiClient, selections: NativeIm
         } else {
             let cursor: string | undefined
             const cursors = new Set<string>(), threads = new Set<string>()
+            const hidden = selection.kind === 'desktop-project'
+                ? new Set((await api.getCodexNativeVisibility(selection.endpointId)).hiddenThreadIds)
+                : new Set<string>()
             do {
                 if (stopped()) break
                 const page = selection.kind === 'background'
                     ? await api.listCodexNativeBackgroundThreads(selection.endpointId, cursor)
-                    : await api.listCodexNativeProjectThreads(selection.endpointId, null, cursor)
+                    : await api.listCodexNativeProjectThreads(selection.endpointId, null, cursor, undefined, selection.kind === 'desktop-project' ? selection.id : undefined)
                 for (const thread of page.data) {
                     if (stopped()) break
-                    if (typeof thread.id !== 'string' || threads.has(thread.id)) continue
+                    if (typeof thread.id !== 'string' || threads.has(thread.id) || hidden.has(thread.id)) continue
                     threads.add(thread.id)
                     update(selection.endpointId, await api.updateCodexNativeVisibility(selection.endpointId, { action: 'track-thread', threadId: thread.id }))
                 }

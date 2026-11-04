@@ -16,10 +16,10 @@ export type DirectoryCatchupAdapter = {
 export type DirectoryCatchupResult = { complete: boolean; checked: number; failed: number }
 
 /** One metadata pass per endpoint connection gap, never an all-thread catalog scan. */
-export async function reconcileTrackedDirectory(adapter: DirectoryCatchupAdapter, signal: AbortSignal): Promise<DirectoryCatchupResult> {
+export async function reconcileTrackedDirectory(adapter: DirectoryCatchupAdapter, signal: AbortSignal, initialSnapshot?: TrackedDirectorySnapshot): Promise<DirectoryCatchupResult> {
     const result: DirectoryCatchupResult = { complete: false, checked: 0, failed: 0 }
     if (signal.aborted) return result
-    const snapshot = await adapter.snapshot()
+    const snapshot = initialSnapshot ?? await adapter.snapshot()
     if (signal.aborted) return result
     const knownProjects = new Set(snapshot.projectIds)
     const jobs = [
@@ -109,11 +109,11 @@ export function reconcileNativeDirectory(registry: NativeRegistry, namespace: st
             try {
                 if (signal.aborted) return { complete: false, checked: 0, failed: 0 }
                 return await reconcileTrackedDirectory({
-                    snapshot: async () => snapshot,
+                    snapshot: () => registry.trackedDirectorySnapshot(namespace, endpointId),
                     readThread: async id => record(record(await client.request('thread/read', { threadId: id, includeTurns: false })).thread),
                     readProject: async id => record(record(await client.request('project/read', { projectId: id })).project),
                     apply: (values, versions) => signal.aborted ? Promise.resolve() : registry.applyDirectoryReconciliation(namespace, endpointId, values, versions),
-                }, signal)
+                }, signal, snapshot)
             } finally { signal.removeEventListener('abort', abort) }
         })
     })

@@ -1,9 +1,27 @@
 import { record, text, type NativeRecord } from './transport'
 import type { NativeService } from './service'
-import type { DesktopProject } from './desktopSelection'
+import { normalizeWorkspacePath, type DesktopProject } from './desktopSelection'
 import { isNativeBackgroundThread, NATIVE_ORDINARY_SOURCE_KINDS, NATIVE_BACKGROUND_SOURCE_KINDS } from '@hapi/protocol/codexNativeVisibility'
 
 export type DaemonProject = { id: string; name: string; roots: Array<{ path: string }>; legacyProjectId?: string }
+
+/** Resolve identities, never names. Ambiguous authoritative mappings do not fall through. */
+export function desktopNativeProjects(state: NativeRecord, hostId: string, desktop: DesktopProject[], canonical: DaemonProject[]): Map<string, DaemonProject> {
+    const mappings = Object.entries(record(state['app-server-project-id-by-legacy-project-id-by-host']))
+        .filter(([key]) => key.startsWith(`${hostId}:`)).map(([, value]) => record(value))
+    const result = new Map<string, DaemonProject>()
+    for (const project of desktop) {
+        const mappedIds = [...new Set(mappings.flatMap(mapping => text(mapping[project.id]) ?? []))]
+        if (mappedIds.length > 1) continue
+        const byHost = canonical.filter(value => mappedIds.includes(value.id))
+        const byMetadata = canonical.filter(value => value.id === project.id || value.legacyProjectId === project.id)
+        const roots = new Set((project.rootPaths ?? [project.path]).map(normalizeWorkspacePath))
+        const byRoot = canonical.filter(value => value.roots.some(root => roots.has(normalizeWorkspacePath(root.path))))
+        const candidates = byHost.length ? byHost : byMetadata.length ? byMetadata : byRoot
+        if (candidates.length === 1) result.set(project.id, candidates[0])
+    }
+    return result
+}
 
 export function daemonProject(value: unknown): DaemonProject | undefined {
     const project = record(value)

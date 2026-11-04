@@ -13,6 +13,8 @@ export type NativeEndpoint = {
     source: 'env' | 'settings'
 }
 export type NativeDaemonProject = { id: string; name: string; roots: Array<{ path: string }> }
+/** Desktop-only groups are readable import buckets, never daemon project identities. */
+export type NativeImportProject = NativeDaemonProject & { desktopProjectId?: string }
 export type NativeDirectory = { path: string; parentPath: string; entries: Array<{ fileName: string; path: string }>; truncated: boolean }
 export type NativeEndpointStatus = {
     enabled: boolean

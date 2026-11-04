@@ -164,6 +164,7 @@ type SessionGroup = {
     hasPinnedSession: boolean
     nativeEndpointId?: string
     nativeProjectId?: string | null
+    nativeDesktopOnly?: boolean
 }
 
 const RUNNING_BUCKETS = [
@@ -433,11 +434,12 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
         const path = session.metadata?.nativeCodex?.projectPath ?? session.metadata?.worktree?.basePath ?? session.metadata?.path ?? 'Other'
         const machineId = session.metadata?.machineId ?? null
         const native = session.metadata?.nativeCodex
-        const identity = native ? `native:${native.endpointId}:${native.projectId ? `project:${native.projectId}` : 'projectless'}` : path
+        const groupId = native?.projectId ?? native?.desktopProjectId
+        const identity = native ? `native:${native.endpointId}:${groupId ? `project:${groupId}` : 'projectless'}` : path
         const key = `${machineId ?? UNKNOWN_MACHINE_ID}::${identity}`
         if (!groups.has(key)) {
             groups.set(key, {
-                directory: native && !native.projectId ? '' : path,
+                directory: native && !groupId ? '' : path,
                 machineId,
                 sessions: []
             })
@@ -480,7 +482,7 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
                 latestCreatedAt,
                 hasActiveSession,
                 hasPinnedSession,
-                ...(native ? { nativeEndpointId: native.endpointId, nativeProjectId: native.projectId ?? null } : {})
+                ...(native ? { nativeEndpointId: native.endpointId, nativeProjectId: native.projectId ?? native.desktopProjectId ?? null, nativeDesktopOnly: Boolean(native.desktopProjectId && !native.projectId) } : {})
             }
         })
         .sort((a, b) => {
@@ -1898,7 +1900,7 @@ export function SessionList(props: {
                     <span className="font-medium text-sm truncate flex-1">
                         {groupTitle}
                     </span>
-                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} /> : null}
+                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} desktopOnly={group.nativeDesktopOnly} /> : null}
                     {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
                     {onNewSessionInDirectory && group.directory && group.directory !== 'Other' ? (
                         <button
@@ -1957,7 +1959,7 @@ export function SessionList(props: {
                     <span className="font-medium text-sm truncate flex-1">
                         {groupTitle}
                     </span>
-                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} /> : null}
+                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} desktopOnly={group.nativeDesktopOnly} /> : null}
                     {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
                     {onNewSessionInDirectory && canStartInGroupDirectory ? (
                         <button
