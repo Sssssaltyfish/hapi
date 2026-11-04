@@ -5,6 +5,7 @@ export type NativeProject = { id: string; name: string; path: string }
 export type NativeEndpoint = {
     id: string
     desktopHostId?: string
+    desktop?: { platform?: 'windows' | 'macos' | 'linux'; localEndpointId?: string }
     label: string
     baseLabel?: string
     displayName?: string

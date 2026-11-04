@@ -9,16 +9,35 @@ import { MACHINE_DISPLAY_NAME_MAX_LENGTH } from '@hapi/protocol'
 import { MachineSettingsRow } from './MachineSettingsRow'
 
 const endpointsKey = ['codex-native', 'endpoints'] as const
+function platformName(value?: string): string | undefined {
+    switch (value?.toLowerCase()) {
+        case 'windows': case 'win32': return 'Windows'
+        case 'macos': case 'darwin': return 'macOS'
+        case 'linux': return 'Linux'
+        default: return undefined
+    }
+}
 
 function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
     const { t } = useTranslation()
     const queryClient = useQueryClient()
-    const status = useQuery({
-        queryKey: ['codex-native', props.endpoint.id, 'status'],
-        queryFn: () => props.api.getCodexNativeEndpointStatus(props.endpoint.id),
+    const statusQuery = (id: string) => ({
+        queryKey: ['codex-native', id, 'status'],
+        queryFn: () => props.api.getCodexNativeEndpointStatus(id),
         staleTime: 30_000,
         retry: false,
     })
+    const status = useQuery(statusQuery(props.endpoint.id))
+    const desktop = props.endpoint.desktop
+    const local = useQuery({
+        ...statusQuery(desktop?.localEndpointId ?? props.endpoint.id),
+        enabled: Boolean(desktop?.localEndpointId && !desktop.platform && desktop.localEndpointId !== props.endpoint.id),
+    })
+    const localPlatform = desktop?.localEndpointId === props.endpoint.id ? status.data?.platformOs : local.data?.platformOs
+    const desktopPlatform = desktop?.platform ?? (desktop?.localEndpointId ? localPlatform : undefined)
+    const desktopName = platformName(desktopPlatform)
+    const deviceKind = desktop ? (desktopName ? `${desktopName} Desktop` : 'Codex Desktop') : 'Codex Native'
+    const daemon = status.data?.platformOs ?? status.data?.platformFamily
     const error = status.error?.message ?? status.data?.error
     const connection = t(status.isPending
         ? 'settings.native.checking'
@@ -32,8 +51,9 @@ function NativeMachineRow(props: { api: ApiClient; endpoint: NativeEndpoint }) {
             displayName={props.endpoint.displayName}
             fallbackName={props.endpoint.baseLabel ?? props.endpoint.label}
             subtitle={[
+                deviceKind,
+                daemon && desktop?.localEndpointId !== props.endpoint.id ? t('settings.native.daemonPlatform', { platform: platformName(daemon) ?? daemon }) : null,
                 props.endpoint.address,
-                status.data?.platformOs ?? status.data?.platformFamily,
                 connection,
             ].filter(Boolean).join(' · ')}
             onRename={(displayName) => props.api.renameCodexNativeEndpoint(props.endpoint.id, displayName)}

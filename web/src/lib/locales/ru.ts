@@ -195,6 +195,7 @@ export default {
   'settings.native.adding': 'Добавление…',
   'settings.native.checking': 'Проверка подключения…',
   'settings.native.connected': 'Подключено',
+  'settings.native.daemonPlatform': 'Демон {platform}',
   'settings.native.disconnected': 'Недоступно',
   'settings.native.refresh': 'Обновить',
   'settings.native.directory': 'Рабочий каталог:',

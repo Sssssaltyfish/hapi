@@ -198,6 +198,7 @@ export default {
   'settings.display.sessionListAgentLabel.desc': 'Show an agent label beside each conversation title.',
   'settings.native.checking': 'Checking connection…',
   'settings.native.connected': 'Connected',
+  'settings.native.daemonPlatform': '{platform} daemon',
   'settings.native.disconnected': 'Unavailable',
   'settings.native.refresh': 'Refresh',
   'settings.native.directory': 'Default directory:',

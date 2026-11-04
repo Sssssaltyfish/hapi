@@ -11,6 +11,7 @@ export type NativeEndpointConfig = NativeConfig & {
     id: string
     label: string
     displayName?: string
+    desktopPlatform?: 'windows' | 'macos' | 'linux'
     source?: 'env' | 'settings'
     defaultCwd?: string
     allowedRoots?: string[]
@@ -18,6 +19,7 @@ export type NativeEndpointConfig = NativeConfig & {
     legacyMachineIds?: string[]
     legacyHosts?: string[]
 }
+const desktopPlatformSchema = z.enum(['windows', 'macos', 'linux']).optional()
 const EndpointSchema = z.object({
     id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
     label: z.string().min(1),
@@ -26,6 +28,7 @@ const EndpointSchema = z.object({
     token: z.string().optional(),
     desktopStatePath: z.string().optional(),
     desktopHostId: z.string().optional(),
+    desktopPlatform: desktopPlatformSchema,
     defaultCwd: z.string().optional(),
     allowedRoots: z.array(z.string()).max(32).optional(),
     fileAccess: z.enum(['workspace', 'host']).optional(),
@@ -48,6 +51,7 @@ export function configuredNativeEndpoints(): NativeEndpointConfig[] {
         ...config,
         id: 'default',
         label: 'Codex',
+        desktopPlatform: desktopPlatformSchema.parse(process.env.HAPI_CODEX_NATIVE_DESKTOP_PLATFORM),
         defaultCwd: process.env.HAPI_CODEX_NATIVE_CWD,
         fileAccess: z.enum(['workspace', 'host']).optional().parse(process.env.HAPI_CODEX_NATIVE_FILE_ACCESS),
         legacyMachineIds: process.env.HAPI_CODEX_NATIVE_LEGACY_MACHINE_IDS?.split(',').map(value => value.trim()).filter(Boolean),
@@ -172,10 +176,21 @@ export class NativeRegistry {
     }
 
     summary(config: NativeEndpointConfig) {
+        // "local" belongs to one Desktop's state file. Other Desktops may also have a "local".
+        let desktop: { platform?: NativeEndpointConfig['desktopPlatform']; localEndpointId?: string } | undefined
+        if (config.desktopStatePath && config.desktopHostId) {
+            const peers = this.endpoints.map(endpoint => endpoint.config).filter(peer =>
+                peer.namespace === config.namespace && peer.desktopStatePath === config.desktopStatePath)
+            const local = peers.filter(peer => peer.desktopHostId === 'local')
+            const localEndpointId = config.desktopHostId === 'local' ? config.id : local.length === 1 ? local[0].id : undefined
+            const declared = new Set(peers.flatMap(peer => peer.desktopPlatform ? [peer.desktopPlatform] : []))
+            desktop = { platform: config.desktopPlatform ?? (declared.size === 1 ? [...declared][0] : undefined), localEndpointId }
+        }
         return {
             id: config.id,
             label: config.label,
             ...(config.desktopHostId ? { desktopHostId: config.desktopHostId } : {}),
+            ...(desktop ? { desktop } : {}),
             baseLabel: this.configs.find(endpoint => endpoint.id === config.id && endpoint.namespace === config.namespace)?.label ?? 'Codex Native',
             ...(config.displayName ? { displayName: config.displayName } : {}),
             address: nativeDisplayAddress(config.endpoint!),

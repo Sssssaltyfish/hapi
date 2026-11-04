@@ -82,6 +82,15 @@ describe('native identities integrated into original sessions', () => {
         expect((await app.request('/api/codex-native/endpoints/foreign/threads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"cwd":"/repo"}' })).status).toBe(404)
         expect(native.calls).toHaveLength(0)
     })
+    test('remote device labels use the local endpoint of the same Desktop and namespace', () => {
+        const remote = { ...config, id: 'remote', desktopHostId: 'remote-ssh:dev', desktopStatePath: '/profiles/a' }
+        const local = { ...remote, id: 'local-a', desktopHostId: 'local' }
+        const other = { ...local, id: 'local-b', desktopStatePath: '/profiles/b', desktopPlatform: 'macos' as const }
+        const registry = new NativeRegistry([remote, local, other, { ...local, id: 'foreign', namespace: 'other' }])
+        expect(registry.summary(remote).desktop).toEqual({ localEndpointId: 'local-a', platform: undefined })
+        expect(registry.summary(other).desktop).toEqual({ localEndpointId: 'local-b', platform: 'macos' })
+        expect(registry.summary(config)).not.toHaveProperty('desktop')
+    })
     test('offline aliases stay native and never fall back to stored harness state', async () => {
         const { registry, native, legacy } = fixture(); native.fail = true
         expect(await registry.resolve('owner', legacy.id, legacy)).toMatchObject({ id: nativeSessionId('local', 'fork'), active: false, thinking: false, metadata: { nativeCodex: { available: false, error: 'Socket unavailable' } } })

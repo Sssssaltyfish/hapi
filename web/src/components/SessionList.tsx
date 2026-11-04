@@ -1788,7 +1788,6 @@ export function SessionList(props: {
     }
 
     const getVisibleGroupSessions = (group: SessionGroup): SessionSummary[] => {
-        if (group.nativeEndpointId) return group.sessions
         return getVisibleSessionPreview(
             group.sessions,
             {
@@ -2008,7 +2007,7 @@ export function SessionList(props: {
                                 />
                             </div>
                         ))}
-                        {!group.nativeEndpointId && group.sessions.length > sessionPreviewLimit && (hiddenSessionCount > 0 || canShowFewerSessions) ? (
+                        {group.sessions.length > sessionPreviewLimit && (hiddenSessionCount > 0 || canShowFewerSessions) ? (
                             <div className="ml-2.5 mr-2 my-1 flex gap-1.5">
                                 {canShowFewerSessions ? (
                                     <button

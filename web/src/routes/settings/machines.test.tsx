@@ -71,7 +71,7 @@ describe('SettingsMachinesPage', () => {
         endpointsMock.mockResolvedValue({ endpoints: [{ id: 'endpoint-uuid', label: 'Windows box', displayName: 'Windows box', address: 'wss://remote.example:8443', source: 'settings' }] })
         renderPage()
         const rename = await screen.findByRole('button', { name: 'Rename Windows box' })
-        await screen.findByText('wss://remote.example:8443 · windows · Connected')
+        await screen.findByText('Codex Native · Windows daemon · wss://remote.example:8443 · Connected')
         expect(rename.closest('section')).toBe(screen.getByRole('button', { name: 'Rename workstation.local' }).closest('section'))
         fireEvent.click(rename)
         const input = screen.getByRole('textbox')
@@ -79,6 +79,16 @@ describe('SettingsMachinesPage', () => {
         fireEvent.keyDown(input, { key: 'Enter' })
         fireEvent.blur(input)
         await waitFor(() => expect(renameEndpointMock).toHaveBeenCalledExactlyOnceWith('endpoint-uuid', 'My Windows'))
+    })
+    it('labels a remote daemon with its owning Desktop platform', async () => {
+        endpointsMock.mockResolvedValue({ endpoints: [
+            { id: 'local', label: 'My Desktop', address: 'ws://local', desktop: { localEndpointId: 'local' } },
+            { id: 'remote', label: 'My WSL', address: 'unix:///wsl.sock', desktop: { localEndpointId: 'local' } },
+        ] })
+        endpointStatusMock.mockImplementation(async (id: string) => ({ available: true, platformOs: id === 'local' ? 'windows' : 'linux' }))
+        renderPage()
+        await screen.findByText('Windows Desktop · ws://local · Connected')
+        await screen.findByText('Windows Desktop · Linux daemon · unix:///wsl.sock · Connected')
     })
 
     it('adds a native machine using the server-generated identity and refreshes the shared list', async () => {
