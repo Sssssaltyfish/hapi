@@ -2,6 +2,23 @@ import { useState } from 'react'
 import { startAuthentication, startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser'
 import { Button } from '@/components/ui/button'
 import type { PasskeySession } from '@/hooks/usePasskeyGate'
+import { useTranslation } from '@/lib/use-translation'
+
+// This authentication surface belongs to the local deployment integration.
+const sessionStatusCopy = {
+    en: { signedIn: 'Signed in with Passkey', signOut: 'Sign out' },
+    'zh-CN': { signedIn: '已使用 Passkey 登录', signOut: '退出登录' },
+    ru: { signedIn: 'Вход выполнен с Passkey', signOut: 'Выйти' },
+}
+
+export function PasskeySessionStatus(props: { onLogout: () => void }) {
+    const { locale } = useTranslation()
+    const copy = sessionStatusCopy[locale]
+    return <div className="flex justify-between border-b border-[var(--app-divider)] px-4 py-2 text-sm">
+        <span>{copy.signedIn}</span>
+        <button type="button" className="underline" onClick={props.onLogout}>{copy.signOut}</button>
+    </div>
+}
 
 export function PasskeyLogin({ baseUrl, onLogin, error: authError }: {
     baseUrl: string; onLogin: (session: PasskeySession) => void; error?: string | null

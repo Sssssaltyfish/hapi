@@ -8,7 +8,7 @@ import { initializeThemeColors } from '@/hooks/useThemeColors'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthSource } from '@/hooks/useAuthSource'
 import { usePasskeyGate } from '@/hooks/usePasskeyGate'
-import { PasskeyLogin } from '@/components/PasskeyLogin'
+import { PasskeyLogin, PasskeySessionStatus } from '@/components/PasskeyLogin'
 import { useServerUrl } from '@/hooks/useServerUrl'
 import { useSSE } from '@/hooks/useSSE'
 import { useFixedSessionOrder } from '@/hooks/useFixedSessionOrder'
@@ -449,7 +449,7 @@ function AppInner() {
     })
 
     // Loading auth source
-    if (passkey.error) return <div className="p-6 space-y-3"><p role="alert">{passkey.error}</p><button onClick={passkey.retry}>重试</button></div>
+    if (passkey.error) return <div className="p-6 space-y-3"><p role="alert">{passkey.error}</p><button onClick={passkey.retry}>{t('button.retry')}</button></div>
     if (passkey.enabled && (!authSource || authError)) {
         return withPwaBanner(<PasskeyLogin baseUrl={baseUrl} onLogin={passkey.login} error={authError} />)
     }
@@ -549,10 +549,7 @@ function AppInner() {
                 />
                 <RunnerVersionSkewBanner />
                 <div className="h-full min-h-0 flex flex-col">
-                    {passkey.enabled && pathname.startsWith('/settings') && <div className="px-4 py-2 text-sm flex justify-between border-b border-[var(--app-divider)]">
-                        <span>已使用 Passkey 登录</span>
-                        <button className="underline" onClick={() => { void passkey.logout().then(() => queryClient.clear()).catch(error => window.alert(String(error))) }}>退出登录</button>
-                    </div>}
+                    {passkey.enabled && pathname.startsWith('/settings') && <PasskeySessionStatus onLogout={() => { void passkey.logout().then(() => queryClient.clear()).catch(error => window.alert(String(error))) }} />}
                     <Outlet />
                 </div>
                 <ToastContainer />
