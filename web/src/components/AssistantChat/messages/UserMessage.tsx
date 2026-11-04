@@ -8,7 +8,7 @@ import { CliOutputBlock } from '@/components/CliOutputBlock'
 import { getConversationMessageAnchorId } from '@/chat/outline'
 import { MessageActions } from '@/components/AssistantChat/messages/MessageActions'
 import { useTranslation } from '@/lib/use-translation'
-import { nativeQuestionReplyDisplayText } from '@/lib/nativeQuestionReply'
+import { codexInputDisplayText } from '@/lib/codexInputContext'
 
 export function HappyUserMessage() {
     const ctx = useHappyChatContext()
@@ -127,7 +127,7 @@ export function HappyUserMessage() {
             </div>
             <MessageActions
                 align="end"
-                copyText={hasText ? nativeQuestionReplyDisplayText(text) : undefined}
+                copyText={hasText ? codexInputDisplayText(text) : undefined}
                 messageElementId={elementId}
                 showFork={showFork}
                 showRewind={showRewind}

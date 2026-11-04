@@ -19,6 +19,19 @@ function deferred<T>() {
 }
 
 describe('useActiveSuggestions', () => {
+    it('lets keyboard selection expand one category without inserting or skipping hidden entries', async () => {
+        const files: Suggestion[] = Array.from({ length: 6 }, (_, index) => ({ ...suggestion(`file-${index}`), group: 'files' }))
+        const folder: Suggestion = { ...suggestion('folder'), group: 'folders' }
+        const handler = vi.fn(async () => [...files, folder])
+        const { result } = renderHook(() => useActiveSuggestions('@', handler))
+        await waitFor(() => expect(result.current[0]).toHaveLength(5))
+        act(() => { result.current[3](); result.current[3](); result.current[3]() })
+        expect(result.current[1]).toBe(3)
+        expect(result.current[0][3].expandGroup?.group).toBe('files')
+        act(() => result.current[5]('files'))
+        expect(result.current[0]).toHaveLength(7)
+        expect(result.current[0][result.current[1]].key).toBe('file-3')
+    })
     it('hides published suggestions immediately while a replacement query is pending', async () => {
         const first = deferred<Suggestion[]>()
         const second = deferred<Suggestion[]>()

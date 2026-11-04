@@ -37,6 +37,8 @@ import { UriConfirmDialog } from '@/components/UriConfirmDialog'
 import { DEFAULT_OPEN_EXTERNAL_LINKS_IN_NEW_TAB, useOpenExternalLinksInNewTab } from '@/hooks/useOpenExternalLinksInNewTab'
 import { remarkResponseAnnotations, responseAnnotationIndex } from '@/lib/remark-response-annotations'
 import { ResponseAnnotationReference } from '@/components/AssistantChat/ResponseAnnotationReference'
+import { parseNativeThreadHref } from '@hapi/protocol/sessionCitation'
+import { useQuery } from '@tanstack/react-query'
 
 import type { MarkdownTextPrimitiveProps } from '@assistant-ui/react-markdown'
 
@@ -604,6 +606,39 @@ function SessionPathAnchor(props: ComponentPropsWithoutRef<'a'> & { targetSessio
     )
 }
 
+function NativeThreadAnchor(props: ComponentPropsWithoutRef<'a'> & { reference: NonNullable<ReturnType<typeof parseNativeThreadHref>> }) {
+    const chat = useOptionalHappyChatContext()
+    const navigate = useNavigate()
+    const { t } = useTranslation()
+    const { reference, ...anchor } = props
+    const endpointId = chat?.metadata?.nativeCodex?.endpointId ?? parseCodexNativeSessionId(chat?.sessionId ?? '')?.endpointId
+    const api = chat?.api
+    const resolved = useQuery({
+        queryKey: ['codex-native', 'thread-reference', api?.getConversationCacheScope().key, endpointId, reference.hostId, reference.threadId],
+        queryFn: () => {
+            if (!api) throw new Error('No conversation connection')
+            const scoped = endpointId ? api.withCodexNativeEndpoint(endpointId) : api
+            return scoped.resolveCodexNativeThreadReference(reference)
+        },
+        enabled: Boolean(api), staleTime: 30_000, retry: false,
+    })
+    if (!resolved.data) return (
+        <span className="aui-md-a-inert text-[var(--app-hint)]" aria-busy={Boolean(api) && resolved.isPending || undefined}
+            title={t(api && resolved.isPending ? 'suggestions.threadLoading' : 'suggestions.threadUnavailable')}>
+            {props.children}
+        </span>
+    )
+    const targetSessionId = resolved.data.sessionId
+    return <a {...anchor} href={buildSessionReferencePath(targetSessionId)} rel={props.target === '_blank' ? (props.rel ?? 'noreferrer') : props.rel}
+        className={cn('aui-md-a font-medium text-[var(--app-link)] underline decoration-[color:var(--app-link-muted)] underline-offset-3', props.className)}
+        onClick={event => {
+            props.onClick?.(event)
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            void navigate({ to: '/sessions/$sessionId', params: { sessionId: targetSessionId }, ...PRESERVE_SESSION_SIDEBAR_SCROLL })
+        }} />
+}
+
 /**
  * Anchor component with URI scheme policy enforcement.
  *
@@ -655,10 +690,13 @@ function A(props: ComponentPropsWithoutRef<'a'>) {
     const targetSessionId = typeof props.href === 'string' ? parseSessionPathHref(props.href) : null
     const rel = props.target === '_blank' ? (props.rel ?? 'noreferrer') : props.rel
     const annotationIndex = responseAnnotationIndex(props.href)
+    const nativeThread = typeof props.href === 'string' ? parseNativeThreadHref(props.href) : null
 
     if (annotationIndex !== null) {
         return <ResponseAnnotationReference index={annotationIndex}>{props.children}</ResponseAnnotationReference>
     }
+
+    if (nativeThread) return <NativeThreadAnchor {...props} reference={nativeThread} />
 
     if (filePath) {
         if (!chat) {

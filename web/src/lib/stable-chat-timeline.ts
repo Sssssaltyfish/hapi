@@ -26,6 +26,7 @@ export type MaterializedTimelineRow = {
     metadataKey: string
     transient?: boolean
     toolGroupsCollapsed?: boolean
+    groupingKey?: string
     project: (id: string, blocks: readonly VisibleChatBlock[], previous?: ThreadMessageLike) => ThreadMessageLike
 }
 
@@ -52,6 +53,7 @@ type KnownRow = {
     ordinal: number
     locator?: TimelineHistoryLocator
     transient?: boolean
+    groupingKey?: string
 }
 
 function atomicKeys(blocks: readonly VisibleChatBlock[]): string[] {
@@ -109,7 +111,7 @@ function mergeRowBlocks(previous: readonly VisibleChatBlock[], incoming: readonl
     return buildVisibleChatBlocks(order.map(id => byKey.get(id)!), {
         hasMoreMessages: groups[0]?.needsOlderHistory ?? false,
         previousGroups,
-        codexExplorationCollapsed: toolGroupsCollapsed ?? !(groups[0]?.defaultOpen ?? previousGroups[0]?.defaultOpen ?? false),
+        toolGroupsCollapsed: toolGroupsCollapsed ?? !(groups[0]?.defaultOpen ?? previousGroups[0]?.defaultOpen ?? false),
     })
 }
 
@@ -186,17 +188,21 @@ export class StableChatTimeline {
         for (const source of incoming) {
             const matches = [...new Set(source.sourceIds.flatMap(alias => {
                 const id = this.aliases.get(alias)
-                return id && this.known.get(id)?.role === source.role ? [id] : []
+                const known = id ? this.known.get(id) : undefined
+                const sameGroup = known?.groupingKey === source.groupingKey
+                    || (known?.groupingKey?.includes(':unclassified:') && source.groupingKey !== undefined)
+                return known?.role === source.role && sameGroup ? [known.id] : []
             }))].sort((a, b) => this.known.get(a)!.ordinal - this.known.get(b)!.ordinal)
             let row = matches.length ? this.known.get(matches[0])! : undefined
             if (!row) {
                 const base = source.sourceIds[0] ?? `timeline:${this.ordinal}`
                 let id = base
                 while (this.known.has(id)) id = `${base}~${++this.ordinal}`
-                row = { id, role: source.role, sourceIds: new Set(), requiredKeys: new Set(), sourceOrder: [], locators: new Map(), createdAt: source.createdAt, ordinal: this.ordinal++, transient: source.transient }
+                row = { id, role: source.role, groupingKey: source.groupingKey, sourceIds: new Set(), requiredKeys: new Set(), sourceOrder: [], locators: new Map(), createdAt: source.createdAt, ordinal: this.ordinal++, transient: source.transient }
                 this.known.set(id, row)
                 this.aliases.set(id, id)
             }
+            row.groupingKey = source.groupingKey
             // A later contiguous materialization may prove that two previously
             // disconnected fragments belong to one response. The first known
             // identity wins and all old aliases continue to resolve.
@@ -257,7 +263,7 @@ export class StableChatTimeline {
                 const blocks = buildVisibleChatBlocks(flat, {
                     hasMoreMessages: previousGroups[0]?.needsOlderHistory ?? false,
                     previousGroups,
-                    codexExplorationCollapsed: toolGroupsCollapsed,
+                    toolGroupsCollapsed,
                 })
                 if (sameBlocks(blocks, payload.blocks)) continue
                 const message = payload.project(id, blocks, payload.projection.message)

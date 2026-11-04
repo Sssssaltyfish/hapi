@@ -87,6 +87,7 @@ export function createCodexNativeRoutes(
         await registry.refresh()
         if (c.req.path.endsWith('/codex-native/status')) return next()
         if (c.req.path.endsWith('/codex-native/endpoints')) return next()
+        if (c.req.path.endsWith('/codex-native/thread-reference')) return next()
         if (!getEndpoint(c))
             return c.json({ error: 'Native Codex is not configured for this namespace' }, 404)
         return next()

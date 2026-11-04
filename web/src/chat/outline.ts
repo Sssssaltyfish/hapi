@@ -1,5 +1,5 @@
 import type { ChatBlock, UserTextBlock } from '@/chat/types'
-import { nativeQuestionReplyDisplayText } from '@/lib/nativeQuestionReply'
+import { codexInputDisplayText } from '@/lib/codexInputContext'
 
 export type ConversationOutlineItem = {
     id: string
@@ -50,7 +50,7 @@ export function truncateOutlineLabel(value: string, maxLength = MAX_OUTLINE_LABE
 }
 
 function userBlockToOutlineItem(block: UserTextBlock): ConversationOutlineItem {
-    const label = truncateOutlineLabel(nativeQuestionReplyDisplayText(block.text)) || 'Empty message'
+    const label = truncateOutlineLabel(codexInputDisplayText(block.text)) || 'Empty message'
     return {
         id: `outline:user-text:${block.id}`,
         targetMessageId: `user-text:${block.id}`,

@@ -30,7 +30,7 @@ export function useConversationHistoryIndex(options: {
     messagesVersion: number
     viewMode?: 'tail' | 'history'
     conversationHistoryRevision?: number
-    onLocateNativeTurn?: (turnId: string, itemId: string, targetMessageId: string) => Promise<boolean>
+    onLocateNativeTurn?: (turnId: string, itemId: string, targetMessageId: string, isCurrent?: () => boolean) => Promise<boolean>
 }) {
     const { api, session, open, messagesVersion, onLocateNativeTurn, conversationHistoryRevision = 0 } = options
     const native = session.metadata?.nativeCodex
@@ -39,7 +39,7 @@ export function useConversationHistoryIndex(options: {
     // Tool tokens rebuild viewport blocks, but do not change these short user previews.
     const currentItems = useMemo(() => viewport, [visibleSignature])
     const scope = scopeFor(api)
-    const key = JSON.stringify([scope.key, native ? ['native-turn-summary-v1', native.endpointId, native.threadId] : ['runner', session.id]])
+    const key = JSON.stringify([scope.key, native ? ['native-turn-summary-v2', native.endpointId, native.threadId] : ['runner-v2', session.id]])
     const apiRef = useRef(api)
     apiRef.current = api
     const cache = useMemo(() => getOutlineCache(key, Boolean(native), scope.persistent), [key, Boolean(native), scope.persistent])
@@ -241,8 +241,8 @@ export function useConversationHistoryIndex(options: {
         const generation = cache.generation
         const current = () => alive.current && activeKey.current === key && generation === cache.generation && isCurrent() && locateRequest.current === token
         const seek = (candidate: ConversationOutlineItem) => candidate.nativeTurn
-            ? onLocateNativeTurn?.(candidate.nativeTurn.turnId, candidate.nativeTurn.itemId, candidate.targetMessageId) ?? Promise.resolve(false)
-            : candidate.historyPage ? seekMessageWindow(apiRef.current, session.id, candidate.historyPage, candidate.targetMessageId) : Promise.resolve(false)
+            ? onLocateNativeTurn?.(candidate.nativeTurn.turnId, candidate.nativeTurn.itemId, candidate.targetMessageId, current) ?? Promise.resolve(false)
+            : candidate.historyPage ? seekMessageWindow(apiRef.current, session.id, candidate.historyPage, candidate.targetMessageId, current) : Promise.resolve(false)
         setError(null)
         setLocating(true)
         try {

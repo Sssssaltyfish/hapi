@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { TerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
 import type { SessionMetadataSummary } from '@/types/api'
@@ -37,7 +37,52 @@ export type HappyChatContextValue = {
 
 const HappyChatContext = createContext<HappyChatContextValue | null>(null)
 
+const MAX_TOOL_GROUP_EXPANSION_ENTRIES = 2048
+
+function createToolGroupExpansionState() {
+    let defaultOpen: boolean | undefined
+    let revision = 0
+    const entries = new Map<string, { open: boolean; revision: number }>()
+    const resetForPreference = (nextDefault: boolean) => {
+        if (defaultOpen === nextDefault) return
+        defaultOpen = nextDefault
+        entries.clear()
+    }
+    const remember = (toolIds: readonly string[], entry: { open: boolean; revision: number }) => {
+        for (const id of toolIds) {
+            entries.delete(id)
+            entries.set(id, entry)
+        }
+        while (entries.size > MAX_TOOL_GROUP_EXPANSION_ENTRIES) {
+            const oldest = entries.keys().next().value
+            if (oldest === undefined) break
+            entries.delete(oldest)
+        }
+    }
+    return {
+        get(toolIds: readonly string[], nextDefault: boolean): boolean {
+            resetForPreference(nextDefault)
+            let latest: { open: boolean; revision: number } | undefined
+            for (const id of toolIds) {
+                const entry = entries.get(id)
+                if (entry && (!latest || entry.revision > latest.revision)) latest = entry
+            }
+            // Carry a manual choice across regrouping, even as old members leave the window.
+            if (latest) remember(toolIds, latest)
+            return latest?.open ?? nextDefault
+        },
+        set(toolIds: readonly string[], nextDefault: boolean, open: boolean) {
+            resetForPreference(nextDefault)
+            remember(toolIds, { open, revision: ++revision })
+        }
+    }
+}
+
+const ToolGroupExpansionContext = createContext<ReturnType<typeof createToolGroupExpansionState> | null>(null)
+
 export function HappyChatProvider(props: { value: HappyChatContextValue; children: ReactNode }) {
+    // Cards can remount when history changes the surrounding assistant response.
+    const toolGroupExpansion = useMemo(createToolGroupExpansionState, [props.value.sessionId])
     // Keep dismissal outside virtualized cards so recycling cannot revive a menu.
     const [continued, setContinued] = useState<{ sessionId: string; ids: ReadonlySet<string> }>({
         sessionId: props.value.sessionId, ids: new Set()
@@ -54,9 +99,17 @@ export function HappyChatProvider(props: { value: HappyChatContextValue; childre
     }
     return (
         <HappyChatContext.Provider value={value}>
-            {props.children}
+            <ToolGroupExpansionContext.Provider value={toolGroupExpansion}>
+                {props.children}
+            </ToolGroupExpansionContext.Provider>
         </HappyChatContext.Provider>
     )
+}
+
+export function useToolGroupExpansionState() {
+    const state = useContext(ToolGroupExpansionContext)
+    if (!state) throw new Error('HappyChatContext is missing')
+    return state
 }
 
 export function useOptionalHappyChatContext(): HappyChatContextValue | null {

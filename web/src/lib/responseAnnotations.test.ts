@@ -18,7 +18,7 @@ describe('Desktop response annotations', () => {
     it('round trips multiple selected texts, comments and opaque native IDs without changing the body', () => {
         const annotations = [
             { text: '中文 "quote"\nnext', source: { messageId: 'opaque/native:2', startOffset: 4, endOffset: 19 } },
-            { text: 'second', annotation: 'Please explain this' },
+            { text: 'second', annotation: 'Please explain this', source: { messageId: 'raw-id', partId: 'agent-text:stream-id', turnId: 'turn-id', startOffset: 0, endOffset: 6 } },
         ]
         const body = 'Keep my draft\nwith whitespace  '
         const text = serializeResponseAnnotations(body, annotations)
@@ -35,6 +35,12 @@ describe('Desktop response annotations', () => {
             '# Response annotations:\n<response-annotations>\n[{"text":42}]\n</response-annotations>\nbody',
             '# Response annotations:\n<response-annotations>\ninvalid\n</response-annotations>\nbody',
         ]) expect(splitResponseAnnotations(text)).toEqual({ body: text, annotations: [] })
+    })
+
+    it('ignores untrusted optional locator hints while preserving the valid source and notes', () => {
+        const text = serializeResponseAnnotations('body', [{ text: 'quote', annotation: 'notes', source: { messageId: 'real-id', startOffset: 0, endOffset: 5,
+            turnId: { forged: true }, partId: 42 } } as unknown as import('./responseAnnotations').ResponseAnnotation])
+        expect(splitResponseAnnotations(text)).toEqual({ body: 'body', annotations: [{ text: 'quote', annotation: 'notes', source: { messageId: 'real-id', startOffset: 0, endOffset: 5 } }] })
     })
 
     it('uses rendered UTF-16 offsets inside a verified native text target', () => {

@@ -1,8 +1,12 @@
 import { posix, win32 } from 'node:path'
 import type { NativeService } from './service'
 import { record, text, type NativeRecord } from './transport'
+import { splitCodexInputContext } from '@hapi/protocol/codexInputContext'
 
-export type NativeSuggestion = { key: string; text: string; label: string; description?: string }
+export type NativeSuggestion = {
+    key: string; text: string; label: string; description?: string
+    group?: 'files' | 'folders' | 'skills' | 'apps' | 'plugins'
+}
 type Skill = { name: string; path: string; enabled: boolean }
 type Catalog = {
     expires: number
@@ -11,12 +15,36 @@ type Catalog = {
     loading?: Promise<void>
 }
 const catalogs = new WeakMap<NativeService, Map<string, Catalog>>()
+const referenceCapabilities = new WeakMap<NativeService, Map<string, { expires: number; loading: Promise<boolean> }>>()
 const quotedMention = (path: string) => `@"${path.replace(/(["\\])/g, '\\$1')}"`
+
+/** Tool presence is checked on this thread's actual MCP connection, never inferred from another chat. */
+export function threadReferenceCapability(service: NativeService, threadId: string): Promise<boolean> {
+    let cache = referenceCapabilities.get(service)
+    if (!cache) { cache = new Map(); referenceCapabilities.set(service, cache) }
+    const previous = cache.get(threadId)
+    if (previous && previous.expires > Date.now()) return previous.loading
+    if (cache.size >= 64) cache.delete(cache.keys().next().value!)
+    const loading = discover(service, 'mcpServerStatus/list', {
+        threadId, serverName: 'codex_app', detail: 'toolsAndAuthOnly', limit: 100,
+    }, 3000).then(response => (Array.isArray(record(response).data) ? record(response).data as unknown[] : []).some(value => {
+        const server = record(value)
+        return server.name === 'codex_app' && server.runtimeStatus === 'connected' && !server.toolsError
+            && record(record(server.tools).read_thread).name === 'read_thread'
+    })).catch(() => false)
+    cache.set(threadId, { expires: Date.now() + 15_000, loading })
+    return loading
+}
 
 /** Reuse the CLI's quoted-reference and leading-skill grammar, retaining local
  * references as text because this daemon only resolves typed app/plugin mentions.
  * Kept pure to avoid importing CLI runtime/configuration into the hub. */
 export function nativeMessageInput(message: string, skills: readonly Skill[] = []): NativeRecord[] {
+    const body = splitCodexInputContext(message).body
+    if (body !== message && message.endsWith(body)) {
+        const prefix = message.slice(0, message.length - body.length)
+        return [{ type: 'text', text: prefix, text_elements: [] }, ...(body ? nativeMessageInput(body, skills) : [])]
+    }
     const input: NativeRecord[] = []
     const leading = /^\s*\$([^\s]+)(?=\s|$)/.exec(message)
     const skill = leading
@@ -24,20 +52,22 @@ export function nativeMessageInput(message: string, skills: readonly Skill[] = [
         : undefined
     const content = skill && leading ? message.slice(leading[0].length) : message
     if (skill) input.push({ type: 'skill', name: skill.name, path: skill.path })
-    const mentions = /(^|\s)@"((?:\\.|[^"\\])*)"/g
+    const mentions = /(^|\s)(?:@"((?:\\.|[^"\\])*)"|\$([^\s]+)(?=\s|$))/g
     let end = 0
     for (const match of content.matchAll(mentions)) {
-        const path = match[2].replace(/\\(["\\])/g, '$1')
-        if (!path) continue
+        const selectedSkill = match[3] ? skills.find(skill => skill.enabled && skill.name === match[3]) : undefined
+        const path = match[2]?.replace(/\\(["\\])/g, '$1')
+        if (!selectedSkill && !path) continue
         // Current daemon mention resolution handles app/plugin URIs. Local paths
         // must remain in the text or the model never receives the file reference.
-        if (!/^(app|plugin):\/\//.test(path)) continue
+        if (!selectedSkill && !/^(app|plugin):\/\//.test(path!)) continue
         const start = match.index + match[1].length
         if (start > end)
             input.push({ type: 'text', text: content.slice(end, start), text_elements: [] })
-        input.push({
+        if (selectedSkill) input.push({ type: 'skill', name: selectedSkill.name, path: selectedSkill.path })
+        else input.push({
             type: 'mention',
-            name: path.split(/[\\/]/).filter(Boolean).at(-1) ?? path,
+            name: path!.split(/[\\/]/).filter(Boolean).at(-1) ?? path,
             path,
         })
         end = match.index + match[0].length
@@ -48,7 +78,7 @@ export function nativeMessageInput(message: string, skills: readonly Skill[] = [
 }
 
 async function skillsFor(service: NativeService, cwd: string): Promise<Skill[]> {
-    const response = record(await service.call('skills/list', { cwds: [cwd], forceReload: false }))
+    const response = record(await service.call('skills/list', { cwds: [cwd], forceReload: false }, Date.now() + 5000))
     return (Array.isArray(response.data) ? response.data : []).flatMap((value) => {
         const group = record(value)
         return (Array.isArray(group.skills) ? group.skills : []).flatMap((value) => {
@@ -83,6 +113,7 @@ function catalogFor(service: NativeService, threadId: string, cwd: string): Cata
     // First-query discovery is bounded and shared by concurrent keystrokes. Apps
     // have their own shorter deadline and cannot cancel a slower plugin lookup.
     catalog.loading = Promise.allSettled([
+        skillsFor(service, cwd).then(skills => { catalog.skills = skills }),
         discover(
             service,
             'plugin/list',
@@ -113,6 +144,7 @@ function catalogFor(service: NativeService, threadId: string, cwd: string): Cata
                         text: quotedMention(path),
                         label: `@${plugin.name}`,
                         description: 'Plugin',
+                        group: 'plugins',
                     })
                 }
             }
@@ -136,6 +168,7 @@ function catalogFor(service: NativeService, threadId: string, cwd: string): Cata
                         text: quotedMention(path),
                         label: `@${app.name}`,
                         description: 'App',
+                        group: 'apps',
                     })
                 }
             }
@@ -149,7 +182,7 @@ export async function messageInput(
     threadId: string,
     message: string
 ): Promise<NativeRecord[]> {
-    if (!/^\s*\$[^\s]+(?=\s|$)/.test(message)) return nativeMessageInput(message)
+    if (!/(^|\s)\$[^\s]+(?=\s|$)/.test(splitCodexInputContext(message).body)) return nativeMessageInput(message)
     const cwd = text(record(record(await service.readThread(threadId)).thread).cwd)
     if (!cwd) return nativeMessageInput(message)
     return nativeMessageInput(message, await skillsFor(service, cwd))
@@ -174,6 +207,7 @@ export async function mentionSuggestions(
                 text: `$${skill.name}`,
                 label: `$${skill.name}`,
                 description: skill.path,
+                group: 'skills' as const,
             }))
     }
     await catalog.loading
@@ -221,11 +255,15 @@ export async function mentionSuggestions(
                 text: quotedMention(path),
                 label: `@${file.file_name ?? paths.basename(path)}`,
                 description: path,
+                group: file.match_type === 'directory' ? 'folders' as const : 'files' as const,
             },
         ]
     })
     return [
         ...files,
+        ...(catalog.skills ?? []).filter(skill => skill.enabled && skill.name.toLowerCase().includes(search)).map(skill => ({
+            key: `skill:${skill.path}`, text: `$${skill.name}`, label: `$${skill.name}`, description: skill.path, group: 'skills' as const,
+        })),
         ...catalog.targets.filter((target) => target.label.toLowerCase().includes(search)),
     ]
 }

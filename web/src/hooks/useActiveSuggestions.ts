@@ -1,4 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { groupSuggestions } from '@/utils/groupSuggestions'
+
+export type SuggestionGroup = 'threads' | 'files' | 'folders' | 'skills' | 'apps' | 'plugins'
 
 export interface Suggestion {
     key: string
@@ -7,6 +10,9 @@ export interface Suggestion {
     description?: string
     content?: string  // Expanded content for Codex user prompts
     source?: 'builtin' | 'user' | 'plugin' | 'project'
+    group?: SuggestionGroup
+    /** A navigation row in the picker, never inserted into composer text. */
+    expandGroup?: { group: SuggestionGroup; remaining: number }
     /** When set, rich composer inserts an inline session atom instead of `text`. */
     sessionMention?: { id: string; title: string }
 }
@@ -104,6 +110,7 @@ export function useActiveSuggestions(
         allowEmptyQuery,
         version: 0,
     })
+    const expandedGroups = useRef(new Set<SuggestionGroup>())
 
     // Commit the active input before passive request effects or any settled promise
     // can publish. A layout effect avoids leaking an abandoned concurrent render.
@@ -116,6 +123,7 @@ export function useActiveSuggestions(
             || latestInput.autoSelectFirst !== autoSelectFirst
             || latestInput.allowEmptyQuery !== allowEmptyQuery
         ) {
+            if (latestInput.query !== query || latestInput.handler !== handler) expandedGroups.current.clear()
             latestInputRef.current = {
                 query,
                 handler,
@@ -130,10 +138,12 @@ export function useActiveSuggestions(
     // State for suggestions
     const [state, setState] = useState<{
         suggestions: Suggestion[]
+        allSuggestions: Suggestion[]
         selected: number
         input: SuggestionInput | null
     }>({
         suggestions: [],
+        allSuggestions: [],
         selected: -1,
         input: null
     })
@@ -177,7 +187,16 @@ export function useActiveSuggestions(
     }, [wrapAround])
 
     const clear = useCallback(() => {
-        setState({ suggestions: [], selected: -1, input: null })
+        expandedGroups.current.clear()
+        setState({ suggestions: [], allSuggestions: [], selected: -1, input: null })
+    }, [])
+
+    const expandGroup = useCallback((group: SuggestionGroup) => {
+        expandedGroups.current.add(group)
+        setState(previous => ({
+            ...previous,
+            suggestions: groupSuggestions(previous.allSuggestions, expandedGroups.current),
+        }))
     }, [])
 
     const syncRef = useRef<ValueSync<SuggestionRequest> | null>(null)
@@ -188,7 +207,7 @@ export function useActiveSuggestions(
             const { query: nextQuery, handler: requestHandler } = input
             if (nextQuery === null || (!allowEmptyQuery && nextQuery === '')) return
 
-            const suggestions = await requestHandler(nextQuery)
+            const allSuggestions = await requestHandler(nextQuery)
 
             const isCurrentRequest = () => {
                 const latest = latestInputRef.current
@@ -204,13 +223,14 @@ export function useActiveSuggestions(
             setState((prev) => {
                 // React may defer this updater until another query is current.
                 if (!isCurrentRequest()) return prev
+                const suggestions = groupSuggestions(allSuggestions, expandedGroups.current)
 
                 if (prev.selected >= 0 && prev.selected < prev.suggestions.length) {
                     const previousKey = prev.suggestions[prev.selected].key
                     const newIndex = suggestions.findIndex(s => s.key === previousKey)
                     if (newIndex !== -1) {
                         // Preserve the user's logical selection across a refreshed or reordered list.
-                        return { suggestions, selected: newIndex, input }
+                        return { suggestions, allSuggestions, selected: newIndex, input }
                     }
                 }
 
@@ -219,6 +239,7 @@ export function useActiveSuggestions(
                 const clampedSelection = Math.min(prev.selected, suggestions.length - 1)
                 return {
                     suggestions,
+                    allSuggestions,
                     selected: clampedSelection < 0 && suggestions.length > 0 && autoSelectFirst ? 0 : clampedSelection,
                     input
                 }
@@ -265,9 +286,9 @@ export function useActiveSuggestions(
     // Hide published suggestions as soon as a new input renders. Keep the old state
     // internally so the replacement result can still preserve selection by key.
     if (query === null || (!allowEmptyQuery && query === '') || !stateMatchesInput) {
-        return [[], -1, moveUp, moveDown, clear] as const
+        return [[], -1, moveUp, moveDown, clear, expandGroup] as const
     }
 
     // Return state suggestions
-    return [state.suggestions, state.selected, moveUp, moveDown, clear] as const
+    return [state.suggestions, state.selected, moveUp, moveDown, clear, expandGroup] as const
 }

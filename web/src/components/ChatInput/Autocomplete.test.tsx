@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { Autocomplete } from './Autocomplete'
+import { I18nProvider } from '@/lib/i18n-context'
 
 function suggestion(key: string): Suggestion {
     return {
@@ -42,13 +43,14 @@ describe('Autocomplete', () => {
                 suggestions={[suggestion('first'), suggestion('second')]}
                 selectedIndex={1}
                 onSelect={vi.fn()}
-            />
+            />,
+            { wrapper: I18nProvider }
         )
 
         const list = container.firstElementChild
         expect(list).not.toHaveClass('pt-1')
         expect(list).not.toHaveClass('pb-1')
-        expect(screen.getByRole('button', { name: 'second' })).toHaveClass(
+        expect(screen.getByRole('option', { name: 'second' })).toHaveClass(
             'bg-[var(--app-button)]',
             'text-[var(--app-button-text)]'
         )
@@ -60,7 +62,8 @@ describe('Autocomplete', () => {
                 suggestions={[suggestion('first'), suggestion('second')]}
                 selectedIndex={0}
                 onSelect={vi.fn()}
-            />
+            />,
+            { wrapper: I18nProvider }
         )
         expect(scrollIntoView).toHaveBeenCalledTimes(1)
 

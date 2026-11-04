@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ToolGroupBlock } from '@/chat/toolGroups'
 import type { ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
 import type { SessionMetadataSummary } from '@/types/api'
-import { useHappyChatContext } from '@/components/AssistantChat/context'
+import { useHappyChatContext, useToolGroupExpansionState } from '@/components/AssistantChat/context'
 import { getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
@@ -200,12 +200,12 @@ export function ToolGroupCard(props: {
     const { t } = useTranslation()
     const ctx = useHappyChatContext()
     const minimal = ctx.terminalToolDisplayMode === 'minimal'
-    const [open, setOpen] = useState(props.block.defaultOpen)
+    const expansion = useToolGroupExpansionState()
+    const [, setExpansionRevision] = useState(0)
+    const toolIds = props.block.tools.map(tool => tool.id)
+    const open = expansion.get(toolIds, props.block.defaultOpen)
     const [selectedToolId, setSelectedToolId] = useState<string | null>(null)
-    const [isHydratingHistory, setIsHydratingHistory] = useState(false)
-    const [historyExhausted, setHistoryExhausted] = useState(false)
     const [now, setNow] = useState(() => Date.now())
-    const hydrationRunRef = useRef(0)
     const groupTiming = getToolGroupTiming(props.block.tools, now)
 
     useEffect(() => {
@@ -216,66 +216,8 @@ export function ToolGroupCard(props: {
     }, [groupTiming.running, groupTiming.startedAt])
 
     useEffect(() => {
-        hydrationRunRef.current += 1
-        setOpen(props.block.defaultOpen)
         setSelectedToolId(null)
-        setIsHydratingHistory(false)
-        setHistoryExhausted(false)
-    }, [props.block.id, props.block.defaultOpen])
-
-    useEffect(() => {
-        if (!open) {
-            hydrationRunRef.current += 1
-            setIsHydratingHistory(false)
-            setHistoryExhausted(false)
-            return
-        }
-        if (!props.block.needsOlderHistory) {
-            hydrationRunRef.current += 1
-            setIsHydratingHistory(false)
-            setHistoryExhausted(false)
-            return
-        }
-        if (isHydratingHistory || historyExhausted) {
-            return
-        }
-        if (ctx.isSyncingTail || ctx.isLoadingMoreMessages) {
-            return
-        }
-        if (!ctx.hasMoreMessages) {
-            hydrationRunRef.current += 1
-            setIsHydratingHistory(false)
-            setHistoryExhausted(true)
-            return
-        }
-
-        const runId = hydrationRunRef.current + 1
-        hydrationRunRef.current = runId
-        setHistoryExhausted(false)
-        setIsHydratingHistory(true)
-        void ctx.loadOlderMessagesPreservingScroll()
-            .then((result) => {
-                if (hydrationRunRef.current !== runId) return
-                setIsHydratingHistory(false)
-                if (result === 'terminal-stop') {
-                    setHistoryExhausted(true)
-                }
-            })
-            .catch(() => {
-                if (hydrationRunRef.current !== runId) return
-                setIsHydratingHistory(false)
-                setHistoryExhausted(true)
-            })
-    }, [
-        open,
-        props.block.needsOlderHistory,
-        ctx.hasMoreMessages,
-        ctx.isSyncingTail,
-        ctx.isLoadingMoreMessages,
-        ctx.loadOlderMessagesPreservingScroll,
-        historyExhausted,
-        isHydratingHistory,
-    ])
+    }, [props.block.id, props.block.defaultOpen, expansion])
 
     const selectedTool = useMemo(
         () => props.block.tools.find((tool) => tool.id === selectedToolId) ?? null,
@@ -294,11 +236,6 @@ export function ToolGroupCard(props: {
     }, [selectedTool, props.metadata, t])
 
     const primaryTitle = formatGroupedHeaderTitle(props.block, t)
-    const minimalPreview = useMemo(() => minimal ? props.block.tools.map(block => getMinimalToolPreview(block.tool, getToolPresentation({
-        toolName: block.tool.name, input: block.tool.input, result: block.tool.result,
-        childrenCount: block.children.length, description: block.tool.nativeTitle ?? block.tool.description,
-        metadata: props.metadata,
-    }, t))).join(' · ') : '', [minimal, props.block.tools, props.metadata, t])
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
         : props.block.summary.pendingCount > 0 ? 'pending'
             : groupTiming.running ? 'running' : 'completed'
@@ -315,7 +252,10 @@ export function ToolGroupCard(props: {
             <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
                 <button
                     type="button"
-                    onClick={() => setOpen((value) => !value)}
+                    onClick={() => {
+                        expansion.set(toolIds, props.block.defaultOpen, !open)
+                        setExpansionRevision(value => value + 1)
+                    }}
                     className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                     aria-expanded={open}
                 >
@@ -325,8 +265,8 @@ export function ToolGroupCard(props: {
                                 <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
                                     <DetailsIcon open={open} />
                                 </div>
-                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'font-mono text-xs font-normal' : 'text-sm font-medium')} title={minimal ? minimalPreview : undefined}>
-                                    {minimal ? minimalPreview : primaryTitle}
+                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'text-xs font-normal' : 'text-sm font-medium')} title={minimal ? primaryTitle : undefined}>
+                                    {primaryTitle}
                                 </CardTitle>
                             </div>
                             {!minimal ? <ToolTimingSummary
@@ -337,9 +277,10 @@ export function ToolGroupCard(props: {
                             /> : null}
                         </div>
 
-                        {minimal ? <span className={cn('shrink-0', toolStatusColorClass(minimalState))}>
-                            <ToolStatusIcon state={minimalState} />
-                        </span> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
+                        {minimal ? <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-[var(--app-hint)]">
+                            <span>{t('toolGroup.toolCount', { n: props.block.tools.length })}</span>
+                            <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span>
+                        </div> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
                             {groupTiming.running ? (
                                 <span className={toolStatusColorClass('running')} aria-label={t('toolGroup.rowStatus.running')}>
                                     <ToolStatusIcon state="running" />
@@ -412,16 +353,6 @@ export function ToolGroupCard(props: {
                         })}
                     </div>
 
-                    {isHydratingHistory ? (
-                        <div className="mt-3 text-xs text-[var(--app-hint)]">
-                            {t('toolGroup.loadingOlderHistory')}
-                        </div>
-                    ) : null}
-                    {!isHydratingHistory && historyExhausted && props.block.needsOlderHistory ? (
-                        <div className="mt-3 text-xs text-[var(--app-hint)]">
-                            {t('toolGroup.historyUnavailable')}
-                        </div>
-                    ) : null}
                 </CardContent>
             ) : null}
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import { QueuedMessagesFrame } from '@/components/AssistantChat/QueuedMessagesFrame'
-import { splitResponseAnnotations } from '@/lib/responseAnnotations'
+import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { useTranslation } from '@/lib/use-translation'
 import { record } from './presentation'
 import type { useNativeQueue } from './useNativeQueue'
@@ -50,7 +50,7 @@ export function NativeQueuedMessagesBar({ api, threadId, queue, connected, activ
             const id = typeof item.id === 'string' ? item.id : ''
             const input = Array.isArray(item.input) ? item.input.map(record) : []
             const text = input.filter(value => value.type === 'text').map(value => String(value.text ?? '')).join('\n')
-            const annotated = splitResponseAnnotations(text)
+            const annotated = splitCodexInputContext(text)
             const attachments = input.filter(value => ['image', 'localImage', 'file'].includes(String(value.type)))
             return <li key={id} className="flex min-w-0 items-start gap-2 rounded-lg bg-[var(--app-secondary-bg)] px-3 py-2 shadow-sm">
                 <div className="min-w-0 flex-1">

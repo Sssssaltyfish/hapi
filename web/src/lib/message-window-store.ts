@@ -7,6 +7,7 @@ import type { NormalizedMessage } from '@/chat/types'
 import type { DecryptedMessage, MessageStatus, MessagesResponse } from '@/types/api'
 import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
 import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
+import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
@@ -1036,8 +1037,9 @@ export async function hydrateMessageWindow(
     api: ApiClient,
     sessionId: string,
     locator: Extract<TimelineHistoryLocator, { kind: 'runner' }>,
+    isCurrent: () => boolean = () => true
 ): Promise<boolean> {
-    if (locator.beforeSeq === null) return false
+    if (!isCurrent() || locator.beforeSeq === null) return false
     const initial = getState(sessionId)
     if (initial.isLoadingMore || initial.isSyncingTail) return false
     if (locator.epoch !== undefined && initial.epoch !== locator.epoch) return false
@@ -1052,7 +1054,7 @@ export async function hydrateMessageWindow(
             readHistoryPage(api, sessionId, 'older', { at: locator.beforeAt, seq: locator.beforeSeq }, initial.epoch),
             readHistoryPage(api, sessionId, 'newer', { at: locator.beforeAt, seq: locator.beforeSeq - 1 }, initial.epoch),
         ])
-        if (getState(sessionId).olderGeneration !== generation) return false
+        if (!isCurrent() || getState(sessionId).olderGeneration !== generation) return false
         if (older.page.reset || newer.page.reset || older.page.epoch !== initial.epoch || newer.page.epoch !== initial.epoch) return false
         const messages = mergeMessages(older.messages, newer.messages)
         if (!messages.some(message => message.id === locator.targetMessageId)) return false
@@ -1081,8 +1083,10 @@ export async function seekMessageWindow(
     api: ApiClient,
     sessionId: string,
     locator: Extract<ConversationHistoryPage, { kind: 'runner' }>,
-    targetMessageId: string
+    targetMessageId: string,
+    isCurrent: () => boolean = () => true
 ): Promise<boolean> {
+    if (!isCurrent()) return false
     historyPages.clear(sessionId)
     const initial = getState(sessionId)
     const generation = initial.olderGeneration + 1
@@ -1094,10 +1098,10 @@ export async function seekMessageWindow(
     }), true)
     try {
         const response = await api.getMessages(sessionId, { beforeAt: locator.beforeAt, beforeSeq: locator.beforeSeq, limit: PAGE_SIZE })
-        if (getState(sessionId).olderGeneration !== generation) return false
+        if (!isCurrent() || getState(sessionId).olderGeneration !== generation) return false
         if (locator.epoch !== null && response.page.epoch !== locator.epoch) return false
         const normalized = response.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-        if (!buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)) return false
+        if (!reduceChatBlocks(normalized, null).blocks.some(block => getTimelineBlockSourceIds(block).includes(targetMessageId))) return false
         const newest = derivePosition(response.messages.filter(message => !isQueuedForInvocation(message)), 'newest')
         updateState(sessionId, previous => buildState(previous, {
             messages: mergeMessages(response.messages, previous.messages.filter(isQueuedForInvocation)),

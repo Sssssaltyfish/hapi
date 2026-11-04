@@ -21,12 +21,14 @@ import type {
 import type { ChatBlock, NormalizedMessage } from '@/chat/types'
 import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
+import { ResponseAnnotationResolver } from '@/lib/responseAnnotationResolver'
+import { ResponseAnnotationSessionProvider } from '@/components/AssistantChat/ResponseAnnotationSession'
 import { reduceChatBlocks } from '@/chat/reducer'
 import { reconcileChatBlocks } from '@/chat/reconcile'
 import { buildConversationOutline } from '@/chat/outline'
 import { buildVisibleChatBlocks, isToolGroupBlock, type ToolGroupBlock } from '@/chat/toolGroups'
 import { useUnseenBlockCount } from '@/hooks/useUnseenBlockCount'
-import { useCodexExplorationCollapse } from '@/hooks/useCodexExplorationCollapse'
+import { useToolGroupCollapse } from '@/hooks/useToolGroupCollapse'
 import { isQueuedForInvocation } from '@/lib/messages'
 import { inactiveSessionCanResume } from '@/lib/sessionResume'
 import {
@@ -602,9 +604,9 @@ type SessionChatProps = {
     onPrefetchHistory?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     conversationHistoryRevision?: number
     onCancelLoadMore: () => void
-    onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string) => Promise<boolean>
+    onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string, isCurrent?: () => boolean) => Promise<boolean>
     historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
-    onHydrateHistoryRow?: (locator: TimelineHistoryLocator) => Promise<boolean>
+    onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
     // inactive-session resume failed. Composer state that should only be cleared on
@@ -660,7 +662,7 @@ function SessionChatInner(props: SessionChatProps) {
     const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
     const { t } = useTranslation()
-    const { codexExplorationCollapsed } = useCodexExplorationCollapse()
+    const { toolGroupsCollapsed } = useToolGroupCollapse()
     const navigate = useNavigate()
     const [historyActionPending, setHistoryActionPending] = useState(false)
     const [rewindRevision, setRewindRevision] = useState(0)
@@ -1528,9 +1530,9 @@ function SessionChatInner(props: SessionChatProps) {
         () => buildVisibleChatBlocks(reconciled.blocks, {
             hasMoreMessages: props.hasMoreMessages,
             previousGroups: visibleGroupsRef.current,
-            codexExplorationCollapsed
+            toolGroupsCollapsed
         }),
-        [reconciled.blocks, props.hasMoreMessages, codexExplorationCollapsed]
+        [reconciled.blocks, props.hasMoreMessages, toolGroupsCollapsed]
     )
 
     // Fork-current must compare against assistant-ui message ids (`kind:id`),
@@ -1934,16 +1936,16 @@ function SessionChatInner(props: SessionChatProps) {
     const historyLocators = useMemo(() => buildTimelineHistoryLocators(
         visibleMessages, normalizedMessages, props.historyLocators, historyEpoch,
     ), [visibleMessages, normalizedMessages, props.historyLocators, historyEpoch])
-    const hydrateHistoryRow = useCallback(async (locator: TimelineHistoryLocator) => {
-        if (props.onHydrateHistoryRow) return props.onHydrateHistoryRow(locator)
+    const hydrateHistoryRow = useCallback(async (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => {
+        if (props.onHydrateHistoryRow) return props.onHydrateHistoryRow(locator, isCurrent)
         if (locator.kind !== 'runner') return false
-        return hydrateMessageWindow(props.api, props.session.id, locator)
+        return hydrateMessageWindow(props.api, props.session.id, locator, isCurrent)
     }, [props.onHydrateHistoryRow, props.api, props.session.id])
 
     const runtime = useHappyRuntime({
         session: props.session,
         blocks: visibleBlocks,
-        toolGroupsCollapsed: codexExplorationCollapsed,
+        toolGroupsCollapsed,
         historyLocators,
         cacheResetRevision: native ? props.conversationHistoryRevision : `${historyEpoch ?? ''}:${rewindRevision}`,
         messagesVersion: props.messagesVersion,
@@ -1961,6 +1963,10 @@ function SessionChatInner(props: SessionChatProps) {
         pendingScheduleRef,
         pendingSendIntentRef,
     })
+    const annotationCacheScope = props.api.getConversationCacheScope?.().key
+    const annotationResolver = useMemo(() => new ResponseAnnotationResolver(props.api, props.session), [annotationCacheScope, props.session.id, props.conversationHistoryRevision, historyEpoch, rewindRevision])
+    annotationResolver.updateApi(props.api)
+    useMemo(() => annotationResolver.observe(visibleMessages), [annotationResolver, visibleMessages])
     const isLatestCompletedBoundary = useCallback((messageId: string) => {
         if (!latestCompletedBoundaryId) return false
         const extras = runtime.thread.getState().extras as HappyRuntimeExtras | undefined
@@ -2019,6 +2025,7 @@ function SessionChatInner(props: SessionChatProps) {
             ) : null}
 
             <AssistantRuntimeProvider runtime={runtime}>
+                <ResponseAnnotationSessionProvider resolver={annotationResolver}>
                 <ShareSeedConsumer sessionId={props.session.id} sessionActive={props.session.active} />
                 <AbortRestoreConsumer messages={normalizedMessages} onAbortRestore={props.onAbortRestore ?? (() => {})} />
                 <DragDropZone disabled={(!props.session.active && !inactiveCanResume) || props.isSending || pendingSchedule != null || isScratchlistParking}>
@@ -2354,6 +2361,7 @@ function SessionChatInner(props: SessionChatProps) {
                     </div>
                     </div>
                 </DragDropZone>
+                </ResponseAnnotationSessionProvider>
             </AssistantRuntimeProvider>
             </div>
 

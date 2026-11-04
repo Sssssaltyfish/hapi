@@ -6,6 +6,8 @@ import { MarkdownText } from '@/components/assistant-ui/markdown-text'
 import { CheckIcon } from '@/components/icons'
 import { useSessionSummaryInChat } from '@/hooks/useSessionSummaryInChat'
 import { useTranslation } from '@/lib/use-translation'
+import { parseScheduledMessage } from '@/lib/scheduledMessage'
+import { ScheduledMessageCard } from './ScheduledMessageCard'
 
 type SummaryStatusPresentation = {
     labelKey: string
@@ -125,6 +127,9 @@ export const NotifySummaryText: TextMessagePartComponent = ({ text, status }) =>
         && (runStartedWithRunningRef.current || hasTextChangedDuringRunRef.current)
 
     previousTextRef.current = text
+
+    const scheduled = parseScheduledMessage(text)
+    if (scheduled) return <ScheduledMessageCard message={scheduled} />
 
     if (!showInChat) {
         const stripped = stripNotifySummaryFooter(text)

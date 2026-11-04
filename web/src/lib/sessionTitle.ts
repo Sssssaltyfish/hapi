@@ -1,3 +1,5 @@
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
+
 type SessionTitleSource = {
     id: string
     metadata?: {
@@ -19,6 +21,10 @@ export function hasSessionTitleSignal(session: SessionTitleSource): boolean {
     return false
 }
 
+export function shortSessionId(id: string): string {
+    return (parseCodexNativeSessionId(id)?.threadId ?? id).slice(0, 8)
+}
+
 export function getSessionTitle(session: SessionTitleSource): string {
     if (session.metadata?.name) {
         return session.metadata.name
@@ -28,7 +34,7 @@ export function getSessionTitle(session: SessionTitleSource): string {
     }
     if (session.metadata?.path) {
         const parts = session.metadata.path.split('/').filter(Boolean)
-        return parts.length > 0 ? parts[parts.length - 1] : session.id.slice(0, 8)
+        if (parts.length > 0) return parts[parts.length - 1]
     }
-    return session.id.slice(0, 8)
+    return shortSessionId(session.id)
 }

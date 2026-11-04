@@ -30,6 +30,7 @@ import type {
     SessionTitleSuggestionResponse,
     SessionsResponse
 } from '@/types/api'
+import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import type {
     AgyModelsResponse,
     AgentAvailabilityResponse,
@@ -320,6 +321,17 @@ export class ApiClient {
         return await this.request('/api/codex-native/endpoints')
     }
 
+    async resolveCodexNativeThreadReference(reference: { threadId: string; hostId?: string; targetEndpointId?: string }, signal?: AbortSignal): Promise<{ sessionId: string; endpointId: string; threadId: string; hostId: string | null }> {
+        const params = new URLSearchParams({ threadId: reference.threadId })
+        if (reference.hostId) params.set('hostId', reference.hostId)
+        if (reference.targetEndpointId) params.set('targetEndpointId', reference.targetEndpointId)
+        return this.request(`/api/codex-native/thread-reference?${params}`, { signal })
+    }
+
+    async getCodexNativeReferenceCapabilities(threadId: string, signal?: AbortSignal): Promise<{ readThread: boolean }> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(threadId)}/reference-capabilities`, { signal })
+    }
+
     async createCodexNativeEndpoint(payload: {
         address: string
         displayName?: string
@@ -347,7 +359,7 @@ export class ApiClient {
         threadId: string,
         query: string,
         signal?: AbortSignal
-    ): Promise<{ suggestions: { key: string; text: string; label: string; description?: string }[] }> {
+    ): Promise<{ suggestions: Suggestion[]; canReferenceThreads?: boolean }> {
         return await this.request(
             `/api/codex-native/threads/${encodeURIComponent(threadId)}/suggestions?${new URLSearchParams({ query })}`,
             { signal }

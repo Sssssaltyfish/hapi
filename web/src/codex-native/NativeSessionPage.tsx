@@ -13,17 +13,20 @@ import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
 import { getConversationReadingPosition } from '@/lib/conversation-reading-position'
-import { buildConversationOutline } from '@/chat/outline'
+import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 import type { NativeItemEntry } from './types'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
+import { useQuery } from '@tanstack/react-query'
+import { useSessions } from '@/hooks/queries/useSessions'
+import { nativeThreadReferenceMessage } from './nativeThreadReferences'
 
 function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
     const messages = projectNativeItems(entries, [], false).messages
     const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
+    return reduceChatBlocks(normalized, null).blocks.some(block => getTimelineBlockSourceIds(block).includes(targetMessageId))
 }
 
 export function NativeSessionPage({
@@ -67,7 +70,11 @@ function NativeSessionChat({
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
     const queue = useNativeQueue(api, native.threadId, native.available !== false, thread.subscribeEvents)
-    const autocompleteSuggestions = useNativeSuggestions(api, native.threadId)
+    const { sessions: mentionSessions } = useSessions(api)
+    const nativeEndpoints = useQuery({ queryKey: ['codex-native', 'endpoints'], queryFn: () => api.getCodexNativeEndpoints(), staleTime: 30_000, retry: false })
+    const autocompleteSuggestions = useNativeSuggestions(api, native.threadId, {
+        endpointId: native.endpointId, sessions: mentionSessions, endpoints: nativeEndpoints.data?.endpoints ?? [],
+    })
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
         observedReplies.current.set(id, answer)
@@ -183,10 +190,10 @@ function NativeSessionChat({
             }}
             messages={projected.messages}
             historyLocators={historyLocators}
-            onHydrateHistoryRow={async locator => {
+            onHydrateHistoryRow={async (locator, isCurrent = () => true) => {
                 if (locator.kind !== 'native') return false
                 const found = await thread.seekTurn(locator.turnId, locator.itemId,
-                    entries => entries.some(entry => entry.item.id === locator.itemId))
+                    entries => isCurrent() && entries.some(entry => entry.item.id === locator.itemId))
                 if (found) setViewMode('history')
                 return found
             }}
@@ -225,8 +232,8 @@ function NativeSessionChat({
                 setViewMode('history')
                 return { kind: 'applied', historyVersion: appliedVersion, hasMore: applied.hasMore, addedRenderableCount }
             }}
-            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId) => {
-                const found = await thread.seekTurn(turnId, itemId, entries => containsOutlineTarget(entries, targetMessageId))
+            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId, isCurrent = () => true) => {
+                const found = await thread.seekTurn(turnId, itemId, entries => isCurrent() && containsOutlineTarget(entries, targetMessageId))
                 if (found) {
                     setViewMode('history')
                 }
@@ -284,7 +291,7 @@ function NativeSessionChat({
                     if (deliveryMode === 'steer' && !expectedTurnId)
                         throw new Error('No active native turn to steer')
                     const result = await api.codexNativeAction(native.threadId, 'messages', {
-                        text,
+                        text: await nativeThreadReferenceMessage(api, native, text),
                         clientId: attemptId,
                         ...(attachments?.length ? { attachments } : {}),
                         ...(expectedTurnId ? { expectedTurnId } : {}),

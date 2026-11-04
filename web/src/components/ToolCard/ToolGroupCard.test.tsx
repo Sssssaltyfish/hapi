@@ -1,8 +1,7 @@
-import { useCallback, useState } from 'react'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ToolCallBlock } from '@/chat/types'
-import type { ToolGroupBlock } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, isToolGroupBlock, type ToolGroupBlock } from '@/chat/toolGroups'
 import {
     HappyChatProvider,
     type OlderHistoryLoadResult
@@ -84,13 +83,13 @@ function renderCard(block: ToolGroupBlock, options?: {
 }) {
     const loadOlderMessagesPreservingScroll = options?.loadOlder
         ?? vi.fn(async () => 'terminal-stop' as const)
-    return render(
+    const ui = (nextBlock: ToolGroupBlock, displayMode = options?.displayMode ?? 'detailed', sessionId = 'session-1') => (
         <I18nProvider>
             <HappyChatProvider value={{
                 api: {} as never,
-                sessionId: 'session-1',
+                sessionId,
                 metadata: { path: 'repo', host: 'local' },
-                terminalToolDisplayMode: options?.displayMode ?? 'detailed',
+                terminalToolDisplayMode: displayMode,
                 showSessionSummaryInChat: false,
                 disabled: false,
                 onRefresh: vi.fn(),
@@ -99,10 +98,12 @@ function renderCard(block: ToolGroupBlock, options?: {
                 isLoadingMoreMessages: options?.isLoadingMore ?? false,
                 loadOlderMessagesPreservingScroll,
             }}>
-                <ToolGroupCard block={block} metadata={{ path: 'repo', host: 'local' }} />
+                <ToolGroupCard key={nextBlock.id} block={nextBlock} metadata={{ path: 'repo', host: 'local' }} />
             </HappyChatProvider>
         </I18nProvider>
     )
+    const view = render(ui(block))
+    return { ...view, rerenderGroup: (nextBlock: ToolGroupBlock, displayMode?: TerminalToolDisplayMode, sessionId?: string) => view.rerender(ui(nextBlock, displayMode, sessionId)) }
 }
 
 describe('ToolGroupCard', () => {
@@ -123,14 +124,17 @@ describe('ToolGroupCard', () => {
         expect(view.container.innerHTML).toContain('bg-[var(--app-tool-group-bg)]')
     })
 
-    it('uses actual single-line command previews for minimal exploration groups and their expanded rows', () => {
+    it('summarizes minimal groups while keeping actual single-line commands in expanded rows', () => {
         renderCard(makeGroup({ presentationMode: 'codex-exploration', tools: [
             makeToolBlock('read', 'CodexBash', { command: ['cat', 'README.md'], parsed_cmd: [{ type: 'read', path: 'README.md', name: 'README.md' }] }),
             makeToolBlock('test', 'Bash', { command: 'bun test' }),
         ] }), { displayMode: 'minimal' })
         const header = screen.getByRole('button', { expanded: false })
-        expect(header).toHaveTextContent('cat README.md · bun test')
-        expect(screen.getByText('cat README.md · bun test')).toHaveClass('truncate', 'whitespace-nowrap')
+        expect(header).toHaveTextContent('Explored')
+        expect(header).not.toHaveTextContent('cat README.md')
+        expect(header).not.toHaveTextContent('bun test')
+        expect(screen.getByText('Explored')).toHaveClass('truncate', 'whitespace-nowrap')
+        expect(screen.getByText('2 actions')).toBeInTheDocument()
         expect(screen.queryByText('Duration')).not.toBeInTheDocument()
         fireEvent.click(header)
         const command = screen.getByText('bun test')
@@ -138,6 +142,65 @@ describe('ToolGroupCard', () => {
         fireEvent.click(command.closest('button')!)
         expect(screen.getByRole('dialog')).toHaveTextContent('bun test')
         expect(screen.getByRole('dialog')).toHaveTextContent('done')
+    })
+
+    it.each(['minimal', 'compact', 'detailed'] as const)('uses the shared default-collapse preference in %s and preserves manual state across density changes', (displayMode) => {
+        const tools = [makeToolBlock('read', 'Read', { file_path: 'repo/a.ts' }), makeToolBlock('bash', 'Bash', { command: 'bun test' })]
+        const group = (collapsed: boolean) => {
+            const block = buildVisibleChatBlocks(tools, { hasMoreMessages: false, toolGroupsCollapsed: collapsed })[0]
+            if (!isToolGroupBlock(block)) throw new Error('expected tool group')
+            return block
+        }
+        const view = renderCard(group(true), { displayMode })
+        expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+        view.rerenderGroup(group(false))
+        const header = screen.getByRole('button', { expanded: true })
+        expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
+        fireEvent.click(header)
+        expect(header).toHaveAttribute('aria-expanded', 'false')
+        view.rerenderGroup(group(false), displayMode === 'minimal' ? 'detailed' : 'minimal')
+        expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+    })
+
+    it('keeps manual expansion across regrouping and remounts, then resets for preference and session changes', () => {
+        const original = makeGroup()
+        const view = renderCard(original)
+        fireEvent.click(screen.getByRole('button', { expanded: false }))
+        const prepended = makeToolBlock('older', 'Read', { file_path: 'repo/older.ts' })
+        const regrouped = makeGroup({ id: 'regrouped', tools: [prepended, ...original.tools] })
+        view.rerenderGroup(regrouped)
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(screen.getByText('bun test')).toBeInTheDocument()
+
+        // After trimming the original members, the surviving regrouped member retains the choice.
+        const trimmed = makeGroup({ id: 'trimmed', tools: [prepended] })
+        view.rerenderGroup(trimmed)
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        view.rerenderGroup({ ...trimmed, defaultOpen: true })
+        view.rerenderGroup(trimmed)
+        expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { expanded: false }))
+        view.rerenderGroup(trimmed, 'detailed', 'session-2')
+        expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+        view.rerenderGroup(trimmed, 'detailed', 'session-1')
+        expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
+    })
+
+    it('keeps expansion and remounts display-only while continuous history loading is available', () => {
+        const loadOlder = vi.fn(async () => 'terminal-stop' as const)
+        const block = makeGroup({ defaultOpen: true, needsOlderHistory: true, historyState: 'needs-older-history' })
+        const view = renderCard(block, { hasMore: true, loadOlder })
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(loadOlder).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole('button', { expanded: true }))
+        fireEvent.click(screen.getByRole('button', { expanded: false }))
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(screen.getByText('bun test')).toBeInTheDocument()
+        expect(loadOlder).not.toHaveBeenCalled()
+        view.rerenderGroup({ ...block, id: 'remounted' })
+        expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument()
+        expect(loadOlder).not.toHaveBeenCalled()
     })
 
     it('derives completed group wall-clock timing from the earliest start and latest finish', () => {
@@ -312,246 +375,4 @@ describe('ToolGroupCard', () => {
         expect(screen.getByText('Tool 1')).toBeInTheDocument()
     })
 
-    it('auto-loads older history after expand when the group is incomplete', async () => {
-        const loadOlder = vi.fn()
-
-        function Harness() {
-            const loadOlderMessagesPreservingScroll = useCallback(async () => {
-                loadOlder()
-                return 'terminal-stop' as const
-            }, [])
-
-            return (
-                <I18nProvider>
-                    <HappyChatProvider value={{
-                        api: {} as never,
-                        sessionId: 'session-1',
-                        metadata: { path: 'repo', host: 'local' },
-                        terminalToolDisplayMode: 'detailed',
-                        showSessionSummaryInChat: false,
-                        disabled: false,
-                        onRefresh: vi.fn(),
-                        hasMoreMessages: true,
-                        isSyncingTail: false,
-                        isLoadingMoreMessages: false,
-                        loadOlderMessagesPreservingScroll,
-                    }}>
-                        <ToolGroupCard
-                            block={makeGroup({
-                                id: 'tool-group:bash-1',
-                                historyState: 'needs-older-history',
-                                needsOlderHistory: true,
-                            })}
-                            metadata={{ path: 'repo', host: 'local' }}
-                        />
-                    </HappyChatProvider>
-                </I18nProvider>
-            )
-        }
-
-        const view = render(<Harness />)
-        const groupToggle = within(view.container).getByRole('button', { name: /inspect a\.ts/i })
-
-        fireEvent.click(groupToggle)
-
-        await waitFor(() => {
-            expect(loadOlder).toHaveBeenCalledTimes(1)
-        })
-        await waitFor(() => {
-            expect(screen.getByText('Earlier tool activity is unavailable.')).toBeInTheDocument()
-        })
-        await new Promise((resolve) => setTimeout(resolve, 300))
-        expect(loadOlder).toHaveBeenCalledTimes(1)
-    })
-
-    it('waits for tail synchronization after a transient stop, then retries', async () => {
-        const loadOlder = vi.fn()
-        let releaseTailSync: (() => void) | null = null
-
-        function Harness() {
-            const [isSyncingTail, setIsSyncingTail] = useState(false)
-            releaseTailSync = () => setIsSyncingTail(false)
-
-            const loadOlderMessagesPreservingScroll = useCallback(async () => {
-                loadOlder()
-                if (loadOlder.mock.calls.length === 1) {
-                    setIsSyncingTail(true)
-                    return 'transient-stop' as const
-                }
-                return 'terminal-stop' as const
-            }, [])
-
-            return (
-                <I18nProvider>
-                    <HappyChatProvider value={{
-                        api: {} as never,
-                        sessionId: 'session-1',
-                        metadata: { path: 'repo', host: 'local' },
-                        terminalToolDisplayMode: 'detailed',
-                        showSessionSummaryInChat: false,
-                        disabled: false,
-                        onRefresh: vi.fn(),
-                        hasMoreMessages: true,
-                        isSyncingTail,
-                        isLoadingMoreMessages: false,
-                        loadOlderMessagesPreservingScroll,
-                    }}>
-                        <ToolGroupCard
-                            block={makeGroup({
-                                id: 'tool-group:bash-1',
-                                historyState: 'needs-older-history',
-                                needsOlderHistory: true,
-                            })}
-                            metadata={{ path: 'repo', host: 'local' }}
-                        />
-                    </HappyChatProvider>
-                </I18nProvider>
-            )
-        }
-
-        const view = render(<Harness />)
-        fireEvent.click(within(view.container).getByRole('button', { name: /inspect a\.ts/i }))
-
-        await waitFor(() => {
-            expect(loadOlder).toHaveBeenCalledTimes(1)
-        })
-        expect(screen.queryByText('Earlier tool activity is unavailable.')).not.toBeInTheDocument()
-
-        await act(async () => {
-            releaseTailSync?.()
-        })
-
-        await waitFor(() => {
-            expect(loadOlder).toHaveBeenCalledTimes(2)
-        })
-        await waitFor(() => {
-            expect(screen.getByText('Earlier tool activity is unavailable.')).toBeInTheDocument()
-        })
-    })
-
-    it('continues hydrating incomplete history across multiple page loads', async () => {
-        let loadCount = 0
-
-        function Harness() {
-            const [isLoadingMore, setIsLoadingMore] = useState(false)
-            const [hasMore, setHasMore] = useState(true)
-            const loadOlderMessagesPreservingScroll = useCallback(() => {
-                const shouldContinue = loadCount === 0
-                loadCount += 1
-                setIsLoadingMore(true)
-                return new Promise<OlderHistoryLoadResult>((resolve) => {
-                    setTimeout(() => {
-                        setIsLoadingMore(false)
-                        if (!shouldContinue) {
-                            setHasMore(false)
-                        }
-                        resolve(shouldContinue ? 'loaded' : 'terminal-stop')
-                    }, 0)
-                })
-            }, [])
-
-            return (
-                <I18nProvider>
-                    <HappyChatProvider value={{
-                        api: {} as never,
-                        sessionId: 'session-1',
-                        metadata: { path: 'repo', host: 'local' },
-                        terminalToolDisplayMode: 'detailed',
-                        showSessionSummaryInChat: false,
-                        disabled: false,
-                        onRefresh: vi.fn(),
-                        hasMoreMessages: hasMore,
-                        isSyncingTail: false,
-                        isLoadingMoreMessages: isLoadingMore,
-                        loadOlderMessagesPreservingScroll,
-                    }}>
-                        <ToolGroupCard
-                            block={makeGroup({
-                                id: 'tool-group:bash-1',
-                                historyState: 'needs-older-history',
-                                needsOlderHistory: true,
-                            })}
-                            metadata={{ path: 'repo', host: 'local' }}
-                        />
-                    </HappyChatProvider>
-                </I18nProvider>
-            )
-        }
-
-        const view = render(<Harness />)
-        const groupToggle = within(view.container).getByRole('button', { name: /inspect a\.ts/i })
-
-        fireEvent.click(groupToggle)
-
-        await waitFor(() => {
-            expect(loadCount).toBe(2)
-        })
-        await waitFor(() => {
-            expect(screen.getByText('Earlier tool activity is unavailable.')).toBeInTheDocument()
-        })
-    })
-
-    it('waits for an in-flight thread pagination to finish before retrying hydration', async () => {
-        const loadOlder = vi.fn(async () => 'terminal-stop' as const)
-        let releaseThreadLoad: (() => void) | null = null
-
-        function Harness() {
-            const [hasMore, setHasMore] = useState(true)
-            const [isLoadingMore, setIsLoadingMore] = useState(true)
-
-            releaseThreadLoad = () => setIsLoadingMore(false)
-
-            const loadOlderMessagesPreservingScroll = useCallback(async () => {
-                loadOlder()
-                setHasMore(false)
-                return 'terminal-stop' as const
-            }, [])
-
-            return (
-                <I18nProvider>
-                    <HappyChatProvider value={{
-                        api: {} as never,
-                        sessionId: 'session-1',
-                        metadata: { path: 'repo', host: 'local' },
-                        terminalToolDisplayMode: 'detailed',
-                        showSessionSummaryInChat: false,
-                        disabled: false,
-                        onRefresh: vi.fn(),
-                        hasMoreMessages: hasMore,
-                        isSyncingTail: false,
-                        isLoadingMoreMessages: isLoadingMore,
-                        loadOlderMessagesPreservingScroll,
-                    }}>
-                        <ToolGroupCard
-                            block={makeGroup({
-                                id: 'tool-group:bash-1',
-                                historyState: 'needs-older-history',
-                                needsOlderHistory: true,
-                            })}
-                            metadata={{ path: 'repo', host: 'local' }}
-                        />
-                    </HappyChatProvider>
-                </I18nProvider>
-            )
-        }
-
-        const view = render(<Harness />)
-        const groupToggle = within(view.container).getByRole('button', { name: /inspect a\.ts/i })
-
-        fireEvent.click(groupToggle)
-
-        expect(loadOlder).not.toHaveBeenCalled()
-        expect(screen.queryByText('Earlier tool activity is unavailable.')).not.toBeInTheDocument()
-
-        await act(async () => {
-            releaseThreadLoad?.()
-        })
-
-        await waitFor(() => {
-            expect(loadOlder).toHaveBeenCalledTimes(1)
-        })
-        await waitFor(() => {
-            expect(screen.getByText('Earlier tool activity is unavailable.')).toBeInTheDocument()
-        })
-    })
 })

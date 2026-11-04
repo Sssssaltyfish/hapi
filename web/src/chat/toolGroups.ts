@@ -56,7 +56,7 @@ export function visibleBlockRole(block: VisibleChatBlock): VisibleChatBlockRole 
 type ToolGroupingOptions = {
     hasMoreMessages: boolean
     previousGroups?: ToolGroupBlock[]
-    codexExplorationCollapsed?: boolean
+    toolGroupsCollapsed?: boolean
 }
 
 const PLAN_TOOL_NAMES = new Set([
@@ -284,7 +284,9 @@ export function buildVisibleChatBlocks(
         let cursor = index + 1
         while (cursor < blocks.length) {
             const candidate = blocks[cursor]
-            if (candidate.kind !== 'tool-call' || getGroupingFamily(candidate) !== groupingFamily) {
+            const turnId = block.meta && typeof block.meta === 'object' ? (block.meta as Record<string, unknown>).codexTurnId : undefined
+            const candidateTurnId = candidate.meta && typeof candidate.meta === 'object' ? (candidate.meta as Record<string, unknown>).codexTurnId : undefined
+            if (candidate.kind !== 'tool-call' || getGroupingFamily(candidate) !== groupingFamily || turnId !== candidateTurnId) {
                 break
             }
             tools.push(candidate)
@@ -311,7 +313,7 @@ export function buildVisibleChatBlocks(
             firstToolId: tools[0].id,
             lastToolId: tools[tools.length - 1].id,
             tools,
-            defaultOpen: groupingFamily === 'codex-exploration' && options.codexExplorationCollapsed === false,
+            defaultOpen: options.toolGroupsCollapsed === false,
             historyState: needsOlderHistory ? 'needs-older-history' : 'complete',
             needsOlderHistory,
             activityTitle,

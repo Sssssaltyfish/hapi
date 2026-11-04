@@ -12,6 +12,7 @@
         "./slashCommands": "./src/slashCommands.ts",
         "./buildInfo": "./src/buildInfo.ts",
         "./conversationHistory": "./src/conversationHistory.ts",
+        "./codexInputContext": "./src/codexInputContext.ts",
         "./modes": "./src/modes.ts",
         "./rpcMethods": "./src/rpcMethods.ts",
         "./runnerCapabilities": "./src/runnerCapabilities.ts",

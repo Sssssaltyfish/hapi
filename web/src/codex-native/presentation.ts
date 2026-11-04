@@ -23,6 +23,7 @@ export function nativeText(value: unknown): string {
     if (Array.isArray(value))
         return value
             .map((part) => {
+                if (typeof part === 'string') return part
                 const item = record(part)
                 return typeof item.text === 'string' ? item.text : ''
             })

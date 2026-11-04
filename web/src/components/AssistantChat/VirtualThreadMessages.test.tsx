@@ -223,7 +223,7 @@ describe('measured conversation virtualization', () => {
     it('hydrates an unresident row demanded by the virtual range without an edge page action', async () => {
         const hydrate = vi.fn(async () => true)
         render(<Harness rows={rows.map((row, index) => index === 3 ? { ...row, resident: false } : row)} hydrate={hydrate} />)
-        await waitFor(() => expect(hydrate).toHaveBeenCalledWith(rows[3]!.locator))
+        await waitFor(() => expect(hydrate).toHaveBeenCalledWith(rows[3]!.locator, expect.any(Function)))
     })
 
     it('resolves tool-card scroll anchors to their logical tool-call row for navigation and restoration', async () => {
@@ -273,6 +273,66 @@ describe('measured conversation virtualization', () => {
         expect(viewport.scrollTop).toBeGreaterThan(600)
     })
 
+    it('materializes an unknown quote directly at its semantic destination without a row-start waypoint', async () => {
+        const previousRect = vi.mocked(HTMLElement.prototype.getBoundingClientRect).getMockImplementation()!
+        vi.mocked(HTMLElement.prototype.getBoundingClientRect).mockImplementation(function (this: HTMLElement) {
+            const rect = previousRect.call(this)
+            return this.dataset.hapiVirtualRow === 'row-50' ? { ...rect, height: 400, bottom: rect.top + 400 } : rect
+        })
+        const listRef = createRef<VirtualThreadHandle>()
+        let release!: (loaded: boolean) => void
+        const hydrate = vi.fn(() => new Promise<boolean>(resolve => { release = resolve }))
+        const initial = rows.filter(row => row.id !== 'row-50')
+        const view = render(<Harness rows={initial} listRef={listRef} hydrate={hydrate} />)
+        await waitFor(() => expect(listRef.current).not.toBeNull())
+        const viewport = view.getByTestId('viewport')
+        const writes: { semantic: boolean; top: number }[] = []
+        let semantic = false
+        viewport.scrollTo = function (options?: ScrollToOptions | number, y?: number) {
+            const top = typeof options === 'number' ? y ?? 0 : options?.top ?? this.scrollTop
+            writes.push({ semantic, top })
+            this.scrollTop = top
+            queueMicrotask(() => this.dispatchEvent(new Event('scroll')))
+        }
+        let localOffset = 80
+        const reveal = vi.fn((element: HTMLElement) => {
+            let rowTop = 0
+            for (const row of element.querySelectorAll<HTMLElement>('[data-hapi-virtual-row], [data-hapi-virtual-spacer]')) {
+                if (row.dataset.hapiVirtualRow === 'row-50') {
+                    semantic = true
+                    element.scrollTo({ top: rowTop + localOffset - 24 })
+                    semantic = false
+                    return true
+                }
+                rowTop += row.hasAttribute('data-hapi-virtual-spacer') ? parseFloat(row.style.height) || 0 : Number(row.dataset.hapiRowSize)
+            }
+            return false
+        })
+        const locate = vi.fn(async () => {
+            view.rerender(<Harness rows={rows.map(row => row.id === 'row-50' ? { ...row, resident: false } : row)} listRef={listRef} hydrate={hydrate} />)
+            return true
+        })
+        const complete = vi.fn()
+        act(() => {
+            void listRef.current!.ensureRow('source-50', () => true, { reveal, locate }).then(complete)
+        })
+        await waitFor(() => expect(hydrate).toHaveBeenCalledTimes(1))
+        expect(view.container.querySelector('[data-hapi-virtual-row="row-50"]')).not.toBeNull()
+        expect(writes).toEqual([])
+        act(() => {
+            localOffset = 260
+            view.rerender(<Harness rows={rows} listRef={listRef} hydrate={hydrate} />)
+            release(true)
+        })
+        await waitFor(() => expect(complete).toHaveBeenCalledWith(true))
+        expect(locate).toHaveBeenCalledTimes(1)
+        expect(reveal).toHaveBeenCalled()
+        expect(writes.length).toBeGreaterThan(0)
+        expect(writes.every(write => write.semantic)).toBe(true)
+        expect(view.container.querySelector('#hapi-message-row-50')).not.toBeNull()
+    })
+
+
     it('materializes only resident rows for explicit selection, and releases them when selection collapses', async () => {
         const view = render(<Harness rows={rows.map((row, index) => index === 50 ? { ...row, resident: false } : row)} />)
         const complete = vi.fn()
@@ -288,4 +348,5 @@ describe('measured conversation virtualization', () => {
         expect(getTurnRowRange(rows, 4)).toEqual([4, 7])
         expect(getTurnRowRange(rows, 99)).toEqual([96, 99])
     })
+
 })

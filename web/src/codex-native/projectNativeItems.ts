@@ -31,6 +31,12 @@ export function projectNativeItems(
                       content: { type: 'codex', data: { ...body, id } },
                       meta: {
                           sentFrom: 'cli',
+                          nativeCodexRecord: true,
+                          ...(typeof body.turn_id === 'string' ? {
+                              codexTurnId: body.turn_id,
+                          } : {}),
+                          ...(body.nativeMessagePhase === 'commentary' || body.nativeMessagePhase === 'final_answer'
+                              ? { nativeCodexMessagePhase: body.nativeMessagePhase } : {}),
                           ...(typeof body.nativeResponseItemId === 'string'
                               ? { nativeCodexResponseItemId: body.nativeResponseItemId } : {}),
                       },
@@ -87,7 +93,10 @@ export function projectNativeItems(
             if (text) add(id, at, { text }, true)
         } else if (item.type === 'agentMessage') {
             const text = nativeText(item.text)
-            if (text) add(id, at, { type: 'message', message: text, turn_id: entry.turnId, nativeResponseItemId: item.id })
+            if (text) add(id, at, {
+                type: 'message', message: text, turn_id: entry.turnId, nativeResponseItemId: item.id,
+                nativeMessagePhase: item.phase,
+            })
             if (Array.isArray(item.questions)) {
                 const questions = item.questions.map((value, index) => {
                     const question = record(value)
@@ -134,7 +143,7 @@ export function projectNativeItems(
                     }
             }
         } else if (item.type === 'reasoning') {
-            const text = nativeText(item.summary) || nativeText(item.content)
+            const text = nativeText(item.summary)
             if (text) add(id, at, { type: 'reasoning', message: text, turn_id: entry.turnId })
         } else if (item.type === 'commandExecution') {
             tool(

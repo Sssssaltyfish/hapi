@@ -90,6 +90,22 @@ describe('buildSessionReferenceText', () => {
 })
 
 describe('matchSessionsForMention', () => {
+    it('keeps a runner Codex chat mentionable when a newer native view has the same agent session id', () => {
+        const threadId = '12345678-1234-4000-9000-abcdef123456'
+        const metadata = { name: 'Review', path: '/repo', flavor: 'codex' as const, agentSessionId: threadId }
+        const runner = makeSession({ id: 'runner-chat', metadata })
+        const native = makeSession({
+            id: `codex-native:wsl:${threadId}`,
+            updatedAt: 100, active: true,
+            metadata: { ...metadata, nativeCodex: { endpointId: 'wsl', threadId } },
+        })
+        for (const query of ['', 'Review']) {
+            expect(matchSessionsForMention([native, runner], query, { runnerOnly: true, limit: 1 })).toEqual([runner])
+        }
+        expect(matchSessionsForMention([native], 'Review', { runnerOnly: true })).toEqual([])
+        expect(formatSessionMentionTooltip(null, '', native.id).lines).toEqual(['Session · 12345678'])
+    })
+
     it('uses conversation content instead of titles for reference eligibility', () => {
         const untitled = Object.assign(makeSession({
             id: 'untitled-content',

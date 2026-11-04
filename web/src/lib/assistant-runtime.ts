@@ -16,8 +16,10 @@ import type { ToolGroupBlock, VisibleChatBlock } from '@/chat/toolGroups'
 import { visibleBlockRole } from '@/chat/toolGroups'
 import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session } from '@/types/api'
 import { orderItemsById } from '@/lib/attachmentOrder'
-import { splitResponseAnnotations, type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
+import { type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
+import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
+import { getNativeResponseGroupingKey } from '@/lib/native-response-groups'
 import {
     StableChatTimeline,
     convertTimelineProjection,
@@ -421,7 +423,7 @@ export function getResponseAnnotations(blocks: readonly VisibleChatBlock[]): Map
     let inResponse = false
     for (const block of blocks) {
         if (block.kind === 'user-text' && !parseNativeQuestionReply(block.text)) {
-            annotations = splitResponseAnnotations(block.text).annotations
+            annotations = splitCodexInputContext(block.text).annotations
         }
         if (visibleBlockRole(block) !== 'assistant') {
             inResponse = false
@@ -480,11 +482,15 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
     const groups: VisibleChatBlock[][] = []
     for (const block of blocks) {
         const previous = groups.at(-1)
-        if (visibleBlockRole(block) === 'assistant' && previous && visibleBlockRole(previous[0]) === 'assistant') previous.push(block)
+        const groupingKey = getNativeResponseGroupingKey(block)
+        const previousKey = previous ? getNativeResponseGroupingKey(previous[0]) : undefined
+        if (previous && groupingKey && groupingKey === previousKey) previous.push(block)
+        else if (!groupingKey && !previousKey && visibleBlockRole(block) === 'assistant' && previous && visibleBlockRole(previous[0]) === 'assistant') previous.push(block)
         else groups.push([block])
     }
     return groups.map(group => {
         const first = group[0]
+        const groupingKey = getNativeResponseGroupingKey(first)
         const role = visibleBlockRole(first)
         const timestamp = timestamps.get(first) ?? getBlockPresentationTimestamp(first)
         const aggregate = aggregates.get(first.id)
@@ -497,6 +503,7 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
         }
         return {
             role,
+            groupingKey,
             blocks: group,
             sourceIds: group.flatMap(getTimelineBlockSourceIds),
             createdAt: Math.min(...group.map(block => block.createdAt)),

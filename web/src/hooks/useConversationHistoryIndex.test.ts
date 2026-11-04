@@ -110,7 +110,7 @@ describe('continuous prompt outline', () => {
         const { result, unmount } = renderHook(() => useConversationHistoryIndex({ api, session: session('locate'), open: true, currentItems: empty, messagesVersion: 0, onLocateNativeTurn: locate }))
         await waitFor(() => expect(result.current.items).toHaveLength(1))
         await act(async () => { expect(await result.current.locate(result.current.items[0])).toBe(true) })
-        expect(locate).toHaveBeenLastCalledWith('turn-target', 'target', 'user-text:native:target')
+        expect(locate).toHaveBeenLastCalledWith('turn-target', 'target', 'user-text:native:target', expect.any(Function))
         expect(getConversationOutline).toHaveBeenCalledTimes(1)
         unmount()
     })
