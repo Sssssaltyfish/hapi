@@ -29,6 +29,8 @@ import { useTranslation } from '@/lib/use-translation'
 import { useOptionalHappyChatContext } from '@/components/AssistantChat/context'
 import { decodeFilePathCandidateHref, decodeFilePathHref, remarkFilePathLinks } from '@/lib/remark-file-path-links'
 import { classifyNoSchemeHref } from '@/lib/markdown-href-policy'
+import { parseFileReferenceLocation } from '@/lib/file-reference-location'
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
 import { remarkSessionPathLinks } from '@/lib/remark-session-path-links'
 import { buildSessionReferencePath, parseSessionPathHref } from '@/lib/sessionReference'
 import { UriConfirmDialog } from '@/components/UriConfirmDialog'
@@ -535,7 +537,8 @@ function FilePathAnchor(props: ComponentPropsWithoutRef<'a'> & { filePath: strin
     const { filePath, sessionId, ...anchorProps } = props
     const navigate = useNavigate()
     const rel = anchorProps.target === '_blank' ? (anchorProps.rel ?? 'noreferrer') : anchorProps.rel
-    const search = new URLSearchParams({ path: encodeBase64(filePath), origin: 'chat' }).toString()
+    const location = parseFileReferenceLocation(typeof anchorProps.href === 'string' && !anchorProps.href.startsWith('hapi-file') ? anchorProps.href : filePath)
+    const search = new URLSearchParams({ path: encodeBase64(filePath), origin: 'chat', ...(location.line ? { line: String(location.line) } : {}) }).toString()
     const href = `/sessions/${encodeURIComponent(sessionId)}/file?${search}`
 
     const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -550,6 +553,7 @@ function FilePathAnchor(props: ComponentPropsWithoutRef<'a'> & { filePath: strin
             search: {
                 path: encodeBase64(filePath),
                 origin: 'chat',
+                ...(location.line ? { line: location.line } : {}),
             },
             ...PRESERVE_SESSION_SIDEBAR_SCROLL,
         })
@@ -691,6 +695,7 @@ function A(props: ComponentPropsWithoutRef<'a'>) {
     if (windowsPathFromHref || (href && !hasScheme(href))) {
         const decision = classifyNoSchemeHref(windowsPathFromHref ?? href!, {
             workspacePath: chat?.metadata?.path ?? null,
+            nativeFiles: Boolean(chat && parseCodexNativeSessionId(chat.sessionId)),
         })
         if (decision.action === 'file') {
             if (!chat) {

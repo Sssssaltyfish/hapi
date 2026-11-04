@@ -159,12 +159,34 @@ describe('HappyComposer generic model/effort value buttons', () => {
         expect(screen.queryByRole('button', { name: 'High' })).toBeNull()
     })
 
-    it('hides value buttons on narrow viewports, keeping settings', () => {
+    it('keeps the model shortcut on narrow viewports alongside settings', () => {
         runtime.narrowViewport = true
         renderComposer('claude')
-        expect(screen.queryByRole('button', { name: 'Sonnet 4' })).toBeNull()
+        expect(screen.getByRole('button', { name: 'Sonnet 4' })).toBeTruthy()
         expect(screen.queryByRole('button', { name: 'High' })).toBeNull()
         expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
+    })
+
+    it('opens Codex reasoning directly on phones and omits unavailable scheduling', () => {
+        runtime.narrowViewport = true
+        runtime.toolbarLayout = { mode: 'left', left: ['attachment', 'expand'], right: [], hidden: ['settings', 'model', 'effort'] }
+        const changeEffort = vi.fn()
+        renderComposer('codex', {
+            model: 'gpt-6-astra', modelReasoningEffort: 'high', onModelReasoningEffortChange: changeEffort,
+            availableModelOptions: Array.from({ length: 8 }, (_, index) => ({ value: `model-${index}`, label: `Model ${index}` })),
+            availableModelReasoningEffortOptions: [{ value: 'high' }, { value: 'ultra' }],
+            onSchedule: undefined,
+        })
+        expect(screen.queryByRole('button', { name: 'Schedule send' })).toBeNull()
+        expect(screen.getByRole('button', { name: 'gpt-6-astra' })).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: 'Reasoning Effort: High' }))
+        expect(screen.getByText('Reasoning Effort')).toBeTruthy()
+        expect(screen.queryByText('Model')).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Ultra' }))
+        expect(changeEffort).toHaveBeenCalledExactlyOnceWith('ultra')
+        fireEvent.click(screen.getByRole('button', { name: 'gpt-6-astra' }))
+        expect(screen.getByText('Model')).toBeTruthy()
+        expect(screen.queryByText('Reasoning Effort')).toBeNull()
     })
 
     it('opens only the Model section from the model button (anchored open)', () => {
@@ -252,9 +274,8 @@ describe('HappyComposer generic model/effort value buttons', () => {
             hidden: ['settings', 'abort'],
         }
         renderComposer('claude')
-        // Narrow mode collapses the value buttons into the settings sheet, so the
-        // gear must stay visible regardless of the persisted layout.
-        expect(screen.queryByRole('button', { name: 'Sonnet 4' })).toBeNull()
+        // Model and gear remain reachable regardless of the persisted layout.
+        expect(screen.getByRole('button', { name: 'Sonnet 4' })).toBeTruthy()
         expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
     })
 
@@ -267,13 +288,12 @@ describe('HappyComposer generic model/effort value buttons', () => {
             ],
             piSelectedModel: { provider: 'gemini', modelId: 'gemini-2.5-pro' },
         })
-        // Value buttons are collapsed on narrow; the gear is the only trigger and
-        // must stay clickable while a Pi turn is running (#1442).
+        // The full settings trigger remains clickable mid-turn (#1442).
         const gear = screen.getByRole('button', { name: 'Settings' })
         expect(gear).not.toBeDisabled()
         fireEvent.click(gear)
         expect(screen.getByText('Model')).toBeTruthy()
-        expect(screen.getByText('Gemini 2.5 Pro')).toBeTruthy()
+        expect(screen.getAllByText('Gemini 2.5 Pro').length).toBeGreaterThan(0)
     })
 
     it('highlights only the matching provider row when model IDs collide across providers', () => {

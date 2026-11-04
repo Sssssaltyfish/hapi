@@ -26,6 +26,9 @@ import { createUsageRoutes } from './routes/usage'
 import { createGitRoutes } from './routes/git'
 import { createCliRoutes } from './routes/cli'
 import { createCodexDesktopRoutes } from './routes/codexDesktop'
+import { createCodexNativeRoutes } from './routes/codexNative'
+import { NativeRegistry } from '../codexNative/registry'
+import { nativeSessionMiddleware } from '../codexNative/sessionMiddleware'
 import { createPiSessionRoutes } from './routes/piSessions'
 import { createPushRoutes } from './routes/push'
 import { createDevicesRoutes } from './routes/devices'
@@ -230,6 +233,7 @@ function createWebApp(options: {
     officialWebUrl?: string
 }): Hono<WebAppEnv> {
     const app = new Hono<WebAppEnv>()
+    const nativeRegistry = new NativeRegistry()
 
     app.use('*', logger())
 
@@ -285,12 +289,14 @@ function createWebApp(options: {
     app.route('/api', createBindRoutes(options.jwtSecret, options.store))
 
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
+    app.use('/api/sessions/*', nativeSessionMiddleware(nativeRegistry, options.getSyncEngine))
     app.route('/api', createEventsRoutes(options.getSseManager, options.getSyncEngine, options.getVisibilityTracker))
-    app.route('/api', createSessionsRoutes(options.getSyncEngine))
+    app.route('/api', createSessionsRoutes(options.getSyncEngine, nativeRegistry))
     app.route('/api', createMessagesRoutes(options.getSyncEngine))
     app.route('/api', createPermissionsRoutes(options.getSyncEngine))
     app.route('/api', createMachinesRoutes(options.getSyncEngine))
     app.route('/api', createStorageRoutes(configuration.dbPath))
+    app.route('/api', createCodexNativeRoutes(nativeRegistry))
     app.route('/api', createHubSettingsRoutes(configuration.dataDir))
     app.route('/api', createUsageRoutes(options.store))
     app.route('/api', createGitRoutes(options.getSyncEngine))

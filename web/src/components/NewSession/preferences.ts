@@ -13,8 +13,10 @@ import {
     type LaunchEffort
 } from './types'
 import { LEGACY_YOLO_BRIDGE_AGENTS, usesSharedPermissionModeState } from '@/lib/codexFamilyPermissionAgents'
+import type { CreationChoice } from './creationChoices'
 
 const AGENT_STORAGE_KEY = 'hapi:newSession:agent'
+const EXECUTION_STORAGE_KEY = 'hapi:newSession:execution'
 const YOLO_STORAGE_KEY = 'hapi:newSession:yolo'
 const LAUNCH_SETTINGS_STORAGE_PREFIX = 'hapi:newSession:launchSettings:v1'
 
@@ -48,6 +50,18 @@ export function savePreferredAgent(agent: AgentType): void {
     } catch {
         // Ignore storage errors
     }
+}
+
+export function loadPreferredCreationChoice(): CreationChoice {
+    try { if (localStorage.getItem(EXECUTION_STORAGE_KEY) === 'native') return 'codex-native' } catch { /* Storage unavailable. */ }
+    return loadPreferredAgent()
+}
+
+export function savePreferredCreationChoice(choice: CreationChoice): void {
+    try {
+        if (choice === 'codex-native') localStorage.setItem(EXECUTION_STORAGE_KEY, 'native')
+        else { localStorage.removeItem(EXECUTION_STORAGE_KEY); savePreferredAgent(choice) }
+    } catch { /* Storage unavailable. */ }
 }
 
 export function loadPreferredYoloMode(): boolean {

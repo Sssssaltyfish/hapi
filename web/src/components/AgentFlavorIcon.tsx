@@ -12,6 +12,7 @@ import KimiMono from '@lobehub/icons/es/Kimi/components/Mono'
 import OpenCodeMono from '@lobehub/icons/es/OpenCode/components/Mono'
 import type { IconType } from '@lobehub/icons/es/types'
 import { CopilotIcon } from '@/components/icons/CopilotIcon'
+import { CODEX_NATIVE_LABEL } from '@/lib/agentIdentity'
 
 // Brand logos per agent flavor. Color variant where it stays visible on both
 // light and dark surfaces (claude/codex/gemini); Mono (currentColor) where the
@@ -46,6 +47,12 @@ const UNKNOWN_FLAVOR_BADGE = {
 export function AgentFlavorIcon({ flavor, className }: { flavor?: string | null; className?: string }) {
     const normalized = (flavor ?? '').trim().toLowerCase()
     const sizeClass = className ?? 'h-4 w-4'
+    if (normalized === 'codex-native') {
+        return <span aria-hidden="true" title={CODEX_NATIVE_LABEL} className={`relative inline-flex items-center justify-center leading-none ${sizeClass}`}>
+            <CodexColor size="100%" />
+            <span className="absolute -bottom-0.5 -right-1 rounded-sm bg-[var(--app-bg)] px-0.5 text-[7px] font-bold leading-none text-[var(--app-fg)]">N</span>
+        </span>
+    }
     if (normalized === 'copilot') {
         return (
             <span

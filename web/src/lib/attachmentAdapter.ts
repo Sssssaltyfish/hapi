@@ -1,5 +1,5 @@
 import type { AttachmentAdapter, PendingAttachment, CompleteAttachment, Attachment } from '@assistant-ui/react'
-import type { ApiClient } from '@/api/client'
+import { ApiError, type ApiClient } from '@/api/client'
 import type { AttachmentMetadata } from '@/types/api'
 import { isImageMimeType } from '@/lib/fileAttachments'
 import { randomId } from '@/lib/randomId'
@@ -14,6 +14,7 @@ type PendingUploadAttachment = PendingAttachment & {
     path?: string
     previewUrl?: string
     uploadSessionId?: string
+    errorMessage?: string
 }
 
 export function createAttachmentAdapter(
@@ -24,6 +25,7 @@ export function createAttachmentAdapter(
     // the pick is cancelled — so the caller can navigate off a deleted source.
     // Cancellation is re-checked at transfer save time via isCancelled().
     onSessionResolved?: (sessionId: string, pending: AttachmentDraftHandoff) => Promise<void>,
+    options?: { skipSizeLimit?: boolean },
 ): AttachmentAdapter {
     const cancelledAttachmentIds = new Set<string>()
 
@@ -92,7 +94,7 @@ export function createAttachmentAdapter(
                     return
                 }
 
-                if (file.size > MAX_UPLOAD_BYTES) {
+                if (!options?.skipSizeLimit && file.size > MAX_UPLOAD_BYTES) {
                     yield {
                         id,
                         type: 'file',
@@ -154,8 +156,9 @@ export function createAttachmentAdapter(
                         name: file.name,
                         contentType,
                         file,
-                        status: { type: 'incomplete', reason: 'error' }
-                    }
+                        status: { type: 'incomplete', reason: 'error' },
+                        errorMessage: result.error ?? 'Upload failed',
+                    } as PendingUploadAttachment
                     return
                 }
 
@@ -171,15 +174,16 @@ export function createAttachmentAdapter(
                     uploadSessionId,
                 } as PendingUploadAttachment
 
-            } catch {
+            } catch (error) {
                 yield {
                     id,
                     type: 'file',
                     name: file.name,
                     contentType,
                     file,
-                    status: { type: 'incomplete', reason: 'error' }
-                }
+                    status: { type: 'incomplete', reason: 'error' },
+                    errorMessage: uploadErrorMessage(error),
+                } as PendingUploadAttachment
             }
         },
 
@@ -217,6 +221,17 @@ export function createAttachmentAdapter(
             }
         }
     }
+}
+
+function uploadErrorMessage(error: unknown): string {
+    if (error instanceof ApiError && error.body) {
+        try {
+            const payload: unknown = JSON.parse(error.body)
+            if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') return payload.error
+        } catch { /* Preserve a non-JSON server error verbatim. */ }
+        return error.body
+    }
+    return error instanceof Error ? error.message : String(error)
 }
 
 async function fileToBase64(file: File): Promise<string> {

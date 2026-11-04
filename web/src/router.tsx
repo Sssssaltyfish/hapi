@@ -73,6 +73,8 @@ import SettingsAboutPage from '@/routes/settings/about'
 import SettingsStoragePage from '@/routes/settings/storage'
 import SettingsUsagePage from '@/routes/settings/usage'
 import SharePage from '@/routes/share'
+import { NativeSessionPage } from '@/codex-native/NativeSessionPage'
+import { NativeSessionCatalog } from '@/codex-native/NativeSessionCatalog'
 import { retargetSharePendingTransfer, setSharePendingTransfer } from '@/lib/sharePendingState'
 import { deleteShareTransfer, parseShareSearch } from '@/lib/shareTransfer'
 
@@ -175,7 +177,9 @@ function SessionsPage() {
         [machines]
     )
     const sessionMatch = matchRoute({ to: '/sessions/$sessionId', fuzzy: true })
-    const selectedSessionId = sessionMatch && sessionMatch.sessionId !== 'new' ? sessionMatch.sessionId : null
+    const selectedRouteSessionId = sessionMatch && sessionMatch.sessionId !== 'new' ? sessionMatch.sessionId : null
+    const { session: resolvedSelectedSession } = useSession(api, selectedRouteSessionId)
+    const selectedSessionId = resolvedSelectedSession?.metadata?.nativeCodex ? resolvedSelectedSession.id : selectedRouteSessionId
     const selectedSession = useMemo(
         () => selectedSessionId ? sessions.find((session) => session.id === selectedSessionId) ?? null : null,
         [selectedSessionId, sessions]
@@ -220,6 +224,7 @@ function SessionsPage() {
                         </div>
                     ) : null}
                     <SessionList
+                        footer={<NativeSessionCatalog api={api} onSelect={handleSelectSession} selectedId={selectedSessionId} />}
                         key={initializedHub === baseUrl ? 'last-seen-ready' : 'last-seen-pending'}
                         sessions={sessions}
                         selectedSessionId={selectedSessionId}
@@ -319,6 +324,17 @@ function classifySendError(
 }
 
 function SessionPage() {
+    const { api } = useAppContext()
+    const { sessionId } = useParams({ from: '/sessions/$sessionId' })
+    const { outline } = useSearch({ from: '/sessions/$sessionId' })
+    const { session, isLoading } = useSession(api, sessionId)
+    const goBack = useAppGoBack()
+    if (isLoading) return <div className="flex h-full items-center justify-center"><LoadingState /></div>
+    if (session?.metadata?.nativeCodex) return <NativeSessionPage api={api} session={session} onBack={goBack} outline={outline} />
+    return <HapiSessionPage />
+}
+
+function HapiSessionPage() {
     const { api, titleSuggestionAvailable = false } = useAppContext()
     const { t } = useTranslation()
     const goBack = useAppGoBack()
@@ -825,13 +841,12 @@ function SessionPage() {
 
 function SessionDetailRoute() {
     const { api } = useAppContext()
-    const pathname = useLocation({ select: location => location.pathname })
+    const matchRoute = useMatchRoute()
     const { sessionId } = useParams({ from: '/sessions/$sessionId' })
     const navigate = useNavigate()
     const { session, notFound: sessionNotFound } = useSession(api, sessionId)
     useSessionBrowserTitle(session)
-    const basePath = `/sessions/${sessionId}`
-    const isChat = pathname === basePath || pathname === `${basePath}/`
+    const isChat = Boolean(matchRoute({ to: '/sessions/$sessionId', fuzzy: false }))
     const supersedingSessionId = getSupersedingSessionId(sessionId, session?.metadata)
     const observedSessionRef = useRef<{
         sessionId: string
@@ -1079,6 +1094,7 @@ const sessionTerminalRoute = createRoute({
 
 type SessionFileSearch = {
     path: string
+    line?: number
     staged?: boolean
     tab?: 'changes' | 'directories'
     query?: string
@@ -1108,6 +1124,8 @@ const sessionFileRoute = createRoute({
         const origin = search.origin === 'chat' ? 'chat' : undefined
 
         const result: SessionFileSearch = { path }
+        const line = Number(search.line)
+        if (Number.isInteger(line) && line > 0) result.line = line
         if (staged !== undefined) {
             result.staged = staged
         }
@@ -1164,6 +1182,12 @@ const browseRoute = createRoute({
         return result
     },
     component: BrowsePage,
+})
+
+const codexNativeRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/codex-native',
+    component: () => <Navigate to="/sessions" replace />,
 })
 
 const settingsRoute = createRoute({
@@ -1262,6 +1286,7 @@ export const routeTree = rootRoute.addChildren([
         ]),
     ]),
     browseRoute,
+    codexNativeRoute,
     settingsRoute.addChildren([
         settingsIndexRoute,
         settingsGeneralRoute,

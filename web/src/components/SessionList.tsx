@@ -427,7 +427,7 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
     const groups = new Map<string, { directory: string; machineId: string | null; sessions: SessionSummary[] }>()
 
     sessions.forEach(session => {
-        const path = session.metadata?.worktree?.basePath ?? session.metadata?.path ?? 'Other'
+        const path = session.metadata?.nativeCodex?.projectPath ?? session.metadata?.worktree?.basePath ?? session.metadata?.path ?? 'Other'
         const machineId = session.metadata?.machineId ?? null
         const key = `${machineId ?? UNKNOWN_MACHINE_ID}::${path}`
         if (!groups.has(key)) {
@@ -462,7 +462,7 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
             )
             const hasActiveSession = group.sessions.some(s => s.active)
             const hasPinnedSession = group.sessions.some(s => s.pinned)
-            const displayName = getPathDisplayName(group.directory)
+            const displayName = group.sessions.find(session => session.metadata?.nativeCodex?.projectName)?.metadata?.nativeCodex?.projectName ?? getPathDisplayName(group.directory)
 
             return {
                 key,
@@ -1138,7 +1138,7 @@ function CollapsiblePanel(props: { open: boolean; children: ReactNode }) {
     )
 }
 
-const SessionItem = memo(function SessionItem(props: {
+export const SessionItem = memo(function SessionItem(props: {
     session: SessionSummary
     onSelect: (sessionId: string) => void
     showPath?: boolean
@@ -1301,6 +1301,10 @@ const SessionItem = memo(function SessionItem(props: {
             </button>
 
             <SessionActionMenu
+                disabledActions={s.metadata?.nativeCodex ? {
+                    pin: t('native.unsupported'), export: t('native.unsupported'), delete: t('native.unsupported'), reopen: t('native.unsupported'),
+                    ...(s.metadata.nativeCodex.available === false ? { rename: t('native.unavailable'), archive: t('native.unavailable') } : {})
+                } : undefined}
                 isOpen={menuOpen}
                 onClose={() => setMenuOpen(false)}
                 sessionId={s.id}
@@ -1340,8 +1344,8 @@ const SessionItem = memo(function SessionItem(props: {
                     onClose={() => setRenameOpen(false)}
                     currentName={sessionName}
                     onRename={renameSession}
-                    onSuggestTitle={api && titleSuggestionAvailable ? suggestSessionTitle : undefined}
-                    onUpdateSummary={api && titleSuggestionAvailable ? updateSessionSummary : undefined}
+                    onSuggestTitle={api && !s.metadata?.nativeCodex && titleSuggestionAvailable ? suggestSessionTitle : undefined}
+                    onUpdateSummary={api && !s.metadata?.nativeCodex && titleSuggestionAvailable ? updateSessionSummary : undefined}
                     isPending={isPending}
                 />
             ) : null}
@@ -1422,6 +1426,7 @@ function PullRefreshIcon(props: { rotation: number }) {
 }
 
 export function SessionList(props: {
+    footer?: React.ReactNode
     sessions: SessionSummary[]
     onSelect: (sessionId: string) => void
     onNewSession: () => void
@@ -2554,6 +2559,7 @@ export function SessionList(props: {
                 })}
                 {groups.map(renderDirectoryGroup)}
                 {actionOnlyGroups.map(renderActionOnlyGroupHeader)}
+                {props.footer}
             </SessionListScrollAnchor>
             </div>
             </div>

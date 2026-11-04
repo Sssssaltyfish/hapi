@@ -1,0 +1,132 @@
+import { describe, expect, test } from 'bun:test'
+import { Hono } from 'hono'
+import { NativeService, fallbackThread } from './service'
+import type { NativeConnection, NativeEvent } from './transport'
+import { createCodexNativeRoutes } from '../web/routes/codexNative'
+import type { WebAppEnv } from '../web/middleware/auth'
+
+class FakeConnection {
+    listeners = new Set<(event: NativeEvent) => void>()
+    requests = new Map()
+    calls: Array<{ method: string; params: unknown }> = []
+    closed = false
+    latestStatus = 'completed'
+    runtimeStatus = 'idle'
+    itemsUnavailable = false
+    async request(method: string, params: unknown): Promise<unknown> {
+        this.calls.push({ method, params })
+        if (method === 'thread/start') return { model: 'model', reasoningEffort: 'low', thread: { id: 'thread', cwd: '/repo', status: { type: 'idle' }, turns: [] } }
+        if (method === 'thread/items/list') {
+            if (this.itemsUnavailable) throw new Error('thread/items/list is not supported yet')
+            return { data: [{ turnId: 't', item: { id: 'i', type: 'agentMessage', text: 'latest' }, startedAtMs: 123 }], nextCursor: 'older', backwardsCursor: 'newer' }
+        }
+        if (method === 'thread/resume') return { model: 'model', reasoningEffort: 'low', thread: { id: 'thread', turns: [], status: { type: 'idle' } } }
+        if (method === 'thread/settings/update') {
+            this.emit({ method: 'thread/settings/updated', params: { threadId: 'thread', threadSettings: params } }); return {}
+        }
+        if (method === 'thread/queue/add') return { queuedSubmission: { id: 'queued' } }
+        if (method === 'thread/turns/list') return { data: [{ id: 'turn', status: this.latestStatus, items: [] }] }
+        if (method === 'thread/read') return { thread: { id: 'thread', status: { type: this.runtimeStatus } } }
+        return { data: [] }
+    }
+    emit(event: NativeEvent) { for (const listener of this.listeners) listener(event) }
+    close() { this.closed = true; this.emit({ method: 'hapi/disconnected' }); this.listeners.clear() }
+}
+function fixture() {
+    const clients: FakeConnection[] = []
+    const service = new NativeService({ endpoint: 'unix:///existing.sock', namespace: 'owner' }, () => {
+        const client = new FakeConnection(); clients.push(client); return client as unknown as NativeConnection
+    })
+    return { service, clients }
+}
+function routes(service: NativeService, namespace: string) {
+    const app = new Hono<WebAppEnv>()
+    app.use('*', async (c, next) => { c.set('namespace', namespace); return next() })
+    app.route('/api', createCodexNativeRoutes(service))
+    return app
+}
+describe('native bridge boundaries', () => {
+    test('unauthorized namespace cannot read or attach native threads', async () => {
+        const { service, clients } = fixture(), app = routes(service, 'other')
+        expect((await app.request('/api/codex-native/threads/thread/items')).status).toBe(404)
+        expect(await (await app.request('/api/codex-native/status')).json()).toMatchObject({ enabled: false })
+        expect(clients).toHaveLength(0)
+    })
+    test('native item pagination preserves cursors/timestamps and never resumes a thread', async () => {
+        const { service, clients } = fixture()
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/items?limit=500&cursor=opaque')
+        expect(await response.json()).toMatchObject({ nextCursor: 'older', backwardsCursor: 'newer', data: [{ startedAtMs: 123 }] })
+        expect(clients[0].calls).toEqual([{ method: 'thread/items/list', params: { threadId: 'thread', cursor: 'opaque', limit: 100, sortDirection: 'desc' } }])
+        expect(clients[0].closed).toBe(true)
+    })
+    test('visible subscriptions attach with no turns, isolate events, and replace failed connections', async () => {
+        const { service, clients } = fixture(), events: NativeEvent[] = []
+        const release = await service.subscribe('thread', event => events.push(event))
+        expect(clients[0].calls).toEqual([{ method: 'thread/resume', params: { threadId: 'thread', excludeTurns: true } }])
+        clients[0].emit({ method: 'item/started', params: { threadId: 'sibling' } })
+        expect(events).toHaveLength(1)
+        clients[0].close()
+        const releaseNew = await service.subscribe('thread', () => {})
+        expect(clients).toHaveLength(2)
+        release(); releaseNew()
+        clients[1].close()
+    })
+    test('fallback excludes ambiguous agent-started and background sources', () => {
+        expect(fallbackThread({ source: 'vscode', threadSource: 'agent_created_thread' })).toBe(false)
+        expect(fallbackThread({ source: 'exec' })).toBe(false)
+        expect(fallbackThread({ source: 'vscode', parentThreadId: 'p' })).toBe(false)
+        expect(fallbackThread({ source: 'vscode' })).toBe(true)
+    })
+    test('same settings confirm from native snapshot without waiting for a suppressed notification', async () => {
+        const { service, clients } = fixture()
+        expect(await service.settings('thread', { model: 'model', effort: 'low' })).toMatchObject({ applied: { model: 'model', effort: 'low' } })
+        expect(clients[0].calls.map(c => c.method)).toEqual(['thread/resume'])
+        expect(await service.settings('thread', { effort: 'medium' })).toMatchObject({ applied: { effort: 'medium' } })
+        expect(clients[1].calls.map(c => c.method)).toEqual(['thread/resume', 'thread/settings/update'])
+    })
+    test('explicit empty thread creation retains its native owner for settings and viewing without a second resume', async () => {
+        const { service, clients } = fixture()
+        await service.startThread({ cwd: '/repo', model: 'model' })
+        expect(await service.settings('thread', { effort: 'medium' })).toMatchObject({ applied: { effort: 'medium' } })
+        expect(await service.settings('thread', { effort: 'medium' })).toMatchObject({ applied: { effort: 'medium' } })
+        const release = await service.subscribe('thread', () => {})
+        expect(clients).toHaveLength(1)
+        expect(clients[0].calls.map(c => c.method)).toEqual(['thread/start', 'thread/settings/update'])
+        expect(clients[0].closed).toBe(false)
+        clients[0].itemsUnavailable = true
+        // The history request uses a disposable connection, while only a native
+        // creating owner can establish that an unmaterialized thread is empty.
+        const originalCall = service.control.bind(service)
+        service.control = async (id, method, params) => method === 'thread/items/list' ? clients[0].request(method, params) : originalCall(id, method, params)
+        expect(await service.items('thread', { limit: 50 })).toEqual({ data: [], nextCursor: null, backwardsCursor: null })
+        clients[0].emit({ method: 'turn/started', params: { threadId: 'thread' } })
+        await expect(service.items('thread', { limit: 50 })).rejects.toThrow('not supported yet')
+        release(); clients[0].close()
+    })
+    test('ordinary queued input relies on native automatic scheduling without a racy explicit start', async () => {
+        const { service, clients } = fixture()
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'hello', clientId: 'stable' }) })
+        expect(await response.json()).toMatchObject({ queuedSubmission: { id: 'queued' }, accepted: true })
+        expect(clients.flatMap(c => c.calls).map(c => c.method)).toEqual(['thread/queue/add', 'thread/turns/list'])
+    })
+    test('interrupted native queue starts without an ID that may already have drained', async () => {
+        const clients: FakeConnection[] = []
+        const service = new NativeService({ endpoint: 'unix:///existing', namespace: 'owner' }, () => {
+            const client = new FakeConnection(); client.latestStatus = 'interrupted'; clients.push(client); return client as unknown as NativeConnection
+        })
+        const response = await routes(service, 'owner').request('/api/codex-native/threads/thread/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: 'hello', clientId: 'stable' }) })
+        expect(response.status).toBe(200)
+        expect(clients.flatMap(c => c.calls).find(c => c.method === 'thread/queue/start')?.params).toEqual({ threadId: 'thread' })
+    })
+    test('idle runtime overrides a stale persisted in-progress turn for active forms and interrupt', async () => {
+        const clients: FakeConnection[] = []
+        const service = new NativeService({ endpoint: 'unix:///existing', namespace: 'owner' }, () => {
+            const client = new FakeConnection(); client.latestStatus = 'inProgress'; clients.push(client); return client as unknown as NativeConnection
+        })
+        const app = routes(service, 'owner')
+        expect(await (await app.request('/api/codex-native/threads/thread/active-turn')).json()).toEqual({ activeTurn: null })
+        const interrupt = await app.request('/api/codex-native/threads/thread/interrupt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+        expect(interrupt.status).toBe(409)
+        expect(clients.flatMap(c => c.calls).some(c => c.method === 'turn/interrupt')).toBe(false)
+    })
+})

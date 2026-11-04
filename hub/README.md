@@ -56,6 +56,13 @@ Dictation and voice-assistant provider keys can also be added from **Settings â†
 - `HAPI_IOS_PUSH` - `relay` (default), `apns`, or `off`.
 - `HAPI_PUSH_RELAY_URL` - Shared Android/iOS push relay (default: `https://push.hapi.run`; persisted as `iosPushRelayUrl`). Independent of the `--relay` network tunnel.
 - `HAPI_SESSION_IDLE_TIMEOUT_MS` - Keep-alive-idle window in ms (default: 43200000 / 12 h; `0` disables). See "Session liveness" below.
+- `HAPI_CODEX_NATIVE_SOCKET` - Opt-in existing Codex app-server endpoint, for example `unix:///home/user/.codex/app-server-control/app-server-control.sock`. Run the hub in the same environment as this socket. The bridge never launches a daemon.
+- `HAPI_CODEX_NATIVE_NAMESPACE` - Required exact HAPI namespace allowed to access the native endpoint. Set an empty string explicitly for the default namespace. Other namespaces cannot discover or access its threads.
+- `HAPI_CODEX_NATIVE_TOKEN` - Optional bearer token for the existing native endpoint.
+- `HAPI_CODEX_NATIVE_DESKTOP_STATE` / `HAPI_CODEX_NATIVE_DESKTOP_HOST_ID` - Optional read-only Desktop global state JSON path and host ID used to resolve project membership. When unavailable, the catalog offers ordinary candidates for manual selection.
+- `HAPI_CODEX_NATIVE_CWD` - Optional initial working directory shown by the native provider in New Session.
+- `HAPI_CODEX_NATIVE_LEGACY_MACHINE_IDS` / `HAPI_CODEX_NATIVE_LEGACY_HOSTS` - Optional comma-separated identity allowlists for converting existing Codex session URLs to native aliases before migration. A namespace match alone never binds an unrelated Codex machine. Explicit `metadata.nativeCodex` aliases take priority.
+- `HAPI_CODEX_NATIVE_ENDPOINTS` - Optional JSON array replacing the single endpoint configuration. Each entry requires `id`, `label`, `namespace`, and `endpoint` (`unix://`, `ws://`, or `wss://`); optional fields are `token`, `defaultCwd`, `desktopStatePath`, `desktopHostId`, `allowedRoots`, `legacyMachineIds`, and `legacyHosts`. At most 16 endpoints are configured, and clients can choose only a namespace-authorized configured ID.
 
 Official native apps register their encryption keys automatically; no push
 provider setup is needed on a fresh hub. See the [native companion push
@@ -118,6 +125,10 @@ for request/response shapes and error semantics, and `src/web/routes/` for all e
 - `GET/POST /api/sessions/:id/scratchlist` - Read/create Hub-persisted scratchlist entries; update/delete and attachment routes share this prefix.
 
 ### Messages (`src/web/routes/messages.ts`)
+
+The opt-in `/api/codex-native` routes serve the additive `/codex-native` client directly from an existing Codex daemon. `status`, `models`, and paged `threads` endpoints expose configuration and native metadata. `threads/:id/items` uses native newest-first item pagination (default 50, maximum 100), preserving both native cursors and timestamps. `threads/:id/active-turn` reads one turn with no items. The selected thread's `events` SSE stream attaches with `excludeTurns: true`; clients refresh their bounded visible window after reconnect. Settings updates wait for native confirmation; messages use the native queue or explicit expected-turn steering. Request replies preserve native IDs and are resolved only by the daemon's notification.
+
+This mode writes no HAPI sessions, messages or delivery queues. It retains at most 64 native connections, 32 thread subscriptions, 64 pending RPCs and 64 native requests per connection, and a 512-entry workspace identity cache. An unobserved subscription closes after five seconds without cancelling daemon execution. Each SSE client has a 256 KiB queued-byte limit and closes on overflow so a slow browser cannot accumulate an unbounded backlog. Native WebSocket payloads and file viewing have no bridge-imposed size limit; daemon failures are returned to the caller. Background catalogs are fetched only when requested and use native cursors; fallback provenance reads are limited to the current page, four at a time.
 
 - `GET /api/sessions/:id/messages` - Get messages (paginated).
 - `POST /api/sessions/:id/messages` - Send message.

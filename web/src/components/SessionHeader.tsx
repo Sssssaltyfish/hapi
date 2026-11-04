@@ -15,6 +15,7 @@ import { retargetSharePendingTransfer } from '@/lib/sharePendingState'
 import { getSessionModelLabel } from '@/lib/sessionModelLabel'
 import { useTranslation } from '@/lib/use-translation'
 import { AgentFlavorIcon } from '@/components/AgentFlavorIcon'
+import { getAgentIdentityLabel, getSessionAgentFlavor } from '@/lib/agentIdentity'
 import { isFastServiceTier } from '@/components/AssistantChat/codexFastMode'
 import { getSessionTitle } from '@/lib/sessionTitle'
 import { useToast } from '@/lib/toast-context'
@@ -148,6 +149,7 @@ export function SessionHeader(props: {
     terminalActive?: boolean
     api: ApiClient | null
     titleSuggestionAvailable?: boolean
+    nativeCapabilities?: { available: boolean; connected: boolean }
     canReopen?: boolean
     reopenDisabledReason?: string
     reopenHint?: string
@@ -167,7 +169,8 @@ export function SessionHeader(props: {
         exact: true,
     }) > 0
     const agentFlavor = session.metadata?.flavor ?? null
-    const agentLabel = agentFlavor?.trim() || null
+    const agentIdentity = getSessionAgentFlavor(session.metadata)
+    const agentLabel = session.metadata?.nativeCodex ? getAgentIdentityLabel(agentIdentity) : agentFlavor?.trim() || null
     const reasoningEffort = getReasoningEffortForFlavor(
         agentFlavor,
         session.modelReasoningEffort,
@@ -247,7 +250,7 @@ export function SessionHeader(props: {
     // delete-confirm copy so the operator knows what cascades when they
     // confirm. Read-only hook reuses the cache filled by SessionChat -
     // no extra network when both components are mounted.
-    const scratchlistCount = useScratchlistCount(session.id, api)
+    const scratchlistCount = useScratchlistCount(session.id, props.nativeCapabilities ? null : api)
 
     const handleDelete = async () => {
         await deleteSession()
@@ -401,7 +404,7 @@ export function SessionHeader(props: {
                             <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-hidden text-xs text-[var(--app-hint)] sm:hidden">
                                 {headerMetadata.agent && agentLabel ? (
                                     <span className="inline-flex shrink-0 items-center gap-1">
-                                        <AgentFlavorIcon flavor={session.metadata?.flavor} className="h-3.5 w-3.5 shrink-0 -translate-y-px" />
+                                        <AgentFlavorIcon flavor={agentIdentity} className="h-3.5 w-3.5 shrink-0 -translate-y-px" />
                                         {agentLabel}
                                     </span>
                                 ) : null}
@@ -418,7 +421,7 @@ export function SessionHeader(props: {
                         <div className="hidden flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--app-hint)] sm:flex">
                             {headerMetadata.agent && agentLabel ? (
                                 <span className="inline-flex items-center gap-1">
-                                    <AgentFlavorIcon flavor={session.metadata?.flavor} className="h-3.5 w-3.5 shrink-0 -translate-y-px" />
+                                    <AgentFlavorIcon flavor={agentIdentity} className="h-3.5 w-3.5 shrink-0 -translate-y-px" />
                                     {agentLabel}
                                 </span>
                             ) : null}
@@ -512,6 +515,10 @@ export function SessionHeader(props: {
             </div>
 
             <SessionActionMenu
+                disabledActions={props.nativeCapabilities ? {
+                    pin: t('native.unsupported'), export: t('native.unsupported'), delete: t('native.unsupported'), reopen: t('native.unsupported'),
+                    ...(!props.nativeCapabilities.available ? { rename: t('native.unavailable'), archive: t('native.unavailable') } : {})
+                } : undefined}
                 isOpen={menuOpen}
                 onClose={() => setMenuOpen(false)}
                 sessionId={session.id}
@@ -521,9 +528,9 @@ export function SessionHeader(props: {
                 sessionGlobalPinned={Boolean(session.globalPinned)}
                 onRename={() => setRenameOpen(true)}
                 onMarkUnread={() => markSessionUnread(session.id, session.updatedAt)}
-                onSetPinMode={api ? (mode) => void handleSetPinMode(mode) : undefined}
+                onSetPinMode={api && !props.nativeCapabilities ? (mode) => void handleSetPinMode(mode) : undefined}
                 onExport={() => setExportOpen(true)}
-                onSyncCodex={api && codexSessionId && !session.active ? handleSyncCodex : undefined}
+                onSyncCodex={!props.nativeCapabilities && api && codexSessionId && !session.active ? handleSyncCodex : undefined}
                 onSyncPi={api && piSessionId && !session.active ? handleSyncPi : undefined}
                 onArchive={() => setArchiveOpen(true)}
                 onReopen={props.canReopen === false ? undefined : handleReopen}

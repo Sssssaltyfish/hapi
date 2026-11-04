@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
     loadPreferredAgent,
+    loadPreferredCreationChoice,
     loadPreferredLaunchSettings,
     loadPreferredYoloMode,
     resolvePreferredLaunchSettings,
     savePreferredAgent,
+    savePreferredCreationChoice,
     savePreferredLaunchSettings,
     savePreferredYoloMode,
 } from './preferences'
@@ -17,6 +19,16 @@ describe('NewSession preferences', () => {
     it('loads defaults when storage is empty', () => {
         expect(loadPreferredAgent()).toBe('claude')
         expect(loadPreferredYoloMode()).toBe(false)
+    })
+
+    it('remembers native execution without storing a fake agent flavor in runner preferences', () => {
+        savePreferredAgent('codex')
+        savePreferredCreationChoice('codex-native')
+        expect(loadPreferredCreationChoice()).toBe('codex-native')
+        expect(loadPreferredAgent()).toBe('codex')
+        savePreferredCreationChoice('claude')
+        expect(loadPreferredCreationChoice()).toBe('claude')
+        expect(loadPreferredAgent()).toBe('claude')
     })
 
     it('loads saved values from storage', () => {

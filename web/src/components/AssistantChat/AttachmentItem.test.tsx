@@ -50,6 +50,13 @@ function renderAttachmentWithControls() {
 }
 
 describe('AttachmentItem', () => {
+    it('shows the original upload error in the existing attachment chip', () => {
+        mocks.attachment = { name: 'failed.txt', status: { type: 'incomplete', reason: 'error' }, errorMessage: 'daemon: remote disk error\nwrite failed' }
+        renderAttachment()
+        expect(screen.getByRole('alert')).toHaveTextContent('daemon: remote disk error write failed')
+        expect(screen.getByRole('alert')).toHaveAttribute('title', 'daemon: remote disk error\nwrite failed')
+    })
+
     it('renders an image preview with its filename and an always-visible remove button', () => {
         mocks.attachment = {
             name: 'photo.png',

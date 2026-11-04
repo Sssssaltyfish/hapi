@@ -169,7 +169,7 @@ function looksPathLike(path: string): boolean {
  */
 export function classifyNoSchemeHref(
     href: string,
-    options: { workspacePath?: string | null } = {}
+    options: { workspacePath?: string | null; nativeFiles?: boolean } = {}
 ): MarkdownHrefDecision {
     const trimmed = href.trim()
     if (!trimmed) return { action: 'inert' }
@@ -204,6 +204,7 @@ export function classifyNoSchemeHref(
     }
 
     if (path.startsWith('/') && hasKnownFileExtension(path)) {
+        if (options.nativeFiles) return { action: 'file', path }
         if (!workspacePath || !isWithinWorkspace(path, workspacePath)) {
             return { action: 'inert' }
         }

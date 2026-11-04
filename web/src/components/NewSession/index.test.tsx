@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render as testingRender, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { Machine, PiModelSummary } from '@/types/api'
 import { saveNewSessionFormDraft } from './newSessionFormDraft'
 import {
     loadPreferredLaunchSettings,
     savePreferredAgent,
+    savePreferredCreationChoice,
     savePreferredLaunchSettings,
     savePreferredYoloMode
 } from './preferences'
@@ -79,8 +81,8 @@ vi.mock('@/hooks/useMachinePathsExists', () => ({
     })
 }))
 vi.mock('@/hooks/queries/useAgentAvailability', () => ({
-    useAgentAvailability: () => ({
-        agents: mocks.availableAgents,
+    useAgentAvailability: (args: { machineId: string | null; enabled?: boolean }) => ({
+        agents: args.machineId && args.enabled !== false ? mocks.availableAgents : [],
         isLoading: false,
         error: null,
         upgradeRequired: false,
@@ -226,6 +228,11 @@ vi.mock('./MachineSelector', () => ({
         >
             {props.machines.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.id}</option>)}
         </select>
+    ),
+    MachineSelectionField: (props: { options: Array<{ id: string; label: string }>; value: string; isDisabled: boolean; onChange: (id: string) => void }) => (
+        <select aria-label="native-machine-selector" value={props.value} disabled={props.isDisabled} onChange={event => props.onChange(event.target.value)}>
+            <option value="" />{props.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
     )
 }))
 vi.mock('./SessionTypeSelector', () => ({ SessionTypeSelector: () => null }))
@@ -304,6 +311,76 @@ import { NewSession } from './index'
 const machine = { id: 'machine-1' } as Machine
 const api = {} as ApiClient
 
+function render(tree: React.ReactNode) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return testingRender(tree, { wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> })
+}
+
+it('uses one set of launch fields to create native Codex without a runner and retains edits on host refresh', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    savePreferredAgent('codex')
+    const endpoints = vi.fn().mockResolvedValue({ endpoints: [{ id: 'native-host', label: 'Native host', defaultCwd: '/repo' }] })
+    const create = vi.fn().mockResolvedValue({ session: { id: 'codex-native:native-host:new-thread' } })
+    const success = vi.fn()
+    const nativeApi = { getCodexNativeEndpoints: endpoints,
+        getCodexNativeEndpointStatus: async () => ({ available: true, platformOs: 'linux' }),
+        createCodexNativeThread: create,
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [{ model: 'gpt-5.6-terra', displayName: 'Terra', supportedReasoningEfforts: [{ reasoningEffort: 'max' }] }] }) }) } as unknown as ApiClient
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    render(<QueryClientProvider client={queryClient}><NewSession api={nativeApi} machines={[]} onSuccess={success} onCancel={vi.fn()} /></QueryClientProvider>)
+    expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: 'Codex Native' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Codex Native' })).toBeChecked())
+    await waitFor(() => expect(screen.getByTestId('model-options')).toHaveTextContent('Terra'))
+    expect(screen.getAllByTestId('model')).toHaveLength(1)
+    expect(screen.getAllByTestId('create')).toHaveLength(1)
+    const nativeModel = screen.getByTestId('model')
+    fireEvent.click(nativeModel)
+    expect(nativeModel).toHaveTextContent('gpt-5.6-terra')
+    fireEvent.click(screen.getByTestId('reasoning'))
+    act(() => queryClient.setQueryData(['codex-native', 'endpoints'], { endpoints: [{ id: 'native-host', label: 'Native host', defaultCwd: '/updated-default' }] }))
+    expect(nativeModel).toBeVisible()
+    expect(nativeModel).toHaveTextContent('gpt-5.6-terra')
+    expect(endpoints).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() => expect(success).toHaveBeenCalledWith('codex-native:native-host:new-thread'))
+    expect(create).toHaveBeenCalledExactlyOnceWith('native-host', { cwd: '/repo', model: 'gpt-5.6-terra', effort: 'max' })
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['sessions'] })
+    expect(mocks.spawnSession).not.toHaveBeenCalled()
+})
+
+it('can leave a remembered Native choice while runner discovery loads and preserves the selected runner when switching back', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    vi.clearAllMocks()
+    savePreferredCreationChoice('codex-native')
+    const nativeApi = {
+        getCodexNativeEndpoints: vi.fn().mockResolvedValue({ endpoints: [{ id: 'native-host', label: 'Native host', defaultCwd: '/repo' }] }),
+        getCodexNativeEndpointStatus: async () => ({ available: true, platformOs: 'linux' }),
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [] }) }),
+    } as unknown as ApiClient
+    const otherMachine = { id: 'machine-2' } as Machine
+    const view = render(<NewSession api={nativeApi} machines={[]} isLoading onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByRole('radio', { name: 'Codex Native' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeEnabled()
+    fireEvent.click(screen.getByRole('radio', { name: /^Codex$/ }))
+    expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeChecked()
+    expect(screen.getByTestId('create')).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: 'Codex Native' }))
+
+    view.rerender(<NewSession api={nativeApi} machines={[machine, otherMachine]} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeEnabled())
+    fireEvent.click(screen.getByRole('radio', { name: /^Codex$/ }))
+    expect(screen.getByLabelText('machine-selector')).toHaveValue('machine-1')
+    fireEvent.change(screen.getByLabelText('machine-selector'), { target: { value: 'machine-2' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Codex Native' }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Claude$/ }))
+    expect(screen.getByRole('radio', { name: /^Claude$/ })).toBeChecked()
+    expect(screen.getByLabelText('machine-selector')).toHaveValue('machine-2')
+})
+
 describe('NewSession launch preferences', () => {
     beforeEach(() => {
         localStorage.clear()
@@ -347,7 +424,7 @@ describe('NewSession launch preferences', () => {
         savePreferredAgent('codex')
     })
 
-    it('hides unavailable Agents and falls back to the first available Agent', async () => {
+    it('disables unavailable Agents and falls back to the first available Agent', async () => {
         savePreferredAgent('claude')
         mocks.availableAgents.splice(
             0,
@@ -367,7 +444,7 @@ describe('NewSession launch preferences', () => {
         )
 
         await waitFor(() => expect(screen.getByDisplayValue('codex')).toBeChecked())
-        expect(screen.queryByDisplayValue('claude')).not.toBeInTheDocument()
+        expect(screen.getByDisplayValue('claude')).toBeDisabled()
     })
 
     it('refuses a directory rejected by workspace-root validation', async () => {

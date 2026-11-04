@@ -564,6 +564,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
+    nativeCapabilities?: { available: boolean; connected: boolean }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -635,6 +636,7 @@ export function SessionChat(props: SessionChatProps) {
 }
 
 function SessionChatInner(props: SessionChatProps) {
+    const native = props.nativeCapabilities
     const { haptic } = usePlatform()
     const { t } = useTranslation()
     const { codexExplorationCollapsed } = useCodexExplorationCollapse()
@@ -684,12 +686,12 @@ function SessionChatInner(props: SessionChatProps) {
         setRewindForkFallback(null)
     }, [onForkConversation, rewindForkFallback])
     const sessionInactive = !props.session.active
-    const inactiveCanResume = inactiveSessionCanResume(
+    const inactiveCanResume = !native && inactiveSessionCanResume(
         props.session,
         props.messages.length,
         props.cursorChatOnDisk
     )
-    const terminalSupported = isRemoteTerminalSupported(props.session.metadata)
+    const terminalSupported = !native && isRemoteTerminalSupported(props.session.metadata)
     // Offer the agent terminal only for an ACTIVE PTY session: a 'remote'/SDK
     // session has no agent PTY, and an archived/inactive one has no live PTY (and
     // no buffer once the runner exits), so its terminal would just be an empty,
@@ -724,7 +726,7 @@ function SessionChatInner(props: SessionChatProps) {
     // after a later explicit variant click and overwrite it.
     const enqueueCursorModelApply = useMemo(() => createSerialAsyncQueue(), [])
     const lastSyncedCursorModelRef = useRef<string | null | undefined>(undefined)
-    const scratchlist = useHubScratchlist(props.session.id, props.api)
+    const scratchlist = useHubScratchlist(props.session.id, native ? null : props.api)
     const queryClient = useQueryClient()
     const { sessions: allSessions } = useSessions(props.api)
     const resolveSessionMentionTooltip = useCallback((id: string, title: string) => {
@@ -967,7 +969,7 @@ function SessionChatInner(props: SessionChatProps) {
                 }
                 return accepted
             }
-            if (!scratchlistMode && scheduledAt == null && !attachments?.length
+            if (!native && !scratchlistMode && scheduledAt == null && !attachments?.length
                 && props.session.metadata?.capabilities?.concurrentClients && /^\/(clear|new)\s*$/.test(text.trim())) {
                 const result = await props.api.clearConversation(props.session.id)
                 await navigate({ to: '/sessions/$sessionId', params: { sessionId: result.sessionId }, ...PRESERVE_SESSION_SIDEBAR_SCROLL })
@@ -999,7 +1001,7 @@ function SessionChatInner(props: SessionChatProps) {
     const codexModelsState = useCodexModels({
         api: props.api,
         sessionId: props.session.id,
-        machineId: props.session.metadata?.machineId ?? null,
+        machineId: native ? null : props.session.metadata?.machineId ?? null,
         enabled: agentFlavor === 'codex' && props.session.active && !controlledByUser
     })
     const effectiveCodexServiceTier = agentFlavor === 'codex'
@@ -1596,7 +1598,7 @@ function SessionChatInner(props: SessionChatProps) {
     // Model mode change handler
     const handleModelChange = useCallback(async (model: SessionModelSelection) => {
         const previousModelReasoningEffort = props.session.modelReasoningEffort
-        const shouldClearReasoningEffort = shouldClearReasoningEffortForModelChange({
+        const shouldClearReasoningEffort = !native && shouldClearReasoningEffortForModelChange({
             agentFlavor,
             previousModelReasoningEffort,
             codexModels: codexModelsState.models,
@@ -1619,6 +1621,7 @@ function SessionChatInner(props: SessionChatProps) {
         }
     }, [
         agentFlavor,
+        native,
         codexModelsState.models,
         props.session.modelReasoningEffort,
         setModelReasoningEffort,
@@ -1837,7 +1840,15 @@ function SessionChatInner(props: SessionChatProps) {
         }
     }, [agentFlavor, onSendForComposer, props.session.thinking, scratchlistMode, updatePendingSchedule])
 
+    const nativeAttachmentAdapterRef = useRef<ReturnType<typeof createAttachmentAdapter> | null>(null)
     const attachmentAdapter = useMemo(() => {
+        if (native) {
+            if (!props.session.active) return undefined
+            // Native control state changes replace the API proxy. Keep the upload
+            // adapter's cancellation state for this keyed conversation lifecycle.
+            nativeAttachmentAdapterRef.current ??= createAttachmentAdapter(props.api, props.session.id, undefined, undefined, { skipSizeLimit: true })
+            return nativeAttachmentAdapterRef.current
+        }
         if (props.session.active && scratchlistMode) {
             const adapter = createScratchlistAttachmentAdapter(props.api, props.session.id)
             scratchlistAdapterRef.current = adapter
@@ -1908,6 +1919,7 @@ function SessionChatInner(props: SessionChatProps) {
     return (
         <div className="flex h-full min-h-0 flex-col">
             <SessionHeader
+                nativeCapabilities={native}
                 session={props.session}
                 serviceTier={effectiveCodexServiceTier}
                 onBack={props.onBack}
@@ -1919,7 +1931,7 @@ function SessionChatInner(props: SessionChatProps) {
                 terminalActive={terminalVisible}
                 api={props.api}
                 titleSuggestionAvailable={props.titleSuggestionAvailable}
-                canReopen={inactiveCanResume}
+                canReopen={!native && inactiveCanResume}
                 reopenDisabledReason={props.reopenDisabledReason}
                 reopenHint={props.reopenHint}
                 onSessionDeleted={props.onBack}
@@ -1985,8 +1997,8 @@ function SessionChatInner(props: SessionChatProps) {
                         onRetryMessage={props.onRetryMessage}
                         onContinuePlan={() => focusComposerRef.current?.()}
                         historyActionPending={historyActionPending}
-                        onForkConversation={controlledByUser ? undefined : onForkConversation}
-                        onRewindConversation={controlledByUser ? undefined : onRewindConversation}
+                        onForkConversation={native || controlledByUser ? undefined : onForkConversation}
+                        onRewindConversation={native || controlledByUser ? undefined : onRewindConversation}
                         isLatestCompletedBoundary={isLatestCompletedBoundary}
                         onViewModeChange={props.onViewModeChange}
                         isSyncingTail={props.isSyncingTail}
@@ -2049,7 +2061,7 @@ function SessionChatInner(props: SessionChatProps) {
                                     disabled={props.isSending || isScratchlistParking}
                                 />
                             ) : null}
-                            <QueuedMessagesBar
+                            {!native && <QueuedMessagesBar
                                 sessionId={props.session.id}
                                 compactionPendingMessageIds={agentFlavor === 'codex' && props.session.active
                                     && props.session.agentState?.steeringActive === true
@@ -2066,10 +2078,11 @@ function SessionChatInner(props: SessionChatProps) {
                                         ? props.session.thinking
                                         : props.session.agentState?.steeringActive === true)
                                     && !controlledByUser}
-                            />
+                            />}
                         </div>
 
                         <HappyComposer
+                        attachmentsDisabled={Boolean(native && !props.session.active)}
                         focusInputRef={focusComposerRef}
                         key={`composer-${props.session.id}`}
                         sessionId={props.session.id}
@@ -2083,10 +2096,10 @@ function SessionChatInner(props: SessionChatProps) {
                         pendingSchedule={pendingSchedule}
                         sendAcceptance={sendAcceptance}
                         sendSettlement={props.sendSettlement}
-                        onSchedule={updatePendingSchedule}
+                        onSchedule={native ? undefined : updatePendingSchedule}
                         onClearSchedule={() => updatePendingSchedule(null)}
                         permissionMode={props.session.permissionMode}
-                        collaborationMode={codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
+                        collaborationMode={!native && codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         copilotAgentMode={agentFlavor === 'copilot' ? props.session.copilotAgentMode : undefined}
                         model={props.session.model}
                         modelReasoningEffort={agentFlavor === 'codex' || agentFlavor === 'opencode' ? props.session.modelReasoningEffort : undefined}
@@ -2150,7 +2163,7 @@ function SessionChatInner(props: SessionChatProps) {
                         contextModel={reduced.latestUsage?.model ?? props.session.model}
                         controlledByUser={controlledByUser}
                         onCollaborationModeChange={
-                            codexCollaborationModeSupported && props.session.active && !controlledByUser
+                            !native && codexCollaborationModeSupported && props.session.active && !controlledByUser
                                 ? handleCollaborationModeChange
                                 : undefined
                         }
@@ -2160,7 +2173,7 @@ function SessionChatInner(props: SessionChatProps) {
                                 : undefined
                         }
                         onPermissionModeChange={
-                            agentFlavor === 'copilot' && controlledByUser
+                            native || (agentFlavor === 'copilot' && controlledByUser)
                                 ? undefined
                                 : handlePermissionModeChange
                         }
@@ -2239,6 +2252,7 @@ function SessionChatInner(props: SessionChatProps) {
                         serviceTier={effectiveCodexServiceTier}
                         onServiceTierChange={
                             agentFlavor === 'codex'
+                                && !native
                                 && props.session.active
                                 && !controlledByUser
                                 && !codexModelsState.error
@@ -2246,7 +2260,7 @@ function SessionChatInner(props: SessionChatProps) {
                                 ? handleServiceTierChange
                                 : undefined
                         }
-                        onSwitchToRemote={handleSwitchToRemote}
+                        onSwitchToRemote={native ? undefined : handleSwitchToRemote}
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={props.autocompleteSuggestions}
@@ -2257,8 +2271,8 @@ function SessionChatInner(props: SessionChatProps) {
                         voiceTranscriptionApi={props.api}
                         scratchlistMode={scratchlistMode}
                         scratchlistCount={scratchlist.entries.length}
-                        onScratchlistToggle={handleScratchlistToggle}
-                        onParkScratchlist={onParkScratchlist}
+                        onScratchlistToggle={native ? undefined : handleScratchlistToggle}
+                        onParkScratchlist={native ? undefined : onParkScratchlist}
                         onScratchlistParkingChange={setIsScratchlistParking}
                         dictateHotkeyRef={dictateHotkeyRef}
                         sendError={props.sendError ?? null}

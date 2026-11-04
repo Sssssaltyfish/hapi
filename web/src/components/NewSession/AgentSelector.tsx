@@ -1,13 +1,16 @@
-import { getFlavorLabel } from '@hapi/protocol'
-import type { AgentType } from './types'
+import type { CreationChoice } from './creationChoices'
+import { getAgentIdentityLabel } from '@/lib/agentIdentity'
 import { AgentFlavorIcon } from '@/components/AgentFlavorIcon'
 import { useTranslation } from '@/lib/use-translation'
 
+export type AgentSelection = CreationChoice
+
 export function AgentSelector(props: {
-    agent: AgentType
-    agents: readonly AgentType[]
+    agent: AgentSelection
+    agents: readonly AgentSelection[]
     isDisabled: boolean
-    onAgentChange: (value: AgentType) => void
+    disabledAgents?: readonly AgentSelection[]
+    onAgentChange: (value: AgentSelection) => void
 }) {
     const { t } = useTranslation()
 
@@ -28,11 +31,11 @@ export function AgentSelector(props: {
                             value={agentType}
                             checked={props.agent === agentType}
                             onChange={() => props.onAgentChange(agentType)}
-                            disabled={props.isDisabled}
+                            disabled={props.isDisabled || props.disabledAgents?.includes(agentType)}
                             className="accent-[var(--app-link)]"
                         />
                         <AgentFlavorIcon flavor={agentType} className="h-4 w-4 shrink-0" />
-                        <span className="text-sm">{getFlavorLabel(agentType)}</span>
+                        <span className="text-sm">{getAgentIdentityLabel(agentType)}</span>
                     </label>
                 ))}
             </div>

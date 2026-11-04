@@ -1,4 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query-keys'
 import type { ApiClient } from '@/api/client'
 import type { CodexDuplicateSessionGroup, CodexLocalSessionSummary, Machine, PiLocalSessionSummary } from '@/types/api'
 import type { CodexCollaborationMode, GrokPermissionMode, PermissionMode, CopilotAgentMode } from '@hapi/protocol'
@@ -44,7 +46,7 @@ import {
 import { isOpencodeReasoningEffortValid } from './types'
 import type { AgentType, LaunchEffort, CodexReasoningEffort, NewSessionServiceTier, SessionType } from './types'
 import { ActionButtons } from './ActionButtons'
-import { AgentSelector } from './AgentSelector'
+import { AgentSelector, type AgentSelection } from './AgentSelector'
 import { CollaborationModeSelector } from './CollaborationModeSelector'
 import { CodexImportActions } from './CodexImportActions'
 import { PiImportActions } from './PiImportActions'
@@ -67,7 +69,8 @@ import {
     loadPreferredLaunchSettings,
     loadPreferredYoloMode,
     resolvePreferredLaunchSettings,
-    savePreferredAgent,
+    loadPreferredCreationChoice,
+    savePreferredCreationChoice,
     savePreferredLaunchSettings,
     savePreferredYoloMode,
 } from './preferences'
@@ -80,11 +83,13 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { formatRunnerSpawnError } from '../../utils/formatRunnerSpawnError'
 import { markCodexSessionsImported } from '@/lib/codexImportedSessions'
 import { useToast } from '@/lib/toast-context'
+import { NativeCodexTarget, useNativeCreationTarget } from './NativeCodexTarget'
+import { CREATION_CHOICES, creationChoiceFlavor, disabledCreationChoices, type CreationTarget } from './creationChoices'
 
 
 
 
-export function NewSession(props: {
+type NewSessionProps = {
     api: ApiClient
     machines: Machine[]
     isLoading?: boolean
@@ -93,7 +98,9 @@ export function NewSession(props: {
     onChooseFolder?: (args: { machineId: string | null; directory: string }) => void
     initialDirectory?: string
     initialMachineId?: string
-}) {
+}
+
+export function NewSession(props: NewSessionProps) {
     const { haptic } = usePlatform()
     const { t } = useTranslation()
     const { addToast } = useToast()
@@ -105,7 +112,14 @@ export function NewSession(props: {
     const [directory, setDirectory] = useState(props.initialDirectory ?? '')
     const [suppressSuggestions, setSuppressSuggestions] = useState(false)
     const [isDirectoryFocused, setIsDirectoryFocused] = useState(false)
-    const [agent, setAgent] = useState<AgentType>(loadPreferredAgent)
+    const [creationChoice, setAgent] = useState<AgentSelection>(loadPreferredCreationChoice)
+    const agent = creationChoiceFlavor(creationChoice)
+    const isNative = creationChoice === 'codex-native'
+    const nativeTarget = useNativeCreationTarget(props.api, isNative)
+    const target: CreationTarget = isNative
+        ? { kind: 'native', endpointId: nativeTarget.selected?.id ?? null }
+        : { kind: 'runner', machineId }
+    const queryClient = useQueryClient()
     // Snapshot taken once at mount, before any savePreferredAgent() call this
     // component makes can overwrite the stored agent. savePreferredAgent()
     // runs on every agent change (below), so reading loadPreferredAgent()
@@ -158,7 +172,7 @@ export function NewSession(props: {
     const isFormDisabled = Boolean(
         isCreating
         || isPending
-        || props.isLoading
+        || (!isNative && props.isLoading)
         || isImportingCodexSession
         || isBulkImportingCodexSessions
         || isImportingPiSession
@@ -188,20 +202,20 @@ export function NewSession(props: {
             setModel('auto')
             setCursorSelectedBase('auto')
         }
-    }, [agent])
+    }, [creationChoice])
 
     useEffect(() => {
-        savePreferredAgent(agent)
-    }, [agent])
+        savePreferredCreationChoice(creationChoice)
+    }, [creationChoice])
 
     useEffect(() => {
-        if (agent !== 'codex') {
+        if (agent !== 'codex' || isNative) {
             setSelectedCodexImportSessionId(null)
             setCodexImportSessions([])
             setCodexImportMachineId(null)
             setCodexImportError(null)
         }
-    }, [agent])
+    }, [agent, isNative])
 
     useEffect(() => {
         savePreferredYoloMode(yoloMode)
@@ -221,6 +235,7 @@ export function NewSession(props: {
 
     const restoredFromBrowseRef = useRef(false)
     useEffect(() => {
+        if (isNative) return
         if (restoredFromBrowseRef.current) {
             return
         }
@@ -266,6 +281,7 @@ export function NewSession(props: {
         setWorktreeName(draft.worktreeName)
         clearNewSessionFormDraft()
     }, [
+        isNative,
         props.initialDirectory,
         props.initialMachineId,
         machineId
@@ -280,14 +296,24 @@ export function NewSession(props: {
 
         if (foundLast) {
             setMachineId(foundLast.id)
-            if (!props.initialDirectory) {
+            if (!isNative && !props.initialDirectory) {
                 const paths = getRecentPaths(foundLast.id)
                 if (paths[0]) setDirectory(paths[0])
             }
         } else if (props.machines[0]) {
             setMachineId(props.machines[0].id)
         }
-    }, [props.machines, machineId, getLastUsedMachineId, getRecentPaths, props.initialDirectory])
+    }, [isNative, props.machines, machineId, getLastUsedMachineId, getRecentPaths, props.initialDirectory])
+
+    const initializedNativeTarget = useRef<string | null>(null)
+    useEffect(() => {
+        if (!isNative) { initializedNativeTarget.current = null; return }
+        if (!nativeTarget.selected || initializedNativeTarget.current === nativeTarget.selected.id) return
+        initializedNativeTarget.current = nativeTarget.selected.id
+        setDirectory(props.initialDirectory ?? nativeTarget.selected.defaultCwd ?? '')
+        setModel('auto')
+        setModelReasoningEffort('default')
+    }, [isNative, nativeTarget.selected, props.initialDirectory])
 
     const selectedMachine = useMemo(
         () => (machineId ? props.machines.find((machine) => machine.id === machineId) ?? null : null),
@@ -297,6 +323,14 @@ export function NewSession(props: {
         api: props.api,
         machineId,
     })
+    // Keep the runner target and its availability alive while Native is selected.
+    // Selecting a provider must remain possible before a runner target is known;
+    // the actual Create action still requires a supported runner and directory.
+    const runnerAvailabilityKnown = Boolean(
+        machineId && props.machines.some(machine => machine.id === machineId)
+        && !props.isLoading && !agentAvailability.isLoading && !agentAvailability.error
+        && agentAvailability.agents.length > 0
+    )
     const availableAgents = useMemo(
         () => agentAvailability.agents
             .filter((entry) => entry.available && entry.agent !== 'gemini')
@@ -306,16 +340,17 @@ export function NewSession(props: {
     const selectedAgentAvailable = availableAgents.includes(agent)
 
     useEffect(() => {
-        if (agentAvailability.isLoading || agentAvailability.error || availableAgents.length === 0) return
+        if (isNative || agentAvailability.isLoading || agentAvailability.error || availableAgents.length === 0) return
         if (availableAgents.includes(agent)) return
         preserveRestoredDraftRef.current = false
         setAgent(availableAgents[0]!)
-    }, [agent, agentAvailability.error, agentAvailability.isLoading, availableAgents])
-    const codexModelsState = useCodexModels({
+    }, [agent, isNative, agentAvailability.error, agentAvailability.isLoading, availableAgents])
+    const runnerCodexModelsState = useCodexModels({
         api: props.api,
         machineId,
-        enabled: agent === 'codex' && Boolean(machineId)
+        enabled: !isNative && agent === 'codex' && Boolean(machineId)
     })
+    const codexModelsState = isNative ? nativeTarget.catalog : runnerCodexModelsState
     const [agySelectedModel, setAgySelectedModel] = useState<string | null>(null)
     // Whether the AGY model on screen is one the user picked here, as opposed to
     // one restored from a draft or a saved preference. A restored model that the
@@ -376,7 +411,7 @@ export function NewSession(props: {
             setModel('auto')
         }
     }, [agent, codexModelsState.error, codexModelsState.isLoading, codexModelsState.models, model])
-    const showCodexFastMode = agent === 'codex'
+    const showCodexFastMode = !isNative && agent === 'codex'
         && !codexModelsState.error
         && codexModelAdvertisesFastTier(model === 'auto' ? null : model, codexModelsState.models)
 
@@ -549,8 +584,8 @@ export function NewSession(props: {
 
     const { pathExistence, outsideWorkspaceRoots, checkPathsExists } = useMachinePathsExists(
         props.api,
-        machineId,
-        pathsToCheck
+        isNative ? null : machineId,
+        isNative ? [] : pathsToCheck
     )
 
     const verifiedPaths = useMemo(
@@ -903,7 +938,7 @@ export function NewSession(props: {
     const usesSharedPermissionMode = usesSharedPermissionModeState(agent)
 
     useEffect(() => {
-        if (!machineId || preserveRestoredDraftRef.current) {
+        if (isNative || !machineId || preserveRestoredDraftRef.current) {
             return
         }
 
@@ -932,7 +967,7 @@ export function NewSession(props: {
         setDshSelectedModel(
             agent === 'dsh' && preferred.model !== 'auto' ? preferred.model : null
         )
-    }, [agent, legacyYoloAgent, machineId, usesSharedPermissionMode])
+    }, [agent, isNative, legacyYoloAgent, machineId, usesSharedPermissionMode])
 
     useEffect(() => {
         if (
@@ -1397,10 +1432,12 @@ export function NewSession(props: {
     // model/effort controls would silently not apply, so hide them.
     const showPiLaunchConfig = agent !== 'pi' || !selectedPiImportSession
 
-    const handleAgentChange = useCallback((newAgent: AgentType) => {
+    const handleAgentChange = useCallback((newAgent: AgentSelection) => {
         preserveRestoredDraftRef.current = false
+        setError(null)
+        if (isNative && newAgent !== 'codex-native') setDirectory((machineId ? getRecentPaths(machineId)[0] : '') ?? props.initialDirectory ?? '')
         setAgent(newAgent)
-    }, [])
+    }, [isNative, machineId, getRecentPaths, props.initialDirectory])
 
     const handleMachineChange = useCallback((newMachineId: string) => {
         preserveRestoredDraftRef.current = false
@@ -1565,12 +1602,25 @@ export function NewSession(props: {
     }, [suggestions, selectedIndex, moveUp, moveDown, clearSuggestions, handleSuggestionSelect])
 
     async function handleCreate() {
-        if (!machineId || !trimmedDirectory || createInFlightRef.current) return
+        if (!trimmedDirectory || createInFlightRef.current || (target.kind === 'runner' ? !target.machineId : !target.endpointId)) return
 
         createInFlightRef.current = true
         setIsCreating(true)
         setError(null)
         try {
+            if (target.kind === 'native' && target.endpointId) {
+                const result = await props.api.createCodexNativeThread(target.endpointId, {
+                    cwd: trimmedDirectory,
+                    ...(model !== 'auto' ? { model } : {}),
+                    ...(modelReasoningEffort !== 'default' ? { effort: modelReasoningEffort } : {}),
+                })
+                clearNewSessionFormDraft()
+                await queryClient.invalidateQueries({ queryKey: queryKeys.sessions })
+                haptic.notification('success')
+                props.onSuccess(result.session.id)
+                return
+            }
+            if (!machineId) return
             if (!selectedAgentAvailable) {
                 haptic.notification('error')
                 setError(t('newSession.agentUnavailable'))
@@ -1798,7 +1848,7 @@ export function NewSession(props: {
     const fastModeSelectionPending = agent === 'codex'
         && serviceTier === 'fast'
         && codexModelsState.isLoading
-    const canCreate = Boolean(
+    const canCreate = isNative ? Boolean(nativeTarget.selected && trimmedDirectory && !isCreating && !nativeTarget.catalog.isLoading) : Boolean(
         machineId
         && trimmedDirectory
         && !isFormDisabled
@@ -1813,49 +1863,50 @@ export function NewSession(props: {
 
     return (
         <div className="flex flex-col divide-y divide-[var(--app-divider)] [&>div]:pr-[10px] lg:[&>div]:pr-3">
-            <MachineSelector
+            <AgentSelector
+                agent={creationChoice}
+                agents={CREATION_CHOICES}
+                isDisabled={isCreating || isPending || isImportingCodexSession || isBulkImportingCodexSessions || isImportingPiSession || isBulkImportingPiSessions}
+                disabledAgents={isNative && !runnerAvailabilityKnown ? [] : disabledCreationChoices(!machineId || props.machines.length === 0 || props.isLoading || agentAvailability.isLoading || agentAvailability.error ? [] : availableAgents)}
+                onAgentChange={handleAgentChange}
+            />
+            {isNative ? <NativeCodexTarget target={nativeTarget} isDisabled={isFormDisabled} /> : <MachineSelector
                 machines={props.machines}
                 machineId={machineId}
                 isLoading={props.isLoading}
                 isDisabled={isFormDisabled}
                 onChange={handleMachineChange}
-            />
-            {runnerSpawnError ? (
+            />}
+            {!isNative && runnerSpawnError ? (
                 <div className="px-3 py-2 text-xs text-red-600">
                     Runner last spawn error: {runnerSpawnError}
                 </div>
             ) : null}
             <DirectorySection
                 directory={directory}
-                suggestions={suggestions}
+                suggestions={isNative ? [] : suggestions}
                 selectedIndex={selectedIndex}
                 isDisabled={isFormDisabled}
-                recentPaths={recentPaths}
-                statusMessage={directoryStatusMessage}
-                statusTone={directoryStatusTone}
-                onDirectoryChange={handleDirectoryChange}
-                onDirectoryFocus={handleDirectoryFocus}
-                onDirectoryBlur={handleDirectoryBlur}
-                onDirectoryKeyDown={handleDirectoryKeyDown}
+                recentPaths={isNative ? [] : recentPaths}
+                statusMessage={isNative ? null : directoryStatusMessage}
+                statusTone={isNative ? null : directoryStatusTone}
+                onDirectoryChange={isNative ? setDirectory : handleDirectoryChange}
+                onDirectoryFocus={isNative ? () => {} : handleDirectoryFocus}
+                onDirectoryBlur={isNative ? () => {} : handleDirectoryBlur}
+                onDirectoryKeyDown={isNative ? () => {} : handleDirectoryKeyDown}
                 onSuggestionSelect={handleSuggestionSelect}
                 onPathClick={handlePathClick}
-                onChooseFolder={props.onChooseFolder ? handleChooseFolderClick : undefined}
+                onChooseFolder={!isNative && props.onChooseFolder ? handleChooseFolderClick : undefined}
             />
-            <SessionTypeSelector
+            {!isNative ? <SessionTypeSelector
                 sessionType={sessionType}
                 worktreeName={worktreeName}
                 worktreeInputRef={worktreeInputRef}
                 isDisabled={isFormDisabled}
                 onSessionTypeChange={setSessionType}
                 onWorktreeNameChange={setWorktreeName}
-            />
-            <AgentSelector
-                agent={agent}
-                agents={availableAgents}
-                isDisabled={isFormDisabled || agentAvailability.isLoading || Boolean(agentAvailability.error)}
-                onAgentChange={handleAgentChange}
-            />
-            {agentAvailability.isLoading ? (
+            /> : null}
+            {!isNative && (agentAvailability.isLoading ? (
                 <div className="px-3 py-2 text-xs text-[var(--app-hint)]">
                     {t('newSession.agentAvailabilityLoading')}
                 </div>
@@ -1874,8 +1925,8 @@ export function NewSession(props: {
                 <div className="px-3 py-2 text-xs text-red-600">
                     {t('newSession.noAvailableAgents')}
                 </div>
-            ) : null}
-            {agent === 'codex' ? (
+            ) : null)}
+            {!isNative && agent === 'codex' ? (
                 <CodexImportActions
                     selectedSession={selectedCodexImportSession}
                     isLoading={isLoadingCodexImportSessions}
@@ -2047,7 +2098,7 @@ export function NewSession(props: {
                     piSelectedModel={agent === 'pi' ? piSelectedModel : null}
                 />
             ) : null}
-            <PermissionField
+            {!isNative ? <><PermissionField
                 agent={agent}
                 nativeValue={agent === 'grok' ? grokPermissionMode : nativePermissionMode}
                 yoloMode={yoloMode}
@@ -2080,10 +2131,11 @@ export function NewSession(props: {
                 isDisabled={isFormDisabled}
                 onChange={setServiceTier}
             />
+            </> : null}
 
-            {(error ?? spawnError) ? (
+            {(error ?? (!isNative ? spawnError : null)) ? (
                 <div className="px-3 py-2 text-sm text-red-600">
-                    {error ?? spawnError}
+                    {error ?? (!isNative ? spawnError : null)}
                 </div>
             ) : null}
 
@@ -2091,7 +2143,7 @@ export function NewSession(props: {
                 isPending={isCreating || isPending || isImportingCodexSession || isImportingPiSession}
                 canCreate={canCreate}
                 isDisabled={isFormDisabled}
-                createLabel={createLabel}
+                createLabel={isNative ? undefined : createLabel}
                 onCancel={props.onCancel}
                 onCreate={handleCreate}
             />

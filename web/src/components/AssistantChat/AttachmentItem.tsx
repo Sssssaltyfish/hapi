@@ -7,6 +7,7 @@ import { useComposerParking } from '@/components/AssistantChat/composerParkingCo
 
 type ComposerAttachmentWithPreview = PendingAttachment & {
     previewUrl?: string
+    errorMessage?: string
 }
 
 export type AttachmentDragHandleProps = {
@@ -95,7 +96,7 @@ function DragHandle(props: AttachmentDragHandleProps & { isFile?: boolean }) {
 }
 
 export function AttachmentItem(props: { dragHandleProps?: AttachmentDragHandleProps } = {}) {
-    const { name, status, previewUrl } = useAuiState((s) => s.attachment) as ComposerAttachmentWithPreview
+    const { name, status, previewUrl, errorMessage } = useAuiState((s) => s.attachment) as ComposerAttachmentWithPreview
     const isParking = useComposerParking()
     const isUploading = status.type === 'running'
     const isError = status.type === 'incomplete'
@@ -169,7 +170,7 @@ export function AttachmentItem(props: { dragHandleProps?: AttachmentDragHandlePr
                 </span>
             ) : null}
             <span className={`max-w-[150px] truncate ${isError ? 'text-red-500 line-through' : ''}`}>{name}</span>
-            {isError ? <span className="text-xs text-red-500 whitespace-nowrap">Upload failed</span> : null}
+            {isError ? <span role="alert" title={errorMessage} className="max-w-xs whitespace-pre-wrap break-words text-xs text-red-500">{errorMessage || 'Upload failed'}</span> : null}
             {!isParking ? (
                 <AttachmentPrimitive.Remove
                     className="hapi-composer-attachment-control hapi-composer-attachment-file-control -mx-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-transparent text-[var(--app-hint)] transition-colors hover:text-[var(--app-fg)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--app-link)]"

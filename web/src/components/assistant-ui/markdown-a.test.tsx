@@ -337,6 +337,18 @@ describe('markdown <A> component — fail-closed path-like hrefs (#1452)', () =>
         expect(document.querySelector('.aui-md-a-inert')?.textContent).toBe('etc')
     })
 
+    it('routes native host absolute file references and preserves their source line', () => {
+        renderA(
+            { href: '/home/igna/shared/report.md#L42', children: 'report' },
+            chatContext({ sessionId: 'codex-native:wsl:thread-1' })
+        )
+        const href = document.querySelector('a')!.getAttribute('href')!
+        const url = new URL(href, 'https://hapi.test')
+        expect(url.pathname).toBe('/sessions/codex-native%3Awsl%3Athread-1/file')
+        expect(url.searchParams.get('line')).toBe('42')
+        expect(atob(url.searchParams.get('path')!)).toBe('/home/igna/shared/report.md')
+    })
+
     it('keeps outside-workspace Windows absolute href inert despite drive colon looking like a scheme', () => {
         renderA(
             { href: 'D:/outside/secret.ts#L1', children: 'win' },
