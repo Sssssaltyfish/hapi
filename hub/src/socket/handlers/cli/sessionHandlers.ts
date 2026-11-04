@@ -415,7 +415,7 @@ export function registerSessionHandlers(socket: CliSocketWithData, deps: Session
         onSessionReady?.(data)
     })
 
-    socket.on('messages-consumed', (data: { sid: string; localIds: string[]; clearQueuedThinkingGrace?: boolean; steered?: boolean }) => {
+    socket.on('messages-consumed', (data: { sid: string; localIds: string[]; clearQueuedThinkingGrace?: boolean; steered?: boolean; invokedAt?: number }) => {
         if (!data || typeof data.sid !== 'string' || !Array.isArray(data.localIds)) {
             return
         }
@@ -428,7 +428,8 @@ export function registerSessionHandlers(socket: CliSocketWithData, deps: Session
             emitAccessError('session', data.sid, sessionAccess.reason)
             return
         }
-        const invokedAt = Date.now()
+        const invokedAt = typeof data.invokedAt === 'number' && Number.isFinite(data.invokedAt) && data.invokedAt >= 0
+            ? data.invokedAt : Date.now()
         let sessionUpdatedAt: number
         try {
             sessionUpdatedAt = store.recordMessagesConsumed(

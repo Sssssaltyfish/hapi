@@ -53,7 +53,7 @@ afterEach(async () => {
     finally { vi.useRealTimers(); }
 });
 
-async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end'] }) {
+async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; nativeName?: string }) {
     const directory = await mkdtemp('/tmp/hapi-shared-root-');
     let state: AgentState = { steeringActive: true };
     let metadata: Metadata = { path: directory, host: 'test', flavor: 'codex' };
@@ -87,10 +87,10 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end'] }) 
     } satisfies RootHost);
     cleanups.push(async () => { await root.close(false); await rm(directory, { recursive: true, force: true }); });
     await root.prepare();
-    await root.bind('thread', { model: 'mock', thread: { turns: [] } }, false);
+    await root.bind('thread', { model: 'mock', thread: { name: opts?.nativeName, turns: [] } }, false);
     const native = root.client as unknown as {
         initialized: boolean;
-        thread: { id: string; turns: NativeTurn[] };
+        thread: { id: string; name?: string; preview?: string; turns: NativeTurn[] };
         queue: Array<{ id: string; clientUserMessageId: string; input: unknown }>;
         notify(method: string, params: unknown): void;
         abandoned(): void;
@@ -118,6 +118,52 @@ async function startCompaction(f: Awaited<ReturnType<typeof fixture>>, id = 'inp
     f.native.notify('item/started', { threadId: 'thread', turnId, item: { id: 'compact', type: 'contextCompaction' } });
     return turn;
 }
+
+describe('native title inheritance', () => {
+    it('does not mistake stale historical turns for a currently running native thread', async () => {
+        const f = await fixture();
+        f.native.thread.turns = [{ id: 'stale', status: 'inProgress', items: [] }, { id: 'latest', status: 'completed', items: [] }];
+        await f.root.refresh();
+        expect(f.state().steeringActive).toBe(false);
+        Object.assign(f.native.thread, { status: { type: 'idle' } });
+        f.native.thread.turns = [{ id: 'stale', status: 'inProgress', items: [] }];
+        await f.root.refresh();
+        expect(f.state().steeringActive).toBe(false);
+        Object.assign(f.native.thread, { status: { type: 'active' } });
+        await f.root.refresh();
+        expect(f.state().steeringActive).toBe(true);
+    });
+    it('uses the desktop first-message preview when the native thread has no explicit title', async () => {
+        const f = await fixture();
+        f.native.thread.preview = '把现在的改动同步到远端。';
+        await f.root.refresh();
+        expect(f.metadata().name).toBe('把现在的改动同步到远端。');
+        f.native.thread.name = 'Explicit title';
+        await f.root.refresh();
+        expect(f.metadata().name).toBe('Explicit title');
+    });
+    it('inherits an existing native title during import and repairs it on refresh', async () => {
+        const f = await fixture({ nativeName: 'Codex 侧标题' });
+        expect(f.metadata().name).toBe('Codex 侧标题');
+        f.native.thread.name = '离线时更新的标题';
+        await f.root.refresh();
+        expect(f.metadata().name).toBe('离线时更新的标题');
+        delete f.native.thread.name;
+        await f.root.refresh();
+        expect(f.metadata().name).toBe('离线时更新的标题');
+    });
+    it('does not let an older snapshot overwrite a live rename', async () => {
+        const f = await fixture({ nativeName: 'Original' });
+        let release!: (thread: Record<string, unknown>) => void;
+        vi.spyOn(f.root, 'readThread').mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const refresh = f.root.refresh();
+        f.native.notify('thread/name/updated', { threadId: 'thread', threadName: 'Latest' });
+        await f.drain();
+        release({ id: 'thread', name: 'Stale', turns: [] });
+        await refresh;
+        expect(f.metadata().name).toBe('Latest');
+    });
+});
 
 describe('compaction delivery confirmation', () => {
     it('does not turn uncertainty discovered by a cold snapshot into live compaction evidence', async () => {

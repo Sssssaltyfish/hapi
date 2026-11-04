@@ -156,6 +156,21 @@ export function createCliRoutes(getSyncEngine: () => SyncEngine | null): Hono<Cl
         }
     })
 
+    app.post('/sessions/:id/native-archive', async (c) => {
+        const engine = getSyncEngine()
+        if (!engine) return c.json({ error: 'Not ready' }, 503)
+        const body = z.object({ machineId: z.string().min(1), threadId: z.string().min(1) }).safeParse(await c.req.json().catch(() => null))
+        if (!body.success) return c.json({ error: 'Invalid body' }, 400)
+        const access = resolveSessionForNamespace(engine, c.req.param('id'), c.get('namespace'))
+        if (!access.ok) return c.json({ error: access.error }, access.status)
+        const metadata = access.session.metadata
+        if (metadata?.machineId !== body.data.machineId || metadata?.flavor !== 'codex' || metadata?.codexSessionId !== body.data.threadId) {
+            return c.json({ error: 'Native session mapping mismatch' }, 409)
+        }
+        if (metadata.lifecycleState !== 'archived' || access.session.active) engine.reconcileNativeArchive(access.sessionId)
+        return c.json({ ok: true })
+    })
+
     app.get('/sessions/resumable', (c) => {
         const engine = getSyncEngine()
         if (!engine) {

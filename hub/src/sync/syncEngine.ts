@@ -1760,6 +1760,12 @@ export class SyncEngine {
         }
     }
 
+    reconcileNativeArchive(sessionId: string): void {
+        this.sessionCache.handleSessionEnd({ sid: sessionId, time: Date.now() })
+        this.sessionCache.markSessionArchivedFromHub(sessionId, 'Archived in native Codex')
+        this.emitCliSessionMetadataUpdate(sessionId)
+    }
+
     async archiveSession(sessionId: string): Promise<void> {
         // tiann/hapi#916 / #1910: KillSession is a session-socket RPC. A missing
         // target does not prove the runner child is dead (stale registration,

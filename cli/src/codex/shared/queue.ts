@@ -19,7 +19,7 @@ export class SharedCodexQueue {
     private operations: Promise<unknown> = Promise.resolve();
     private writes = Promise.resolve();
     constructor(private readonly client: Pick<CodexAppServerClient, 'request'>, readonly threadId: string,
-        private readonly file: string, private readonly consumed: (ids: string[], steered?: boolean) => void,
+        private readonly file: string, private readonly consumed: (ids: string[], steered?: boolean, invokedAt?: number) => void,
         private readonly uncertain: (ids: string[]) => void,
         private readonly mirror?: (id: string, input: QueueInput | null) => void,
         private readonly requeued?: (ids: string[]) => Promise<unknown>) {}
@@ -62,12 +62,14 @@ export class SharedCodexQueue {
             } catch (error) { this.uncertain([id]); throw error; }
         });
     }
-    async committed(id: string): Promise<void> {
+    async committed(id: string, invokedAt?: number): Promise<void> {
         // History may prove acceptance after execution replacement, before hub
         // redelivery. Remember it even when this generation did not enqueue it.
         const entry = this.entries[id] ??= { state: 'consumed', input: [] };
         entry.state = 'consumed';
-        await this.save(); this.consumed([id]);
+        await this.save();
+        if (invokedAt === undefined) this.consumed([id]);
+        else this.consumed([id], undefined, invokedAt);
     }
 
     async list(): Promise<Array<z.infer<typeof SubmissionSchema>>> {

@@ -65,6 +65,7 @@ export class SharedCodexRoot {
     private steeringActive: boolean | undefined;
     private turnRevision = 0;
     private settingsRevision = 0;
+    private nameRevision = 0;
     private refreshing?: Promise<void>;
     private interrupted = false;
     private closed = false;
@@ -88,6 +89,7 @@ export class SharedCodexRoot {
             }
             if (method === 'thread/settings/updated' && record(params).threadId === this.threadId) this.acceptSettings(record(record(params).threadSettings));
             if (record(params).threadId === this.threadId) {
+                if (method === 'thread/name/updated') this.nameRevision++;
                 if (method === 'turn/started') {
                     this.turnRevision++; this.currentTurn = string(record(record(params).turn).id); this.interrupted = false;
                     if (this.currentTurn) this.latestTurn = { id: this.currentTurn, status: 'inProgress' };
@@ -193,15 +195,15 @@ export class SharedCodexRoot {
         if (this.threadId && this.threadId !== threadId) throw new Error('Cannot retarget a shared HAPI session');
         this.threadId = threadId;
         this.queue = new SharedCodexQueue(this.client, threadId, join(this.host.directory, `${this.session.sessionId}.queue.json`),
-            (ids, steered) => {
-                this.session.emitMessagesConsumed(ids, { steered });
+            (ids, steered, invokedAt) => {
+                this.session.emitMessagesConsumed(ids, { steered, ...(invokedAt !== undefined ? { invokedAt } : {}) });
                 for (const id of ids) this.dequeuedInputs.delete(id);
                 this.publishCompaction();
             }, ids => this.session.emitSteerIndeterminate(ids),
             (id, input) => this.session.syncNativeQueuedMessage(id, input === null ? null : inputText(input)),
             ids => this.session.setSteerDeliveryState(ids, 'queued'));
         await this.queue.load();
-        this.projection = new SharedCodexProjection(this.session, threadId, id => this.queue.committed(id));
+        this.projection = new SharedCodexProjection(this.session, threadId, (id, invokedAt) => this.queue.committed(id, invokedAt));
         this.session.updateMetadata(metadata => ({ ...metadata, codexSessionId: threadId, capabilities: {
             ...metadata.capabilities, concurrentClients: true, terminal: true,
             // In-place rewind needs a native + hub commit barrier. Do not
@@ -212,7 +214,9 @@ export class SharedCodexRoot {
             completedRequests: { ...state.completedRequests, ...Object.fromEntries(Object.entries(state.requests ?? {}).map(([id, request]) =>
                 [id, { ...request, completedAt: Date.now(), status: 'canceled' as const }])) }
         }));
+        const nameRevision = this.nameRevision;
         if (subscribe) response = record(await this.client.request('thread/resume', { threadId }));
+        this.inheritNativeName(record(response.thread), nameRevision);
         this.acceptSettings(response); this.acceptSettings(this.host.settingsFor(threadId) ?? {});
         await this.projection.history(response.thread); await this.refresh(); await this.refreshChildren(true);
     }
@@ -331,15 +335,29 @@ export class SharedCodexRoot {
     refresh(): Promise<void> {
         return this.refreshing ??= this.refreshNow().finally(() => { this.refreshing = undefined; });
     }
+    private inheritNativeName(thread: Record<string, unknown>, revision: number): void {
+        const name = (typeof thread.name === 'string' && thread.name.trim())
+            || (typeof thread.preview === 'string' ? thread.preview.trim() : '');
+        // Desktop uses the first-message preview when no explicit name exists.
+        if (!name) return;
+        this.session.updateMetadata(metadata => revision === this.nameRevision && metadata.name !== name
+            ? { ...metadata, name } : metadata);
+    }
     private async refreshNow(): Promise<void> {
         if (!this.threadId || this.closed || !this.client.isInitialized()) return;
         const revision = this.turnRevision;
+        const nameRevision = this.nameRevision;
         const thread = await this.readThread();
+        this.inheritNativeName(thread, nameRevision);
         const turns = Array.isArray(thread.turns) ? thread.turns.map(record) : [];
         if (revision === this.turnRevision) {
-            this.currentTurn = string(turns.find(turn => turn.status === 'inProgress')?.id);
-            this.interrupted = turns.at(-1)?.status === 'interrupted';
             const last = turns.at(-1);
+            // A historical inProgress row can survive a crash. Only the latest
+            // turn and the current native runtime status can establish busy.
+            const runtimeStatus = string(record(thread.status).type);
+            this.currentTurn = (!runtimeStatus || runtimeStatus === 'active') && last?.status === 'inProgress'
+                ? string(last.id) : undefined;
+            this.interrupted = last?.status === 'interrupted';
             const id = string(last?.id);
             this.latestTurn = id && last ? { id, status: string(last.status) ?? 'unknown', planId: planProposalForTurn(this.threadId, last) } : undefined;
         }

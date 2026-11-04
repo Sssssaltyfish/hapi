@@ -53,6 +53,20 @@ function reasoningTextOf(message: { content: unknown }): string {
 }
 
 describe('cli session handlers', () => {
+    it('preserves native historical invocation time instead of import time', () => {
+        const store = new Store(':memory:')
+        const session = store.sessions.getOrCreateSession('history-time', { flavor: 'codex' }, null, 'default')
+        const socket = new FakeSocket(); const events: SyncEvent[] = []
+        registerSessionHandlers(socket as unknown as CliSocketWithData, {
+            store, resolveSessionAccess: () => ({ ok: true, value: session }), emitAccessError() {}, onWebappEvent: event => events.push(event)
+        })
+        socket.trigger('message', { sid: session.id, localId: 'native-user', createdAt: 1234000,
+            message: { role: 'user', content: { type: 'text', text: 'Historical input' }, meta: { sentFrom: 'cli' } } })
+        socket.trigger('messages-consumed', { sid: session.id, localIds: ['native-user'], invokedAt: 1234000 })
+        expect(store.messages.getAllMessages(session.id)[0]).toMatchObject({ createdAt: 1234000, invokedAt: 1234000 })
+        expect(events.at(-1)).toMatchObject({ type: 'messages-consumed', invokedAt: 1234000 })
+        store.close()
+    })
     it.each([undefined, 'terminated', 'error'] as const)('preserves shared Codex pending input on execution exit (%s)', reason => {
         const store = new Store(':memory:')
         const session = store.sessions.getOrCreateSession('shared-end', { flavor: 'codex', capabilities: { concurrentClients: true } }, null, 'default')

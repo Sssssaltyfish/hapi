@@ -1106,7 +1106,7 @@ export class ApiSessionClient extends EventEmitter {
         })
     }
 
-    sendUserMessage(text: string, meta?: MessageMeta, localId?: string): void {
+    sendUserMessage(text: string, meta?: MessageMeta, localId?: string, createdAt?: number): void {
         if (!text) {
             return
         }
@@ -1127,9 +1127,10 @@ export class ApiSessionClient extends EventEmitter {
             this.socket.emit('message', {
                 sid: this.sessionId,
                 message: content,
-                localId
+                localId,
+                ...(createdAt !== undefined ? { createdAt } : {})
             })
-            if (localId) this.socket.emit('messages-consumed', { sid: this.sessionId, localIds: [localId] })
+            if (localId) this.socket.emit('messages-consumed', { sid: this.sessionId, localIds: [localId], ...(createdAt !== undefined ? { invokedAt: createdAt } : {}) })
         })
         this.notifyUserActivity()
     }
@@ -1142,7 +1143,7 @@ export class ApiSessionClient extends EventEmitter {
         void this.materialize()
     }
 
-    sendAgentMessage(body: unknown, localId?: string): void {
+    sendAgentMessage(body: unknown, localId?: string, createdAt?: number): void {
         const content = {
             role: 'agent',
             content: {
@@ -1157,9 +1158,10 @@ export class ApiSessionClient extends EventEmitter {
             this.socket.emit('message', {
                 sid: this.sessionId,
                 message: content,
-                localId
+                localId,
+                ...(createdAt !== undefined ? { createdAt } : {})
             })
-            if (localId) this.socket.emit('messages-consumed', { sid: this.sessionId, localIds: [localId] })
+            if (localId) this.socket.emit('messages-consumed', { sid: this.sessionId, localIds: [localId], ...(createdAt !== undefined ? { invokedAt: createdAt } : {}) })
         })
     }
 
@@ -1313,7 +1315,7 @@ export class ApiSessionClient extends EventEmitter {
         }, 'droppable')
     }
 
-    emitMessagesConsumed(localIds: string[], options?: { clearQueuedThinkingGrace?: boolean; steered?: boolean }): void {
+    emitMessagesConsumed(localIds: string[], options?: { clearQueuedThinkingGrace?: boolean; steered?: boolean; invokedAt?: number }): void {
         if (localIds.length === 0) return
         // `clearQueuedThinkingGrace` is an opt-in signal for the hub to drop
         // the 15s queued-thinking grace immediately. Only synchronous handlers
@@ -1326,6 +1328,7 @@ export class ApiSessionClient extends EventEmitter {
             localIds: string[]
             clearQueuedThinkingGrace?: boolean
             steered?: boolean
+            invokedAt?: number
         } = {
             sid: this.sessionId,
             localIds
@@ -1336,6 +1339,7 @@ export class ApiSessionClient extends EventEmitter {
         if (options?.steered) {
             payload.steered = true
         }
+        if (options?.invokedAt !== undefined) payload.invokedAt = options.invokedAt
         this.emitOrQueue(() => this.socket.emit('messages-consumed', payload))
     }
 

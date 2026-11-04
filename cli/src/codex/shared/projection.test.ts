@@ -5,6 +5,19 @@ import { codexPlanProposalId } from './plan';
 import { extractNotifySummary } from '@hapi/protocol/messages';
 
 describe('shared history projection', () => {
+    it('keeps native item timestamps and chronological order when replaying a descending page', async () => {
+        const send = vi.fn(), user = vi.fn(), committed = vi.fn(async () => {});
+        const session = { getMetadata: () => ({}), updateMetadata() {}, sendAgentMessage: send, sendUserMessage: user } as unknown as ApiSessionClient;
+        const projection = new SharedCodexProjection(session, 'thread', committed);
+        await projection.historyItems([
+            { turnId: 'turn', startedAtMs: 2000, completedAtMs: 3000, item: { type: 'agentMessage', id: 'answer', text: 'Final answer' } },
+            { turnId: 'turn', startedAtMs: 1000, completedAtMs: 1100, item: { type: 'userMessage', id: 'prompt', content: [{ type: 'text', text: 'Question' }] } }
+        ]);
+        expect(user).toHaveBeenCalledTimes(1);
+        expect(user).toHaveBeenCalledWith('Question', undefined, 'codex:thread:user:prompt', 1000);
+        expect(committed).toHaveBeenCalledWith('codex:thread:user:prompt', 1000);
+        expect(send).toHaveBeenCalledWith(expect.objectContaining({ message: 'Final answer' }), expect.any(String), 3000);
+    });
     it.each([undefined, 'root'])('publishes only final summaries in live output and history replay (parent: %s)', async parentThreadId => {
         const send = vi.fn();
         const session = { getMetadata: () => ({}), sendAgentMessage: send } as unknown as ApiSessionClient;
@@ -25,7 +38,8 @@ describe('shared history projection', () => {
         expect(bodies.filter(body => extractNotifySummary(body.message))).toHaveLength(1);
         projection.reset(); send.mockClear();
         await projection.history({ turns: [{ id: 'turn', status: 'completed', items }] });
-        expect(send.mock.calls).toEqual(live);
+        expect(send.mock.calls.filter(([body]) => body.type !== 'agent-run-update')).toEqual(live);
+        if (parentThreadId) expect(send.mock.lastCall?.[0]).toMatchObject({ type: 'agent-run-update', status: 'completed' });
     });
 
     it('keeps plan cards distinct across native turns and stable within each turn', async () => {
@@ -70,7 +84,7 @@ describe('shared history projection', () => {
         const original = send.mock.calls.slice(1, 3);
         projection.reset(); send.mockClear();
         await projection.history({ turns: [{ id: 'turn', status: 'completed', items: [item] }] });
-        expect(send.mock.calls).toEqual(original);
+        expect(send.mock.calls.filter(([body]) => body.type !== 'agent-run-update')).toEqual(original);
     });
 
     it('waits for final proposal content after an active snapshot', async () => {

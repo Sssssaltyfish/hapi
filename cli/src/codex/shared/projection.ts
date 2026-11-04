@@ -45,20 +45,22 @@ export class SharedCodexProjection {
     private readonly completedTitles = new Set<string>();
     private titleRevision = 0;
     constructor(private readonly session: ApiSessionClient, readonly threadId: string,
-        private readonly committed: (id: string) => Promise<void>, private readonly parentThreadId?: string) {
+        private readonly committed: (id: string, invokedAt?: number) => Promise<void>, private readonly parentThreadId?: string) {
         if (!parentThreadId) for (const [id, turn] of Object.entries(session.getMetadata()?.conversationHistoryTurns ?? {})) this.turns.set(id, turn);
     }
 
     turnFor(id: string): string | undefined { return this.turns.get(id); }
     reset(): void { this.converter = new AppServerEventConverter(); this.emitted.clear(); }
-    private send(body: Record<string, unknown>, key: string): void {
+    private send(body: Record<string, unknown>, key: string, createdAt?: number): void {
         if (this.emitted.has(key)) return;
         this.emitted.add(key);
         const id = `codex:${this.threadId}:${key}`;
-        this.session.sendAgentMessage(this.parentThreadId && !String(body.type).startsWith('agent-run-') ? {
+        const message = this.parentThreadId && !String(body.type).startsWith('agent-run-') ? {
             type: 'agent-run-trace', agentId: this.threadId, cardId: `codex-agent:${this.threadId}`, message: { ...body, id }, id,
             scope: { role: 'child', threadId: this.threadId, parentThreadId: this.parentThreadId }, scope_role: 'child'
-        } : { ...body, id }, id);
+        } : { ...body, id };
+        if (createdAt === undefined) this.session.sendAgentMessage(message, id);
+        else this.session.sendAgentMessage(message, id, createdAt);
     }
 
     private applyDisplayRename(title: string, revision: number): void {
@@ -101,14 +103,14 @@ export class SharedCodexProjection {
         }
     }
 
-    private async project(method: string, params: unknown, modelAtReceipt?: string, fromHistory = false): Promise<void> {
+    private async project(method: string, params: unknown, modelAtReceipt?: string, fromHistory = false, createdAt?: number): Promise<void> {
         if (method.startsWith('codex/event/')) return;
         const p = record(params);
         const item = record(p.item);
         const turnId = string(p.turnId) ?? string(record(p.turn).id);
         const send = (body: Record<string, unknown>, key: string) => this.send({
             ...body, ...(turnId ? { turn_id: turnId } : {})
-        }, key);
+        }, key, createdAt);
         // Settings may already describe the next turn by the time queued
         // notifications are projected. Never attribute usage to that model.
         if (turnId && method === 'turn/started' && modelAtReceipt && !this.turnModels.has(turnId)) {
@@ -120,12 +122,17 @@ export class SharedCodexProjection {
         const itemId = string(item.id) ?? string(p.itemId);
         if (!this.parentThreadId && (method === 'item/started' || method === 'item/completed') && item.type === 'userMessage') {
             const id = string(item.clientId ?? item.clientUserMessageId) ?? (itemId ? `codex:${this.threadId}:user:${itemId}` : undefined);
-            if (id) {
+            if (id && !this.emitted.has(`user:${id}`)) {
+                this.emitted.add(`user:${id}`);
                 const firstInTurn = turnId ? [...this.turns].find(([, value]) => value === turnId)?.[0] : undefined;
                 if (turnId) this.turns.set(id, turnId);
-                await this.committed(id);
+                if (createdAt === undefined) await this.committed(id);
+                else await this.committed(id, createdAt);
                 const text = inputText(item.content);
-                if (text) this.session.sendUserMessage(text, undefined, id);
+                if (text) {
+                    if (createdAt === undefined) this.session.sendUserMessage(text, undefined, id);
+                    else this.session.sendUserMessage(text, undefined, id, createdAt);
+                }
                 this.session.updateMetadata(metadata => ({ ...metadata, conversationHistoryTurns: Object.fromEntries(this.turns),
                     ...(turnId && (!firstInTurn || firstInTurn === id) ? { conversationHistoryPoints: { ...metadata.conversationHistoryPoints, [id]: true } } : {})
                 }));
@@ -198,7 +205,8 @@ export class SharedCodexProjection {
             for (const [agentId, state] of Object.entries(states)) {
                 const status = string(record(state).status) ?? 'running';
                 send({ type: 'agent-run-update', agentId, cardId: `codex-agent:${agentId}`,
-                    status: status === 'completed' ? 'completed' : status === 'errored' ? 'failed' : 'running',
+                    status: status === 'completed' || status === 'shutdown' ? 'completed'
+                        : status === 'errored' || status === 'notFound' ? 'failed' : 'running',
                     summary: record(state).message, input: item, scope: { role: 'child', threadId: agentId, parentThreadId: this.threadId }, scope_role: 'child', thread_id: agentId
                 }, `agent:${agentId}:${itemId}:${method}:${JSON.stringify(state)}`);
             }
@@ -220,7 +228,9 @@ export class SharedCodexProjection {
                 if (!this.parentThreadId && string(record(item).id) && pendingTitle && !this.completedTitles.has(titleKey)) {
                     this.pendingTitles.set(titleKey, pendingTitle);
                 }
-                await this.project('item/started', params, undefined, true);
+                const startedAt = typeof turn.startedAt === 'number' ? turn.startedAt * 1000 : undefined;
+                const completedAt = typeof turn.completedAt === 'number' ? turn.completedAt * 1000 : startedAt;
+                await this.project('item/started', params, undefined, true, startedAt);
                 // Active snapshots can contain partial assistant text. Do not
                 // settle it under the final stable id and suppress completion.
                 if (turn.status !== 'inProgress' || record(item).status === 'completed' || record(item).type === 'userMessage') {
@@ -232,8 +242,12 @@ export class SharedCodexProjection {
                         }
                         this.pendingTitles.delete(titleKey);
                     }
-                    await this.project('item/completed', params, undefined, true);
+                    await this.project('item/completed', params, undefined, true, completedAt);
                 }
+            }
+            if (this.parentThreadId && turn.status !== 'inProgress') {
+                await this.project('turn/completed', { threadId: this.threadId, turn }, undefined, true,
+                    typeof turn.completedAt === 'number' ? turn.completedAt * 1000 : undefined);
             }
         }
         // Repair sessions created while remote title projection was missing.
@@ -249,6 +263,20 @@ export class SharedCodexProjection {
                 if (!normalized) return metadata;
                 return { ...metadata, name: normalized };
             });
+        }
+    }
+
+    /** Native item pages are returned newest first, with original millisecond timestamps. */
+    async historyItems(entries: unknown[]): Promise<void> {
+        for (const value of [...entries].reverse()) {
+            const entry = record(value), item = record(entry.item);
+            const params = { threadId: this.threadId, turnId: entry.turnId, item };
+            const startedAt = typeof entry.startedAtMs === 'number' ? entry.startedAtMs : undefined;
+            const completedAt = typeof entry.completedAtMs === 'number' ? entry.completedAtMs : undefined;
+            await this.project('item/started', params, undefined, true, startedAt);
+            if (completedAt !== undefined || item.status === 'completed' || item.type === 'userMessage') {
+                await this.project('item/completed', params, undefined, true, completedAt ?? startedAt);
+            }
         }
     }
 }
