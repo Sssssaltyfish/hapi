@@ -690,14 +690,27 @@ export function HappyComposer(props: {
     latestComposerTextRef.current = composerText
     const attachmentDraftsRef = useRef(attachmentDrafts)
     attachmentDraftsRef.current = attachmentDrafts
+    const restoredText = useRef<string | null>(null)
     const draftHydration = useComposerDraft(
         sessionId,
         composerText,
         attachmentDrafts,
         props.canRestoreAttachments ?? active,
-        (text) => api.composer().setText(text),
+        (text) => {
+            restoredText.current = text
+            api.composer().setText(text)
+        },
         (file) => api.composer().addAttachment(file),
     )
+    useLayoutEffect(() => {
+        if (restoredText.current !== composerText) return
+        restoredText.current = null
+        const input = textareaRef.current
+        if (input) {
+            input.setSelectionRange(input.value.length, input.value.length)
+            input.scrollTop = input.scrollHeight
+        }
+    }, [composerText])
     const canHydrateAttachments = props.canRestoreAttachments ?? active
     const hiddenAttachmentStatePending =
         !canHydrateAttachments

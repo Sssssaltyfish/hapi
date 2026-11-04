@@ -659,6 +659,7 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
     ref
 ) {
     const rootRef = useRef<HTMLDivElement>(null)
+    const caretOnFocus = useRef<ComposerSelection | null>(null)
     // null until first sync/emit so mount-time `value` always paints into the DOM.
     const lastEmittedRef = useRef<string | null>(null)
     const composingRef = useRef(false)
@@ -782,9 +783,11 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
         // Placing a Selection inside contenteditable focuses it in Blink/WebKit —
         // skip when the editor is not already focused (draft restore / queue edit).
         const hadFocus = root.contains(document.activeElement)
+        caretOnFocus.current = !hadFocus && !selection && mirror.length ? sel : null
         if (hadFocus || selection) {
             setMirrorSelection(root, sel)
         }
+        if (!selection && next) root.scrollTop = root.scrollHeight
         onMirrorChange({ text: mirror, selection: sel })
     }, [clearMentionTooltip, onMirrorChange, renderEditorSegments])
 
@@ -1117,7 +1120,14 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
                 data-testid="rich-composer-input"
                 className={`col-start-1 row-start-1 min-w-0 ${className ?? ''}${disabled ? ' cursor-not-allowed opacity-50' : ''}`}
                 onInput={handleInput}
-                onFocus={onFocus}
+                onFocus={event => {
+                    if (caretOnFocus.current) {
+                        setMirrorSelection(event.currentTarget, caretOnFocus.current)
+                        caretOnFocus.current = null
+                        event.currentTarget.scrollTop = event.currentTarget.scrollHeight
+                    }
+                    onFocus?.(event)
+                }}
                 onKeyDown={handleKeyDown}
                 onPointerOver={handlePointerOver}
                 onPointerLeave={handlePointerLeave}
