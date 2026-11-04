@@ -16,6 +16,7 @@ import {
 import { SettingsChoiceGroup, SettingsFieldLabel, SettingsPageContent, SettingsSection, SettingsSwitch } from '@/components/settings/SettingsPrimitives'
 import { ComposerToolbarLayoutControl } from '@/components/settings/ComposerToolbarLayoutControl'
 import { useComposerSendMode } from '@/hooks/useComposerSendMode'
+import { getColorThemePreview, useColorTheme } from '@/hooks/useColorTheme'
 
 function ChatSurfaceColorControl(props: {
     label: string
@@ -25,6 +26,8 @@ function ChatSurfaceColorControl(props: {
 }) {
     const { t } = useTranslation()
     const pickerValue = getChatSurfaceColorPickerValue(props.preference)
+    const { colorTheme } = useColorTheme()
+    const defaultPreview = getColorThemePreview(colorTheme)
     return (
         <div className="px-3 py-3">
             <SettingsFieldLabel>{props.label}</SettingsFieldLabel>
@@ -34,8 +37,10 @@ function ChatSurfaceColorControl(props: {
                     const selected = props.preference === preference
                     return (
                         <button key={option.value} type="button" role="radio" aria-checked={selected} onClick={() => props.onPresetChange(option.value)} className={`flex min-w-0 items-center gap-2 rounded-lg border px-2.5 py-2 text-sm ${selected ? 'border-[var(--app-link)] bg-[var(--app-subtle-bg)] text-[var(--app-link)]' : 'border-[var(--app-border)] text-[var(--app-fg)]'}`}>
-                            <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: getChatSurfaceColorPickerValue(preference) }} />
-                            <span className="truncate">{t(option.labelKey)}</span>
+                            <span aria-hidden="true" className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full border border-[var(--app-border)]" style={{ backgroundColor: option.value === 'default' ? defaultPreview.light : getChatSurfaceColorPickerValue(preference) }}>
+                                {option.value === 'default' ? <span className="absolute inset-y-0 right-0 w-1/2" style={{ backgroundColor: defaultPreview.dark }} /> : null}
+                            </span>
+                            <span className="whitespace-normal break-words">{t(option.labelKey)}</span>
                         </button>
                     )
                 })}
@@ -58,7 +63,7 @@ export default function SettingsChatPage() {
     const disclosureDuration = useDisclosureDuration()
     const { toolGroupBackground, userMessageBackground, setToolGroupBackground, setUserMessageBackground } = useChatSurfaceColors()
     return (
-        <SettingsPageContent description={t('settings.chat.description')}>
+        <SettingsPageContent>
             <SettingsSection title={t('settings.chat.input')}>
                 <SettingsChoiceGroup
                     label={t('settings.chat.enterBehavior')}
@@ -68,7 +73,7 @@ export default function SettingsChatPage() {
                 />
                 <ComposerToolbarLayoutControl />
                 <SettingsChoiceGroup label={t('settings.chat.sendMode')} value={composerSendMode}
-                    options={[{ value: 'queue', label: t('settings.chat.sendMode.queue') }, { value: 'steer', label: t('settings.chat.sendMode.steer') }]}
+                    options={[{ value: 'queue', label: t('settings.chat.sendMode.queue') }, { value: 'steer', label: t('settings.chat.sendMode.steer'), description: t('settings.chat.sendMode.steer.fallback') }]}
                     onChange={setComposerSendMode} />
                 <p className="px-3 pb-3 text-xs text-[var(--app-hint)]">{t('settings.chat.sendMode.description')}</p>
             </SettingsSection>
@@ -76,18 +81,17 @@ export default function SettingsChatPage() {
                 <SettingsChoiceGroup
                     label={t('settings.chat.terminalToolDisplay')}
                     value={terminalToolDisplayMode}
-                    options={getTerminalToolDisplayModeOptions().map((option) => ({ value: option.value, label: t(option.labelKey) }))}
+                    options={getTerminalToolDisplayModeOptions().map((option) => ({ value: option.value, label: t(option.labelKey), description: t(`${option.labelKey}.desc`) }))}
                     onChange={setTerminalToolDisplayMode}
+                    columns={3}
                 />
                 <SettingsSwitch
                     label={t('settings.chat.toolGroupsCollapsed')}
-                    description={t('settings.chat.toolGroupsCollapsed.desc')}
                     checked={toolGroupsCollapsed}
                     onChange={setToolGroupsCollapsed}
                 />
                 <SettingsSwitch
                     label={t('settings.chat.reasoningCollapsed')}
-                    description={t('settings.chat.reasoningCollapsed.desc')}
                     checked={reasoningCollapsed}
                     onChange={setReasoningCollapsed}
                 />

@@ -259,7 +259,7 @@ describe('responsive settings pages', () => {
         expect(screen.getByRole('checkbox', { name: 'Show status summaries in chat' })).toBeInTheDocument()
         fireEvent.click(screen.getByRole('radio', { name: '简体中文' }))
         expect(localStorage.getItem('hapi-lang')).toBe('zh-CN')
-        expect(screen.getByText('选择是否让受支持的智能体输出状态摘要，以及是否在聊天中显示。')).toBeInTheDocument()
+        expect(screen.getByText('仅对受支持的智能体生效，启动或恢复会话后应用。')).toBeInTheDocument()
     })
 
     it('explains and keeps summary generation separate from chat display', async () => {
@@ -271,11 +271,10 @@ describe('responsive settings pages', () => {
         renderPage(<SettingsGeneralPage />)
 
         expect(await screen.findByRole('heading', { name: 'Session status summaries' })).toBeInTheDocument()
-        expect(screen.getByText('Choose whether supported agents emit status summaries and whether they appear in chat.')).toBeInTheDocument()
         expect(await screen.findByRole('checkbox', { name: 'Emit status summaries' })).toBeInTheDocument()
-        expect(screen.getByText('Off by default. When enabled, supported agents are asked to add a trailing AGENT_NOTIFY_SUMMARY line after each turn for notifications and background work records. Applies to new/resumed sessions. (Supported: Claude, Codex, OpenCode, remote Grok; not yet supported: local Grok, Cursor)')).toBeInTheDocument()
+        expect(screen.getByText('Supported agents only; applies on session start or resume.')).toBeInTheDocument()
         expect(screen.queryByRole('heading', { name: 'Chat display', level: 3 })).not.toBeInTheDocument()
-        expect(screen.getByText('Only affects display in chat and copied content; it does not affect summary generation, notifications, or background work records. When on, a status row is shown; when off, it is hidden. Stored messages remain unchanged.')).toBeInTheDocument()
+        expect(screen.getByText('Also controls copied text; notifications are unaffected.')).toBeInTheDocument()
 
         fireEvent.click(screen.getByRole('checkbox', { name: 'Emit status summaries' }))
         await waitFor(() => {
@@ -315,7 +314,7 @@ describe('responsive settings pages', () => {
     it('keeps the session status description visible with its choice group', () => {
         renderPage(<SettingsDisplayPage />)
 
-        const description = screen.getByText('Choose which status hints appear in the session list. Basic shows runtime state; Extended also shows permission, input, background-task, new-activity, and scheduled-message hints (clock icon).')
+        const description = screen.getByText('Extended adds permission, input, background-task and activity hints.')
         const choices = screen.getByRole('radiogroup', { name: 'Session list status hints' })
         expect(screen.getByRole('radio', { name: 'Basic' })).toBeInTheDocument()
         expect(screen.getByRole('radio', { name: 'Extended' })).toBeInTheDocument()

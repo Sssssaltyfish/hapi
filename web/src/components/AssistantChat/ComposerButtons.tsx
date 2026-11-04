@@ -484,6 +484,7 @@ function TerminalButton(props: {
                 type="button"
                 aria-label={props.label}
                 title={props.label}
+                data-testid="composer-terminal-button"
                 className="relative flex h-8 w-8 items-center justify-center rounded-full text-[var(--app-fg)]/60 transition-colors hover:bg-[var(--app-bg)] hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => {
                     if (fue.status !== 'acknowledged') {
@@ -778,11 +779,13 @@ export function ComposerButtons(props: {
     const hasAttachments = props.hasAttachments ?? false
     const toolbarJustifyContent = getComposerToolbarJustifyContent(layout.mode)
 
+    // Horizontal scrolling clips vertical overflow too; keep onboarding dots
+    // and counters inside the scrollport's padding.
     return (
-        <div className="flex shrink-0 items-center gap-1 px-2 pb-2">
+        <div className="flex shrink-0 items-center gap-1 px-2">
             <div
                 data-testid="composer-toolbar-items"
-                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-0.5 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 style={{ justifyContent: toolbarJustifyContent }}
             >
                 {props.modeControls}
@@ -828,7 +831,7 @@ export function ComposerButtons(props: {
                         type="button"
                         aria-label={props.modelValueLabel}
                         title={props.modelValueLabel}
-                        className={`flex h-8 max-w-24 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
+                        className={`flex h-8 shrink-0 max-w-[min(16rem,60vw)] items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
                             props.modelValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'
@@ -849,7 +852,7 @@ export function ComposerButtons(props: {
                         type="button"
                         aria-label={props.effortValueTitle ?? props.effortValueLabel}
                         title={props.effortValueTitle ?? props.effortValueLabel}
-                        className={`flex h-8 max-w-20 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-28 sm:px-3 ${
+                        className={`flex h-8 shrink-0 max-w-[min(12rem,45vw)] items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
                             props.effortValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'

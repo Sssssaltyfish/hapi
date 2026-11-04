@@ -52,14 +52,13 @@ export default function SettingsGeneralPage() {
     })
 
     return (
-        <SettingsPageContent description={t('settings.general.description')}>
+        <SettingsPageContent>
             <SettingsSection title={t('settings.language.label')}>
                 <SettingsChoiceGroup hideLabel label={t('settings.language.label')} value={locale} options={locales} onChange={setLocale} />
             </SettingsSection>
             {isOwner ? (
                 <SettingsSection
                     title={t('settings.general.sessionSummary.title')}
-                    description={t('settings.general.sessionSummary.description')}
                 >
                     {hubSettingsQuery.data ? (
                         <>

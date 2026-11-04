@@ -30,9 +30,7 @@ export function CheckIcon(props: { className?: string }) {
 export function SettingsPageContent(props: { description?: string; children: ReactNode }) {
     return (
         <div className="mx-auto w-full max-w-[720px] space-y-5 pl-3 pr-[10px] py-4 lg:px-6 lg:py-6">
-            <div>
-                {props.description ? <p className="text-sm text-[var(--app-hint)]">{props.description}</p> : null}
-            </div>
+            {props.description ? <p className="text-sm text-[var(--app-hint)]">{props.description}</p> : null}
             {props.children}
         </div>
     )
@@ -82,9 +80,9 @@ export function SettingsChoiceGroup<T extends string | number>(props: {
     value: T
     options: ReadonlyArray<{ value: T; label: string; description?: string }>
     onChange: (value: T) => void
-    columns?: 2 | 4 | 5 | 6
+    columns?: 2 | 3 | 4 | 5 | 6
 }) {
-    const columns = props.columns === 6 ? 'grid-cols-6' : props.columns === 5 ? 'grid-cols-5' : props.columns === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'
+    const columns = props.columns === 6 ? 'grid-cols-6' : props.columns === 5 ? 'grid-cols-5' : props.columns === 4 ? 'grid-cols-2 sm:grid-cols-4' : props.columns === 3 ? 'grid-cols-3' : 'grid-cols-2'
     return (
         <div className={`${props.columns === 6 ? 'px-1 sm:px-3' : 'px-3'} py-3`}>
             <SettingsFieldLabel hidden={props.hideLabel} description={props.description}>{props.label}</SettingsFieldLabel>
@@ -102,8 +100,8 @@ export function SettingsChoiceGroup<T extends string | number>(props: {
                                 ? 'border-[var(--app-link)] bg-[var(--app-subtle-bg)] text-[var(--app-link)]'
                                 : 'border-[var(--app-border)] text-[var(--app-fg)] hover:bg-[var(--app-subtle-bg)]'}`}
                         >
-                            <span className="block truncate font-medium">{option.label}</span>
-                            {option.description ? <span className="mt-0.5 block text-xs text-[var(--app-hint)]">{option.description}</span> : null}
+                            <span className="block whitespace-normal break-words font-medium leading-snug">{option.label}</span>
+                            {option.description ? <span className="mt-0.5 block whitespace-normal break-words text-xs leading-snug text-[var(--app-hint)]">{option.description}</span> : null}
                         </button>
                     )
                 })}

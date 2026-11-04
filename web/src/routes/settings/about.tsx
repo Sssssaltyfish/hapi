@@ -5,7 +5,7 @@ import { SettingsPageContent, SettingsRow, SettingsSection } from '@/components/
 export default function SettingsAboutPage() {
     const { t } = useTranslation()
     return (
-        <SettingsPageContent description={t('settings.about.description')}>
+        <SettingsPageContent>
             <SettingsSection>
                 <SettingsRow label={t('settings.about.website')} trailing={
                     <a href="https://hapi.run" target="_blank" rel="noopener noreferrer" className="text-[var(--app-link)] hover:underline">hapi.run</a>
