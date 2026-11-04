@@ -188,7 +188,9 @@ export async function executeThreadCommand(
         const result = await native.settings(threadId, current => {
             const model = preset.model ?? (typeof current.model === 'string' ? current.model : null)
             if (!model) throw new NativeThreadCommandError(409, 'Open the native thread to resolve its current model')
-            const effort = preset.reasoning_effort ?? (typeof current.effort === 'string' ? current.effort : null)
+            // Presets supply mode instructions, not permission to replace the
+            // effort already selected on this shared thread by another client.
+            const effort = typeof current.effort === 'string' ? current.effort : preset.reasoning_effort
             return { collaborationMode: {
                 mode: preset.mode,
                 settings: { model, reasoning_effort: effort, developer_instructions: null }

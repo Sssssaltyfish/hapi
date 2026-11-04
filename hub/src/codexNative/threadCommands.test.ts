@@ -118,6 +118,28 @@ function fixture() {
 }
 
 describe('Native Plan and Goal commands', () => {
+    test('preserves explicit xhigh through Plan and Default while using a preset for unset effort', async () => {
+        for (const effort of ['xhigh', null]) {
+            const { daemon, service, command } = fixture()
+            daemon.settings.reasoningEffort = effort
+            daemon.settings.collaborationMode = { mode: 'default', settings: {
+                model: 'current-model', reasoning_effort: effort, developer_instructions: null,
+            } }
+            try {
+                expect((await command({ command: 'plan', mode: 'plan' })).status).toBe(200)
+                const plan = daemon.calls.find(call => call.method === 'thread/settings/update')!
+                expect(plan.params).toMatchObject({ collaborationMode: { mode: 'plan', settings: {
+                    reasoning_effort: effort ?? 'medium',
+                } } })
+                if (effort) {
+                    expect((await command({ command: 'plan', mode: 'default' })).status).toBe(200)
+                    expect(daemon.calls.filter(call => call.method === 'thread/settings/update').at(-1)?.params)
+                        .toMatchObject({ collaborationMode: { mode: 'default', settings: { reasoning_effort: 'xhigh' } } })
+                }
+            } finally { service.dispose() }
+        }
+    })
+
     test('edits only a matching current objective and preserves its paused state and budget', async () => {
         const { daemon, service, command } = fixture()
         daemon.goal = { threadId: 'thread', objective: 'Original', status: 'paused', tokenBudget: 100,
@@ -200,7 +222,7 @@ describe('Native Plan and Goal commands', () => {
             const response = await command({ command: 'plan', mode: 'plan' })
             expect(response.status).toBe(200)
             expect(await response.json()).toMatchObject({ command: 'plan', applied: { collaborationMode: {
-                mode: 'plan', settings: { model: 'current-model', reasoning_effort: 'medium', developer_instructions: 'Native built-in Plan instructions' }
+                mode: 'plan', settings: { model: 'current-model', reasoning_effort: 'high', developer_instructions: 'Native built-in Plan instructions' }
             } } })
             expect(daemon.calls.filter(call => call.method === 'thread/settings/update')).toHaveLength(1)
             expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)

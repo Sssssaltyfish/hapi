@@ -180,6 +180,17 @@ async function startCompaction(f: Awaited<ReturnType<typeof fixture>>, id = 'inp
 }
 
 describe('typed native goal controls', () => {
+    it('preserves the native explicit effort across managed Plan and Default changes', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        f.native.settings.effort = 'xhigh';
+        f.root.acceptSettings(f.native.settings);
+        for (const mode of ['plan', 'default'] as const) {
+            await f.root.applySettings({ collaborationMode: mode });
+            expect(f.native.calls.filter(call => call.method === 'thread/settings/update').at(-1)?.params)
+                .toMatchObject({ collaborationMode: { mode, settings: { reasoning_effort: 'xhigh' } } });
+        }
+    });
     it('round trips goal state through the native APIs without enqueueing a prompt', async () => {
         const f = await fixture();
         await f.root.activate();
