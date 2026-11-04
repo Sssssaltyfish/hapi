@@ -3,6 +3,25 @@ import { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 
+it('sends only the chosen model when its cached effort is stale', async () => {
+    const session = { id: 'session', model: 'old', modelReasoningEffort: 'ultra',
+        metadata: { nativeCodex: { threadId: 'thread' } } } as Session
+    const client = {
+        getCodexNativeModels: vi.fn().mockResolvedValue({ data: [{ id: 'target', defaultReasoningEffort: 'medium',
+            supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'medium' }] }] }),
+        codexNativeAction: vi.fn().mockResolvedValue({ applied: { model: 'target', effort: 'high' } }),
+    }
+    const applySettings = vi.fn()
+    const adapter = createNativeSessionApiAdapter(client as unknown as ApiClient, {
+        session, liveSession: session,
+        thread: { requests: [], detail: {}, refreshDetail: vi.fn(), applySettings },
+        projected: { requests: {} }, setSettingsError: vi.fn(),
+    })
+    await adapter.setModel(session.id, 'target')
+    expect(client.codexNativeAction).toHaveBeenCalledWith('thread', 'settings', { model: 'target' })
+    expect(applySettings).toHaveBeenCalledWith({ model: 'target', effort: 'high' })
+})
+
 it('preserves cache identity and reads the bound native outline through the real client', async () => {
     const token = `header.${btoa(JSON.stringify({ ns: 'test', uid: 'reader' }))}.signature`
     const client = new ApiClient(token, { baseUrl: 'https://hub.example' }).withCodexNativeEndpoint('windows')

@@ -22,6 +22,7 @@ function readCachedWindow(key?: string): NativeWindowSnapshot | null {
 export function useNativeThread(api: ApiClient, id: string, enabled = true, cacheKey?: string, preserveHistory = false) {
     const cached = useRef(readCachedWindow(cacheKey))
     const [detail, setDetail] = useState<NativeRecord>({})
+    const settingsRevision = useRef(0)
     const [contextUsage, setContextUsage] = useState<ContextUsage | null>(cached.current?.contextUsage ?? null)
     const [items, setItems] = useState<NativeItemEntry[]>(() => {
         if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
@@ -104,12 +105,15 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     }, [cacheKey, items, cursor, newerCursor, hasNewer, contextUsage])
     const applySettings = useCallback((settings: NativeRecord) => {
         // This is a confirmed daemon response, also used when SSE is reconnecting.
+        settingsRevision.current += 1
         setDetail(current => ({ ...current, threadSettings: settings }))
     }, [])
 
     const refreshDetail = useCallback(async () => {
+        const revision = settingsRevision.current
         const response = await api.getCodexNativeThread(id)
-        if (alive.current) setDetail(current => ({ ...current, ...response }))
+        if (alive.current) setDetail(current => ({ ...current, ...response,
+            ...(revision !== settingsRevision.current ? { threadSettings: current.threadSettings } : {}) }))
     }, [api, id])
 
     const refreshActiveTurn = useCallback(async () => {
@@ -359,6 +363,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             if (event.method === 'hapi/ready') {
                 setConnected(true)
+                settingsRevision.current += 1
                 if (event.params.thread) setDetail(current => ({ ...current, ...event.params }))
                 if (Array.isArray(event.params.requests)) setRequests((event.params.requests as NativeRequest[]).map(request => ({ ...request, receivedAt: Date.now() })))
                 invalidate()
@@ -371,6 +376,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 return
             }
             if (event.method === 'thread/settings/updated') {
+                if (event.params.threadId && event.params.threadId !== id) return
+                settingsRevision.current += 1
                 setDetail(current => ({ ...current, threadSettings: event.params.threadSettings ?? event.params.settings ?? event.params }))
                 return
             }

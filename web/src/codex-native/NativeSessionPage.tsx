@@ -129,6 +129,7 @@ function NativeSessionChat({
         revision.current = { items: thread.items, value: revision.current.value + 1 }
     const detail = record(thread.detail.thread)
     const settings = record(thread.detail.threadSettings ?? thread.detail)
+    const effort = Object.hasOwn(settings, 'effort') ? settings.effort : settings.reasoningEffort
     const activeTurn = record(thread.detail.activeTurn)
     const unavailable = native.available === false
     const liveSession = useMemo<Session>(
@@ -140,8 +141,8 @@ function NativeSessionChat({
                 ['active', 'running'].includes(nativeState(detail.status)),
             model: typeof settings.model === 'string' ? settings.model : session.model,
             modelReasoningEffort:
-                typeof (settings.effort ?? settings.reasoningEffort) === 'string'
-                    ? String(settings.effort ?? settings.reasoningEffort)
+                typeof effort === 'string' || effort === null
+                    ? effort
                     : session.modelReasoningEffort,
             metadata: {
                 ...session.metadata!,
@@ -250,7 +251,7 @@ function NativeSessionChat({
             hasNewerMessages={thread.hasNewer}
             isSyncingTail={thread.loading}
             isLoadingMoreMessages={thread.olderLoading}
-            isSending={sending || commands.pending}
+            isSending={sending}
             sendSettlement={settlement}
             viewMode={viewMode}
             messagesVersion={revision.current.value}

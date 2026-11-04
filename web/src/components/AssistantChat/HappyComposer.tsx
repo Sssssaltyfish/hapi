@@ -308,6 +308,8 @@ export function HappyComposer(props: {
     copilotAgentMode?: CopilotAgentMode
     model?: string | null
     modelReasoningEffort?: string | null
+    resolvedDefaultModelLabel?: string | null
+    resolvedDefaultReasoningEffort?: string | null
     effort?: string | null
     active?: boolean
     allowSendWhenInactive?: boolean
@@ -421,6 +423,8 @@ export function HappyComposer(props: {
         copilotAgentMode: rawCopilotAgentMode,
         model: rawModel,
         modelReasoningEffort: rawModelReasoningEffort,
+        resolvedDefaultModelLabel,
+        resolvedDefaultReasoningEffort,
         effort: rawEffort,
         active = true,
         allowSendWhenInactive = false,
@@ -1736,15 +1740,17 @@ export function HappyComposer(props: {
         }
         if (modelOptions.length === 0) return undefined
         const rawKey = selectedModelBase !== undefined ? selectedModelBase : model
+        if ((!rawKey || rawKey === 'auto' || rawKey === 'default') && resolvedDefaultModelLabel) return resolvedDefaultModelLabel
         const normalizedKey = agentFlavor === 'cursor'
             ? (!rawKey || rawKey === 'auto' || rawKey === 'default' || rawKey === 'default[]' ? 'auto' : rawKey)
             : (!rawKey || rawKey === 'auto' || rawKey === 'default' ? null : rawKey)
         const option = modelOptions.find((candidate) => candidate.value === normalizedKey)
         return option?.label ?? rawKey ?? undefined
-    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase])
+    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel])
     const effortValueLabel = useMemo(() => {
         if (agentFlavor === 'codex' && showModelReasoningEffortSettings) {
-            return codexReasoningEffortOptions.find(option => option.value === (modelReasoningEffort || null))?.label
+            return codexReasoningEffortOptions.find(option => option.value === (modelReasoningEffort || resolvedDefaultReasoningEffort || null))?.label
+                ?? modelReasoningEffort ?? resolvedDefaultReasoningEffort
                 ?? t('misc.reasoningEffort')
         }
         if (isNarrowViewport) return undefined
@@ -1762,7 +1768,7 @@ export function HappyComposer(props: {
         }
         const option = claudeEffortOptions.find((candidate) => candidate.value === effort)
         return option?.label ?? (effort ? effort : undefined)
-    }, [isNarrowViewport, onEffortChange, agentFlavor, selectedPiModel, effort, claudeEffortOptions, showModelReasoningEffortSettings, codexReasoningEffortOptions, modelReasoningEffort, t])
+    }, [isNarrowViewport, onEffortChange, agentFlavor, selectedPiModel, effort, claudeEffortOptions, showModelReasoningEffortSettings, codexReasoningEffortOptions, modelReasoningEffort, resolvedDefaultReasoningEffort, t])
 
     // Wrapper for DOM onClick consumers: never leak the MouseEvent into the
     // `section` parameter (the gear must always open the full sheet).

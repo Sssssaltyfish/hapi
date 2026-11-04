@@ -48,7 +48,7 @@ type Subscription = {
     denials?: CodexGuardianDenials
 }
 function settingsSnapshot(value: NativeRecord): NativeRecord {
-    return { ...value, effort: value.effort ?? value.reasoningEffort ?? null }
+    return { ...value, effort: Object.hasOwn(value, 'effort') ? value.effort : value.reasoningEffort ?? null }
 }
 function settingsMatch(current: NativeRecord, patch: NativeRecord): boolean {
     return Object.entries(patch).every(([key, value]) => key === 'collaborationMode'
@@ -217,7 +217,7 @@ export class NativeService {
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
                     const settings = record(params.threadSettings)
                     entry.snapshot = { ...entry.snapshot, ...settings }
-                    Object.assign(response, settings, { reasoningEffort: settings.effort })
+                    Object.assign(response, settings)
                 }
                 if (
                     event.method === 'hapi/disconnected' &&
@@ -495,6 +495,9 @@ export class NativeService {
                 method: 'hapi/ready',
                 params: {
                     ...record(state),
+                    // The attach response is retained for the subscription lifetime.
+                    // Other clients may have changed settings since it resolved.
+                    threadSettings: entry.snapshot ?? settingsSnapshot(record(state)),
                     requests: [...entry.client.requests.values()].filter(
                         (r) => record(r.params).threadId === threadId
                     ),
@@ -591,7 +594,28 @@ export class NativeService {
                     : client.request('thread/resume', { threadId, excludeTurns: true }))
             )
             const current = settingsSnapshot(resumed)
-            const patch = typeof update === 'function' ? update(current) : update
+            const patch = { ...(typeof update === 'function' ? update(current) : update) }
+            if (typeof patch.model === 'string' && patch.model !== current.model &&
+                !Object.hasOwn(patch, 'effort') && typeof current.effort === 'string') {
+                // A browser may have an old effort from another device. Migrate
+                // only an incompatible current daemon effort, never its UI copy.
+                let cursor: string | undefined
+                do {
+                    const page = record(await client.request('model/list', { includeHidden: true, ...(cursor ? { cursor } : {}) }))
+                    const model = (Array.isArray(page.data) ? page.data : []).map(record)
+                        .find(model => model.id === patch.model || model.model === patch.model)
+                    if (model) {
+                        const efforts = Array.isArray(model.supportedReasoningEfforts)
+                            ? model.supportedReasoningEfforts.map(value => record(value).reasoningEffort) : []
+                        if (efforts.length && !efforts.includes(current.effort) && typeof model.defaultReasoningEffort === 'string')
+                            patch.effort = model.defaultReasoningEffort
+                        break
+                    }
+                    const next = text(page.nextCursor)
+                    if (next === cursor) break
+                    cursor = next
+                } while (cursor)
+            }
             if (settingsMatch(current, patch))
                 return { applied: current }
             const applied = new Promise<NativeRecord>((resolve, reject) => {
