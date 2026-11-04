@@ -14,6 +14,8 @@ class FakeConnection {
     latestStatus = 'completed'
     runtimeStatus = 'idle'
     itemsUnavailable = false
+    queueEmpty = false
+    startFailure?: string
     async request(method: string, params: unknown): Promise<unknown> {
         this.calls.push({ method, params })
         if (method === 'thread/start')
@@ -50,6 +52,9 @@ class FakeConnection {
             return {}
         }
         if (method === 'thread/queue/add') return { queuedSubmission: { id: 'queued' } }
+        if (method === 'thread/queue/list')
+            return { data: this.queueEmpty ? [] : [{ id: 'queued' }] }
+        if (method === 'thread/queue/start' && this.startFailure) throw new Error(this.startFailure)
         if (method === 'thread/turns/list')
             return { data: [{ id: 'turn', status: this.latestStatus, items: [] }] }
         if (method === 'thread/read')
@@ -109,6 +114,56 @@ describe('native bridge boundaries', () => {
             const result = await service.catalog({ limit: 20, deadline: Date.now() + 20 })
             expect((result.data as Array<{ id: string }>).map((thread) => thread.id)).toEqual(['known'])
             expect(calls.filter((method) => method === 'command/exec')).toHaveLength(unresolved ? 2 : 0)
+        }
+    })
+    test('interrupted queue reconciliation handles consumed input without hiding real start failures or replaying acceptance', async () => {
+        for (const scenario of [
+            { runtime: 'active', empty: false, failure: undefined, starts: 0, error: undefined },
+            { runtime: 'idle', empty: true, failure: undefined, starts: 0, error: undefined },
+            {
+                runtime: 'idle',
+                empty: false,
+                failure: 'queue is empty',
+                starts: 1,
+                error: undefined,
+            },
+            {
+                runtime: 'idle',
+                empty: false,
+                failure: 'Native execution denied',
+                starts: 1,
+                error: 'Native execution denied',
+            },
+        ]) {
+            const clients: FakeConnection[] = []
+            const service = new NativeService(
+                { endpoint: 'unix:///existing', namespace: 'owner' },
+                () => {
+                    const client = new FakeConnection()
+                    client.latestStatus = 'interrupted'
+                    client.runtimeStatus = scenario.runtime
+                    client.queueEmpty = scenario.empty
+                    client.startFailure = scenario.failure
+                    clients.push(client)
+                    return client as unknown as NativeConnection
+                }
+            )
+            const response = await routes(service, 'owner').request(
+                '/api/codex-native/threads/thread/messages',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: 'hello', clientId: 'stable' }),
+                }
+            )
+            const body = (await response.json()) as { accepted: boolean; startError?: string }
+            expect(body.accepted).toBe(true)
+            expect(body.startError).toBe(scenario.error)
+            const calls = clients.flatMap((client) => client.calls)
+            expect(calls.filter((call) => call.method === 'thread/queue/add')).toHaveLength(1)
+            expect(calls.filter((call) => call.method === 'thread/queue/start')).toHaveLength(
+                scenario.starts
+            )
         }
     })
     test('directory deadline closes its initializing connection without releasing an active thread subscription', async () => {

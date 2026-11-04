@@ -1,0 +1,76 @@
+import { record } from './presentation'
+import type { NativeRecord } from './types'
+
+const text = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.trim() ? value : undefined
+const strings = (value: unknown): string[] =>
+    Array.isArray(value) ? value.filter((part): part is string => Boolean(text(part))) : []
+
+/** Desktop activity completion timestamps describe the record, not the child run. */
+export function nativeSubagentEvent(item: NativeRecord, previousStatus?: string, startTimeKnown = false): NativeRecord | null {
+    const agentId = text(item.agentThreadId)
+    if (!agentId) return null
+    const kind = text(item.kind) ?? 'interacted'
+    const status = kind === 'started' ? 'running'
+        : kind === 'completed' ? 'completed'
+          : kind === 'failed' || kind === 'errored' ? 'failed'
+            : previousStatus ?? 'running'
+    const summary = text(item.agentPath) ?? agentId
+    return {
+        type: kind === 'started' ? 'agent-run-start' : 'agent-run-update',
+        cardId: `codex-agent:${agentId}`,
+        agentId,
+        status,
+        statusText: status === 'running' ? 'Running' : status === 'completed' ? 'Completed' : 'Failed',
+        summary,
+        activityKind: kind,
+        input: {
+            agentId,
+            summary,
+            startTimeKnown: kind === 'started' || startTimeKnown,
+            ...(text(item.agentPath) ? { agentPath: item.agentPath } : {}),
+            ...(text(item.model) ? { model: item.model } : {}),
+            ...(text(item.reasoningEffort) ? { reasoning_effort: item.reasoningEffort } : {}),
+        },
+    }
+}
+
+/** Match the existing runner's collaboration tool inputs/results for ToolCard. */
+export function nativeCollaborationTool(item: NativeRecord) {
+    const names: Record<string, string> = {
+        spawnagent: 'spawn_agent', spawn: 'spawn_agent',
+        sendinput: 'send_input', sendmessage: 'send_message',
+        resumeagent: 'resume_agent', resume: 'resume_agent',
+        followuptask: 'followup_task', assigntask: 'followup_task',
+        waitagent: 'wait_agent', wait: 'wait_agent',
+        closeagent: 'close_agent', close: 'close_agent',
+        interruptagent: 'interrupt_agent', interrupt: 'interrupt_agent',
+        listagents: 'list_agents',
+    }
+    const name = names[String(item.tool ?? '').toLowerCase().replace(/[\s_-]/g, '')]
+    if (!name) return null
+    const targets = strings(item.receiverThreadIds ?? item.receiver_thread_ids ?? item.targets)
+    const states = record(item.agentsStates ?? item.agents_states)
+    const input: NativeRecord = {
+        ...(text(item.prompt ?? item.message) ? { message: item.prompt ?? item.message } : {}),
+        ...(text(item.agentType ?? item.agent_type) ? { agent_type: item.agentType ?? item.agent_type } : {}),
+        ...(text(item.model) ? { model: item.model } : {}),
+        ...(text(item.reasoningEffort ?? item.reasoning_effort) ? { reasoning_effort: item.reasoningEffort ?? item.reasoning_effort } : {}),
+        ...(typeof (item.forkContext ?? item.fork_context) === 'boolean' ? { fork_context: item.forkContext ?? item.fork_context } : {}),
+        ...(text(item.senderThreadId ?? item.sender_thread_id) ? { sender_thread_id: item.senderThreadId ?? item.sender_thread_id } : {}),
+        ...(targets.length ? { targets, target: targets[0] } : {}),
+    }
+    let output: NativeRecord = { status: item.status, agentsStates: states }
+    if (name === 'spawn_agent') output = {
+        ...output,
+        ...(targets[0] ? { agent_id: targets[0] } : {}),
+        ...(text(item.agentPath ?? item.nickname) ? { nickname: item.agentPath ?? item.nickname } : {}),
+    }
+    if (name === 'wait_agent') output = { status: states, timed_out: item.status === 'timedOut' || item.status === 'timed_out' }
+    if (name === 'close_agent' || name === 'interrupt_agent') output = {
+        previous_status: targets[0] ? states[targets[0]] : Object.values(states)[0],
+        ...(targets[0] ? { agent_id: targets[0] } : {}),
+    }
+    if (item.error) output = { ...output, error: item.error, message: item.error }
+    return { name, input, output }
+}
