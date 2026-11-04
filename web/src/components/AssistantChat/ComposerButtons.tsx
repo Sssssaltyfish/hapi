@@ -831,7 +831,7 @@ export function ComposerButtons(props: {
                         type="button"
                         aria-label={props.modelValueLabel}
                         title={props.modelValueLabel}
-                        className={`flex h-8 max-w-24 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
+                        className={`flex h-8 shrink-0 max-w-[min(16rem,60vw)] items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
                             props.modelValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'
@@ -852,7 +852,7 @@ export function ComposerButtons(props: {
                         type="button"
                         aria-label={props.effortValueTitle ?? props.effortValueLabel}
                         title={props.effortValueTitle ?? props.effortValueLabel}
-                        className={`flex h-8 max-w-20 items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-28 sm:px-3 ${
+                        className={`flex h-8 shrink-0 max-w-[min(12rem,45vw)] items-center gap-1 rounded-full px-2 text-xs font-medium transition-colors sm:max-w-none sm:px-3 ${
                             props.effortValueOpen
                                 ? 'bg-[var(--app-secondary-bg)] text-[var(--app-link)]'
                                 : 'text-[var(--app-fg)]/60 hover:bg-[var(--app-bg)] hover:text-[var(--app-fg)]'
