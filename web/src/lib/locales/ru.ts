@@ -1129,6 +1129,8 @@ export default {
   'settings.chat.title': 'Чат',
   'settings.chat.description': 'Ввод сообщений, карточки инструментов и цвета диалога.',
   'settings.chat.input': 'Ввод',
+  'settings.chat.longPaste.enabled': 'Вставлять длинный текст как файл',
+  'settings.chat.longPaste.threshold': 'Минимум символов',
   'settings.chat.tools': 'Карточки инструментов',
   'settings.chat.colors': 'Цвета диалога',
   'settings.chat.enterBehavior': 'Клавиша Enter',

@@ -266,7 +266,7 @@ describe('RichComposerInput paste', () => {
         expect(onPaste).toHaveBeenCalledTimes(1)
     })
 
-    it('inserts plain text without calling onPaste when no files are pasted', () => {
+    it('inserts plain text when the paste handler leaves it unhandled', () => {
         const onPaste = vi.fn()
         const onValueChange = vi.fn()
         render(
@@ -282,8 +282,18 @@ describe('RichComposerInput paste', () => {
             clipboardData: { files: [], getData: () => 'pasted text' },
         })
 
-        expect(onPaste).not.toHaveBeenCalled()
+        expect(onPaste).toHaveBeenCalledOnce()
         expect(onValueChange).toHaveBeenLastCalledWith('pasted text')
+    })
+
+    it('leaves intercepted text paste to the attachment handler', () => {
+        const onValueChange = vi.fn()
+        render(<RichComposerInput value="draft" onValueChange={onValueChange} onMirrorChange={() => {}}
+            onPaste={event => event.preventDefault()} />)
+        fireEvent.paste(screen.getByTestId('rich-composer-input'), {
+            clipboardData: { files: [], getData: () => 'long pasted text' },
+        })
+        expect(onValueChange).not.toHaveBeenCalled()
     })
 })
 

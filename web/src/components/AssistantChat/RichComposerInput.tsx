@@ -988,8 +988,9 @@ export const RichComposerInput = forwardRef<RichComposerInputHandle, Props>(func
 
     const handlePaste = useCallback((e: ReactClipboardEvent<HTMLDivElement>) => {
         const files = Array.from(e.clipboardData?.files ?? [])
+        onPaste?.(e)
+        if (e.defaultPrevented) return
         if (files.length > 0) {
-            onPaste?.(e)
             return
         }
         // Contenteditable default paste inserts HTML; nested blocks collapse in

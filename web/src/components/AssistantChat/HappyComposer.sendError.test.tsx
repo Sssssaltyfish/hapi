@@ -37,6 +37,7 @@ const runtime = vi.hoisted(() => ({
     sentTexts: [] as string[],
     modelChanges: [] as Array<{ provider: string; modelId: string } | string | null>,
     suggestions: [] as Suggestion[],
+    attachmentAdd: vi.fn<(file: File) => Promise<void>>().mockResolvedValue(undefined),
 }))
 
 vi.mock('@assistant-ui/react', async () => {
@@ -66,9 +67,9 @@ vi.mock('@assistant-ui/react', async () => {
                         composer: { text: '', attachments: [] },
                     }))
                 },
-                addAttachment: async () => {},
+                addAttachment: (file: File) => runtime.attachmentAdd(file),
             }),
-            thread: () => ({ cancelRun: () => {} }),
+            thread: () => ({ cancelRun: () => {}, getState: () => ({ capabilities: { attachments: true } }) }),
         }},
         useAuiState: (selector: (state: typeof runtime.snapshot) => unknown) => selector(runtime.snapshot),
         ComposerPrimitive: {
@@ -173,6 +174,7 @@ function ComposerHarness(props: {
     initialText: string
     initialSchedule?: PendingSchedule | null
     piRunning?: boolean
+    attachmentsDisabled?: boolean
     onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>
     controls: { current: HarnessControls | null }
 }) {
@@ -264,6 +266,7 @@ function ComposerHarness(props: {
                 onModelChange={(model) => runtime.modelChanges.push(model)}
                 pendingSendIntentRef={pendingSendIntentRef}
                 onSubmitCommand={props.onSubmitCommand}
+                attachmentsDisabled={props.attachmentsDisabled}
             />
         </I18nProvider>
     )
@@ -274,12 +277,13 @@ function renderComposer(
     initialSchedule: PendingSchedule | null = { type: 'absolute', ms: 1234 },
     piRunning = false,
     onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>,
+    attachmentsDisabled = false,
 ) {
     const controls: { current: HarnessControls | null } = { current: null }
     runtime.sentIntents = []
     runtime.sentTexts = []
     runtime.modelChanges = []
-    render(<ComposerHarness initialText={initialText} initialSchedule={initialSchedule} piRunning={piRunning} onSubmitCommand={onSubmitCommand} controls={controls} />)
+    render(<ComposerHarness initialText={initialText} initialSchedule={initialSchedule} piRunning={piRunning} onSubmitCommand={onSubmitCommand} attachmentsDisabled={attachmentsDisabled} controls={controls} />)
     return controls
 }
 
@@ -656,6 +660,56 @@ describe('HappyComposer send-error atomic restore', () => {
 
         await waitFor(() => expect(input()).toHaveValue('immediate'))
         expect(screen.getByTestId('pending-schedule')).toHaveTextContent('null')
+    })
+})
+
+describe('HappyComposer long text paste', () => {
+    afterEach(() => {
+        cleanup()
+        localStorage.removeItem('hapi-long-paste-attachment')
+        runtime.attachmentAdd.mockReset().mockResolvedValue(undefined)
+    })
+
+    it.each([{ expanded: false, threshold: 100 }, { expanded: true, threshold: 3 }])('counts Unicode characters at threshold $threshold with expanded=$expanded', async ({ expanded, threshold }) => {
+        localStorage.setItem('hapi-long-paste-attachment', JSON.stringify({ enabled: true, threshold }))
+        renderComposer('draft', null)
+        if (expanded) fireEvent.click(screen.getByRole('button', { name: 'expand' }))
+        fireEvent.paste(input(), { clipboardData: { files: [], getData: () => '😀'.repeat(threshold - 1) } })
+        expect(runtime.attachmentAdd).not.toHaveBeenCalled()
+        const text = '😀'.repeat(threshold)
+        fireEvent.paste(input(), { clipboardData: { files: [], getData: () => text } })
+        await waitFor(() => expect(runtime.attachmentAdd).toHaveBeenCalledOnce())
+        const file = runtime.attachmentAdd.mock.calls[0]![0]
+        expect(file.name).toMatch(/^pasted-text-\d+\.txt$/)
+        expect(file.size).toBe(new TextEncoder().encode(text).length)
+        expect(input()).toHaveValue('draft')
+    })
+
+    it('preserves pasted text and newer edits when attachment creation rejects without a chip', async () => {
+        localStorage.setItem('hapi-long-paste-attachment', JSON.stringify({ enabled: true, threshold: 100 }))
+        let reject!: (error: Error) => void
+        runtime.attachmentAdd.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail }))
+        renderComposer('original', null)
+        const pasted = 'text'.repeat(25)
+        fireEvent.paste(input(), { clipboardData: { files: [], getData: () => pasted } })
+        fireEvent.change(input(), { target: { value: 'new draft' } })
+        await act(async () => reject(new Error('unsupported upload')))
+        expect(input()).toHaveValue(`new draft\n${pasted}`)
+    })
+
+    it('leaves long text inline when disabled or scheduled', () => {
+        renderComposer('', null)
+        expect(fireEvent.paste(input(), { clipboardData: { files: [], getData: () => 'x'.repeat(2001) } })).toBe(true)
+        expect(runtime.attachmentAdd).not.toHaveBeenCalled()
+        cleanup()
+        localStorage.setItem('hapi-long-paste-attachment', JSON.stringify({ enabled: true, threshold: 100 }))
+        renderComposer('', { type: 'absolute', ms: 1234 })
+        expect(fireEvent.paste(input(), { clipboardData: { files: [], getData: () => 'x'.repeat(2001) } })).toBe(true)
+        expect(runtime.attachmentAdd).not.toHaveBeenCalled()
+        cleanup()
+        renderComposer('', null, false, undefined, true)
+        expect(fireEvent.paste(input(), { clipboardData: { files: [], getData: () => 'x'.repeat(2001) } })).toBe(true)
+        expect(runtime.attachmentAdd).not.toHaveBeenCalled()
     })
 })
 

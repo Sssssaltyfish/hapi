@@ -24,7 +24,7 @@ import {
 } from 'react'
 import { useNarrowViewport } from '@/hooks/useNarrowViewport'
 import { shouldInvokeComposerDictateShortcut } from '@/lib/composerDictateShortcut'
-import { isRichComposerMentionsEnabled, resolveComposerPlaceholderKey } from '@/lib/composerSegments'
+import { insertPlainTextInComposerSegments, isRichComposerMentionsEnabled, parseComposerSegments, resolveComposerPlaceholderKey, serializeComposerSegments } from '@/lib/composerSegments'
 import type { SessionMentionResolveResult } from '@/components/AssistantChat/RichComposerInput'
 import {
     RichComposerInput,
@@ -74,6 +74,7 @@ import { moveAttachmentId, orderItemsById, reconcileAttachmentOrder, type Attach
 import { useResponseAnnotationDraft } from '@/hooks/useResponseAnnotationDraft'
 import { ResponseAnnotationCards } from './ResponseAnnotationCards'
 import { splitResponseAnnotations } from '@/lib/responseAnnotations'
+import { useLongPasteAttachment } from '@/hooks/useLongPasteAttachment'
 
 export interface TextInputState {
     text: string
@@ -486,6 +487,7 @@ export function HappyComposer(props: {
     const displayedServiceTier = getDisplayedCodexServiceTier(serviceTier)
 
     const api = useAui()
+    const longPaste = useLongPasteAttachment()
     const { composerEnterBehavior } = useComposerEnterBehavior()
     const composerText = useAuiState((s) => s.composer.text)
     const writeComposerText = useCallback((text: string) => api.composer().setText(text), [api])
@@ -1483,7 +1485,44 @@ export function HappyComposer(props: {
     const handlePaste = useCallback(async (e: ReactClipboardEvent<HTMLTextAreaElement | HTMLDivElement>) => {
         const files = Array.from(e.clipboardData?.files || [])
 
-        if (files.length === 0) return
+        if (files.length === 0) {
+            const text = e.clipboardData?.getData('text/plain') ?? ''
+            // Clipboard files keep their existing flow; unsupported or
+            // disabled attachment routes retain ordinary text paste.
+            if (!longPaste.enabled || props.attachmentsDisabled || pendingSchedule != null
+                || !api.thread().getState().capabilities.attachments
+                || Array.from(text).length < longPaste.threshold) return
+            e.preventDefault()
+            const file = new File([text], `pasted-text-${Date.now()}.txt`, { type: 'text/plain' })
+            const scope = commandScopeRef.current
+            const original = annotationDraft.getText()
+            const originalBody = splitResponseAnnotations(original).body
+            const target = e.target
+            const selection = target instanceof HTMLTextAreaElement
+                ? { start: target.selectionStart, end: target.selectionEnd }
+                : inputState.selection
+            let restored = false
+            const restore = () => {
+                if (restored || commandScopeRef.current !== scope) return
+                restored = true
+                const current = annotationDraft.getText()
+                const body = splitResponseAnnotations(current).body
+                const originalWithPaste = target instanceof HTMLTextAreaElement
+                    ? originalBody.slice(0, selection.start) + text + originalBody.slice(selection.end)
+                    : serializeComposerSegments(insertPlainTextInComposerSegments(parseComposerSegments(originalBody), selection, text, [], false).segments)
+                annotationDraft.setBody(current === original
+                    ? originalWithPaste
+                    : body + (body ? '\n' : '') + text)
+                handleUserEdit()
+            }
+            try { await api.composer().addAttachment(file) }
+            catch {
+                // Adapter failures normally retain the original File in an
+                // error chip. Restore inline only when no recoverable chip exists.
+                if (!attachmentDraftsRef.current.some(attachment => attachment.file === file)) restore()
+            }
+            return
+        }
 
         // The backend rejects scheduledAt + attachments (per-CLI upload dir is
         // torn down before a mature emit could read the files). The button-based
@@ -1504,7 +1543,7 @@ export function HappyComposer(props: {
         } catch (error) {
             console.error('Error adding pasted file:', error)
         }
-    }, [api, pendingSchedule])
+    }, [api, pendingSchedule, longPaste.enabled, longPaste.threshold, props.attachmentsDisabled, annotationDraft.getText, annotationDraft.setBody, inputState.selection, handleUserEdit])
 
     // Opens (or closes) the settings sheet. `section` anchors the sheet to a
     // single section ('model' / 'effort'); the gear passes nothing = full sheet.

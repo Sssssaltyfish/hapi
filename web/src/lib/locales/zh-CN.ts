@@ -1147,6 +1147,8 @@ export default {
   'settings.chat.title': '聊天',
   'settings.chat.description': '消息输入、工具卡片和对话颜色。',
   'settings.chat.input': '输入',
+  'settings.chat.longPaste.enabled': '将长文本粘贴为文件',
+  'settings.chat.longPaste.threshold': '最少字符数',
   'settings.chat.tools': '工具卡片',
   'settings.chat.colors': '对话颜色',
   'settings.chat.enterBehavior': '回车键行为',

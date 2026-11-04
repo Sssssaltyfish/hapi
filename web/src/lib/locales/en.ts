@@ -1149,6 +1149,8 @@ export default {
   'settings.chat.title': 'Chat',
   'settings.chat.description': 'Message input, tool cards, and conversation colors.',
   'settings.chat.input': 'Input',
+  'settings.chat.longPaste.enabled': 'Paste long text as a file',
+  'settings.chat.longPaste.threshold': 'Minimum characters',
   'settings.chat.tools': 'Tool cards',
   'settings.chat.colors': 'Conversation colors',
   'settings.chat.enterBehavior': 'Enter Key',

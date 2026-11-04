@@ -17,6 +17,8 @@ import { SettingsChoiceGroup, SettingsFieldLabel, SettingsPageContent, SettingsS
 import { ComposerToolbarLayoutControl } from '@/components/settings/ComposerToolbarLayoutControl'
 import { useComposerSendMode } from '@/hooks/useComposerSendMode'
 import { getColorThemePreview, useColorTheme } from '@/hooks/useColorTheme'
+import { useLongPasteAttachment } from '@/hooks/useLongPasteAttachment'
+import { useEffect, useState } from 'react'
 
 function ChatSurfaceColorControl(props: {
     label: string
@@ -57,6 +59,18 @@ export default function SettingsChatPage() {
     const { t } = useTranslation()
     const { composerEnterBehavior, setComposerEnterBehavior } = useComposerEnterBehavior()
     const { composerSendMode, setComposerSendMode } = useComposerSendMode()
+    const longPaste = useLongPasteAttachment()
+    const [pasteThresholdDraft, setPasteThresholdDraft] = useState(String(longPaste.threshold))
+    useEffect(() => setPasteThresholdDraft(String(longPaste.threshold)), [longPaste.threshold])
+    const commitPasteThreshold = () => {
+        const threshold = Number(pasteThresholdDraft)
+        if (pasteThresholdDraft.trim() && Number.isSafeInteger(threshold) && threshold > 0) {
+            longPaste.setThreshold(threshold)
+            setPasteThresholdDraft(String(threshold))
+        } else {
+            setPasteThresholdDraft(String(longPaste.threshold))
+        }
+    }
     const { terminalToolDisplayMode, setTerminalToolDisplayMode } = useTerminalToolDisplayMode()
     const { toolGroupsCollapsed, setToolGroupsCollapsed } = useToolGroupCollapse()
     const { reasoningCollapsed, setReasoningCollapsed } = useReasoningCollapse()
@@ -76,6 +90,13 @@ export default function SettingsChatPage() {
                     options={[{ value: 'queue', label: t('settings.chat.sendMode.queue') }, { value: 'steer', label: t('settings.chat.sendMode.steer'), description: t('settings.chat.sendMode.steer.fallback') }]}
                     onChange={setComposerSendMode} />
                 <p className="px-3 pb-3 text-xs text-[var(--app-hint)]">{t('settings.chat.sendMode.description')}</p>
+                <SettingsSwitch label={t('settings.chat.longPaste.enabled')} checked={longPaste.enabled} onChange={longPaste.setEnabled} />
+                {longPaste.enabled && <label className="flex items-center justify-between gap-3 px-3 pb-3 text-sm">
+                    {t('settings.chat.longPaste.threshold')}
+                    <input type="number" min={1} step={1} value={pasteThresholdDraft}
+                        onChange={event => setPasteThresholdDraft(event.target.value)} onBlur={commitPasteThreshold}
+                        className="w-28 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] px-2 py-1.5" />
+                </label>}
             </SettingsSection>
             <SettingsSection title={t('settings.chat.tools')}>
                 <SettingsChoiceGroup
