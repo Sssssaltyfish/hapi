@@ -1,4 +1,6 @@
 import type { NativeItemEntry, NativeRecord, NativeThread } from './types'
+import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
+import { appendBlockquote } from '@/lib/responseAnnotations'
 
 export function record(value: unknown): NativeRecord {
     return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -49,11 +51,7 @@ export function mergeNativeItems(
 }
 
 export function quoteNativeSelection(draft: string, selection: string): string {
-    return `${draft.trimEnd()}${draft.trim() ? '\n\n' : ''}${selection
-        .trim()
-        .split(/\r?\n/)
-        .map((line) => `> ${line}`)
-        .join('\n')}\n\n`
+    return appendBlockquote(draft, selection)
 }
 
 export function nativeToolSummary(item: NativeRecord): string {
@@ -65,30 +63,14 @@ export function nativeToolSummary(item: NativeRecord): string {
 
 export function nativeQuestionReplies(entries: NativeItemEntry[]): Map<string, string> {
     const answers = new Map<string, string>()
-    const start = '<send_user_message_question_reply>'
-    const end = '</send_user_message_question_reply>'
     for (const { item } of entries) {
         if (
             item.type !== 'userMessage' &&
             !(item.type === 'steeringUserMessage' && item.status === 'accepted')
         )
             continue
-        const text = nativeText(item.content ?? item.input).trim()
-        if (!text.startsWith(start) || !text.endsWith(end)) continue
-        try {
-            const parsed: unknown = JSON.parse(text.slice(start.length, -end.length))
-            for (const value of Array.isArray(parsed) ? parsed : [parsed]) {
-                const reply = record(value)
-                if (
-                    typeof reply.questionItemId === 'string' &&
-                    typeof reply.question === 'string' &&
-                    typeof reply.answer === 'string'
-                )
-                    answers.set(reply.questionItemId, reply.answer)
-            }
-        } catch {
-            /* Ordinary user text that resembles a wrapper remains ordinary text. */
-        }
+        for (const reply of parseNativeQuestionReply(nativeText(item.content ?? item.input)) ?? [])
+            answers.set(reply.questionItemId, reply.answer)
     }
     return answers
 }

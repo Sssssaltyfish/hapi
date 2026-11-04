@@ -17,6 +17,7 @@ import {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState
@@ -71,6 +72,8 @@ import { useDictation } from '@/hooks/useDictation'
 import type { ComposerSendIntent } from '@/lib/messageDelivery'
 import type { MessageDeliveryMode } from '@hapi/protocol'
 import { moveAttachmentId, orderItemsById, reconcileAttachmentOrder, type AttachmentDropPosition } from '@/lib/attachmentOrder'
+import { useResponseAnnotationDraft } from '@/hooks/useResponseAnnotationDraft'
+import { ResponseAnnotationCards } from './ResponseAnnotationCards'
 
 export interface TextInputState {
     text: string
@@ -145,12 +148,14 @@ export function useRichComposerBridge(
     sendError: ComposerSendError | null,
     onClearSendError?: () => void,
     onUserEdit?: () => void,
+    writeBody?: (text: string) => void,
 ) {
     const onValueChange = useCallback((text: string) => {
         flushTapSync(() => {
-            api.composer().setText(text)
+            if (writeBody) writeBody(text)
+            else api.composer().setText(text)
         })
-    }, [api])
+    }, [api, writeBody])
 
     const onMirrorChange = useCallback((state: TextInputState) => {
         setInputState(state)
@@ -480,6 +485,9 @@ export function HappyComposer(props: {
     const api = useAui()
     const { composerEnterBehavior } = useComposerEnterBehavior()
     const composerText = useAuiState((s) => s.composer.text)
+    const writeComposerText = useCallback((text: string) => api.composer().setText(text), [api])
+    const annotationDraft = useResponseAnnotationDraft(composerText, writeComposerText)
+    const composerBody = annotationDraft.body
     const attachments = useAuiState((s) => s.composer.attachments)
     const localAttachmentOrderRef = useRef<string[]>([])
     const attachmentOrderRef = externalAttachmentOrderRef ?? localAttachmentOrderRef
@@ -500,10 +508,10 @@ export function HappyComposer(props: {
     const orderedAttachments = orderItemsById(attachments, orderedAttachmentIds)
     const threadIsRunning = useAuiState((s) => s.thread.isRunning)
     const threadIsDisabled = useAuiState((s) => s.thread.isDisabled)
-    const composerTextRef = useRef(composerText)
-    composerTextRef.current = composerText
+    const composerTextRef = useRef(composerBody)
+    composerTextRef.current = composerBody
     const getCurrentComposerText = useCallback(() => composerTextRef.current, [])
-    const setComposerText = useCallback((text: string) => api.composer().setText(text), [api])
+    const setComposerText = annotationDraft.setBody
     const voiceInput = useVoiceInputPreferences(props.voiceTranscriptionApi ?? null)
     const dictationConfig = useMemo(() => ({
         api: props.voiceTranscriptionApi ?? null,
@@ -661,7 +669,7 @@ export function HappyComposer(props: {
         onValueChange: handleRichValueChange,
         onMirrorChange: handleRichMirrorChange,
         onEdit: handleRichEdit,
-    } = useRichComposerBridge(api, setInputState, sendError, onClearSendError, recordUserEdit)
+    } = useRichComposerBridge(api, setInputState, sendError, onClearSendError, recordUserEdit, setComposerText)
 
     const attachmentDrafts = orderedAttachments.flatMap((attachment) => {
         if (!attachment.file) return []
@@ -851,13 +859,28 @@ export function HappyComposer(props: {
             return
         }
         setInputState((prev) => {
-            if (prev.text === composerText) return prev
+            if (prev.text === composerBody) return prev
             // When syncing from composerText, update selection to end of text
             // This ensures activeWord detection works correctly
-            const newPos = composerText.length
-            return { text: composerText, selection: { start: newPos, end: newPos } }
+            const newPos = composerBody.length
+            return { text: composerBody, selection: { start: newPos, end: newPos } }
         })
-    }, [composerText, richMentionsEnabled])
+    }, [composerBody, richMentionsEnabled])
+
+    useLayoutEffect(() => {
+        if (richMentionsEnabled || annotationDraft.annotations.length === 0) return
+        const input = textareaRef.current
+        if (!input) return
+        if (isExpanded) { input.style.height = ''; return }
+        const resize = () => {
+            input.style.height = 'auto'
+            const lineHeight = Number.parseFloat(window.getComputedStyle(input).lineHeight) || 20
+            input.style.height = `${Math.max(lineHeight, Math.min(input.scrollHeight, lineHeight * 5))}px`
+        }
+        resize()
+        window.addEventListener('resize', resize)
+        return () => window.removeEventListener('resize', resize)
+    }, [composerBody, annotationDraft.annotations.length, richMentionsEnabled, isExpanded])
 
     // Track one-time "continue" hint after switching from local to remote.
     useEffect(() => {
@@ -971,7 +994,7 @@ export function HappyComposer(props: {
             true
         )
 
-        api.composer().setText(result.text)
+        setComposerText(result.text)
         setInputState({
             text: result.text,
             selection: { start: result.cursorPosition, end: result.cursorPosition }
@@ -989,7 +1012,7 @@ export function HappyComposer(props: {
         }, 0)
 
         haptic('light')
-    }, [api, suggestions, inputState, autocompletePrefixes, haptic, richMentionsEnabled, handleUserEdit])
+    }, [setComposerText, suggestions, inputState, autocompletePrefixes, haptic, richMentionsEnabled, handleUserEdit])
 
     const abortDisabled = controlsDisabled || isAborting || !threadIsRunning
     const switchDisabled = controlsDisabled || isSwitching || !controlledByUser
@@ -2296,6 +2319,17 @@ export function HappyComposer(props: {
                         <div className={`flex min-w-0 flex-1 flex-col ${
                             isExpanded ? 'min-h-0' : ''
                         }`}>
+                            {annotationDraft.annotations.length > 0 ? <div className="px-4 pt-3">
+                                <ResponseAnnotationCards annotations={annotationDraft.annotations}
+                                    onAnnotationChange={controlsDisabled ? undefined : (index, annotation) => {
+                                        handleUserEdit()
+                                        annotationDraft.setAnnotation(index, annotation)
+                                    }}
+                                    onRemove={controlsDisabled ? undefined : (index) => {
+                                        handleUserEdit()
+                                        annotationDraft.remove(index)
+                                    }} />
+                            </div> : null}
                             {attachments.length > 0 ? (
                                 <div className={`flex flex-wrap gap-2 px-4 pt-3 ${
                                     isExpanded ? 'max-h-[35%] shrink-0 overflow-y-auto' : ''
@@ -2320,7 +2354,7 @@ export function HappyComposer(props: {
                                     >
                                         <RichComposerInput
                                             ref={richInputRef}
-                                            value={composerText}
+                                            value={composerBody}
                                             autoFocus={!controlsDisabled && !isTouch}
                                             placeholder={t(resolveComposerPlaceholderKey({
                                                 richMentionsEnabled: true,
@@ -2346,6 +2380,23 @@ export function HappyComposer(props: {
                                             />
                                         ) : null}
                                     </div>
+                                ) : annotationDraft.annotations.length > 0 ? (
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={composerBody}
+                                        autoFocus={!controlsDisabled && !isTouch}
+                                        rows={isExpanded ? undefined : Math.min(5, Math.max(1, composerBody.split('\n').length))}
+                                        placeholder={t(resolveComposerPlaceholderKey({ richMentionsEnabled: false, showContinueHint }))}
+                                        disabled={controlsDisabled}
+                                        onChange={(event) => {
+                                            setComposerText(event.target.value)
+                                            handleChange(event)
+                                        }}
+                                        onSelect={handleSelect}
+                                        onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
+                                        className={`${isExpanded ? 'h-full min-h-0' : 'max-h-40'} flex-1 resize-none overflow-y-auto bg-transparent text-base leading-snug text-[var(--app-fg)] placeholder-[var(--app-hint)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50`}
+                                    />
                                 ) : isExpanded ? (
                                     <ComposerPrimitive.Input
                                         asChild

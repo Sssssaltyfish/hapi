@@ -20,6 +20,8 @@ The exact question identifier is `JSON.stringify(['request_user_input_async', it
 
 Installed Desktop accepts an array with at least one reply, and also parses a single reply object for compatibility. Its pending question calculation collects question IDs from `agentMessage.questions` and subtracts IDs found in wrapped user messages or `steeringUserMessage` items whose status is `accepted`. A pending or rejected steering item does not resolve the question.
 
+HAPI renders these user-message envelopes as question/answer pairs. Parsing affects presentation and copying only: the original wrapped text remains the native input, history record, and retry payload. Invalid envelopes and quoted examples remain ordinary text.
+
 For an active turn, the supported app-server input primitive is:
 
 ```json
@@ -89,3 +91,13 @@ The installed `fs/writeFile` schema supplies neither append/offset/chunk fields 
 Live reads confirmed `fs/readDirectory`, `fuzzyFileSearch`, `skills/list`, `plugin/list` and `app/list`. Bare `@` lists the workspace directory; typed queries use fuzzy search. Plugin suggestions require installed and enabled entries. App suggestions require accessible entries that are not disabled; unsupported or timed-out discovery contributes no fabricated entries. First-query plugin and app discovery have independent bounded connections and subsequent queries share a short-lived cache.
 
 `UserInput.mention` accepts app/plugin references, while `UserInput.skill` identifies a skill path. In a disposable live model check, sending filesystem paths only as typed mentions caused the model to ask for the missing paths despite correct queue acknowledgement. Filesystem suggestions therefore preserve their quoted text in the message. The parser retains the existing escaped-quote/backslash grammar, and only app/plugin URI references become typed mentions.
+
+## Selected response annotations
+
+Read-only inspection of the same installed Desktop bundles on 2026-10-31 verified its Add to chat response format. The `app-initial-db76c3384587.js` input builder `man` emits a `# Response annotations:` prefix, an instruction paragraph (`Kan`), and a JSON array enclosed in `<response-annotations>` / `</response-annotations>` tags. Its `mGn` schema accepts `{text: string, annotation?: string, source?: {messageId: string, startOffset: number, endOffset: number}}`. Source is optional; nonnegative integer offsets require `endOffset > startOffset`. These records are serialized within ordinary text input, rather than a new app-server input variant. The shared bundle's `Cv` parser recognizes the envelope.
+
+Desktop `Wbs` obtains `source.messageId` from `data-response-annotation-target`. Its conversation projection assigns the original `agentMessage.id` to that attribute. The `jbs` helper computes offsets using `Range.toString().length`, counting rendered DOM text in UTF-16 code units; `Wbs` subtracts the selected Markdown text container's starting offset. These are rendered-text offsets, not indices into raw Markdown or HAPI's synthetic message IDs.
+
+HAPI's native projection preserves the actual source item ID explicitly. Selecting within one uniquely matched native text part attaches that ID and offsets relative to the rendered part; selections crossing parts or ambiguous repeated text omit source. Runner Codex uses the same valid annotation envelope without invented source IDs. Each quote card exposes an editable note in Desktop's `annotation` field. The full serialized text, including notes and source, remains the single composer draft, send, queue, and failure-recovery payload; the input and sent-message bubbles project the annotation cards separately from the editable message body. [Provider input evidence and text fallbacks](./response-quotes.md) document the other integrations without assuming their own desktop UIs lack quoting.
+
+This change was verified against the installed schema and bundle functions, with local rendering/serialization tests. It did not submit model input or claim a live native response-annotation acceptance test.

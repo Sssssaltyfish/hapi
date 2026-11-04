@@ -6,10 +6,40 @@ import {
     assignThreadMessageIdsWithStableWrappers,
     findLatestCompletedBoundaryId,
     getBlockPresentationTimestamp,
-    getResponseGroupTimestamps
+    getResponseGroupTimestamps,
+    getResponseAnnotationTargets,
+    getResponseAnnotations
 } from './assistant-runtime'
 import type { AgentEventBlock, AgentTextBlock, CliOutputBlock, ToolCallBlock, UserTextBlock } from '@/chat/types'
 import { buildVisibleChatBlocks, type ToolGroupBlock, type VisibleChatBlock } from '@/chat/toolGroups'
+import { serializeResponseAnnotations } from './responseAnnotations'
+
+it('attaches quote context to the joined response and clears it for the next ordinary prompt', () => {
+    const annotations = [{ text: 'Quoted passage', annotation: 'Please explain' }]
+    const user = userText('u', { text: serializeResponseAnnotations('Follow-up', annotations) })
+    const tool = toolCall('tool')
+    const reply = agentText('reply')
+    const later = agentText('later')
+    const result = getResponseAnnotations([user, tool, reply, userText('plain', { text: 'Next question' }), later])
+    expect(result.get(tool)).toEqual(annotations)
+    expect(result.get(reply)).toBeUndefined()
+    expect(result.get(later)).toBeUndefined()
+})
+
+it('preserves each verified native text source across joined assistant blocks', () => {
+    const tool = toolCall('first-tool')
+    const a = agentText('a', { text: 'First native response', meta: { nativeCodexResponseItemId: 'opaque-a' } })
+    const b = agentText('b', { text: 'Second native response', meta: { nativeCodexResponseItemId: 'opaque-b' } })
+    const runner = agentText('runner', { text: 'Runner', localId: 'native:lookalike' })
+    const later = agentText('later', { text: 'Later', meta: { nativeCodexResponseItemId: 'opaque-c' } })
+    const targets = getResponseAnnotationTargets([tool, a, b, runner, userText('u'), later])
+    expect(targets.get(tool)).toEqual([
+        { messageId: 'opaque-a', text: a.text },
+        { messageId: 'opaque-b', text: b.text },
+    ])
+    expect(targets.get(a)).toBeUndefined()
+    expect(targets.get(later)).toEqual([{ messageId: 'opaque-c', text: 'Later' }])
+})
 
 // Minimal builders for VisibleChatBlock fixtures. Tests focus on metadata
 // aggregation behavior across response groups; non-metadata fields default to

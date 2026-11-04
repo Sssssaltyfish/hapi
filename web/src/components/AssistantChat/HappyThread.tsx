@@ -21,6 +21,7 @@ import { useTerminalToolDisplayMode } from '@/hooks/useTerminalToolDisplayMode'
 import { useTranslation } from '@/lib/use-translation'
 import { CloseIcon } from '@/components/icons'
 import { ShareTurnDialog } from '@/components/AssistantChat/ShareTurnDialog'
+import { SelectedTextQuote } from '@/components/AssistantChat/SelectedTextQuote'
 import { getSessionModelLabel } from '@/lib/sessionModelLabel'
 import { getSessionTitle } from '@/lib/sessionTitle'
 import { isFastServiceTier } from '@/components/AssistantChat/codexFastMode'
@@ -1805,6 +1806,7 @@ export function HappyThread(props: {
                         </div>
                     </div>
                 </ThreadPrimitive.Viewport>
+                <SelectedTextQuote scope={contentRef} />
                 <NewMessagesIndicator count={props.unseenCount} onClick={scrollToBottom} />
                 {shouldRenderScrollToBottomButton(showScrollToBottom, props.unseenCount) ? (
                     <ScrollToBottomButton onClick={scrollToBottom} />

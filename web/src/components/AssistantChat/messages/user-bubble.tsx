@@ -2,6 +2,9 @@ import type { MessageStatus } from '@/types/api'
 import { LazyRainbowText } from '@/components/LazyRainbowText'
 import { SparklesIcon } from '@/components/ToolCard/icons'
 import { cn } from '@/lib/utils'
+import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
+import { splitResponseAnnotations } from '@/lib/responseAnnotations'
+import { ResponseAnnotationCards } from '@/components/AssistantChat/ResponseAnnotationCards'
 
 const LEADING_DIRECTIVE_REGEX = /^([$\/][a-z0-9][\w-]*)(?=\s|$)/i
 
@@ -59,6 +62,18 @@ export function DirectiveChip(props: { value: string }) {
 }
 
 export function UserBubbleContent(props: { text: string }) {
+    const replies = parseNativeQuestionReply(props.text)
+    if (replies) return <div className="flex min-w-0 flex-col gap-3" data-testid="question-reply-content">
+        {replies.map((reply, index) => <div key={`${reply.questionItemId}:${index}`} className="min-w-0">
+            <div className="mb-1 text-xs text-[var(--app-hint)] whitespace-pre-wrap break-words">{reply.question}</div>
+            <LazyRainbowText text={reply.answer} preserveSingleLineBreaks />
+        </div>)}
+    </div>
+    const annotated = splitResponseAnnotations(props.text)
+    if (annotated.annotations.length > 0) return <div className="flex min-w-0 flex-col gap-2">
+        <ResponseAnnotationCards annotations={annotated.annotations} />
+        {annotated.body.trim() ? <UserBubbleContent text={annotated.body} /> : null}
+    </div>
     const { directives, body } = extractLeadingDirectives(props.text)
     const hasBody = body.trim().length > 0
     const shouldRenderInline = directives.length > 0 && hasBody && !/[\r\n]/.test(body)

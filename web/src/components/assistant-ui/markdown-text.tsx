@@ -35,11 +35,13 @@ import { remarkSessionPathLinks } from '@/lib/remark-session-path-links'
 import { buildSessionReferencePath, parseSessionPathHref } from '@/lib/sessionReference'
 import { UriConfirmDialog } from '@/components/UriConfirmDialog'
 import { DEFAULT_OPEN_EXTERNAL_LINKS_IN_NEW_TAB, useOpenExternalLinksInNewTab } from '@/hooks/useOpenExternalLinksInNewTab'
+import { remarkResponseAnnotations, responseAnnotationIndex } from '@/lib/remark-response-annotations'
+import { ResponseAnnotationReference } from '@/components/AssistantChat/ResponseAnnotationReference'
 
 import type { MarkdownTextPrimitiveProps } from '@assistant-ui/react-markdown'
 
 // ── Plugin array ────────────────────────────────────────────────────────────
-// Order: remarkGfm → remarkRepairTables → remarkLatexBracketMath → remarkNonHttpsAutolink → remarkStripCjkAutolink → remarkMath → remarkDisableIndentedCode → remarkSessionPathLinks → remarkFilePathLinks
+// Order: remarkGfm → remarkRepairTables → remarkLatexBracketMath → remarkResponseAnnotations → remarkNonHttpsAutolink → remarkStripCjkAutolink → remarkMath → remarkDisableIndentedCode → remarkSessionPathLinks → remarkFilePathLinks
 // remarkRepairTables must run immediately after remarkGfm — it reads file.value
 // (raw source) to pad short separator rows before remark-gfm parses the table.
 // remarkNonHttpsAutolink must run BEFORE remarkStripCjkAutolink so that the
@@ -56,6 +58,7 @@ import type { MarkdownTextPrimitiveProps } from '@assistant-ui/react-markdown'
 // shared TAIL so both MARKDOWN_PLUGINS (default) and MARKDOWN_PLUGINS_WITH_BREAKS
 // (user-prompt rendering with hard breaks) inherit the fix.
 const MARKDOWN_PLUGIN_TAIL_HEAD = [
+    remarkResponseAnnotations,
     remarkNonHttpsAutolink,
     remarkStripCjkAutolink,
     [remarkMath, { singleDollarTextMath: false }],
@@ -651,6 +654,11 @@ function A(props: ComponentPropsWithoutRef<'a'>) {
         typeof props.href === 'string' ? decodeFilePathCandidateHref(props.href) : null
     const targetSessionId = typeof props.href === 'string' ? parseSessionPathHref(props.href) : null
     const rel = props.target === '_blank' ? (props.rel ?? 'noreferrer') : props.rel
+    const annotationIndex = responseAnnotationIndex(props.href)
+
+    if (annotationIndex !== null) {
+        return <ResponseAnnotationReference index={annotationIndex}>{props.children}</ResponseAnnotationReference>
+    }
 
     if (filePath) {
         if (!chat) {
