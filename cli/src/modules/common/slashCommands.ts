@@ -4,6 +4,9 @@ import { homedir } from 'os';
 import { parse as parseYaml } from 'yaml';
 import { getBuiltinSlashCommands, mergeSlashCommands } from '@hapi/protocol/slashCommands';
 import type { SlashCommand, SlashCommandsResponse } from '@hapi/protocol/apiTypes';
+import type { ApiSessionClient } from '@/api/apiSession';
+import type { AcpSdkBackend } from '@/agent/backends/acp';
+import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
 
 export type { SlashCommand } from '@hapi/protocol/apiTypes';
 
@@ -294,4 +297,23 @@ export async function listSlashCommands(agent: string, projectDir?: string): Pro
     ]);
 
     return mergeSlashCommands([...builtin, ...user, ...plugin, ...project]);
+}
+
+/** Native provider commands own their names; local project/user commands still win. */
+export async function listProviderSlashCommands(agent: string, projectDir: string,
+    native: readonly { name: string; description?: string }[]): Promise<SlashCommand[]> {
+    const catalog = await listSlashCommands(agent, projectDir);
+    return mergeSlashCommands([
+        ...catalog.filter(command => command.source === 'builtin'),
+        ...native.map(command => ({ name: command.name, description: command.description ?? `Native ${agent} command`, source: 'plugin' as const })),
+        ...catalog.filter(command => command.source !== 'builtin'),
+    ]);
+}
+
+export function registerAcpSlashCommandCatalog(client: ApiSessionClient, backend: AcpSdkBackend,
+    agent: string, projectDir: string, sessionId: string): void {
+    client.setNativeSlashCommandChecker?.(name => backend.hasAvailableCommand(sessionId, name));
+    client.rpcHandlerManager.registerHandler(RPC_METHODS.ListSlashCommands, async () => ({ success: true,
+        commands: await listProviderSlashCommands(agent, projectDir,
+            (backend.getAvailableCommands?.(sessionId) ?? []).map(name => ({ name }))) }));
 }

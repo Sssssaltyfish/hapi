@@ -205,7 +205,7 @@ function NativeSessionChat({
                     pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult} />
                     <NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
                     activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
-                onSubmitCommand: async text => {
+                onSubmitCommand: text => {
                     const command = parseCodexThreadCommand(text)
                     if (!command) {
                         if (/^\s*\/(compact|recap|usage|approve)(?:\s|$)/i.test(text)) {
@@ -228,10 +228,7 @@ function NativeSessionChat({
                     if (command.command === 'goal' && command.action === 'set' && Array.from(command.objective).length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
                         commands.reportError(t('nativeCommands.goalTooLong', { max: MAX_CODEX_GOAL_OBJECTIVE_CHARS })); return 'failed'
                     }
-                    try {
-                        await commands.execute({ command })
-                        return 'handled'
-                    } catch { return 'failed' }
+                    return commands.execute({ command }).then(() => 'handled' as const, () => 'failed' as const)
                 },
                 approvalSettings: <NativeApprovalSettings
                     settings={settings}

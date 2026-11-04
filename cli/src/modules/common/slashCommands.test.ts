@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { listSlashCommands } from './slashCommands'
+import { listProviderSlashCommands, listSlashCommands } from './slashCommands'
 
 describe('listSlashCommands', () => {
     const originalClaudeConfigDir = process.env.CLAUDE_CONFIG_DIR
@@ -246,6 +246,7 @@ describe('listSlashCommands', () => {
             'goal',
             'always-approve',
             'auto',
+            'approve',
         ])
         for (const composerControl of ['model', 'effort', 'plan', 'view-plan']) {
             expect(builtinNames).not.toContain(composerControl)
@@ -253,9 +254,18 @@ describe('listSlashCommands', () => {
     })
 
     it('advertises only the implemented DSH and AGY commands instead of Claude fallbacks', async () => {
-        expect((await listSlashCommands('dsh', projectDir)).map(command => command.name)).toEqual(['compact', 'usage'])
-        expect((await listSlashCommands('agy', projectDir)).map(command => command.name)).toEqual(['usage'])
+        expect((await listSlashCommands('dsh', projectDir)).map(command => command.name)).toEqual(['compact', 'usage', 'approve'])
+        expect((await listSlashCommands('agy', projectDir)).map(command => command.name)).toEqual(['usage', 'approve'])
         expect(await listSlashCommands('unknown-provider', projectDir)).toEqual([])
+    })
+
+    it('exposes native approval commands while preserving a same-name project command', async () => {
+        const native = [{ name: 'approve', description: 'Native provider approval' }]
+        expect((await listProviderSlashCommands('claude', projectDir, native)).find(command => command.name === 'approve'))
+            .toMatchObject({ source: 'plugin', description: 'Native provider approval' })
+        await writeFile(join(projectDir, '.claude', 'commands', 'approve.md'), 'Project approval workflow')
+        expect((await listProviderSlashCommands('claude', projectDir, native)).find(command => command.name === 'approve'))
+            .toMatchObject({ source: 'project', content: 'Project approval workflow' })
     })
 
     it('lets project opencode prompts override same-name built-ins', async () => {

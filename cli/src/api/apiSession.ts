@@ -780,18 +780,17 @@ export class ApiSessionClient extends EventEmitter {
                     ])
                     const custom = new Set([...catalog.filter(entry => entry.source !== 'builtin').map(entry => entry.name),
                         ...skills.map(entry => entry.name)])
-                    let result = resolveRemoteBuiltinCommand({ text: message.content.text, flavor,
+                    const result = resolveRemoteBuiltinCommand({ text: message.content.text, flavor,
                         customCommands: custom, nativeCommands: this.metadata?.slashCommands,
                         nativeCommandSupported: await this.nativeSlashCommandChecker?.(command.name), usage: this.remoteUsage })
-                    if (result !== null && command.name === 'usage' && !command.args && this.usageProvider) {
-                        try { result = await this.usageProvider() }
-                        catch (error) {
-                            logger.debug('[API] Native usage query unavailable', error)
-                            result = this.remoteUsage.describe() + '\n\nLive usage query is unavailable; showing only the last reported facts.'
-                        }
-                    }
                     if (result !== null) {
                         if (localId) this.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true })
+                        if (command.name === 'usage' && !command.args && this.usageProvider) {
+                            // Ownership is resolved. A read-only usage query can complete
+                            // independently while the next message reaches the agent.
+                            void this.publishLiveUsage(this.usageProvider)
+                            return
+                        }
                         this.sendSessionEvent({ type: 'message', message: result })
                         return
                     }
@@ -808,6 +807,17 @@ export class ApiSessionClient extends EventEmitter {
         } else {
             this.pendingMessages.push({ message, localId })
         }
+    }
+
+    private async publishLiveUsage(read: () => Promise<string>): Promise<void> {
+        let message: string
+        try {
+            message = await read()
+        } catch (error) {
+            logger.debug('[API] Native usage query unavailable', error)
+            message = this.remoteUsage.describe()
+        }
+        this.sendSessionEvent({ type: 'message', message })
     }
 
     /**

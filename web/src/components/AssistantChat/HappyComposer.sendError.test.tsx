@@ -378,6 +378,22 @@ describe('HappyComposer send-error atomic restore', () => {
         expect(runtime.sentTexts).toEqual([])
     })
 
+    it.each(['handled', 'unhandled'] as const)('allows an independent send while a command returns %s', async outcome => {
+        let complete!: (result: ComposerCommandOutcome) => void
+        const command = vi.fn().mockImplementation(() => new Promise(resolve => { complete = resolve }))
+        renderComposer('/usage', null, false, command)
+        send()
+        send()
+        expect(command).toHaveBeenCalledOnce()
+        fireEvent.change(input(), { target: { value: 'Follow up' } })
+        send()
+        expect(runtime.sentTexts).toEqual(['Follow up'])
+        fireEvent.change(input(), { target: { value: 'Next draft' } })
+        await act(async () => complete(outcome))
+        expect(input()).toHaveValue('Next draft')
+        expect(runtime.sentTexts).toEqual(['Follow up'])
+    })
+
     it('edits individual quote notes and preserves them with native sources through send failure and removal', () => {
         const annotations = [{ text: 'Quoted native response', source: { messageId: 'native-item', startOffset: 3, endOffset: 25 } }]
         const raw = serializeResponseAnnotations('Explain this', annotations)

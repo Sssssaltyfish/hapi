@@ -1,3 +1,5 @@
+import { commandNumber } from '@hapi/protocol/commandNumber'
+
 export type RemoteBuiltinCommand = 'compact' | 'approve' | 'recap' | 'usage'
 const customSlashMessages = new WeakSet<object>()
 
@@ -13,7 +15,7 @@ type TokenUsage = { input?: number; output?: number; cacheRead?: number; cacheWr
 type LimitUsage = { name: string; usedPercent?: number; resetsAt?: number; reached: boolean }
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' ? value as Record<string, unknown> : {}
 const number = (...values: unknown[]): number | undefined => values.find(value => typeof value === 'number' && Number.isFinite(value) && value >= 0) as number | undefined
-const count = (value: number): string => new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)
+const count = (value: number): string => commandNumber(value, { locale: 'en-US' })
 
 /** Only facts already emitted by the running provider; this is not an account quota API. */
 export class RemoteUsageSnapshot {
@@ -88,21 +90,21 @@ export class RemoteUsageSnapshot {
             sections.push(lines.join('\n'))
         }
         const costs: string[] = []
-        if (this.cost !== undefined) costs.push(`Reported cost: ${this.cost > 0 && this.cost < 0.000001 ? '<$0.000001' : '$' + this.cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`)
+        if (this.cost !== undefined) costs.push(`Reported cost: ${commandNumber(this.cost, { prefix: '$', locale: 'en-US' })}`)
         if (this.duration !== undefined) costs.push(`Reported duration: ${this.duration < 1000 ? count(this.duration) + ' ms' : count(this.duration / 1000) + ' s'}`)
         if (costs.length) sections.push('Cost and duration\n' + costs.join('\n'))
         if (this.messages !== undefined) sections.push(`Activity\nMessages: ${count(this.messages)}`)
-        if (sections.length === 1) sections.push('No session usage has been reported by this provider yet.')
+        if (sections.length === 1) sections.push('Session usage unavailable.')
         if (this.limits.size) {
             sections.push('Account limits and remaining quota · last reported\n' + [...this.limits.values()].map(limit => {
                 const details: string[] = [limit.name]
-                if (limit.resetsAt !== undefined && limit.resetsAt <= Date.now()) details.push('reported window has reset; current remaining quota is not reported')
-                else if (limit.usedPercent !== undefined) details.push(`used ${count(limit.usedPercent)}%`, `remaining ${count(Math.max(0, 100 - limit.usedPercent))}%`)
+                if (limit.resetsAt !== undefined && limit.resetsAt <= Date.now()) details.push('remaining quota unavailable')
+                else if (limit.usedPercent !== undefined) details.push(`remaining ${count(Math.max(0, 100 - limit.usedPercent))}%`)
                 else if (limit.reached) details.push('limit reached')
                 if (limit.resetsAt !== undefined && Number.isFinite(new Date(limit.resetsAt).getTime())) details.push(`resets ${new Date(limit.resetsAt).toISOString().replace('T', ' ').replace('.000Z', ' UTC')}`)
                 return details.join(' · ')
             }).join('\n'))
-        } else sections.push('Account limits and remaining quota\nNot reported by this provider. Context space is not account quota.')
+        }
         return sections.join('\n\n')
     }
 }
@@ -124,6 +126,12 @@ export function resolveRemoteBuiltinCommand(options: {
     // The DSH registry extension executes advertised commands without a model prompt.
     if (options.flavor === 'dsh' && options.nativeCommands?.includes(command.name)) return null
     if (command.name === 'usage') return command.args ? 'Usage: /usage (no arguments)' : options.usage.describe()
-    if (command.name === 'approve') return '/approve is not supported by this provider runner. It requires a native one-time retry of the most recently rejected action; no permission settings were changed.'
-    return `/${command.name} is not supported by this provider runner. The command was not sent to the model.`
+    if (command.name === 'approve') {
+        if (options.flavor === 'dsh' && options.nativeCommands?.includes('permission')) {
+            return 'Use /permission or session settings to choose a permission preset. Review pending tool requests in their approval cards.'
+        }
+        if (options.flavor === 'pi') return 'Pi runs tools automatically. Manual approval is unavailable.'
+        return 'Review pending requests in chat.'
+    }
+    return `/${command.name} is unavailable for this provider.`
 }

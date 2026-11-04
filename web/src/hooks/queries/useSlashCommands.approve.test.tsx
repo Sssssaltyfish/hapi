@@ -15,10 +15,20 @@ it('reuses a fresh provider catalog and refreshes stale sources before choosing 
     await waitFor(() => expect(result.current.commands.some(command => command.name === 'native-only')).toBe(true))
     await act(async () => { await result.current.refreshCommands() })
     expect(getSlashCommands).toHaveBeenCalledOnce()
-    await act(async () => { await client.invalidateQueries({ queryKey: queryKeys.slashCommands('session'), refetchType: 'none' }) })
     let commands: Awaited<ReturnType<typeof result.current.refreshCommands>> = null
-    await act(async () => { commands = await result.current.refreshCommands() })
+    await act(async () => {
+        await client.invalidateQueries({ queryKey: queryKeys.slashCommands('session'), refetchType: 'none' })
+        // Resolve in the same turn, before the observer has rerendered.
+        commands = await result.current.refreshCommands()
+    })
     expect(getSlashCommands).toHaveBeenCalledTimes(2)
     expect(commands).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'approve', source: 'plugin' })]))
+    getSlashCommands.mockRejectedValueOnce(new Error('Directory unavailable'))
+    await act(async () => {
+        await client.invalidateQueries({ queryKey: queryKeys.slashCommands('session'), refetchType: 'none' })
+        commands = await result.current.refreshCommands()
+    })
+    expect(getSlashCommands).toHaveBeenCalledTimes(3)
+    expect(commands).toBeNull()
     client.clear()
 })

@@ -582,6 +582,10 @@ export class AcpSdkBackend implements AgentBackend {
             ?? this.initialAvailableCommands.has(command);
     }
 
+    getAvailableCommands(sessionId: string): string[] {
+        return [...(this.sessionAvailableCommands.get(sessionId) ?? this.initialAvailableCommands)];
+    }
+
     /** Forwards ACP `usage_update` to the web status bar when no prompt is active (e.g. session resume). */
     setUsageUpdateListener(listener: ((msg: AgentMessage) => void) | null): void {
         this.usageUpdateListener = listener;

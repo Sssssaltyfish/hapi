@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import React from 'react'
 import { logger } from '@/ui/logger'
+import { registerAcpSlashCommandCatalog } from '@/modules/common/slashCommands'
 import { buildHapiMcpBridge } from '@/codex/utils/buildHapiMcpBridge'
 import { convertAgentMessage } from '@/agent/messageConverter'
 import type { AgentMessage, McpServerStdio, PromptContent } from '@/agent/types'
@@ -144,7 +145,7 @@ class GrokRemoteLauncher extends RemoteLauncherBase {
         }
 
         session.registerExistingNativeSession(acpSessionId)
-        session.client.setNativeSlashCommandChecker?.(name => backend.hasAvailableCommand(acpSessionId, name))
+        registerAcpSlashCommandCatalog(session.client, backend, 'grok', session.path, acpSessionId)
         this.conversationHistory.setSession(acpSessionId, session.path)
         this.conversationHistory.setPublishCapabilities(async () => {
             const conversationHistory = this.conversationHistory.getCapabilitiesForMetadata()?.conversationHistory

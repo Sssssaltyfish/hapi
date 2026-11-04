@@ -45,13 +45,14 @@ describe('Codex management protocol', () => {
         const calls: Array<{ method: string; params: Record<string, unknown> }> = []
         let active = false
         let sourceTurnId = 'turn'
+        const recap = 'Completed the migration.\n\nNext: ' + 'Review the remaining integration work. '.repeat(15)
         const request = async (method: string, params: Record<string, unknown>) => {
             calls.push({ method, params })
             return method === 'thread/turns/list'
                 ? { data: [{ id: 'turn', status: active ? 'inProgress' : 'completed' }] }
-                : { sourceTurnId, text: ' A short recap. ' }
+                : { sourceTurnId, text: ` ${recap} ` }
         }
-        expect(await codexRecap(request, 'thread')).toEqual({ command: 'recap', sourceTurnId: 'turn', text: 'A short recap.' })
+        expect(await codexRecap(request, 'thread')).toEqual({ command: 'recap', sourceTurnId: 'turn', text: recap.trim() })
         expect(calls[1]).toMatchObject({ method: 'thread/sample', params: { threadId: 'thread', expectedTurnId: 'turn', disableMcp: true } })
         expect(calls.some(call => ['turn/start', 'turn/steer', 'thread/queue/add'].includes(call.method))).toBe(false)
         sourceTurnId = 'other'

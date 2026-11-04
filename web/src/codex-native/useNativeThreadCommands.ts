@@ -34,12 +34,22 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
         }
     },
         enabled, staleTime: 0, retry: false, refetchOnWindowFocus: true })
-    const [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
+    const [feedbacks, setFeedbacks] = useState<{ text: string; error: boolean }[]>([])
+    const setFeedback = (value: { text: string; error: boolean } | null) => {
+        if (value) setFeedbacks(previous => [...previous, value].slice(-20))
+    }
     const [pending, setPending] = useState(false)
     const [goalEditorOpen, setGoalEditorOpen] = useState(false)
     const [pendingCommand, setPendingCommand] = useState<string | null>(null)
-    const [managementResult, setManagementResult] = useState<Exclude<NativeCommandResult, { command: 'plan' | 'goal' }> | null>(null)
-    const inFlight = useRef(false)
+    const [managementResults, setManagementResults] = useState<Exclude<NativeCommandResult, { command: 'plan' | 'goal' }>[]>([])
+    const commandScope = `${scope ?? ''}:${endpointId}:${threadId}`
+    const submissions = useRef({ scope: commandScope, latest: 0, count: 0 })
+    if (submissions.current.scope !== commandScope) {
+        submissions.current = { scope: commandScope, latest: 0, count: 0 }
+    }
+    useEffect(() => {
+        setPending(false); setPendingCommand(null); setFeedbacks([]); setManagementResults([])
+    }, [commandScope])
     useEffect(() => subscribe(event => {
         if (['hapi/ready', 'thread/settings/updated', 'thread/goal/updated', 'thread/goal/cleared'].includes(event.method)) {
             eventRevision.current++
@@ -66,19 +76,23 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
         }
     }), [subscribe, client, api, threadId, endpointId, scope])
     const execute = useCallback(async (request: NativeCommandRequest): Promise<NativeCommandResult> => {
-        if (inFlight.current) throw new Error(t('nativeCommands.busy'))
-        inFlight.current = true; setPending(true); setFeedback(null)
+        const batch = submissions.current
+        const submission = ++batch.latest
+        batch.count++
+        const isLatest = () => submissions.current === batch && submission === batch.latest
+        setPending(true); setFeedback(null)
         setPendingCommand(request.command.command)
         const revision = eventRevision.current
         try {
             const result = await api.codexNativeCommand(threadId, request)
+            if (submissions.current !== batch) return result
             if (result.command !== 'plan' && result.command !== 'goal') {
-                setManagementResult(result)
+                setManagementResults(previous => [...previous, result].slice(-20))
                 return result
             }
             // Acknowledged mutation remains successful even if the following
             // read fails. Apply only fields returned by the daemon itself.
-            const canApply = revision === eventRevision.current
+            const canApply = isLatest() && revision === eventRevision.current
             // Also invalidate a read that started before this acknowledgement
             // when no SSE arrived. Initial pending queries may reuse that read.
             if (canApply) eventRevision.current++
@@ -97,13 +111,19 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
             void query.refetch()
             return result
         } catch (error) {
-            setFeedback({ text: isNativeCommandSubmissionUnconfirmed(error) ? t('nativeCommands.unconfirmed') : nativeCommandErrorMessage(error), error: true })
+            if (submissions.current === batch) setFeedback({ text: isNativeCommandSubmissionUnconfirmed(error) ? t('nativeCommands.unconfirmed') : nativeCommandErrorMessage(error), error: true })
             throw error
-        } finally { inFlight.current = false; setPending(false); setPendingCommand(null) }
+        } finally {
+            batch.count--
+            if (submissions.current === batch) {
+                setPending(batch.count > 0)
+                if (isLatest() || batch.count === 0) setPendingCommand(null)
+            }
+        }
     }, [api, threadId, endpointId, client, query.refetch, t, scope])
-    return { state: query.data, loading: query.isPending, readError: query.error, pending, feedback,
+    return { state: query.data, loading: query.isPending, readError: query.error, pending, feedback: feedbacks[0] ?? null,
         goalEditorOpen, setGoalEditorOpen,
-        managementResult, pendingCommand, dismissManagementResult: () => setManagementResult(null),
-        dismissFeedback: () => setFeedback(null), reportError: (text: string) => setFeedback({ text, error: true }), refresh: query.refetch, execute }
+        managementResult: managementResults[0] ?? null, pendingCommand, dismissManagementResult: () => setManagementResults(previous => previous.slice(1)),
+        dismissFeedback: () => setFeedbacks(previous => previous.slice(1)), reportError: (text: string) => setFeedback({ text, error: true }), refresh: query.refetch, execute }
 }
 export type ReturnTypeOfNativeCommands = ReturnType<typeof useNativeThreadCommands>

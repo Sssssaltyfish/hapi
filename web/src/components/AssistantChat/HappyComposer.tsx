@@ -353,7 +353,7 @@ export function HappyComposer(props: {
     autocompletePrefixes?: string[]
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
     /** Local management commands run before send clears the composer. */
-    onSubmitCommand?: (text: string) => Promise<ComposerCommandOutcome>
+    onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome>
     // Voice assistant props
     voiceStatus?: ConversationStatus
     voiceMicMuted?: boolean
@@ -1113,7 +1113,10 @@ export function HappyComposer(props: {
         if (pendingSendIntentRef) pendingSendIntentRef.current = 'default'
     }, [pendingSendIntentRef])
 
-    const commandInFlightRef = useRef(false)
+    const commandSubmissionsRef = useRef(new Set<string>())
+    const commandScopeRef = useRef({ sessionId })
+    if (commandScopeRef.current.sessionId !== sessionId) commandScopeRef.current = { sessionId }
+    useEffect(() => () => { commandScopeRef.current = { sessionId: undefined } }, [])
     const handleSend = useCallback(async (intent: ComposerSendIntent = 'default') => {
         // SessionChat preloads the ref only when restoring a rejected send:
         // queue retries remain queue, while an ordinary fresh send always
@@ -1134,18 +1137,37 @@ export function HappyComposer(props: {
             richInputRef.current.flushSerializedText()
         }
 
-        if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null) {
-            if (commandInFlightRef.current) return
+        if (props.onSubmitCommand && !props.scratchlistMode && pendingSchedule == null
+            && /^\s*\//.test(splitResponseAnnotations(annotationDraft.getText()).body)) {
             const snapshotText = annotationDraft.getText()
-            commandInFlightRef.current = true
-            let outcome: ComposerCommandOutcome
-            try { outcome = await props.onSubmitCommand(splitResponseAnnotations(snapshotText).body) }
-            finally { commandInFlightRef.current = false }
-            if (outcome !== 'unhandled') {
-                if (outcome === 'handled' && snapshotText === annotationDraft.getText()) {
-                    annotationDraft.setBody('')
+            const scope = commandScopeRef.current
+            const editGeneration = userEditGenerationRef.current
+            const attachmentGeneration = userAttachmentGenerationRef.current
+            const scheduleGeneration = userScheduleGenerationRef.current
+            const submissionKey = JSON.stringify([sessionId, snapshotText, editGeneration])
+            if (commandSubmissionsRef.current.has(submissionKey)) return
+            commandSubmissionsRef.current.add(submissionKey)
+            const submitted = props.onSubmitCommand(splitResponseAnnotations(snapshotText).body)
+            if (submitted === 'unhandled') {
+                commandSubmissionsRef.current.delete(submissionKey)
+            } else {
+                annotationDraft.setBody('')
+                const clearedText = annotationDraft.getText()
+                let outcome: ComposerCommandOutcome
+                try { outcome = await submitted }
+                catch { outcome = 'failed' }
+                finally { commandSubmissionsRef.current.delete(submissionKey) }
+                // A delayed command discovery/result must never clear or send a newer draft.
+                if (commandScopeRef.current !== scope
+                    || editGeneration !== userEditGenerationRef.current
+                    || attachmentGeneration !== userAttachmentGenerationRef.current
+                    || scheduleGeneration !== userScheduleGenerationRef.current
+                    || clearedText !== annotationDraft.getText()) return
+                if (outcome !== 'unhandled') {
+                    if (outcome === 'failed') annotationDraft.setBody(splitResponseAnnotations(snapshotText).body)
+                    return
                 }
-                return
+                annotationDraft.setBody(splitResponseAnnotations(snapshotText).body)
             }
         }
 
@@ -1206,6 +1228,7 @@ export function HappyComposer(props: {
                 await props.onResumeStoredDraft?.()
                 return
             }
+            if (!hasText && !hasAttachments) return
             // Must be adjacent to send(): useHappyRuntime consumes and resets
             // this ref synchronously from assistant-ui's onNew callback.
             if (pendingSendIntentRef) pendingSendIntentRef.current = effectiveIntent
@@ -1244,6 +1267,7 @@ export function HappyComposer(props: {
         attachmentOrderRef,
         pendingSendIntentRef,
         resetPendingSendIntent,
+        sessionId,
     ])
 
     const flushAndSend = useCallback((intent: ComposerSendIntent = 'default') => {

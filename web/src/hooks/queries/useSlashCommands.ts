@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { SlashCommand } from '@/types/api'
@@ -31,12 +31,13 @@ export function useSlashCommands(
     isLoading: boolean
     error: string | null
     getSuggestions: (query: string) => Promise<Suggestion[]>
-    refreshCommands: () => Promise<SlashCommand[] | null>
+    refreshCommands: () => SlashCommand[] | null | Promise<SlashCommand[] | null>
 } {
     const resolvedSessionId = sessionId ?? 'unknown'
+    const client = useQueryClient()
 
     // Fetch user-defined commands from the CLI (requires active session)
-    const query = useQuery({
+    const commandQueryOptions = {
         queryKey: queryKeys.slashCommands(resolvedSessionId),
         queryFn: async () => {
             if (!api || !sessionId) {
@@ -44,14 +45,17 @@ export function useSlashCommands(
             }
             return await api.getSlashCommands(sessionId)
         },
-        enabled: Boolean(api && sessionId),
         // Same reasoning as useSkills: the command list is near-static, so it
         // is refetched when the user opens the menu with "/" rather than on a
         // 30s timer that runs for as long as the session is open.
         staleTime: 5 * 60_000,
+        retry: false, // Don't retry RPC failures
+    }
+    const query = useQuery({
+        ...commandQueryOptions,
+        enabled: Boolean(api && sessionId),
         refetchOnWindowFocus: true,
         gcTime: 30 * 60 * 1000,
-        retry: false, // Don't retry RPC failures
     })
 
     // Merge local built-ins with commands discovered by the active CLI.
@@ -114,13 +118,19 @@ export function useSlashCommands(
 
     return {
         commands,
-        refreshCommands: async () => {
-            if (query.data?.success && query.data.commands && !query.isStale) {
-                return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...query.data.commands])
+        refreshCommands: () => {
+            const cached = client.getQueryState<{ success: boolean; commands?: SlashCommand[] }>(commandQueryOptions.queryKey)
+            if (cached?.data?.success && cached.data.commands && !cached.isInvalidated
+                && Date.now() - cached.dataUpdatedAt < commandQueryOptions.staleTime) {
+                return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...cached.data.commands])
             }
-            const result = await query.refetch()
-            if (result.error || !result.data?.success || !result.data.commands) return null
-            return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...result.data.commands])
+            return (async () => { try {
+                // Read freshness from the cache itself: observer notifications
+                // can lag behind a synchronous catalog invalidation.
+                const result = await client.fetchQuery(commandQueryOptions)
+                if (!result.success || !result.commands) return null
+                return mergeSlashCommands([...getBuiltinSlashCommands(agentType), ...result.commands])
+            } catch { return null } })()
         },
         isLoading: query.isLoading,
         error: query.error instanceof Error ? query.error.message : query.error ? 'Failed to load commands' : null,

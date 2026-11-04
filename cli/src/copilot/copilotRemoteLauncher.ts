@@ -1,4 +1,5 @@
 import React from 'react';
+import { registerAcpSlashCommandCatalog } from '@/modules/common/slashCommands';
 import { registerAcpSessionTitleSync } from '@/agent/acpSessionTitle';
 import { logger } from '@/ui/logger';
 import { buildHapiMcpBridge } from '@/codex/utils/buildHapiMcpBridge';
@@ -107,6 +108,7 @@ export class CopilotRemoteLauncher extends RemoteLauncherBase {
             });
         }
         session.onSessionFound(acpSessionId);
+        registerAcpSlashCommandCatalog(session.client, backend, 'copilot', session.path, acpSessionId);
         this.activeSessionId = acpSessionId;
         session.setRemoteAgentModeApplier((agentMode) => this.applyAgentMode(agentMode));
 

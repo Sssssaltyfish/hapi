@@ -26,17 +26,20 @@ export function pendingApprovalBlock(state: AgentState | null | undefined, reque
     })
 }
 
-export async function submitApproveCommand(input: {
+export function submitApproveCommand(input: {
     text: string; flavor: string; active: boolean; state: AgentState | null | undefined
     commands: readonly SlashCommand[]; nativeCommands?: readonly string[]
-    resolveCommands?: () => Promise<readonly SlashCommand[] | null>
+    resolveCommands?: () => readonly SlashCommand[] | null | Promise<readonly SlashCommand[] | null>
     open: (requestId: string) => void
-}): Promise<'handled' | 'unhandled'> {
+}): 'handled' | 'unhandled' {
     if (input.flavor === 'codex' || !input.active || !/^\s*\/approve\s*$/i.test(input.text)) return 'unhandled'
     if (providerOwnsApprove(input.commands, input.nativeCommands)) return 'unhandled'
     const pending = pendingApprovalBlock(input.state)
     if (!pending) return 'unhandled'
-    const commands = input.resolveCommands ? await input.resolveCommands().catch(() => null) : input.commands
+    const commands = input.resolveCommands ? input.resolveCommands() : input.commands
+    // Discovery may continue in the background. Submit through the normal
+    // runner path immediately while ownership is unknown, preserving payload/order.
+    if (commands instanceof Promise) { void commands.catch(() => null); return 'unhandled' }
     // An unavailable provider directory cannot establish that its command is absent.
     if (!commands || providerOwnsApprove(commands, input.nativeCommands)) return 'unhandled'
     if (!commands.some(command => commandName(command.name) === 'approve' && command.source === 'builtin')) return 'unhandled'

@@ -1,6 +1,6 @@
 import type { NativeCommandResult } from './codexThreadCommands'
 import { normalizeCodexUsage } from './codexUsage'
-import { SESSION_RECAP_PROMPT, normalizeSessionRecap } from './recap'
+import { SESSION_RECAP_PROMPT } from './recap'
 
 type RecordValue = Record<string, unknown>
 type Request = (method: string, params: RecordValue) => Promise<unknown>
@@ -139,5 +139,5 @@ export async function codexRecap(request: Request, threadId: string): Promise<Ex
     if (response.sourceTurnId !== turnId || !string(response.text)?.trim()) {
         throw new Error('The native host did not return a confirmed conversation recap')
     }
-    return { command: 'recap', sourceTurnId: turnId, text: normalizeSessionRecap(String(response.text)) }
+    return { command: 'recap', sourceTurnId: turnId, text: String(response.text).trim() }
 }

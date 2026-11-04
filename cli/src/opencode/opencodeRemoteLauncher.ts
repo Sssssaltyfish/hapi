@@ -1,4 +1,5 @@
 import React from 'react';
+import { registerAcpSlashCommandCatalog } from '@/modules/common/slashCommands';
 import { randomUUID } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { registerAcpSessionTitleSync } from '@/agent/acpSessionTitle';
@@ -261,6 +262,7 @@ class OpencodeRemoteLauncher extends RemoteLauncherBase {
             });
         }
         session.onSessionFound(acpSessionId);
+        registerAcpSlashCommandCatalog(session.client, backend, 'opencode', session.path, acpSessionId);
         this.activeAcpSessionId = acpSessionId;
 
         // v2: the internal HTTP API port is bound randomly after spawn and

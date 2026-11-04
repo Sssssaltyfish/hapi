@@ -52,3 +52,20 @@ it('does not reopen an answered request or substitute another request after it d
     } })).toBeNull()
     expect(pendingApprovalBlock({ requests: { other: state.requests!.request } }, 'request')).toBeNull()
 })
+
+it('uses a fresh synchronous catalog for the approval shortcut', () => {
+    const args = input()
+    expect(submitApproveCommand({ ...args, resolveCommands: () => builtin })).toBe('handled')
+    expect(args.open).toHaveBeenCalledExactlyOnceWith('request')
+})
+
+it('routes uncertain ownership synchronously so a delayed provider result cannot consume a newer draft', async () => {
+    const args = input()
+    let resolve!: (commands: SlashCommand[]) => void
+    const directory = new Promise<SlashCommand[]>(done => { resolve = done })
+    const outcome = submitApproveCommand({ ...args, resolveCommands: () => directory })
+    expect(outcome).toBe('unhandled')
+    resolve([{ name: 'approve', source: 'plugin' }])
+    await directory
+    expect(args.open).not.toHaveBeenCalled()
+})

@@ -1,4 +1,5 @@
 import React from 'react';
+import { registerAcpSlashCommandCatalog } from '@/modules/common/slashCommands';
 import { registerAcpSessionTitleSync } from '@/agent/acpSessionTitle';
 import { logger } from '@/ui/logger';
 import { buildHapiMcpBridge } from '@/codex/utils/buildHapiMcpBridge';
@@ -92,6 +93,7 @@ class KimiRemoteLauncher extends RemoteLauncherBase {
             });
         }
         session.onSessionFound(acpSessionId);
+        registerAcpSlashCommandCatalog(session.client, backend, 'kimi', session.path, acpSessionId);
 
         this.permissionHandler = new KimiPermissionHandler(
             session.client,
