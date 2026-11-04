@@ -37,6 +37,8 @@ describe('Codex management protocol', () => {
         expect(denials.claim('review')).toEqual(event)
         denials.observe('thread', 'codex/event/guardian_assessment', { threadId: 'thread', msg: { ...event, id: 'non-agent', decision_source: 'user' } })
         expect(denials.show()).toBeNull()
+        denials.observe('thread', 'codex/event/guardian_assessment', { threadId: 'thread', msg: { ...event, id: 'unknown-action', action: { type: 'future_action' } } })
+        expect(denials.show()).toBeNull()
     })
 
     test('recaps an idle source via a separate sample and verifies its source turn', async () => {

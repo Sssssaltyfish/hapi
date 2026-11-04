@@ -48,7 +48,8 @@ export class CodexGuardianDenials {
             if (this.latest?.summary.reviewId === id) this.clear()
             return
         }
-        if (!string(record(event.action).type) || this.attempted.has(id)) return
+        if (!['command', 'execve', 'write_stdin', 'apply_patch', 'network_access', 'mcp_tool_call', 'request_permissions']
+            .includes(String(record(event.action).type)) || this.attempted.has(id)) return
         this.latest = { summary: { reviewId: id, turnId, action: record(event.action), rationale: string(event.rationale) ?? null }, event }
     }
 

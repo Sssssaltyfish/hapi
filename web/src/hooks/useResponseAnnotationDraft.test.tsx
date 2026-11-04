@@ -12,6 +12,11 @@ it('keeps native annotation payload in persisted text while body edits and faile
     act(() => result.current.setBody('Edited draft'))
     const sent = write.mock.calls.at(-1)![0]
     expect(splitResponseAnnotations(sent)).toEqual({ body: 'Edited draft', annotations })
+    expect(result.current.getText()).toBe(sent)
+    // A local rerender may still expose assistant-ui's previous snapshot before
+    // the imperative editor write reaches its subscribed React state.
+    rerender({ text: original })
+    expect(result.current.getText()).toBe(sent)
     // assistant-ui clears on send, then existing failure/draft restore writes
     // the complete rejected payload through its ordinary text path.
     rerender({ text: '' })

@@ -102,6 +102,9 @@ vi.mock('axios', () => ({
 }))
 
 import { ApiSessionClient, isExternalUserMessage, IncomingMessageFilter } from './apiSession'
+import * as commandCatalog from '@/modules/common/slashCommands'
+import * as skillCatalog from '@/modules/common/skills'
+import { isCustomSlashMessage } from '@/modules/common/remoteBuiltinCommands'
 
 function createSession(overrides: Partial<Session> = {}): Session {
     return {
@@ -171,6 +174,46 @@ function triggerIncomingUserMessage(
 }
 
 describe('ApiSessionClient lazy materialization', () => {
+    it('handles remote builtins locally while preserving same-name custom commands and input order', async () => {
+        socketHarness.sockets.length = 0
+        const catalog = deferred<Awaited<ReturnType<typeof commandCatalog.listSlashCommands>>>()
+        const commands = vi.spyOn(commandCatalog, 'listSlashCommands').mockReturnValue(catalog.promise)
+        const skills = vi.spyOn(skillCatalog, 'listSkills').mockResolvedValue([])
+        const client = new ApiSessionClient('token', createSession({ namespace: 'default',
+            metadata: { path: '/tmp/project', host: 'localhost', flavor: 'agy' } }))
+        const received: string[] = []
+        const customOwnership: boolean[] = []
+        client.onUserMessage(message => { received.push(message.content.text); customOwnership.push(isCustomSlashMessage(message)) })
+        const socket = socketHarness.sockets[0]!
+        try {
+            triggerIncomingUserMessage(socket, { seq: 1, text: '/recap', sentFrom: 'webapp' })
+            triggerIncomingUserMessage(socket, { seq: 2, text: 'next message', sentFrom: 'webapp' })
+            expect(received).toEqual([])
+            catalog.resolve([{ name: 'recap', description: 'Project recap skill', source: 'project' }])
+            await vi.waitFor(() => expect(received).toEqual(['/recap', 'next message']))
+            expect(customOwnership).toEqual([true, false])
+            client.noteProviderUsage({ input_tokens: 12, output_tokens: 3 })
+            triggerIncomingUserMessage(socket, { seq: 3, text: '/usage', sentFrom: 'webapp' })
+            triggerIncomingUserMessage(socket, { seq: 4, text: '/approve', sentFrom: 'webapp' })
+            await vi.waitFor(() => expect(JSON.stringify(socket.emitted)).toContain('no permission settings were changed'))
+            expect(JSON.stringify(socket.emitted)).toContain('Input tokens: 12')
+            expect(received).toEqual(['/recap', 'next message'])
+            client.setNativeSlashCommandChecker(async name => name === 'usage')
+            triggerIncomingUserMessage(socket, { seq: 5, text: '/usage', sentFrom: 'webapp' })
+            await vi.waitFor(() => expect(received).toEqual(['/recap', 'next message', '/usage']))
+            client.setNativeSlashCommandChecker(() => false)
+            const nativeUsage = vi.fn(async () => 'Session usage · Native session totals\nInput tokens: 99')
+            client.setUsageProvider(nativeUsage)
+            triggerIncomingUserMessage(socket, { seq: 6, text: '/usage', sentFrom: 'webapp' })
+            await vi.waitFor(() => expect(JSON.stringify(socket.emitted)).toContain('Native session totals'))
+            expect(nativeUsage).toHaveBeenCalledOnce()
+            expect(received).toEqual(['/recap', 'next message', '/usage'])
+        } finally {
+            commands.mockRestore()
+            skills.mockRestore()
+            client.close()
+        }
+    })
     it('does not connect or materialize without a real user message', async () => {
         socketHarness.sockets.length = 0
         const materialize = vi.fn(async () => createSession())

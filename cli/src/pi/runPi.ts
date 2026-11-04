@@ -15,6 +15,7 @@ import { convertPiCompactionUsage } from './piEventConverter';
 import { PiThinkingLevelSchema, SetSessionConfigPayloadSchema, PiCompactResultSchema, PiFullSessionStatsSchema } from './schemas';
 import type { PiImageContent, PiThinkingLevel } from './types';
 import { parsePiSpecialCommand, parseLeadingSlashName, type PiSpecialCommand } from './specialCommands';
+import { RemoteUsageSnapshot } from '@/modules/common/remoteBuiltinCommands';
 import { PiPromptQueue, isPiSpecialQueued, type PiPreparedPrompt } from './promptQueue';
 import { PiSteerDispatcher } from './steerDispatcher';
 import { materializePiTitleExtension } from './titleExtension';
@@ -886,6 +887,20 @@ export async function runPi(opts: {
             return [];
         }
     };
+    apiSession.setNativeSlashCommandChecker?.(async name => (await getPiCommands())
+        .some(command => command.name.toLowerCase() === name.toLowerCase()));
+    apiSession.setUsageProvider?.(async () => {
+        const data = await sendPiRpcAndWait(piSession, transport, { type: 'get_session_stats' });
+        const parsed = PiFullSessionStatsSchema.safeParse(data);
+        if (!parsed.success) throw new Error('Pi session statistics were not available');
+        const stats = parsed.data;
+        const usage = new RemoteUsageSnapshot();
+        usage.observe({ inputTokens: stats.tokens?.input, outputTokens: stats.tokens?.output,
+            cachedInputTokens: stats.tokens?.cacheRead, cacheWriteInputTokens: stats.tokens?.cacheWrite,
+            totalTokens: stats.tokens?.total, costUsd: stats.cost, totalMessages: stats.totalMessages,
+            contextTokens: stats.contextUsage?.tokens, modelContextWindow: stats.contextUsage?.contextWindow });
+        return usage.describe('Session totals from Pi');
+    });
 
     const getPiModels = async (): Promise<PiModelSummary[]> => {
         // Startup model discovery can be late or fail once; retry the RPC on

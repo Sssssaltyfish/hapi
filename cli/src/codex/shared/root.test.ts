@@ -141,7 +141,7 @@ describe('native management command delivery', () => {
         const f = await fixture();
         f.native.thread.turns = [{ id: 'completed', status: 'completed', items: [] }];
         await f.root.activate();
-        f.native.notify('thread/settings/updated', { threadId: 'thread', threadSettings: { approvalsReviewer: 'auto_review' } });
+        f.native.notify('thread/settings/updated', { threadId: 'thread', threadSettings: { model: 'mock', approvalsReviewer: 'auto_review' } });
         for (const name of ['compact', 'recap', 'usage']) {
             f.userMessage(`/${name}`, name, 'steer');
             await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith([name], expect.anything()));

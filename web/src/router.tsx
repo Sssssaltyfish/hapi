@@ -660,6 +660,7 @@ function HapiSessionPage() {
     const {
         commands: slashCommands,
         getSuggestions: getSlashSuggestions,
+        refreshCommands: refreshSlashCommands,
     } = useSlashCommands(api, sessionId, agentType)
     const {
         getSuggestions: getSkillSuggestions,
@@ -823,6 +824,7 @@ function HapiSessionPage() {
             onRetryMessage={retryMessage}
             autocompleteSuggestions={getAutocompleteSuggestions}
             availableSlashCommands={slashCommands}
+            resolveSlashCommands={refreshSlashCommands}
             sendError={sendError}
             onClearSendError={clearSendError}
             onSuppressSendErrorRestore={suppressSendErrorRestore}

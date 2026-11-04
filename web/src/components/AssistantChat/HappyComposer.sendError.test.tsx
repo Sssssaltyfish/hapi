@@ -42,12 +42,16 @@ const runtime = vi.hoisted(() => ({
 vi.mock('@assistant-ui/react', async () => {
     const React = await import('react')
     return {
-        useAui: () => ({
+        useAui: () => {
+            // assistant-ui's client getState is a render snapshot; setText and
+            // send delegate to its live runtime and can precede a React render.
+            const snapshot = runtime.snapshot
+            return {
             composer: () => ({
-                getState: () => runtime.snapshot.composer,
+                getState: () => snapshot.composer,
                 setText: (text: string) => {
-                    // The real runtime store publishes imperative writes before
-                    // getState/send returns, independently of React rendering.
+                    // Runtime send sees imperative writes immediately even
+                    // while this client's getState snapshot remains unchanged.
                     runtime.snapshot = { ...runtime.snapshot, composer: { ...runtime.snapshot.composer, text } }
                     const next = runtime.snapshot
                     runtime.setSnapshot!(() => next)
@@ -65,7 +69,7 @@ vi.mock('@assistant-ui/react', async () => {
                 addAttachment: async () => {},
             }),
             thread: () => ({ cancelRun: () => {} }),
-        }),
+        }},
         useAuiState: (selector: (state: typeof runtime.snapshot) => unknown) => selector(runtime.snapshot),
         ComposerPrimitive: {
             Root: ({ children, onSubmit }: { children: ReactNode; onSubmit?: () => void }) => (

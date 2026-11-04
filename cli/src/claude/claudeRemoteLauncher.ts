@@ -165,6 +165,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         let ongoingToolCalls = new Map<string, { parentToolCallId: string | null }>();
 
         function onMessage(message: SDKMessage) {
+            if (message.type === 'rate_limit_event') session.client.noteProviderRateLimit?.(message.rate_limit_info);
             formatClaudeMessageForInk(message, messageBuffer);
             permissionHandler.onMessage(message);
 

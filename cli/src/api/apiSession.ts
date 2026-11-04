@@ -41,6 +41,9 @@ import { cleanupUploadDir, preserveUploadDirOnExit } from '../modules/common/han
 import { TerminalManager } from '@/terminal/TerminalManager'
 import { applyVersionedAck } from './versionedUpdate'
 import { buildHubRequestHeaders, buildSocketIoExtraHeaderOptions } from './hubExtraHeaders'
+import { markCustomSlashMessage, parseRemoteBuiltinCommand, RemoteUsageSnapshot, resolveRemoteBuiltinCommand } from '@/modules/common/remoteBuiltinCommands'
+import { listSlashCommands } from '@/modules/common/slashCommands'
+import { listSkills } from '@/modules/common/skills'
 
 /**
  * XML tags that Claude Code injects as `type:'user'` messages.
@@ -725,7 +728,7 @@ export class ApiSessionClient extends EventEmitter {
         this.pendingMessageCallback = callback
         while (this.pendingMessages.length > 0) {
             const pending = this.pendingMessages.shift()!
-            callback(pending.message, pending.localId)
+            this.enqueueUserMessage(pending.message, pending.localId)
         }
     }
 
@@ -737,9 +740,71 @@ export class ApiSessionClient extends EventEmitter {
         this.retryQueuedMessageCallback = callback
     }
 
+    private readonly remoteUsage = new RemoteUsageSnapshot()
+    private commandDispatch: Promise<void> | null = null
+    private nativeSlashCommandChecker: ((name: string) => boolean | Promise<boolean>) | null = null
+    private usageProvider: (() => Promise<string>) | null = null
+
+    setNativeSlashCommandChecker(checker: (name: string) => boolean | Promise<boolean>): void {
+        this.nativeSlashCommandChecker = checker
+    }
+
+    setUsageProvider(reader: () => Promise<string>): void {
+        this.usageProvider = reader
+    }
+
+    noteProviderUsage(usage: unknown): void {
+        this.remoteUsage.observe(usage, this.metadata?.flavor ?? undefined)
+    }
+
+    noteProviderRateLimit(info: unknown): void {
+        this.remoteUsage.observeRateLimit(info)
+    }
+
     private enqueueUserMessage(message: UserMessage, localId?: string): void {
         if (this.pendingMessageCallback) {
-            this.pendingMessageCallback(message, localId)
+            const command = parseRemoteBuiltinCommand(message.content.text)
+            const flavor = this.metadata?.flavor ?? 'claude'
+            if (flavor === 'codex' || (!command && !this.commandDispatch)) {
+                this.pendingMessageCallback(message, localId)
+                return
+            }
+            // Preserve input order while resolving a command's custom/native
+            // ownership. Ordinary messages keep the existing synchronous path.
+            const dispatch = (this.commandDispatch ?? Promise.resolve()).then(async () => {
+                if (command) {
+                    const path = this.metadata?.path
+                    const [catalog, skills] = await Promise.all([
+                        listSlashCommands(flavor, path ?? undefined),
+                        path ? listSkills(path, { flavor }) : Promise.resolve([])
+                    ])
+                    const custom = new Set([...catalog.filter(entry => entry.source !== 'builtin').map(entry => entry.name),
+                        ...skills.map(entry => entry.name)])
+                    let result = resolveRemoteBuiltinCommand({ text: message.content.text, flavor,
+                        customCommands: custom, nativeCommands: this.metadata?.slashCommands,
+                        nativeCommandSupported: await this.nativeSlashCommandChecker?.(command.name), usage: this.remoteUsage })
+                    if (result !== null && command.name === 'usage' && !command.args && this.usageProvider) {
+                        try { result = await this.usageProvider() }
+                        catch (error) {
+                            logger.debug('[API] Native usage query unavailable', error)
+                            result = this.remoteUsage.describe() + '\n\nLive usage query is unavailable; showing only the last reported facts.'
+                        }
+                    }
+                    if (result !== null) {
+                        if (localId) this.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true })
+                        this.sendSessionEvent({ type: 'message', message: result })
+                        return
+                    }
+                    if (custom.has(command.name)) markCustomSlashMessage(message)
+                }
+                this.pendingMessageCallback?.(message, localId)
+            }).catch(error => {
+                logger.debug('[API] Remote slash command failed', error)
+                if (localId) this.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true })
+                this.sendSessionEvent({ type: 'message', message: 'The command could not be resolved and was not sent to the model.' })
+            })
+            this.commandDispatch = dispatch
+            void dispatch.finally(() => { if (this.commandDispatch === dispatch) this.commandDispatch = null })
         } else {
             this.pendingMessages.push({ message, localId })
         }
@@ -972,6 +1037,8 @@ export class ApiSessionClient extends EventEmitter {
     }
 
     sendClaudeSessionMessage(body: RawJSONLines): void {
+        if (body.type === 'assistant' && !body.isSidechain && !body.isApiErrorMessage) this.noteProviderUsage(body.message?.usage)
+        if (body.type === 'system' && !body.isSidechain && 'resultSummary' in body) this.remoteUsage.observe(body.resultSummary, 'claude-result')
         let content: MessageContent
         // Origin timestamp (epoch ms) from the transcript entry's own `timestamp`,
         // forwarded only for agent messages so the hub can stamp created_at/invoked_at
@@ -1144,6 +1211,16 @@ export class ApiSessionClient extends EventEmitter {
     }
 
     sendAgentMessage(body: unknown, localId?: string, createdAt?: number): void {
+        if (body && typeof body === 'object' && (body as { type?: unknown }).type === 'token_count') {
+            const info = (body as { info?: { total?: unknown; contextTokens?: unknown; modelContextWindow?: unknown } }).info
+            const total = info?.total && typeof info.total === 'object' ? info.total : {}
+            // ACP context-only updates carry zero placeholders for unavailable
+            // token totals. Keep their context facts without inventing a zero bill.
+            const hasTokenTotals = Object.values(total).some(value => typeof value === 'number' && value > 0)
+            this.noteProviderUsage({ ...(hasTokenTotals ? total : {}),
+                inputTokenSemantics: (body as { inputTokenSemantics?: unknown }).inputTokenSemantics,
+                contextTokens: info?.contextTokens, modelContextWindow: info?.modelContextWindow })
+        }
         const content = {
             role: 'agent',
             content: {

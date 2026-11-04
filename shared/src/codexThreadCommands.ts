@@ -5,7 +5,9 @@ export type CodexThreadCommand =
     | { command: 'goal'; action: 'show' | 'pause' | 'resume' | 'clear' }
     | { command: 'goal'; action: 'set'; objective: string }
     | { command: 'goal'; action: 'edit'; objective: string; expectedObjective: string }
-    | { command: 'compact' | 'recap' | 'usage' }
+    | { command: 'compact' }
+    | { command: 'recap' }
+    | { command: 'usage' }
     | { command: 'approve'; action: 'show' }
     | { command: 'approve'; action: 'retry'; reviewId: string }
 

@@ -6,6 +6,8 @@ import { MessageQueue2 } from '@/utils/MessageQueue2';
 import { hashObject } from '@/utils/deterministicJson';
 import { classifyClaudeSlashCatalog, extractSDKMetadata } from '@/claude/sdk/metadataExtractor';
 import { parseSpecialCommand } from '@/parsers/specialCommands';
+import { isCustomSlashMessage, parseRemoteBuiltinCommand } from '@/modules/common/remoteBuiltinCommands';
+import { createClaudeSideRecap } from './claudeSideRecap';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { startHappyServer, toClaudeAllowedHapiMcpTools } from '@/claude/utils/startHappyServer';
 import { startHookServer } from '@/claude/utils/startHookServer';
@@ -84,6 +86,9 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
             reservedSessionId: options.reservedSessionId
         });
     const { api, session, sessionInfo } = bootstrap;
+    const sideQueryAbort = new AbortController();
+    let recapInFlight = false;
+    session.setNativeSlashCommandChecker?.(name => name === 'recap');
     logger.debug(`Session created: ${sessionInfo.id}`);
 
     const currentSessionRef: { current: Session | null } = { current: null };
@@ -238,6 +243,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         session,
         logTag: 'claude',
         stopKeepAlive: () => currentSessionRef.current?.stopKeepAlive(),
+        onBeforeClose: () => sideQueryAbort.abort(),
         onAfterClose: () => {
             happyServer.stop();
             currentSessionRef.current?.localPermissionBridge.stop();
@@ -324,6 +330,23 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
     const deferredMessages: UserMessageArgs[] = [];
     let messagePipelineReady = false;
     const handleUserMessage: UserMessageHandler = (message, localId) => {
+        const sideCommand = parseRemoteBuiltinCommand(message.content.text);
+        if (sideCommand?.name === 'recap' && !isCustomSlashMessage(message)) {
+            const nativeSessionId = currentSessionRef.current?.sessionId ?? session.getMetadata()?.claudeSessionId;
+            const report = (text: string) => session.sendSessionEvent({ type: 'message', message: text });
+            if (localId) session.emitMessagesConsumed([localId], { clearQueuedThinkingGrace: true });
+            if (sideCommand.args || message.content.attachments?.length) { report('Usage: /recap (no arguments or attachments)'); return; }
+            if (!nativeSessionId) { report('Claude recap is unavailable until a native conversation exists.'); return; }
+            if (recapInFlight) { report('A Claude recap is already being generated.'); return; }
+            recapInFlight = true;
+            report('Generating a recap in an isolated, temporary Claude session…');
+            void createClaudeSideRecap({ sessionId: nativeSessionId, cwd: workingDirectory,
+                model: currentSessionRef.current?.getModel() ?? currentModel ?? undefined, signal: sideQueryAbort.signal })
+                .then(text => report(text))
+                .catch(error => report(`Claude recap failed: ${error instanceof Error ? error.message : String(error)}`))
+                .finally(() => { recapInFlight = false; });
+            return;
+        }
         const sessionPermissionMode = currentSessionRef.current?.getPermissionMode();
         if (sessionPermissionMode && isPermissionModeAllowedForFlavor(sessionPermissionMode, 'claude')) {
             currentPermissionMode = sessionPermissionMode as PermissionMode;

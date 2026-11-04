@@ -22,6 +22,8 @@ const harness = vi.hoisted(() => ({
     rejectInFlight: null as null | ((error: Error) => void),
     promptBlocker: null as Promise<void> | null,
     steeringCapability: null as unknown,
+    commandCapability: null as unknown,
+    commandCatalog: [] as Array<{ name: string }>,
     steerResult: null as Promise<unknown> | null,
     // When set, newSession() parks on this promise — lets tests query the
     // catalog RPC while session/new is still pending.
@@ -47,8 +49,11 @@ vi.mock('./utils/dshBackend', () => ({
             }),
             cancelPrompt: vi.fn(async () => {}),
             getPromptGeneration: vi.fn(() => 1),
-            getAgentExtensionCapability: vi.fn(() => harness.steeringCapability),
-            sendExtensionRequest: vi.fn(async () => await harness.steerResult),
+            getAgentExtensionCapability: vi.fn((key: string) => key === 'hapi.dshCommands' ? harness.commandCapability : harness.steeringCapability),
+            sendExtensionRequest: vi.fn(async (method: string, request: { operation?: string }) => method === '_hapi/dsh/command'
+                ? request.operation === 'list' ? { commands: harness.commandCatalog }
+                    : { commandId: 'native-command-1', result: { kind: 'success', text: 'No compactable history yet.' } }
+                : await harness.steerResult),
             getConfigOptionByCategory: vi.fn(() => harness.modelOption),
             getSessionModelsMetadata: vi.fn(() => harness.modelsMetadata),
             getSessionConfigOptions: vi.fn(() => harness.configOptions),
@@ -123,6 +128,8 @@ describe('DshRemoteLauncher', () => {
         harness.rejectInFlight = null
         harness.promptBlocker = null
         harness.steeringCapability = null
+        harness.commandCapability = null
+        harness.commandCatalog = []
         harness.steerResult = null
         harness.newSessionBlocker = null
     })
@@ -144,6 +151,33 @@ describe('DshRemoteLauncher', () => {
         })
         expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'ready' })
         expect(harness.backend?.disconnect).toHaveBeenCalled()
+    })
+
+    it('executes compact through the advertised native command registry without a model prompt', async () => {
+        harness.commandCapability = { version: 1, method: '_hapi/dsh/command' }
+        harness.commandCatalog = [{ name: 'compact' }]
+        const session = createSession()
+        session.queue.reset()
+        session.queue.pushIsolated('/compact', {})
+        session.queue.close()
+        const launcher = new DshRemoteLauncher(session as never)
+        await launcher.launch()
+        expect(harness.prompts).toEqual([])
+        expect(harness.backend!.sendExtensionRequest).toHaveBeenCalledWith('_hapi/dsh/command',
+            { sessionId: 'dsh-session-1', operation: 'execute', text: '/compact' }, { timeoutMs: 600_000 })
+        expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'message', message: 'No compactable history yet.' })
+    })
+
+    it('preserves a same-name custom command instead of executing native compaction', async () => {
+        harness.commandCapability = { version: 1, method: '_hapi/dsh/command' }
+        harness.commandCatalog = [{ name: 'compact' }]
+        const session = createSession()
+        session.queue.reset()
+        session.queue.pushIsolated('/compact project-specific instructions', { customSlash: true })
+        session.queue.close()
+        await new DshRemoteLauncher(session as never).launch()
+        expect(harness.prompts).toEqual([[{ type: 'text', text: '/compact project-specific instructions' }]])
+        expect(harness.backend!.sendExtensionRequest).toHaveBeenCalledTimes(1)
     })
 
     it('consumes a queued steer only after native admission without another prompt', async () => {
