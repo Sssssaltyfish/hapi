@@ -10,6 +10,7 @@ public enum MessageStatus: String, Codable, Sendable {
     case sent
     case failed
     case indeterminate
+    case dispatching
 }
 
 /// Wire tri-state of `invokedAt` (`pagination.md` "Queued semantics"):
@@ -67,6 +68,8 @@ public final class WindowMessage: Sendable, Equatable {
     // MARK: Client-side
 
     public let status: MessageStatus?
+    /// Native delivery hold is independent of the optimistic HTTP send status.
+    public let deliveryState: String?
 
     public init(
         id: String,
@@ -76,7 +79,8 @@ public final class WindowMessage: Sendable, Equatable {
         createdAt: Int,
         invokedAt: InvokedAtField = .absent,
         scheduledAt: Int? = nil,
-        status: MessageStatus? = nil
+        status: MessageStatus? = nil,
+        deliveryState: String? = nil
     ) {
         self.id = id
         self.seq = seq
@@ -86,6 +90,9 @@ public final class WindowMessage: Sendable, Equatable {
         self.invokedAt = invokedAt
         self.scheduledAt = scheduledAt
         self.status = status
+        self.deliveryState = invokedAt == .null
+            ? deliveryState ?? (status == .dispatching ? "dispatching" : status == .indeterminate ? "indeterminate" : nil)
+            : nil
     }
 
     /// Wrap a wire row. `DecryptedMessage` collapses the invokedAt tri-state
@@ -102,7 +109,8 @@ public final class WindowMessage: Sendable, Equatable {
             createdAt: wire.createdAt,
             invokedAt: wire.invokedAt.map(InvokedAtField.number) ?? .null,
             scheduledAt: wire.scheduledAt,
-            status: status ?? (wire.deliveryState == "indeterminate" ? .indeterminate : nil)
+            status: status ?? (wire.deliveryState == "dispatching" ? .dispatching : wire.deliveryState == "indeterminate" ? .indeterminate : nil),
+            deliveryState: wire.deliveryState
         )
     }
 
@@ -140,6 +148,12 @@ public final class WindowMessage: Sendable, Equatable {
     public var isQueuedForInvocation: Bool {
         isUserMessage && hasExplicitNullInvokedAt && status != .failed
     }
+    public var isDispatching: Bool {
+        hasExplicitNullInvokedAt && (deliveryState == "dispatching" || (deliveryState == nil && status == .dispatching))
+    }
+    public var isDeliveryIndeterminate: Bool {
+        hasExplicitNullInvokedAt && (deliveryState == "indeterminate" || (deliveryState == nil && status == .indeterminate))
+    }
 
     // MARK: Copies (each returns a NEW instance — identity change is meaningful)
 
@@ -148,12 +162,16 @@ public final class WindowMessage: Sendable, Equatable {
         WindowMessage(
             id: id, seq: seq, localId: localId, content: content,
             createdAt: createdAt, invokedAt: .number(invokedAt),
-            scheduledAt: scheduledAt, status: status
+            scheduledAt: scheduledAt, status: status, deliveryState: nil
         )
     }
 
     public func withDeliveryState(_ state: String?) -> WindowMessage {
-        withStatus(state == "indeterminate" ? .indeterminate : (status ?? .queued))
+        let nextStatus: MessageStatus = state == "dispatching" ? .dispatching
+            : state == "indeterminate" ? .indeterminate
+            : status == .dispatching || status == .indeterminate ? .queued : status ?? .queued
+        return WindowMessage(id: id, seq: seq, localId: localId, content: content, createdAt: createdAt,
+                             invokedAt: invokedAt, scheduledAt: scheduledAt, status: nextStatus, deliveryState: state)
     }
 
     /// Copy with the client-side status replaced.
@@ -161,7 +179,7 @@ public final class WindowMessage: Sendable, Equatable {
         WindowMessage(
             id: id, seq: seq, localId: localId, content: content,
             createdAt: createdAt, invokedAt: invokedAt,
-            scheduledAt: scheduledAt, status: status
+            scheduledAt: scheduledAt, status: status, deliveryState: deliveryState
         )
     }
 
@@ -176,7 +194,7 @@ public final class WindowMessage: Sendable, Equatable {
             createdAt: createdAt,
             invokedAt: invokedAt.numberValue,
             scheduledAt: scheduledAt,
-            deliveryState: status == .indeterminate ? "indeterminate" : nil
+            deliveryState: deliveryState
         )
     }
 }
@@ -189,7 +207,7 @@ public final class WindowMessage: Sendable, Equatable {
 /// when explicit null.
 extension WindowMessage: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, seq, localId, content, createdAt, invokedAt, scheduledAt, status
+        case id, seq, localId, content, createdAt, invokedAt, scheduledAt, status, deliveryState
     }
 
     public convenience init(from decoder: Decoder) throws {
@@ -204,6 +222,8 @@ extension WindowMessage: Codable {
         } else {
             invokedAt = .absent
         }
+        let storedStatus = try container.decodeIfPresent(String.self, forKey: .status)
+        let deliveryState = try container.decodeIfPresent(String.self, forKey: .deliveryState)
         self.init(
             id: try container.decode(String.self, forKey: .id),
             seq: try container.decodeIfPresent(Int.self, forKey: .seq),
@@ -214,8 +234,9 @@ extension WindowMessage: Codable {
             scheduledAt: try container.decodeIfPresent(Int.self, forKey: .scheduledAt),
             // Unknown status strings degrade to nil (Android `fromWire`) —
             // a new client-side state must not break snapshot hydration.
-            status: (try container.decodeIfPresent(String.self, forKey: .status))
-                .flatMap(MessageStatus.init(rawValue:))
+            status: storedStatus.flatMap(MessageStatus.init(rawValue:))
+                ?? deliveryState.flatMap { $0 == "dispatching" ? MessageStatus.dispatching : $0 == "indeterminate" ? MessageStatus.indeterminate : nil },
+            deliveryState: deliveryState
         )
     }
 
@@ -238,6 +259,7 @@ extension WindowMessage: Codable {
         }
         try container.encodeIfPresent(scheduledAt, forKey: .scheduledAt)
         try container.encodeIfPresent(status?.rawValue, forKey: .status)
+        try container.encodeIfPresent(deliveryState, forKey: .deliveryState)
     }
 }
 

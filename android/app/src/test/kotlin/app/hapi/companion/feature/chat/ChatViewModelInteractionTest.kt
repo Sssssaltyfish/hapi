@@ -168,6 +168,9 @@ private class RecordingChatApi : ChatSessionApi {
     val cancelCalls = MutableStateFlow<List<String>>(emptyList())
 
     var steerResult: SteerQueuedMessageResponse = SteerQueuedMessageResponse(status = "steered")
+    var steerGate: CompletableDeferred<Unit>? = null
+    var queuedStateGate: CompletableDeferred<Unit>? = null
+    var queuedStateDispatching: List<String> = emptyList()
     val steerCalls = MutableStateFlow<List<String>>(emptyList())
 
     val approveCalls = MutableStateFlow<List<Pair<String, ApprovePermissionRequest>>>(emptyList())
@@ -197,8 +200,11 @@ private class RecordingChatApi : ChatSessionApi {
             ),
         )
 
-    override suspend fun getQueuedState(sessionId: String, localIds: List<String>): QueuedStateResponse =
-        QueuedStateResponse(queuedLocalIds = localIds, invokedLocalMessages = emptyList())
+    override suspend fun getQueuedState(sessionId: String, localIds: List<String>): QueuedStateResponse {
+        val response = QueuedStateResponse(queuedLocalIds = localIds, invokedLocalMessages = emptyList(), dispatchingLocalIds = queuedStateDispatching)
+        queuedStateGate?.await()
+        return response
+    }
 
     override suspend fun sendMessage(sessionId: String, message: SendMessageRequest) {
         sendCalls.value = sendCalls.value + (sessionId to message)
@@ -215,6 +221,7 @@ private class RecordingChatApi : ChatSessionApi {
 
     override suspend fun steerMessage(sessionId: String, messageId: String): SteerQueuedMessageResponse {
         steerCalls.value = steerCalls.value + messageId
+        steerGate?.await()
         return steerResult
     }
 
@@ -880,6 +887,57 @@ class ChatViewModelInteractionTest {
         }.messages.single { it.localId == "l-1" }
         assertEquals(900L, row.invokedAtOrNull)
         assertEquals(listOf("srv-1"), harness.api.cancelCalls.value)
+    }
+
+    @Test
+    fun `pending steer remains queued and blocks repeat actions until the receipt`() = runTest {
+        val harness = InteractionHarness(this, detail(thinking = true))
+        harness.viewModel.start()
+        val window = harness.window()
+        window.ingestSseMessages(listOf(app.hapi.protocol.window.WindowMessage(queuedServerRow("pending-row", "pending-local", "wait for receipt"))))
+        harness.viewModel.queuedRows.first { rows -> rows.any { it.id == "pending-row" && it.canSteer } }
+        harness.api.steerResult = SteerQueuedMessageResponse(status = "pending", localId = "pending-local")
+        harness.api.queuedStateDispatching = listOf("pending-local")
+        harness.viewModel.steerQueuedMessage("pending-row")
+        window.state.first { state -> state.messages.any { it.id == "pending-row" && it.isDispatching } }
+        harness.viewModel.queuedRows.first { rows -> rows.any { it.id == "pending-row" && !it.canAct && !it.indeterminate } }
+        assertNull(window.state.value.messages.single { it.id == "pending-row" }.invokedAtOrNull)
+        harness.viewModel.steerQueuedMessage("pending-row")
+        harness.viewModel.editQueuedMessage("pending-row")
+        harness.viewModel.cancelQueuedMessage("pending-row")
+        testScheduler.runCurrent()
+        assertEquals(listOf("pending-row"), harness.api.steerCalls.value)
+        assertTrue(harness.api.cancelCalls.value.isEmpty())
+        window.onMessageEvent(SyncEvent.MessagesConsumed(sessionId = IX_SESSION, localIds = listOf("pending-local"), invokedAt = 950))
+        harness.viewModel.queuedRows.first { rows -> rows.none { it.id == "pending-row" } }
+    }
+
+    @Test
+    fun `late pending and recovery replies cannot relock an authoritatively requeued row`() = runTest {
+        val harness = InteractionHarness(this, detail(thinking = true))
+        harness.viewModel.start()
+        val window = harness.window()
+        window.ingestSseMessages(listOf(app.hapi.protocol.window.WindowMessage(queuedServerRow("late-row", "late-local", "keep queued"))))
+        harness.viewModel.queuedRows.first { rows -> rows.any { it.id == "late-row" && it.canAct } }
+        harness.api.steerResult = SteerQueuedMessageResponse(status = "pending", localId = "late-local")
+        harness.api.steerGate = CompletableDeferred()
+        harness.viewModel.steerQueuedMessage("late-row")
+        testScheduler.runCurrent()
+        window.onMessageEvent(SyncEvent.MessagesDispatching(sessionId = IX_SESSION, localIds = listOf("late-local")))
+        window.onMessageEvent(SyncEvent.MessagesRequeued(sessionId = IX_SESSION, localIds = listOf("late-local")))
+        harness.api.steerGate!!.complete(Unit)
+        harness.viewModel.queuedRows.first { rows -> rows.any { it.id == "late-row" && it.canAct } }
+        harness.api.steerGate = null
+        harness.api.queuedStateDispatching = listOf("late-local")
+        harness.api.queuedStateGate = CompletableDeferred()
+        harness.viewModel.steerQueuedMessage("late-row")
+        testScheduler.runCurrent()
+        window.onMessageEvent(SyncEvent.MessagesDispatching(sessionId = IX_SESSION, localIds = listOf("late-local")))
+        window.onMessageEvent(SyncEvent.MessagesRequeued(sessionId = IX_SESSION, localIds = listOf("late-local")))
+        harness.api.queuedStateGate!!.complete(Unit)
+        harness.viewModel.queuedRows.first { rows -> rows.any { it.id == "late-row" && it.canAct } }
+        assertNull(window.state.value.messages.single { it.id == "late-row" }.invokedAtOrNull)
+        assertEquals(listOf("late-row", "late-row"), harness.api.steerCalls.value)
     }
 
     @Test

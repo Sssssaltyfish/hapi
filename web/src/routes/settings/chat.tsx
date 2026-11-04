@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useChatSurfaceColors'
 import { SettingsChoiceGroup, SettingsFieldLabel, SettingsPageContent, SettingsSection, SettingsSwitch } from '@/components/settings/SettingsPrimitives'
 import { ComposerToolbarLayoutControl } from '@/components/settings/ComposerToolbarLayoutControl'
+import { useComposerSendMode } from '@/hooks/useComposerSendMode'
 
 function ChatSurfaceColorControl(props: {
     label: string
@@ -49,6 +50,7 @@ function ChatSurfaceColorControl(props: {
 export default function SettingsChatPage() {
     const { t } = useTranslation()
     const { composerEnterBehavior, setComposerEnterBehavior } = useComposerEnterBehavior()
+    const { composerSendMode, setComposerSendMode } = useComposerSendMode()
     const { terminalToolDisplayMode, setTerminalToolDisplayMode } = useTerminalToolDisplayMode()
     const { codexExplorationCollapsed, setCodexExplorationCollapsed } = useCodexExplorationCollapse()
     const { reasoningCollapsed, setReasoningCollapsed } = useReasoningCollapse()
@@ -63,6 +65,10 @@ export default function SettingsChatPage() {
                     onChange={setComposerEnterBehavior}
                 />
                 <ComposerToolbarLayoutControl />
+                <SettingsChoiceGroup label={t('settings.chat.sendMode')} value={composerSendMode}
+                    options={[{ value: 'queue', label: t('settings.chat.sendMode.queue') }, { value: 'steer', label: t('settings.chat.sendMode.steer') }]}
+                    onChange={setComposerSendMode} />
+                <p className="px-3 pb-3 text-xs text-[var(--app-hint)]">{t('settings.chat.sendMode.description')}</p>
             </SettingsSection>
             <SettingsSection title={t('settings.chat.tools')}>
                 <SettingsChoiceGroup

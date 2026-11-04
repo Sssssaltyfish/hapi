@@ -121,10 +121,10 @@ Hub-side delivery (`SSEManager.shouldSend`):
 | `heartbeat` | every connection |
 | `toast` | every **visible** connection in the namespace, regardless of filter (no `id`, never replayed) |
 | `message-received`, `scheduled-matured` | `all=true` connections + matching `sessionId` connections |
-| `session-added` / `session-updated` / `session-removed` / `session-ended` / `messages-invalidated` / `messages-consumed` / `messages-indeterminate` / `messages-requeued` / `message-cancelled` | `all=true` connections + matching `sessionId` connections |
+| `session-added` / `session-updated` / `session-removed` / `session-ended` / `messages-invalidated` / `messages-consumed` / `messages-dispatching` / `messages-indeterminate` / `messages-requeued` / `message-cancelled` | `all=true` connections + matching `sessionId` connections |
 | `machine-updated`, `machine-agy-models-updated` | `all=true` connections + matching `machineId` connections |
 
-**The global connection must also handle the message-stream events** (`message-received`, `messages-consumed`, `messages-indeterminate`, `messages-requeued`, `message-cancelled`, `scheduled-matured`): while a session connection is down (reconnect gap) or the session isn't open, the global pipe is the only one alive, and it must still keep queued/optimistic bookkeeping correct — mark local messages consumed, remove cancelled rows, and refresh session-list scheduled counts. The session-scoped connection additionally ingests `message-received` into the message window.
+**The global connection must also handle the message-stream events** (`message-received`, `messages-consumed`, `messages-dispatching`, `messages-indeterminate`, `messages-requeued`, `message-cancelled`, `scheduled-matured`): while a session connection is down (reconnect gap) or the session isn't open, the global pipe is the only one alive, and it must still keep queued/optimistic bookkeeping correct — mark local messages consumed, remove cancelled rows, and refresh session-list scheduled counts. The session-scoped connection additionally ingests `message-received` into the message window.
 
 The two connections have **no ordering relationship with each other** — the same `session-updated` patch can arrive on both, in either order. That is why the versioned-patch gate below exists.
 
@@ -147,6 +147,7 @@ Schema: `SyncEventSchema` in `shared/src/schemas.ts` (discriminated on `type`). 
 | `machine-agy-models-updated` | `machineId` | The machine's `agy models` listing changed on a background re-check. Refetch `GET /api/machines/:id/agy-models` for that machine (answered from the machine's cache; it starts no `agy` run and produces no further event). Emitted when the re-check changes what that route would answer — a different listing, or a sign-in warning that appeared or cleared — never for the machine's first listing. |
 | `toast` | `data: {title, body, sessionId, url}` | Show as in-app toast/banner. Only delivered to visible connections (see [Visibility](#visibility)). |
 | `messages-consumed` | `sessionId`, `localIds: string[]`, `invokedAt: number` | The agent consumed queued user messages: stamp `invokedAt`, flip status to `sent`, remove from the queued bar. |
+| `messages-dispatching` | `sessionId`, `localIds: string[]` | A request is reserved and waiting for native confirmation. Set `deliveryState:'dispatching'`, preserve `invokedAt: null`, and disable duplicate queue actions. Do not advance history positions or show a failure toast. |
 | `messages-indeterminate` | `sessionId`, `localIds: string[]` | A native dispatch/queue mutation has an unknown outcome. Keep the row uninvoked, show an explicit Retry/Cancel resolution, and do not auto-replay it. Shared-engine Retry/Cancel can remain unavailable until reconciliation proves the outcome. |
 | `messages-requeued` | `sessionId`, `localIds: string[]` | An explicit Retry restored delivery to the normal queue. Clear the indeterminate marker. |
 | `message-cancelled` | `sessionId`, `messageId`, `localId?` | A queued message was cancelled: remove the row (match by `messageId` **or** `localId`). |

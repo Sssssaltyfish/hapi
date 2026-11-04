@@ -6,6 +6,16 @@ import type { DshMode } from './types'
 /** Remote-only HAPI session wrapper for the fresh-session DSH ACP server. */
 export class DshSession extends AgentSessionBase<DshMode> {
     readonly startedBy: 'runner' | 'terminal'
+    private queuedSteerHandler: ((payload: unknown) => Promise<unknown>) | null = null
+
+    registerQueuedSteerHandler(handler: (payload: unknown) => Promise<unknown>): () => void {
+        this.queuedSteerHandler = handler
+        return () => { if (this.queuedSteerHandler === handler) this.queuedSteerHandler = null }
+    }
+
+    requestQueuedSteer(localId: string): void {
+        void this.queuedSteerHandler?.({ localId }).catch(() => {})
+    }
 
     constructor(opts: {
         api: ApiClient

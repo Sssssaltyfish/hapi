@@ -86,6 +86,7 @@ type AcpInitializeResult = {
         loadSession?: boolean;
         promptCapabilities?: unknown;
         sessionCapabilities?: unknown;
+        _meta?: Record<string, unknown>;
     };
 };
 
@@ -284,7 +285,8 @@ export class AcpSdkBackend implements AgentBackend {
                 ? {
                     loadSession: response.agentCapabilities.loadSession === true,
                     promptCapabilities: response.agentCapabilities.promptCapabilities,
-                    sessionCapabilities: response.agentCapabilities.sessionCapabilities
+                    sessionCapabilities: response.agentCapabilities.sessionCapabilities,
+                    _meta: isObject(response.agentCapabilities._meta) ? response.agentCapabilities._meta : undefined
                 }
                 : undefined
         };
@@ -315,6 +317,11 @@ export class AcpSdkBackend implements AgentBackend {
 
     supportsLoadSession(): boolean {
         return this.initializeResult?.agentCapabilities?.loadSession === true;
+    }
+
+    /** Read an advertised extension; method names and validation stay in adapters. */
+    getAgentExtensionCapability(key: string): unknown {
+        return this.initializeResult?.agentCapabilities?._meta?.[key];
     }
 
     getSessionConfigOptions(sessionId: string): AcpConfigOptionDescriptor[] | undefined {

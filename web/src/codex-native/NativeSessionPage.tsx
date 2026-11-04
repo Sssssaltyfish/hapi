@@ -15,6 +15,8 @@ import { useNativeSuggestions } from './useNativeSuggestions'
 import { getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { buildConversationOutline } from '@/chat/outline'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
+import { useNativeQueue } from './useNativeQueue'
+import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 
 export function NativeSessionPage({
     api,
@@ -56,6 +58,7 @@ function NativeSessionChat({
 }) {
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
+    const queue = useNativeQueue(api, native.threadId, native.available !== false, thread.subscribeEvents)
     const autocompleteSuggestions = useNativeSuggestions(api, native.threadId)
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
@@ -153,6 +156,7 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
+                queueContent: <NativeQueuedMessagesBar api={api} threadId={native.threadId} queue={queue} connected={thread.connected} />,
                 approvalSettings: <NativeApprovalSettings
                     settings={settings}
                     disabled={unavailable || !thread.connected}
@@ -271,6 +275,7 @@ function NativeSessionChat({
                             restoreSuppressed: true,
                         })
                     void thread.latest()
+                    void queue.refresh()
                     return { attemptId }
                 } catch (error) {
                     setSettlement({ attemptId, status: 'error' })

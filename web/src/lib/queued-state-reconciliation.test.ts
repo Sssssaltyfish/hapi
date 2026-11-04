@@ -3,7 +3,9 @@ import type { ApiClient } from '@/api/client'
 
 vi.mock('./message-window-store', () => ({
     getQueuedReconcileCandidateLocalIds: vi.fn(),
+    getMessageWindowState: vi.fn(),
     markMessagesConsumed: vi.fn(),
+    markMessagesDispatching: vi.fn(),
     markMessagesIndeterminate: vi.fn(),
     markMessagesRequeued: vi.fn(),
     reconcileQueuedLocalIds: vi.fn(),
@@ -12,7 +14,9 @@ vi.mock('./message-window-store', () => ({
 
 import {
     getQueuedReconcileCandidateLocalIds,
+    getMessageWindowState,
     markMessagesConsumed,
+    markMessagesDispatching,
     markMessagesIndeterminate,
     markMessagesRequeued,
     reconcileQueuedLocalIds,
@@ -22,10 +26,16 @@ import { reconcileQueuedStateAfterConnect } from './queued-state-reconciliation'
 
 const mockSyncTailMessages = vi.mocked(syncTailMessages)
 const mockGetCandidates = vi.mocked(getQueuedReconcileCandidateLocalIds)
+const mockGetWindow = vi.mocked(getMessageWindowState)
 const mockMarkMessagesConsumed = vi.mocked(markMessagesConsumed)
 const mockMarkMessagesIndeterminate = vi.mocked(markMessagesIndeterminate)
 const mockMarkMessagesRequeued = vi.mocked(markMessagesRequeued)
 const mockReconcileQueuedLocalIds = vi.mocked(reconcileQueuedLocalIds)
+
+function setCandidates(ids: string[]) {
+    mockGetCandidates.mockReturnValueOnce(ids)
+    mockGetWindow.mockReturnValue({ messages: ids.map(localId => ({ localId, id: localId })) } as never)
+}
 
 function createMockApi(
     getQueuedState: ApiClient['getQueuedState'] = async () => ({
@@ -41,7 +51,41 @@ describe('reconcileQueuedStateAfterConnect', () => {
         vi.clearAllMocks()
         mockSyncTailMessages.mockResolvedValue(undefined)
         mockGetCandidates.mockReturnValue([])
+        mockGetWindow.mockReturnValue({ messages: [] } as never)
         mockMarkMessagesIndeterminate.mockClear()
+    })
+
+    it('recovers missed pending and requeue events from explicit authoritative state groups', async () => {
+        setCandidates(['pending', 'plain', 'unknown'])
+        await reconcileQueuedStateAfterConnect(createMockApi(async () => ({
+            queuedLocalIds: ['pending', 'plain'], dispatchingLocalIds: ['pending'],
+            indeterminateLocalIds: ['unknown'], invokedLocalMessages: [],
+        })), 'session-pending')
+        expect(markMessagesDispatching).toHaveBeenCalledWith('session-pending', ['pending'])
+        expect(mockMarkMessagesRequeued).toHaveBeenCalledWith('session-pending', ['pending', 'plain'])
+        expect(mockMarkMessagesIndeterminate).toHaveBeenCalledWith('session-pending', ['unknown'])
+    })
+
+    it('refreshes pending delivery without fetching or moving message history', async () => {
+        setCandidates(['pending'])
+        await reconcileQueuedStateAfterConnect(createMockApi(async () => ({
+            queuedLocalIds: ['pending'], dispatchingLocalIds: ['pending'], invokedLocalMessages: [],
+        })), 'session-active', { syncTail: false })
+        expect(mockSyncTailMessages).not.toHaveBeenCalled()
+        expect(markMessagesDispatching).toHaveBeenCalledWith('session-active', ['pending'])
+    })
+
+    it('does not overwrite a newer SSE state with a stale queued-state response', async () => {
+        setCandidates(['local-1'])
+        let resolve!: (value: Awaited<ReturnType<ApiClient['getQueuedState']>>) => void
+        const getQueuedState = vi.fn(() => new Promise<Awaited<ReturnType<ApiClient['getQueuedState']>>>(done => { resolve = done }))
+        const running = reconcileQueuedStateAfterConnect(createMockApi(getQueuedState), 'session-stale')
+        await vi.waitFor(() => expect(getQueuedState).toHaveBeenCalled())
+        mockGetWindow.mockReturnValue({ messages: [{ localId: 'local-1', id: 'local-1' }] } as never)
+        resolve({ queuedLocalIds: ['local-1'], dispatchingLocalIds: ['local-1'], invokedLocalMessages: [] })
+        await running
+        expect(markMessagesDispatching).toHaveBeenCalledWith('session-stale', [])
+        expect(mockReconcileQueuedLocalIds).toHaveBeenCalledWith('session-stale', [], ['local-1'])
     })
 
     it('waits for the latest messages before snapshotting and querying queued state', async () => {
@@ -51,7 +95,7 @@ describe('reconcileQueuedStateAfterConnect', () => {
                 resolveRefresh = resolve
             })
         )
-        mockGetCandidates.mockReturnValueOnce(['local-1'])
+        setCandidates(['local-1'])
         const getQueuedState = vi.fn(async () => ({
             queuedLocalIds: ['local-1'],
             invokedLocalMessages: []
@@ -80,7 +124,7 @@ describe('reconcileQueuedStateAfterConnect', () => {
 
     it('passes the exact candidate snapshot to the endpoint and reconciliation', async () => {
         const candidateLocalIds = ['local-1', 'local-2']
-        mockGetCandidates.mockReturnValueOnce(candidateLocalIds)
+        setCandidates(candidateLocalIds)
         const getQueuedState = vi.fn(async () => ({
             queuedLocalIds: ['local-2'],
             invokedLocalMessages: []
@@ -98,7 +142,7 @@ describe('reconcileQueuedStateAfterConnect', () => {
     })
 
     it('applies authoritative invoked timestamps before reconciling absent rows', async () => {
-        mockGetCandidates.mockReturnValueOnce(['local-1', 'local-2'])
+        setCandidates(['local-1', 'local-2'])
         const getQueuedState = vi.fn(async () => ({
             queuedLocalIds: ['local-2'],
             invokedLocalMessages: [{ localId: 'local-1', invokedAt: 1_000 }]
@@ -119,7 +163,7 @@ describe('reconcileQueuedStateAfterConnect', () => {
 
     it('chunks candidate IDs to stay within the endpoint limit', async () => {
         const candidateLocalIds = Array.from({ length: 1001 }, (_, index) => `local-${index}`)
-        mockGetCandidates.mockReturnValueOnce(candidateLocalIds)
+        setCandidates(candidateLocalIds)
         const getQueuedState = vi.fn(async (_sessionId: string, localIds: string[]) => ({
             queuedLocalIds: localIds,
             invokedLocalMessages: []
@@ -151,7 +195,7 @@ describe('reconcileQueuedStateAfterConnect', () => {
 
     it('propagates endpoint failures without reconciling', async () => {
         const endpointError = new Error('queued state unavailable')
-        mockGetCandidates.mockReturnValueOnce(['local-1'])
+        setCandidates(['local-1'])
         const getQueuedState = vi.fn(async () => {
             throw endpointError
         })

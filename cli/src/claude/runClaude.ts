@@ -258,6 +258,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         host: metadata?.host ?? 'unknown',
         capabilities: {
             ...metadata?.capabilities,
+            steering: false,
             ...(conversationHistory ? { conversationHistory } : {})
         }
     }))
@@ -487,6 +488,14 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
             disallowedTools: messageDisallowedTools
         };
         messageQueue.push(formattedText, enhancedMode, localId);
+        if (message.meta?.deliveryMode === 'steer' && localId) {
+            void currentSessionRef.current?.steerQueuedMessage(localId).then(result => {
+                if (!result.steered && !result.pending) session.sendSessionEvent({ type: 'message', message: `Claude steer was not confirmed: ${result.error ?? 'Unavailable'}. Inspect the queue before retrying.` });
+            }).catch(error => {
+                logger.debug('[claude] automatic steer was not confirmed', error);
+                session.sendSessionEvent({ type: 'message', message: 'Claude steer was not confirmed. Inspect the queue before retrying.' });
+            });
+        }
         logger.debugLargeJson('User message pushed to queue:', message)
     };
     session.onUserMessage((...args) => {
@@ -510,13 +519,18 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
             session.discardPendingHubPromptEcho(localId);
             return true;
         }
+        // Once written, only Claude's receipt can prove consumption. Abort
+        // closes that process before an uncertain reservation can be released.
+        if (currentSessionRef.current?.isSteeringPending(localId)) return 'indeterminate';
         const removed = messageQueue.cancelByLocalId(localId);
-        if (removed) {
+        if (removed === true) {
             session.discardPendingHubPromptEcho(localId);
         }
-        logger.debug(`[claude] cancelByLocalId(${localId}): ${removed ? 'removed' : 'not found (best-effort)'}`);
+        logger.debug(`[claude] cancelByLocalId(${localId}): ${String(removed)}`);
         return removed;
     });
+    session.onRetryQueuedMessage(localId => !currentSessionRef.current?.isSteeringPending(localId)
+        && messageQueue.releaseIndeterminateReservation(localId));
 
     const resolvePermissionMode = (value: unknown): PermissionMode => {
         const parsed = PermissionModeSchema.safeParse(value);

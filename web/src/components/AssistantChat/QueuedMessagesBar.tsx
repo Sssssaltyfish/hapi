@@ -13,6 +13,7 @@ import { useTranslation } from '@/lib/use-translation'
 import { useToast } from '@/lib/toast-context'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import { formatScheduledTime } from '@/lib/scheduledTime'
+import { QueuedMessagesFrame } from './QueuedMessagesFrame'
 import {
     beginQueuedOperation,
     clearQueuedEditRecovery,
@@ -333,20 +334,7 @@ export function QueuedMessagesBar({
     }
 
     return (
-        <div
-            role="status"
-            aria-label={`${queued.length} queued message${queued.length === 1 ? '' : 's'} pending invocation`}
-            className="mx-auto w-full max-w-content"
-        >
-            <div className="px-3 pb-0 pt-2 text-sm text-[var(--app-fg-muted)]">
-                <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-[var(--app-hint)]">
-                    <ClockIcon />
-                    <span>Queued</span>
-                </div>
-                <ul
-                    className="flex flex-col gap-1.5 max-h-32 sm:max-h-48 overflow-y-auto"
-                    aria-label="Queued messages"
-                >
+        <QueuedMessagesFrame count={queued.length}>
                     {queued.map((msg) => {
                         const preview = getQueuedMessagePreview(msg)
                         const { text, attachmentNames } = preview
@@ -355,7 +343,7 @@ export function QueuedMessagesBar({
                         const localId = msg.localId ?? msg.id
                         const waitingForCompaction = msg.deliveryState === 'indeterminate'
                             && compactionPendingMessageIds?.includes(localId) === true
-                        const isPending = cancelMutation.isPending || queuedOperationPending
+                        const isPending = cancelMutation.isPending || queuedOperationPending || msg.deliveryState === 'dispatching'
                         const canCancel = computeCanCancel({ id: msg.id, localId: msg.localId, isPending })
 
                         const handleCancel = () => {
@@ -374,7 +362,7 @@ export function QueuedMessagesBar({
                             })
                         }
 
-                        // Steer delivers this message into the active Pi turn. Gated
+                        // Steer delivers this message into the active agent turn. Gated
                         // on the same server-echo + no-pending-op conditions as
                         // Edit/Cancel, and never offered for future-scheduled rows
                         // (the hub rejects those).
@@ -527,6 +515,9 @@ export function QueuedMessagesBar({
                                             {t(waitingForCompaction ? 'queuedMessages.compactionPending' : 'queuedMessages.steerOutcomeUnknown')}
                                         </div>
                                     ) : null}
+                                    {msg.deliveryState === 'dispatching' ? (
+                                        <div className="mt-1 text-xs text-[var(--app-hint)]">{t('queuedMessages.steerPending')}</div>
+                                    ) : null}
                                     {hasAttachments ? (
                                         <div className={text ? 'mt-1 flex flex-wrap gap-1' : 'flex flex-wrap gap-1'}>
                                             {attachmentNames.map((name, index) => (
@@ -626,8 +617,6 @@ export function QueuedMessagesBar({
                             </li>
                         )
                     })}
-                </ul>
-            </div>
-        </div>
+        </QueuedMessagesFrame>
     )
 }

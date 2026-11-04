@@ -140,6 +140,7 @@ public enum SyncEvent: Equatable, Sendable {
     /// Queued user messages were consumed: stamp `invokedAt` on the rows.
     case messagesConsumed(namespace: String?, sessionId: String, localIds: [String], invokedAt: Int)
     case messagesIndeterminate(namespace: String?, sessionId: String, localIds: [String])
+    case messagesDispatching(namespace: String?, sessionId: String, localIds: [String])
     case messagesRequeued(namespace: String?, sessionId: String, localIds: [String])
     case messageCancelled(namespace: String?, sessionId: String, messageId: String, localId: String?)
     /// Feeds the staleness watchdog only. Carries no SSE `id`.
@@ -245,6 +246,12 @@ extension SyncEvent: Decodable {
             )
         case "messages-indeterminate":
             self = .messagesIndeterminate(
+                namespace: namespace,
+                sessionId: try container.decode(String.self, forKey: .sessionId),
+                localIds: try container.decode([String].self, forKey: .localIds)
+            )
+        case "messages-dispatching":
+            self = .messagesDispatching(
                 namespace: namespace,
                 sessionId: try container.decode(String.self, forKey: .sessionId),
                 localIds: try container.decode([String].self, forKey: .localIds)

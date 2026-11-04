@@ -215,6 +215,16 @@ export function createCodexNativeRoutes(
             })) as NativeRecord
         )
     )
+    app.get('/codex-native/threads/:id/queue', async (c) =>
+        c.json(await getService(c).control(c.req.param('id'), 'thread/queue/list', {
+            limit: limit(c.req.query('limit')), cursor: c.req.query('cursor'),
+        }) as NativeRecord)
+    )
+    app.post('/codex-native/threads/:id/queue/delete', async (c) => {
+        const parsed = z.object({ queuedSubmissionId: z.string().min(1).max(500) }).strict().safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid native queue ID' }, 400)
+        return c.json(await getService(c).control(c.req.param('id'), 'thread/queue/delete', parsed.data) as NativeRecord)
+    })
     app.post('/codex-native/threads/:id/settings', async (c) => {
         const parsed = settingsSchema.safeParse(await c.req.json())
         if (!parsed.success || Object.keys(parsed.data).length === 0)

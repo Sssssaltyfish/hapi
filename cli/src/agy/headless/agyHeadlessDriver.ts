@@ -17,6 +17,7 @@ import { resolveAgyTurnModels } from '../utils/agyConversationModel';
 import { killProcessByChildProcess } from '@/utils/process';
 import { AGY_MODEL_LABELS } from '@hapi/protocol';
 import { getAgentLaunchCommand } from '@/agent/agentLaunchCommand';
+import { AgySteering } from './agySteering';
 
 const AGY_PRINT_TIMEOUT = '30m';
 
@@ -32,8 +33,9 @@ const MAX_UNACCEPTED_RETRIES = 3;
  *       --model <slug> --mode accept-edits|plan --effort <level> \
  *       --print-timeout 30m [--dangerously-skip-permissions]
  *
- * One spawn per user turn (the only official multi-turn headless channel is
- * `--conversation` resume; the TUI is not used at all). The conversation id is
+ * This adapter uses one spawn per user turn with `--conversation` resume.
+ * AGY also documents persistent stream-json input; that transport does not
+ * itself expose an in-turn steer command. The conversation id is
  * learned from the `init` event on the first turn and persisted to session
  * metadata, so every later turn resumes the same brain conversation.
  */
@@ -44,6 +46,7 @@ export function buildAgyHeadlessArgs(opts: {
     permissionMode: PermissionMode;
     mode?: 'accept-edits' | 'plan';
     effort?: 'low' | 'medium' | 'high';
+    hookDirectory?: string;
 }): string[] {
     const args = ['-p', opts.prompt, '--output-format', 'stream-json'];
     if (opts.conversationId) {
@@ -58,6 +61,7 @@ export function buildAgyHeadlessArgs(opts: {
     if (opts.effort) {
         args.push('--effort', opts.effort);
     }
+    if (opts.hookDirectory) args.push('--add-dir', opts.hookDirectory);
     args.push('--print-timeout', AGY_PRINT_TIMEOUT);
     if (opts.permissionMode === 'always-proceed') {
         args.push('--dangerously-skip-permissions');
@@ -77,8 +81,8 @@ export function buildAgyHeadlessArgs(opts: {
  * classify the run as an SSH session and switch auth paths); SSH_AUTH_SOCK and
  * SSH_AGENT_PID are kept for tool subprocesses.
  */
-function buildAgySpawnEnv(): NodeJS.ProcessEnv {
-    const env: NodeJS.ProcessEnv = { ...process.env, GEMINI_FORCE_FILE_STORAGE: 'true' }
+function buildAgySpawnEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, ...extra, GEMINI_FORCE_FILE_STORAGE: 'true' }
     for (const key of ['SSH_CLIENT', 'SSH_CONNECTION', 'SSH_TTY']) {
         delete env[key]
     }
@@ -88,7 +92,7 @@ function buildAgySpawnEnv(): NodeJS.ProcessEnv {
 export type AgyHeadlessDriverOptions = {
     session: AgySession;
     /** Injectable for tests; production spawns the real agy binary. */
-    spawnAgy?: (args: string[], cwd: string) => ChildProcessWithoutNullStreams;
+    spawnAgy?: (args: string[], cwd: string, env?: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams;
 };
 
 /**
@@ -104,7 +108,9 @@ export type AgyHeadlessDriverOptions = {
  */
 export class AgyHeadlessDriver extends RemoteLauncherBase {
     private readonly session: AgySession;
-    private readonly spawnAgy: (args: string[], cwd: string) => ChildProcessWithoutNullStreams;
+    private readonly spawnAgy: (args: string[], cwd: string, env?: NodeJS.ProcessEnv) => ChildProcessWithoutNullStreams;
+    private readonly steering: AgySteering;
+    private steeringReady = false;
     private readonly syncNativeTitle: (title: unknown) => void;
     /** Aborted on exit/switch/kill so an idle queue wait resolves immediately. */
     private readonly loopAbortController = new AbortController();
@@ -117,11 +123,11 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
     constructor(opts: AgyHeadlessDriverOptions) {
         super(process.env.DEBUG ? opts.session.logPath : undefined);
         this.session = opts.session;
-        this.spawnAgy = opts.spawnAgy ?? ((args, cwd) => {
+        this.spawnAgy = opts.spawnAgy ?? ((args, cwd, env) => {
             const child = spawn(getAgentLaunchCommand('agy'), args, {
                 cwd,
                 stdio: ['pipe', 'pipe', 'pipe'],
-                env: buildAgySpawnEnv(),
+                env: buildAgySpawnEnv(env),
             }) as ChildProcessWithoutNullStreams;
             return child;
         });
@@ -129,6 +135,8 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         this.conversationId = this.session.sessionId;
         this.session.setKillHandler(() => this.abort());
         this.session.cancelRetryDelivery = this.cancelRetryItem;
+        this.steering = new AgySteering(this.session);
+        this.session.cancelSteeringDelivery = id => this.steering.cancel(id);
     }
 
     protected createDisplay(context: RemoteLauncherDisplayContext): React.ReactElement {
@@ -245,6 +253,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
      * no replayable or restored copy.
      */
     private async abort(): Promise<void> {
+        this.steering.stopAccepting(true);
         this.loopAbortController.abort();
         if (this.turnCompleted || this.turnFinalizing) {
             // The turn is accepted (result parsed) or finalizing (close handler
@@ -301,6 +310,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
     }
 
     private async handleAbortRequest(): Promise<void> {
+        this.steering.stopAccepting();
         logger.debug('[agy-headless]: handleAbortRequest (interrupt)');
         // A turn that already parsed its result envelope or is in finalization has
         // accepted its delivery — do not restore or abort it (resending could
@@ -394,6 +404,9 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         const turnModel = typeof sessionModel === 'string' && sessionModel
             ? AGY_MODEL_LABELS[sessionModel as keyof typeof AGY_MODEL_LABELS] ?? sessionModel
             : undefined;
+        const hooks = this.steeringReady
+            ? this.steering.beginTurn(this.session.queue.modeHasher(mode), this.conversationId)
+            : { env: undefined, addDirectory: undefined };
         const args = buildAgyHeadlessArgs({
             prompt,
             conversationId: this.conversationId ?? undefined,
@@ -402,6 +415,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
             effort: sessionEffort === 'low' || sessionEffort === 'medium' || sessionEffort === 'high'
                 ? sessionEffort
                 : undefined,
+            hookDirectory: hooks.addDirectory,
         });
         // Never persist the user's prompt to the log (HAPI debug logs can be
         // forwarded under remote-debug configuration); keep the spawn shape.
@@ -420,7 +434,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         // response if this turn is aborted or crashes mid-stream.
         const planner = new AgyPlannerAccumulator();
 
-        const child = this.spawnAgy(args, this.session.path);
+        const child = this.spawnAgy(args, this.session.path, hooks.env);
         this.child = child;
         child.stdout.setEncoding('utf8');
         child.stderr.setEncoding('utf8');
@@ -435,6 +449,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         // prose emitted before a pre-result crash is not lost).
         let plannerResponseSent = false;
         let lastPlannerContent: string | null = null;
+        const plannerContents: string[] = [];
         // Best-effort model resolution for default-model turns: when no explicit
         // --model was selected, the actual generation model is read from agy's
         // conversation DB (mirrors the removed scanner's enrichment).
@@ -476,7 +491,10 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         };
         const sendPlanner = (entry: AgyTranscriptEntry) => {
             plannerResponseSent = true;
-            if (typeof entry.content === 'string') lastPlannerContent = entry.content;
+            if (typeof entry.content === 'string') {
+                lastPlannerContent = entry.content;
+                plannerContents.push(entry.content.trim());
+            }
             enqueueTranscript(async () => {
                 // Carry the turn's model (display label) on every planner entry so
                 // the web's per-turn attribution survives model switches and
@@ -530,6 +548,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                     const adoptStreamConversationId = (id: string): void => {
                         if (!id || id === this.conversationId) return;
                         this.conversationId = id;
+                        this.steering.adoptConversation(id);
                         this.session.onSessionFound(id);
                         // emitSessionReady signals transport/session readiness (hub
                         // row resolvable); the user-facing 'ready' chat event is
@@ -550,6 +569,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                                 break;
                             }
                             case 'user-input': {
+                                void this.steering.checkReceipts();
                                 // NDJSON's user_input step is the authoritative
                                 // delivery confirmation (replaces PTY echo matching).
                                 if (event.conversationId) {
@@ -593,6 +613,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                             case 'ignored':
                                 break;
                             case 'result': {
+                                this.steering.stopAccepting();
                                 sawResult = true;
                                 // Fallback conversation-id adoption: if the init
                                 // line was absent/malformed, the result envelope is
@@ -612,10 +633,20 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                                 // partial ("hel" → "hello").
                                 const pending = planner.flushAll();
                                 if (event.status === 'SUCCESS' && event.response?.trim() && pending.length > 0) {
+                                    // A hook can continue the same print process
+                                    // through multiple model calls. AGY's result
+                                    // then aggregates those replies, so remove an
+                                    // already streamed prefix before repairing a
+                                    // final partial step.
+                                    const completed = [...plannerContents, ...pending.slice(0, -1).map(entry => entry.content?.trim() ?? '')].filter(Boolean).join('\n');
+                                    const response = event.response.trim();
+                                    const remaining = completed && response.startsWith(`${completed}\n`)
+                                        ? response.slice(completed.length + 1)
+                                        : event.response;
                                     for (const entry of pending.slice(0, -1)) {
                                         void sendPlanner(entry);
                                     }
-                                    void sendPlanner({ ...pending[pending.length - 1]!, content: event.response });
+                                    void sendPlanner({ ...pending[pending.length - 1]!, content: remaining });
                                 } else {
                                     for (const entry of pending) {
                                         void sendPlanner(entry);
@@ -638,7 +669,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                                     // delta stream does not): a tool turn with
                                     // completed pre-tool narration but no final
                                     // agent_response would otherwise lose it.
-                                    if (lastPlannerContent?.trim() !== response) {
+                                    if (lastPlannerContent?.trim() !== response && plannerContents.filter(Boolean).join('\n') !== response) {
                                         void sendPlanner({
                                             step_index: -1,
                                             source: 'MODEL',
@@ -694,6 +725,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                 });
 
                 child.on('close', async (code) => {
+                    this.steering.stopAccepting();
                     logger.debug(`[agy-headless] agy exited with code ${code}`);
                     // EOF without a trailing newline: the final buffered record
                     // (result envelope, replacement id, failure status) would
@@ -714,6 +746,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
                     // later turn could overtake them.
                     await flushPlanner();
                     await sendChain;
+                    await this.steering.finishTurn();
                     // Ack whenever agy accepted the prompt — the user_input step
                     // or a result envelope (SUCCESS or failure: either proves the
                     // prompt was received, so the hub row must not stay stale),
@@ -779,6 +812,12 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
 
         const session = this.session;
         const messageBuffer = this.messageBuffer;
+        try {
+            await this.steering.start();
+            this.steeringReady = true;
+        } catch (error) {
+            logger.debug('[agy-headless] Session hook overlay unavailable; retaining queued turns', error);
+        }
 
         this.setupAbortHandlers(session.client.rpcHandlerManager, {
             onAbort: () => this.handleAbortRequest(),
@@ -923,6 +962,8 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
     }
 
     protected async cleanup(): Promise<void> {
+        await this.steering.close();
+        this.session.cancelSteeringDelivery = null;
         this.clearAbortHandlers(this.session.client.rpcHandlerManager);
         logger.debug('[agy-headless]: cleanup done');
     }

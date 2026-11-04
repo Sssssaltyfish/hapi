@@ -1,4 +1,5 @@
 import { describe, expect, it, test } from 'bun:test'
+import { MetadataSchema } from './schemas'
 import {
     AGENT_FLAVORS,
     AgentFlavorSchema,
@@ -200,5 +201,14 @@ describe('isSteeringSupportedForSession', () => {
     it('rejects non-steerable flavors', () => {
         expect(isSteeringSupportedForSession({ flavor: 'claude' })).toBe(false)
         expect(isSteeringSupportedForSession(null)).toBe(false)
+    })
+    it('requires advertised support for runtime adapters without changing legacy provider gates', () => {
+        expect(MetadataSchema.parse({ path: '/test', host: 'test', capabilities: { steering: true } }).capabilities?.steering).toBe(true)
+        for (const flavor of ['claude', 'dsh', 'agy', 'future-provider']) {
+            expect(isSteeringSupportedForSession({ flavor, capabilities: { steering: true } })).toBe(true)
+            expect(isSteeringSupportedForSession({ flavor, capabilities: { steering: false } })).toBe(false)
+            expect(isSteeringSupportedForSession({ flavor })).toBe(false)
+        }
+        expect(isSteeringSupportedForSession({ flavor: 'cursor', cursorSessionProtocol: 'stream-json', capabilities: { steering: true } })).toBe(false)
     })
 })

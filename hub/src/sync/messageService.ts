@@ -11,7 +11,7 @@ import {
     isRedundantGoalStatusEventContent,
     unwrapRoleWrappedRecordEnvelope
 } from '@hapi/protocol/messages'
-import { isObject } from '@hapi/protocol'
+import { isObject, isSteeringSupportedForSession } from '@hapi/protocol'
 import type { MessageDeliveryMode, MessagesResponse, QueuedStateResponse } from '@hapi/protocol/apiTypes'
 import type { Server } from 'socket.io'
 import { randomUUID } from 'node:crypto'
@@ -124,7 +124,7 @@ function getNormalizedDeliveryMode(
         return 'queue'
     }
 
-    return isObject(metadata) && metadata.flavor === 'pi' ? 'steer' : 'queue'
+    return isObject(metadata) && isSteeringSupportedForSession(metadata as Metadata) ? 'steer' : 'queue'
 }
 
 /**
@@ -194,12 +194,14 @@ export class MessageService {
 
     getQueuedState(sessionId: string, localIds: string[]): QueuedStateResponse {
         const states = this.store.messages.getLocalMessageStates(sessionId, localIds)
+        const dispatchingLocalIds = states.filter(state => state.invokedAt === null && state.deliveryState === 'dispatching').map(state => state.localId)
         return {
+            ...(dispatchingLocalIds.length ? { dispatchingLocalIds } : {}),
             queuedLocalIds: states
-                .filter((state) => state.invokedAt === null && state.deliveryState !== 'indeterminate' && state.deliveryState !== 'dispatching')
+                .filter((state) => state.invokedAt === null && state.deliveryState !== 'indeterminate')
                 .map((state) => state.localId),
             indeterminateLocalIds: states
-                .filter((state) => state.invokedAt === null && (state.deliveryState === 'indeterminate' || state.deliveryState === 'dispatching'))
+                .filter((state) => state.invokedAt === null && state.deliveryState === 'indeterminate')
                 .map((state) => state.localId),
             invokedLocalMessages: states.flatMap((state) => state.invokedAt === null
                 ? []

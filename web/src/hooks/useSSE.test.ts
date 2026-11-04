@@ -275,6 +275,7 @@ describe('useSSE scope handling', () => {
     it('treats message stream events as global-scoped skips', () => {
         expect(isGlobalScopedMessageStreamEvent('global', 'message-received')).toBe(true)
         expect(isGlobalScopedMessageStreamEvent('global', 'messages-consumed')).toBe(true)
+        expect(isGlobalScopedMessageStreamEvent('global', 'messages-dispatching')).toBe(true)
         expect(isGlobalScopedMessageStreamEvent('global', 'message-cancelled')).toBe(true)
         expect(isGlobalScopedMessageStreamEvent('global', 'scheduled-matured')).toBe(true)
     })

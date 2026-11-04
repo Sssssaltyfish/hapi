@@ -21,6 +21,8 @@ const harness = vi.hoisted(() => ({
     bridgeCleanup: vi.fn(async () => {}),
     rejectInFlight: null as null | ((error: Error) => void),
     promptBlocker: null as Promise<void> | null,
+    steeringCapability: null as unknown,
+    steerResult: null as Promise<unknown> | null,
     // When set, newSession() parks on this promise — lets tests query the
     // catalog RPC while session/new is still pending.
     newSessionBlocker: null as null | Promise<void>
@@ -44,6 +46,9 @@ vi.mock('./utils/dshBackend', () => ({
                 onUpdate({ type: 'text', text: 'answer' })
             }),
             cancelPrompt: vi.fn(async () => {}),
+            getPromptGeneration: vi.fn(() => 1),
+            getAgentExtensionCapability: vi.fn(() => harness.steeringCapability),
+            sendExtensionRequest: vi.fn(async () => await harness.steerResult),
             getConfigOptionByCategory: vi.fn(() => harness.modelOption),
             getSessionModelsMetadata: vi.fn(() => harness.modelsMetadata),
             getSessionConfigOptions: vi.fn(() => harness.configOptions),
@@ -87,7 +92,9 @@ function createSessionWithBatches(batches: Array<[string, DshMode]>) {
     return {
         path: '/tmp/dsh-test',
         logPath: '/tmp/dsh-test/hapi.log',
-        client: { rpcHandlerManager: { registerHandler: vi.fn() }, updateMetadata: vi.fn() },
+        client: { rpcHandlerManager: { registerHandler: vi.fn() }, updateMetadata: vi.fn(), updateAgentState: vi.fn(),
+            setSteerDeliveryState: vi.fn(async () => true), emitMessagesConsumed: vi.fn(), emitSteerIndeterminate: vi.fn() },
+        registerQueuedSteerHandler: vi.fn(() => () => {}),
         queue,
         sessionId: null as string | null,
         getPermissionMode: () => 'default' as const,
@@ -115,6 +122,8 @@ describe('DshRemoteLauncher', () => {
         harness.bridgeCleanup.mockClear()
         harness.rejectInFlight = null
         harness.promptBlocker = null
+        harness.steeringCapability = null
+        harness.steerResult = null
         harness.newSessionBlocker = null
     })
 
@@ -135,6 +144,117 @@ describe('DshRemoteLauncher', () => {
         })
         expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'ready' })
         expect(harness.backend?.disconnect).toHaveBeenCalled()
+    })
+
+    it('consumes a queued steer only after native admission without another prompt', async () => {
+        harness.steeringCapability = { version: 1, method: '_hapi/dsh/steer' }
+        let releasePrompt!: () => void
+        harness.promptBlocker = new Promise(resolve => { releasePrompt = resolve })
+        let accept!: (result: unknown) => void
+        harness.steerResult = new Promise(resolve => { accept = resolve })
+        const session = createSession()
+        session.queue.reset()
+        session.queue.push('first', {})
+        const launcher = new DshRemoteLauncher(session as never)
+        const done = launcher.launch()
+        await vi.waitFor(() => expect(harness.prompts).toHaveLength(1))
+        session.queue.push('additional instruction', {}, 'steer-1')
+        const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
+        const pending = (registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'steer-1' })
+        await vi.waitFor(() => expect(harness.backend?.sendExtensionRequest).toHaveBeenCalled())
+        const firstDispatchFinishedAt = Date.now()
+        await new Promise(resolve => setTimeout(resolve, 5))
+        session.sendAgentMessage({ type: 'message', message: 'response before receipt callback' })
+        const responseArrivedAt = Date.now()
+        expect(session.client.emitMessagesConsumed).not.toHaveBeenCalled()
+        expect(harness.prompts).toHaveLength(1)
+        accept({ accepted: true, requestId: 'steer-1', delivery: 'native-steer' })
+        await expect(pending).resolves.toEqual({ steered: true })
+        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['steer-1'], { steered: true, invokedAt: expect.any(Number) })
+        const consumedAt = session.client.emitMessagesConsumed.mock.calls[0][1]!.invokedAt!
+        expect(consumedAt).toBeLessThanOrEqual(firstDispatchFinishedAt)
+        expect(consumedAt).toBeLessThan(responseArrivedAt)
+        expect(harness.backend?.cancelPrompt).not.toHaveBeenCalled()
+        session.queue.close()
+        releasePrompt()
+        await done
+        expect(harness.prompts).toHaveLength(1)
+    })
+
+    it('steers the first message queued before discovery using the same effective model and presets', async () => {
+        harness.modelOption = { id: 'model', category: 'model', currentValue: FLASH }
+        harness.configOptions = [{ id: 'permissions', category: 'permission', currentValue: 'inspect', options: [{ value: 'inspect' }] }]
+        harness.steeringCapability = { version: 1, method: '_hapi/dsh/steer' }
+        harness.steerResult = Promise.resolve({ accepted: true, requestId: 'first-turn-steer', delivery: 'native-steer' })
+        let releaseNewSession!: () => void
+        harness.newSessionBlocker = new Promise(resolve => { releaseNewSession = resolve })
+        let releasePrompt!: () => void
+        harness.promptBlocker = new Promise(resolve => { releasePrompt = resolve })
+        const session = createSession()
+        session.queue.reset()
+        const launcher = new DshRemoteLauncher(session as never)
+        const done = launcher.launch()
+        await vi.waitFor(() => expect(harness.backend?.newSession).toHaveBeenCalled())
+        expect(launcher.getConfigPreferences()).toBeUndefined()
+        session.queue.push('queued before ready', {})
+        releaseNewSession()
+        await vi.waitFor(() => expect(harness.prompts).toHaveLength(1))
+        session.queue.push('same settings after ready', { model: FLASH, configOptions: launcher.getConfigPreferences() }, 'first-turn-steer')
+        const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
+        await expect((registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'first-turn-steer' })).resolves.toEqual({ steered: true })
+        expect(session.client.emitMessagesConsumed).toHaveBeenCalledWith(['first-turn-steer'], { steered: true, invokedAt: expect.any(Number) })
+        session.queue.close()
+        releasePrompt()
+        await done
+        expect(harness.prompts).toHaveLength(1)
+    })
+
+    it('restores a natively rejected steer to the ordinary queue', async () => {
+        harness.steeringCapability = { version: 1, method: '_hapi/dsh/steer' }
+        let releasePrompt!: () => void
+        harness.promptBlocker = new Promise(resolve => { releasePrompt = resolve })
+        const session = createSession()
+        session.queue.reset()
+        session.queue.push('first', {})
+        const launcher = new DshRemoteLauncher(session as never)
+        const done = launcher.launch()
+        await vi.waitFor(() => expect(harness.prompts).toHaveLength(1))
+        harness.backend!.sendExtensionRequest.mockRejectedValueOnce(new Error('No active DSH prompt accepts steering'))
+        session.queue.push('try next', {}, 'steer-2')
+        const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
+        await expect((registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'steer-2' })).resolves.toEqual({
+            steered: false, error: 'No active DSH prompt accepts steering'
+        })
+        expect(session.queue.peekByLocalId('steer-2')?.message).toBe('try next')
+        expect(session.client.emitMessagesConsumed).not.toHaveBeenCalled()
+        expect(session.client.setSteerDeliveryState).toHaveBeenLastCalledWith(['steer-2'], 'queued')
+        session.queue.close()
+        releasePrompt()
+        await done
+        expect(harness.prompts).toHaveLength(2)
+    })
+
+    it('holds an unconfirmed steer outside automatic queue replay', async () => {
+        harness.steeringCapability = { version: 1, method: '_hapi/dsh/steer' }
+        harness.steerResult = Promise.resolve({})
+        let releasePrompt!: () => void
+        harness.promptBlocker = new Promise(resolve => { releasePrompt = resolve })
+        const session = createSession()
+        session.queue.reset()
+        session.queue.push('first', {})
+        const launcher = new DshRemoteLauncher(session as never)
+        const done = launcher.launch()
+        await vi.waitFor(() => expect(harness.prompts).toHaveLength(1))
+        session.queue.push('uncertain delivery', {}, 'steer-3')
+        const registration = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'steer-queued-message')!
+        await expect((registration[1] as (payload: unknown) => Promise<unknown>)({ localId: 'steer-3' })).resolves.toMatchObject({ steered: false })
+        expect(session.client.emitSteerIndeterminate).toHaveBeenCalledWith(['steer-3'])
+        expect(session.queue.peekByLocalId('steer-3')).toBeNull()
+        expect(session.client.emitMessagesConsumed).not.toHaveBeenCalled()
+        session.queue.close()
+        releasePrompt()
+        await done
+        expect(harness.prompts).toHaveLength(1)
     })
 
     it('applies opaque plugin permission values from each queued message before prompting', async () => {

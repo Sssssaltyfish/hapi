@@ -25,6 +25,16 @@ export class CursorSession extends AgentSessionBase<EnhancedMode> {
     localLaunchFailure: LocalLaunchFailure | null = null;
     private modelApplyHandler: CursorModelApplyHandler | null = null;
     private permissionModeChangedHandler: CursorPermissionModeChangedHandler | null = null;
+    private queuedSteerHandler: ((payload: unknown) => Promise<{ steered: boolean; error?: string }>) | null = null;
+
+    registerQueuedSteerHandler(handler: (payload: unknown) => Promise<{ steered: boolean; error?: string }>): () => void {
+        this.queuedSteerHandler = handler;
+        return () => { if (this.queuedSteerHandler === handler) this.queuedSteerHandler = null; };
+    }
+
+    steerQueuedMessage(localId: string): Promise<{ steered: boolean; error?: string }> {
+        return this.queuedSteerHandler?.({ localId }) ?? Promise.resolve({ steered: false, error: 'No active steerable session' });
+    }
 
     constructor(opts: {
         api: ApiClient;

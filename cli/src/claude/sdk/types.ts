@@ -16,6 +16,8 @@ export interface SDKMessage {
 
 export interface SDKUserMessage extends SDKMessage {
     type: 'user'
+    uuid?: string
+    priority?: 'now' | 'next' | 'later'
     parent_tool_use_id?: string
     /**
      * Set by Claude Code on user-role messages it injects itself (skill bodies,
@@ -35,6 +37,9 @@ export interface SDKUserMessage extends SDKMessage {
         }>
     }
 }
+
+/** A precondition failure that proves an input was not written to Claude. */
+export class ClaudeInputUnavailableError extends Error {}
 
 export interface SDKAssistantMessage extends SDKMessage {
     type: 'assistant'

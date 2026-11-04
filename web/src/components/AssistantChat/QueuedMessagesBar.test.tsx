@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
     steerMessage: vi.fn(),
     resolveSteer: null as ((result: unknown) => void) | null,
     markMessagesConsumed: vi.fn(),
+    markMessagesDispatching: vi.fn(),
     saveDraft: vi.fn(),
     messageWindowState: { messages: [] as unknown[] },
 }))
@@ -45,8 +46,10 @@ vi.mock('@assistant-ui/react', () => ({
 
 vi.mock('@/lib/message-window-store', () => ({
     getMessageWindowState: () => mocks.messageWindowState,
+    getQueuedReconcileCandidateLocalIds: () => [],
     subscribeMessageWindow: () => () => {},
     markMessagesConsumed: mocks.markMessagesConsumed,
+    markMessagesDispatching: mocks.markMessagesDispatching,
 }))
 
 vi.mock('@/hooks/mutations/useCancelQueuedMessage', () => ({
@@ -148,6 +151,7 @@ beforeEach(() => {
     mocks.steerMessage.mockReset()
     mocks.resolveSteer = null
     mocks.markMessagesConsumed.mockReset()
+    mocks.markMessagesDispatching.mockReset()
     mocks.saveDraft.mockReset()
     mocks.messageWindowState = { messages: [] }
     clearQueuedEditRecovery('session-1')
@@ -199,6 +203,29 @@ afterEach(() => {
 })
 
 describe('QueuedMessagesBar compaction confirmation', () => {
+    it('accepts a pending manual request without a failure toast or optimistic consumption', async () => {
+        mocks.steerMessage.mockResolvedValue({ status: 'pending', localId: 'local-server-message-id' })
+        renderQueuedMessage(null, null, 0, true, { steerMessage: mocks.steerMessage } as unknown as ApiClient)
+        fireEvent.click(screen.getByRole('button', { name: 'Steer queued message' }))
+        await waitFor(() => expect(mocks.steerMessage).toHaveBeenCalled())
+        await act(async () => { await Promise.resolve() })
+        expect(mocks.markMessagesDispatching).not.toHaveBeenCalled()
+        expect(mocks.markMessagesConsumed).not.toHaveBeenCalled()
+        expect(mocks.addToast).not.toHaveBeenCalled()
+        expect(screen.getByText('Queued request')).toBeDefined()
+    })
+    it('keeps a dispatched steer visible with waiting status and disabled queue actions', () => {
+        mocks.messageWindowState = { messages: [makeQueuedMessage(null, 'pending', { deliveryState: 'dispatching' })] }
+        render(<QueryClientProvider client={new QueryClient()}>
+            <QueuedMessagesBar sessionId="session-1" api={null} pendingSchedule={null}
+                pendingScheduleRevision={0} canSteer />
+        </QueryClientProvider>)
+        expect(screen.getByText('queuedMessages.steerPending')).toBeDefined()
+        expect(screen.queryByText('queuedMessages.steerOutcomeUnknown')).toBeNull()
+        expect(screen.queryByRole('button', { name: 'queuedMessages.retryOutcome' })).toBeNull()
+        for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true)
+        expect(mocks.markMessagesConsumed).not.toHaveBeenCalled()
+    })
     it('shows waiting only for the observed message, then restores recovery controls when compaction ends', () => {
         mocks.messageWindowState = { messages: [
             makeQueuedMessage(null, 'compacting', { deliveryState: 'indeterminate' }),

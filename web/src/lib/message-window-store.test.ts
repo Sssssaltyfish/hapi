@@ -22,6 +22,9 @@ import {
     ingestIncomingMessages,
     invalidateMessageWindow,
     markMessagesConsumed,
+    markMessagesDispatching,
+    markMessagesIndeterminate,
+    markMessagesRequeued,
     reconcileQueuedLocalIds,
     removeOptimisticMessage,
     rewindMessageWindow,
@@ -1788,6 +1791,28 @@ describe('optimistic and queued-message operations', () => {
             id: 'server-1',
             status: 'sent'
         })
+    })
+
+    it('keeps pending delivery outside history position and ignores stale pending after uncertainty or consumption', () => {
+        const id = sessionId('steer-pending')
+        ingestIncomingMessages(id, [makeUserMessage({ id: 'pending', localId: 'pending-local', seq: 1, invokedAt: null })])
+        const before = getMessageWindowState(id)
+        markMessagesRequeued(id, ['pending-local'])
+        expect(getMessageWindowState(id).messages[0]).not.toBe(before.messages[0])
+        markMessagesDispatching(id, ['pending-local'])
+        expect(getMessageWindowState(id).messages[0]).toMatchObject({ invokedAt: null, deliveryState: 'dispatching' })
+        expect(getMessageWindowState(id).tailRevision).toBe(before.tailRevision)
+        expect(getMessageWindowState(id).newestSeq).toBe(before.newestSeq)
+        markMessagesIndeterminate(id, ['pending-local'])
+        markMessagesDispatching(id, ['pending-local'])
+        expect(getMessageWindowState(id).messages[0].deliveryState).toBe('indeterminate')
+        markMessagesRequeued(id, ['pending-local'])
+        markMessagesDispatching(id, ['pending-local'])
+        expect(getMessageWindowState(id).messages[0].deliveryState).toBe('dispatching')
+        markMessagesConsumed(id, ['pending-local'], 3_000)
+        markMessagesDispatching(id, ['pending-local'])
+        expect(getMessageWindowState(id).messages[0]).toMatchObject({ invokedAt: 3_000 })
+        expect(getMessageWindowState(id).messages[0].deliveryState).toBeUndefined()
     })
 
     it('marks queued rows consumed and reorders them by invoked position', () => {

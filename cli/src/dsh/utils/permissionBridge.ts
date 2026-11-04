@@ -14,9 +14,12 @@ const acpPath = requireRuntime.resolve('@deepseek-ai/dsh-acp')
 const acp = await import(pathToFileURL(acpPath).href)
 const { ndJsonStream } = await import(pathToFileURL(createRequire(acpPath).resolve('@agentclientprotocol/sdk')).href)
 const { interpolate } = await import(pathToFileURL(requireRuntime.resolve('@deepseek-ai/cordis-plugin-loader')).href)
+const { createUserMessage } = await import(pathToFileURL(requireRuntime.resolve('@deepseek-ai/dsh-llm')).href)
 export const name = 'hapi-dsh-acp-permissions'
 export const inject = acp.inject
 export function apply(ctx) {
+    // Capture the public service in the plugin's apply scope (Cordis context).
+    const agents = ctx.agents
     const sources = [...ctx.loader.entries()].filter(entry => entry.options.name === '@deepseek-ai/dsh-acp')
     if (sources.length !== 1 || !sources[0].disabled) throw new Error('HAPI requires one disabled original DSH ACP entry')
     const source = sources[0]
@@ -26,6 +29,8 @@ export function apply(ctx) {
     const writer = stream.writable.getWriter()
     const pending = new Map()
     const owned = new Map()
+    const sessions = new Map()
+    const steerMethod = '_hapi/dsh/steer'
     const permissionId = 'hapi/permission-preset'
     const send = message => writer.write(message)
     const permissionOption = sessionId => {
@@ -57,6 +62,34 @@ export function apply(ctx) {
     })
     const readable = stream.readable.pipeThrough(new TransformStream({
         async transform(message, controller) {
+            if (message.method === steerMethod) {
+                try {
+                    const { sessionId, requestId, text } = message.params ?? {}
+                    if (typeof sessionId !== 'string' || typeof requestId !== 'string' || !requestId
+                        || typeof text !== 'string' || !text.trim()) throw new Error('Invalid DSH steer request')
+                    const state = sessions.get(sessionId)
+                    if (!state || agents.get(sessionId) !== state.agent) throw new Error('DSH session is not owned by this ACP connection')
+                    const previous = state.receipts.get(requestId)
+                    if (previous) {
+                        if (previous.text !== text) throw new Error('DSH steer request id was reused with different content')
+                        await send({ jsonrpc: '2.0', id: message.id, result: previous.result })
+                        return
+                    }
+                    if (state.closing || state.cancelled || state.promptId === undefined || state.agent.status !== 'running') {
+                        throw new Error('No active DSH prompt accepts steering')
+                    }
+                    // Synchronous public native admission: no concurrent ACP prompt,
+                    // cancellation, private loop fields, or replacement session.
+                    state.agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+                    // Admission receipt, not a claim that the model consumed it.
+                    const result = { accepted: true, requestId, delivery: 'native-steer' }
+                    state.receipts.set(requestId, { text, result })
+                    await send({ jsonrpc: '2.0', id: message.id, result })
+                } catch (error) {
+                    await send({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: error instanceof Error ? error.message : String(error) } })
+                }
+                return
+            }
             if (message.method === 'session/set_config_option' && message.params?.configId === permissionId) {
                 try {
                     const { sessionId, value } = message.params
@@ -71,6 +104,15 @@ export function apply(ctx) {
                     await send({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: error instanceof Error ? error.message : String(error) } })
                 }
                 return
+            }
+            const state = sessions.get(message.params?.sessionId)
+            if (state) {
+                if (message.method === 'session/prompt' && state.promptId === undefined) {
+                    state.promptId = message.id
+                    state.cancelled = false
+                }
+                if (message.method === 'session/cancel') state.cancelled = true
+                if (message.method === 'session/close') state.closing = true
             }
             if (message.id !== undefined && message.method) pending.set(message.id, { method: message.method, params: message.params })
             controller.enqueue(message)
@@ -89,13 +131,25 @@ export function apply(ctx) {
             if (message.id !== undefined && !message.method) {
                 const request = pending.get(message.id)
                 pending.delete(message.id)
+                const active = sessions.get(request?.params?.sessionId)
+                if (request?.method === 'session/prompt' && active?.promptId === message.id) active.promptId = undefined
+                if (request?.method === 'session/close' && message.error && active) active.closing = false
                 if (request && message.result) {
                     const id = request.method === 'session/new' ? message.result.sessionId : request.params?.sessionId
+                    if (request.method === 'initialize') {
+                        const capabilities = message.result.agentCapabilities ?? {}
+                        message = { ...message, result: { ...message.result, agentCapabilities: { ...capabilities,
+                            _meta: { ...capabilities._meta, 'hapi.dshSteering': { version: 1, method: steerMethod } } } } }
+                    }
+                    if (id && ['session/new', 'session/load', 'session/resume'].includes(request.method)) {
+                        const agent = agents.get(id)
+                        if (agent) sessions.set(id, { agent, receipts: new Map(), promptId: undefined, closing: false, cancelled: false })
+                    }
                     if (id && Array.isArray(message.result.configOptions)) {
                         owned.set(id, message.result.configOptions)
                         message = { ...message, result: { ...message.result, configOptions: optionsOf(id, message.result.configOptions) } }
                     }
-                    if (request.method === 'session/close') owned.delete(id)
+                    if (request.method === 'session/close') { owned.delete(id); sessions.delete(id) }
                 }
             }
             await send(message)

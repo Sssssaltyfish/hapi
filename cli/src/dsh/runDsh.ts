@@ -69,6 +69,7 @@ export async function runDsh(opts: {
             dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()),
             localId
         )
+        if (localId && message.meta?.deliveryMode === 'steer') sessionRef.current?.requestQueuedSteer(localId)
     })
     session.onCancelQueuedMessage((localId) => queue.cancelByLocalId(localId))
 

@@ -95,6 +95,7 @@ const GLOBAL_OPERATIONS = [
     'deleteCodexNativeUpload',
     'getCodexNativeItems',
     'getCodexNativeModels',
+    'getCodexNativeQueue',
     'codexNativeAction',
     'streamCodexNativeEvents',
 ] as const satisfies readonly (keyof ApiClient)[]

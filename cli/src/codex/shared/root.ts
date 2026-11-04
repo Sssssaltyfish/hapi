@@ -120,6 +120,8 @@ export class SharedCodexRoot {
         });
         this.client.setTransportAbandonedHandler(() => { void this.reconnect(); });
         this.session.onUserMessage((message, localId) => {
+            const steerTurn = message.meta?.deliveryMode === 'steer' && !message.content.text.trim().startsWith('/')
+                ? this.currentTurn : undefined;
             this.work = this.work.catch(() => {}).then(async () => {
                 await this.bound;
                 if (this.closed || this.stopping) return;
@@ -128,6 +130,12 @@ export class SharedCodexRoot {
                 const resolved = text.trim().startsWith('/') ? await this.queue.command(id, () => this.command(text)) : text;
                 if (resolved === null) { this.session.emitMessagesConsumed([id], { clearQueuedThinkingGrace: true }); return; }
                 await this.queue.enqueue(id, buildUserInputFromMessage(resolved), this.interrupted);
+                if (steerTurn && this.currentTurn === steerTurn) {
+                    const result = await this.queue.steer(id, steerTurn);
+                    if (!result.steered && this.queue.state(id) !== 'consumed') this.notice(this.queue.state(id) !== 'queued'
+                        ? 'Message delivery was not confirmed. Inspect the queue before retrying.'
+                        : `Message remains in the queue: ${result.error ?? 'The active turn could not be steered'}`);
+                }
             }).catch(error => this.notice(`Message not confirmed: ${error instanceof Error ? error.message : error}. Inspect the queue before retrying.`));
         });
         this.session.onCancelQueuedMessage(async id => { await this.bound; return this.stopping ? 'indeterminate' : this.queue.cancel(id); });

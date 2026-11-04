@@ -15,7 +15,7 @@ vi.mock('./AcpStdioTransport', () => {
         sendRequest = vi.fn(async (method: string, params?: unknown) => {
             transportState.calls.push({ method, params });
             if (method === 'initialize') {
-                return { protocolVersion: 1, authMethods: [] };
+                return { protocolVersion: 1, authMethods: [], agentCapabilities: { _meta: { 'test/steering': { version: 1 } } } };
             }
             return null;
         });
@@ -31,6 +31,8 @@ describe('AcpSdkBackend.initialize', () => {
         const backend = new AcpSdkBackend({ command: 'agent', args: ['acp'] });
 
         await backend.initialize();
+        expect(backend.getAgentExtensionCapability('test/steering')).toEqual({ version: 1 });
+        expect(backend.getAgentExtensionCapability('missing')).toBeUndefined();
 
         expect(transportState.calls).toContainEqual({
             method: 'initialize',

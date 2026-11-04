@@ -50,6 +50,23 @@ afterEach(() => {
 })
 
 describe('Query', () => {
+    it('writes priority input on the existing stream and proves closed input was not dispatched', async () => {
+        const { Query } = await import('./query')
+        const { ClaudeInputUnavailableError } = await import('./types')
+        const stdin = new PassThrough()
+        const stdout = new PassThrough()
+        const lines: string[] = []
+        stdin.on('data', data => lines.push(String(data)))
+        let exit!: () => void
+        const query = new Query(stdin, stdout, new Promise<void>(resolve => { exit = resolve }))
+        const input = { type: 'user' as const, uuid: 'wire-id', priority: 'next' as const, message: { role: 'user' as const, content: 'soft input' } }
+        await query.sendUserMessage(input)
+        expect(lines).toEqual([JSON.stringify(input) + '\n'])
+        query.setError(new Error('connection ended'))
+        await expect(query.sendUserMessage(input)).rejects.toBeInstanceOf(ClaudeInputUnavailableError)
+        expect(lines).toHaveLength(1)
+        stdout.end(); exit()
+    })
     it('preserves externally set errors even if the process exits cleanly', async () => {
         const { Query } = await import('./query')
         const stdout = new PassThrough()

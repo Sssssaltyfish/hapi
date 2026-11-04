@@ -35,6 +35,8 @@ export const OpencodeClearOperationSchema = z.object({
 export type OpencodeClearOperation = z.infer<typeof OpencodeClearOperationSchema>
 
 const SessionCapabilitiesSchema = z.object({
+    /** The active adapter verified a native soft-input path for this session. */
+    steering: z.boolean().optional(),
     concurrentClients: z.boolean().optional(),
     terminal: z.boolean().optional(),
     permissionModes: z.array(PermissionModeSchema).optional(),
@@ -335,8 +337,8 @@ export const DecryptedMessageSchema = z.object({
     invokedAt: z.number().nullable().optional(),
     scheduledAt: z.number().nullable().optional(),
     // The agent was sent the steer but its final outcome could not be proven.
-    // The row stays uninvoked and requires an explicit user resolution.
-    deliveryState: z.literal('indeterminate').optional(),
+    // Both stay uninvoked: dispatching awaits a receipt; indeterminate needs resolution.
+    deliveryState: z.enum(['dispatching', 'indeterminate']).optional(),
     // Live signal via messages-consumed (steered:true); not persisted by the hub.
     steered: z.boolean().optional()
 })
@@ -642,6 +644,10 @@ export const SyncEventSchema = z.discriminatedUnion('type', [
         localIds: z.array(z.string())
     }),
     SessionChangedSchema.extend({
+        type: z.literal('messages-dispatching'),
+        localIds: z.array(z.string())
+    }),
+    SessionChangedSchema.extend({
         type: z.literal('message-cancelled'),
         messageId: z.string(),
         localId: z.string().optional()
@@ -680,6 +686,7 @@ export const CancelMessageResponseSchema = z.discriminatedUnion('status', [
 export type CancelMessageResponse = z.infer<typeof CancelMessageResponseSchema>
 
 export const SteerQueuedMessageResponseSchema = z.discriminatedUnion('status', [
+    z.object({ status: z.literal('pending'), localId: z.string() }),
     z.object({ status: z.literal('steered'), localId: z.string() }),
     z.object({ status: z.literal('invoked'), message: DecryptedMessageSchema }),
     z.object({ status: z.literal('failed'), error: z.string(), localId: z.string().nullable() }),

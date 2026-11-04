@@ -84,6 +84,7 @@ class StoreSyncTargets(
             is SyncEvent.MessagesInvalidated,
             is SyncEvent.MessagesConsumed,
             is SyncEvent.MessagesIndeterminate,
+            is SyncEvent.MessagesDispatching,
             is SyncEvent.MessagesRequeued,
             is SyncEvent.MessageCancelled,
             is SyncEvent.ScheduledMatured,
@@ -159,6 +160,7 @@ class StoreSyncTargets(
                 // Global pipe: queued/optimistic bookkeeping only (see class doc).
                 is SyncEvent.MessagesConsumed -> store.markConsumed(event.localIds, event.invokedAt)
                 is SyncEvent.MessagesIndeterminate -> store.markIndeterminate(event.localIds)
+                is SyncEvent.MessagesDispatching -> store.markDispatching(event.localIds)
                 is SyncEvent.MessagesRequeued -> store.markRequeued(event.localIds)
                 is SyncEvent.MessageCancelled -> store.removeMessage(event.messageId)
                 else -> Unit
@@ -170,6 +172,7 @@ class StoreSyncTargets(
         is SyncEvent.MessageReceived -> sessionId
         is SyncEvent.MessagesConsumed -> sessionId
         is SyncEvent.MessagesIndeterminate -> sessionId
+        is SyncEvent.MessagesDispatching -> sessionId
         is SyncEvent.MessagesRequeued -> sessionId
         is SyncEvent.MessageCancelled -> sessionId
         is SyncEvent.MessagesInvalidated -> sessionId

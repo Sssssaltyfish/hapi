@@ -210,7 +210,7 @@ final class ChatSession {
 
     private func route(_ event: SyncEvent) async {
         switch event {
-        case .messageReceived, .messagesConsumed, .messageCancelled,
+        case .messageReceived, .messagesConsumed, .messagesDispatching, .messagesIndeterminate, .messagesRequeued, .messageCancelled,
              .messagesInvalidated, .scheduledMatured:
             // Message-stream family → the open window (the controller
             // re-checks the session id defensively).

@@ -13,6 +13,7 @@ import { EnhancedMode } from "./loop";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
 import type { ClaudePermissionMode } from "@hapi/protocol/types";
 import { applySessionTitleFallback } from './utils/sessionTitleFallback';
+import { ClaudeSteering } from './claudeSteering';
 import {
     RemoteLauncherBase,
     type RemoteLauncherDisplayContext,
@@ -51,6 +52,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
     private abortFuture: Future<void> | null = null;
     private permissionHandler: PermissionHandler | null = null;
     private handleSessionFound: ((sessionId: string) => void) | null = null;
+    private steering: ClaudeSteering | null = null;
 
     constructor(session: Session) {
         super(process.env.DEBUG ? session.logPath : undefined);
@@ -127,6 +129,8 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
         const session = this.session;
         const messageBuffer = this.messageBuffer;
+        const steering = new ClaudeSteering(session);
+        this.steering = steering;
 
         this.setupAbortHandlers(session.client.rpcHandlerManager, {
             onAbort: () => this.handleAbortRequest(),
@@ -488,7 +492,10 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         onThinkingChange: session.onThinkingChange,
                         claudeEnvVars: session.claudeEnvVars,
                         claudeArgs: session.claudeArgs,
-                        onMessage,
+                        onMessage: message => { steering.observe(message); onMessage(message); },
+                        onInputLease: lease => steering.setLease(lease, modeHash),
+                        waitForSteering: signal => steering.waitForPending(signal),
+                        hasPendingSteering: () => steering.hasPending(),
                         onFirstResult: (initialMessage) => {
                             applySessionTitleFallback(session.client, initialMessage);
                         },
@@ -526,7 +533,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                                 `[claudeRemoteLauncher][async-debug] onReady callback ` +
                                 `(hasPending=${Boolean(pending)}, queueSize=${session.queue.size()})`
                             );
-                            if (!pending && session.queue.size() === 0) {
+                            if (!pending && session.queue.size() === 0 && !steering.hasPending()) {
                                 session.client.sendSessionEvent({ type: 'ready' });
                                 logger.debug('[claudeRemoteLauncher][async-debug] ready event sent to hub');
                             } else {
@@ -642,6 +649,8 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                     }
                 } finally {
                     logger.debug('[remote]: launch finally');
+                    controller.abort();
+                    steering.reset();
 
                     for (let [toolCallId, { parentToolCallId }] of ongoingToolCalls) {
                         const converted = sdkToLogConverter.generateInterruptedToolResult(toolCallId, parentToolCallId);
@@ -667,6 +676,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                 }
             }
         } finally {
+            steering.close(); this.steering = null;
             if (this.permissionHandler) {
                 this.permissionHandler.reset();
             }
@@ -674,6 +684,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
     }
 
     protected async cleanup(): Promise<void> {
+        this.steering?.close(); this.steering = null;
         this.clearAbortHandlers(this.session.client.rpcHandlerManager);
 
         if (this.handleSessionFound) {

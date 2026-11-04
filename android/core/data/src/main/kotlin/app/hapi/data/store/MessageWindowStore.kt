@@ -425,6 +425,7 @@ class MessageWindowStore(
             is SyncEvent.MessageReceived -> ingestSseMessages(listOf(event.message.asWindowMessage()))
             is SyncEvent.MessagesConsumed -> markConsumed(event.localIds, event.invokedAt)
             is SyncEvent.MessagesIndeterminate -> markIndeterminate(event.localIds)
+            is SyncEvent.MessagesDispatching -> markDispatching(event.localIds)
             is SyncEvent.MessagesRequeued -> markRequeued(event.localIds)
             is SyncEvent.MessageCancelled -> removeMessage(event.messageId)
             is SyncEvent.MessagesInvalidated -> {
@@ -452,6 +453,11 @@ class MessageWindowStore(
 
     suspend fun markIndeterminate(localIds: List<String>) {
         update { MessageWindowLogic.markIndeterminate(it, localIds) }
+        persist()
+    }
+
+    suspend fun markDispatching(localIds: List<String>) {
+        update { MessageWindowLogic.markDispatching(it, localIds) }
         persist()
     }
 
@@ -531,17 +537,22 @@ class MessageWindowStore(
      * collect candidates, ask the hub for the verdict in ≤1000-id batches,
      * stamp invoked rows like `messages-consumed`, drop deleted candidates.
      */
-    suspend fun reconcileQueuedState() {
-        syncTail(ensureAfterCurrent = true)
+    suspend fun reconcileQueuedState(syncTailFirst: Boolean = true) {
+        if (syncTailFirst) syncTail(ensureAfterCurrent = true)
         val candidateLocalIds = queuedReconcileCandidateLocalIds()
         if (candidateLocalIds.isEmpty()) return
+        val baseline = state.value.messages.mapNotNull { message -> message.localId?.let { it to message } }.toMap()
         val queuedLocalIds = mutableListOf<String>()
         val indeterminateLocalIds = mutableListOf<String>()
+        val dispatchingLocalIds = mutableListOf<String>()
+        val deliveryKnownQueuedLocalIds = mutableListOf<String>()
         val invokedLocalMessages = mutableListOf<Pair<String, Long>>()
         candidateLocalIds.chunked(QUEUED_STATE_BATCH_SIZE).forEach { batch ->
             val response = api.getQueuedState(sessionId, batch)
             queuedLocalIds += response.queuedLocalIds
             indeterminateLocalIds += response.indeterminateLocalIds
+            dispatchingLocalIds += response.dispatchingLocalIds
+            deliveryKnownQueuedLocalIds += response.queuedLocalIds
             invokedLocalMessages += response.invokedLocalMessages.map { it.localId to it.invokedAt }
         }
         val invokedByTimestamp = LinkedHashMap<Long, MutableList<String>>()
@@ -551,8 +562,14 @@ class MessageWindowStore(
         for ((invokedAt, localIds) in invokedByTimestamp) {
             markConsumed(localIds, invokedAt)
         }
-        markIndeterminate(indeterminateLocalIds)
-        reconcileQueuedLocalIds(candidateLocalIds, queuedLocalIds + indeterminateLocalIds)
+        update { current ->
+            val unchanged = candidateLocalIds.filter { id -> current.messages.any { it.localId == id && it === baseline[id] } }.toSet()
+            var next = MessageWindowLogic.reconcileQueuedLocalIds(current, candidateLocalIds.filter { it in unchanged }, queuedLocalIds + indeterminateLocalIds)
+            next = MessageWindowLogic.markRequeued(next, deliveryKnownQueuedLocalIds.filter { it in unchanged })
+            next = MessageWindowLogic.markDispatching(next, dispatchingLocalIds.filter { it in unchanged })
+            MessageWindowLogic.markIndeterminate(next, indeterminateLocalIds.filter { it in unchanged })
+        }
+        persist()
     }
 
     // ------------------------------------------------------------ lifecycle --

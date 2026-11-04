@@ -567,9 +567,10 @@ export class RpcGateway {
     async steerQueuedMessage(
         sessionId: string,
         localId: string
-    ): Promise<{ steered: boolean; error?: string }> {
+    ): Promise<{ steered: boolean; pending?: boolean; error?: string }> {
         return await this.sessionRpc(sessionId, RPC_METHODS.SteerQueuedMessage, { localId }) as {
             steered: boolean
+            pending?: boolean
             error?: string
         }
     }

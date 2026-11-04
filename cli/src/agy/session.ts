@@ -4,6 +4,7 @@ import { AgentSessionBase } from '@/agent/sessionBase';
 import type { AgyMode, PermissionMode } from './types';
 import type { LocalLaunchExitReason } from '@/agent/localLaunchPolicy';
 import type { SessionEffort, SessionModel } from '@/api/types';
+import type { AgySteerResult } from './headless/agySteering';
 
 type LocalLaunchFailure = {
     message: string;
@@ -21,6 +22,20 @@ export class AgySession extends AgentSessionBase<AgyMode> {
     localLaunchFailure: LocalLaunchFailure | null = null;
     /** Set by the headless driver; lets the CLI cancel a batch held in retry backoff. */
     cancelRetryDelivery: ((localId: string) => boolean) | null = null;
+    cancelSteeringDelivery: ((localId: string) => boolean | 'in-flight' | 'indeterminate' | 'consumed') | null = null;
+    private queuedSteerHandler: ((id: string) => Promise<AgySteerResult>) | null = null;
+    private pendingSteer: ((id: string) => boolean) | null = null;
+
+    registerQueuedSteerHandler(handler: NonNullable<AgySession['queuedSteerHandler']>, pending: (id: string) => boolean): () => void {
+        this.queuedSteerHandler = handler; this.pendingSteer = pending;
+        return () => { if (this.queuedSteerHandler === handler) { this.queuedSteerHandler = null; this.pendingSteer = null; } };
+    }
+
+    steerQueuedMessage(id: string): Promise<AgySteerResult> {
+        return this.queuedSteerHandler?.(id) ?? Promise.resolve({ steered: false, error: 'No active verified AGY hook' });
+    }
+
+    isSteeringPending(id: string): boolean { return this.pendingSteer?.(id) === true; }
 
     constructor(opts: {
         api: ApiClient;

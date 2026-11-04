@@ -399,7 +399,13 @@ export class ApiClient {
         return await this.request('/api/codex-native/models')
     }
 
-    async codexNativeAction(id: string, action: 'settings' | 'messages' | 'interrupt' | `requests/${string}`, payload: NativeRecord): Promise<NativeRecord> {
+    async getCodexNativeQueue(id: string, cursor?: string): Promise<NativePage<NativeRecord>> {
+        const params = new URLSearchParams({ limit: '100' })
+        if (cursor) params.set('cursor', cursor)
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/queue?${params}`)
+    }
+
+    async codexNativeAction(id: string, action: 'settings' | 'messages' | 'interrupt' | 'queue/delete' | `requests/${string}`, payload: NativeRecord): Promise<NativeRecord> {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/${action}`, {
             method: 'POST', body: JSON.stringify(payload)
         })

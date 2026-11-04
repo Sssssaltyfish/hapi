@@ -80,6 +80,7 @@ class SyncEventRouter(private val targets: SyncTargets) {
             is SyncEvent.MessageReceived,
             is SyncEvent.MessagesConsumed,
             is SyncEvent.MessagesIndeterminate,
+            is SyncEvent.MessagesDispatching,
             is SyncEvent.MessagesRequeued,
             is SyncEvent.MessageCancelled,
             is SyncEvent.ScheduledMatured,

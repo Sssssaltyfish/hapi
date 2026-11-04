@@ -636,6 +636,52 @@ struct ChatInteractorTests {
         #expect(cancels == 1)
     }
 
+    @Test func pendingSteerRetainsTheQueueAndDisablesActionsUntilConsumed() async throws {
+        let harness = try await ChatInteractionHarness(detail: chatDetail(thinking: true))
+        await harness.window().ingestSSEMessages([WindowMessage(wire: queuedServerRow(id: "pending-row", localId: "pending-local", text: "wait for receipt"))])
+        #expect(await eventually { harness.interactor.queuedRows.contains { $0.id == "pending-row" && $0.canSteer } })
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/pending-row/steer", json: #"{"status":"pending","localId":"pending-local"}"#)
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/queued-state", json: #"{"queuedLocalIds":["pending-local"],"dispatchingLocalIds":["pending-local"],"invokedLocalMessages":[]}"#)
+        harness.interactor.steerQueuedMessage("pending-row")
+        #expect(await eventually { await harness.row(localId: "pending-local")?.isDispatching == true })
+        #expect(await eventually { harness.interactor.queuedRows.contains { $0.id == "pending-row" && !$0.canAct && !$0.indeterminate } })
+        #expect(await harness.row(localId: "pending-local")?.invokedAtNumber == nil)
+        harness.interactor.steerQueuedMessage("pending-row")
+        harness.interactor.editQueuedMessage("pending-row")
+        harness.interactor.cancelQueuedMessage("pending-row")
+        await Task.yield()
+        await harness.window().onMessageEvent(.messagesConsumed(namespace: nil, sessionId: "sess-1", localIds: ["pending-local"], invokedAt: 950))
+        #expect(await eventually { !harness.interactor.queuedRows.contains { $0.id == "pending-row" } })
+        #expect(await harness.performer.count("POST", pathSuffix: "/messages/pending-row/steer") == 1)
+        #expect(await harness.performer.count("DELETE", pathSuffix: "/messages/pending-row") == 0)
+    }
+
+    @Test func latePendingAndRecoveryRepliesDoNotRelockAnAuthoritativelyRequeuedRow() async throws {
+        let harness = try await ChatInteractionHarness(detail: chatDetail(thinking: true))
+        let window = await harness.window()
+        await window.ingestSSEMessages([WindowMessage(wire: queuedServerRow(id: "late-row", localId: "late-local", text: "keep queued"))])
+        #expect(await eventually { harness.interactor.queuedRows.contains { $0.id == "late-row" && $0.canAct } })
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/late-row/steer", json: #"{"status":"pending","localId":"late-local"}"#)
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/queued-state", json: #"{"queuedLocalIds":["late-local"],"invokedLocalMessages":[]}"#)
+        await harness.performer.gate("POST", pathSuffix: "/messages/late-row/steer")
+        harness.interactor.steerQueuedMessage("late-row")
+        #expect(await eventually { await harness.performer.count("POST", pathSuffix: "/messages/late-row/steer") == 1 })
+        await window.onMessageEvent(.messagesDispatching(namespace: nil, sessionId: "sess-1", localIds: ["late-local"]))
+        await window.onMessageEvent(.messagesRequeued(namespace: nil, sessionId: "sess-1", localIds: ["late-local"]))
+        await harness.performer.openGates()
+        #expect(await eventually { harness.interactor.queuedRows.contains { $0.id == "late-row" && $0.canAct } })
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/late-row/steer", json: #"{"status":"pending","localId":"late-local"}"#)
+        await harness.performer.script("POST", "/api/sessions/sess-1/messages/queued-state", json: #"{"queuedLocalIds":["late-local"],"dispatchingLocalIds":["late-local"],"invokedLocalMessages":[]}"#)
+        await harness.performer.gate("POST", pathSuffix: "/messages/queued-state")
+        harness.interactor.steerQueuedMessage("late-row")
+        #expect(await eventually { await harness.performer.count("POST", pathSuffix: "/messages/queued-state") == 2 })
+        await window.onMessageEvent(.messagesDispatching(namespace: nil, sessionId: "sess-1", localIds: ["late-local"]))
+        await window.onMessageEvent(.messagesRequeued(namespace: nil, sessionId: "sess-1", localIds: ["late-local"]))
+        await harness.performer.openGates()
+        #expect(await eventually { harness.interactor.queuedRows.contains { $0.id == "late-row" && $0.canAct } })
+        #expect(await harness.row(localId: "late-local")?.invokedAtNumber == nil)
+    }
+
     @Test func steerPostsAndAnInvokedAnswerReconcilesAMissedConsume() async throws {
         let harness = try await ChatInteractionHarness(detail: chatDetail(thinking: true))
         await harness.window().ingestSSEMessages([
