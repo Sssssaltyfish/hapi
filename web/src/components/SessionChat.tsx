@@ -63,7 +63,7 @@ import {
 import type { MessageDeliveryMode } from '@hapi/protocol'
 import { isSteeringSupportedForSession } from '@hapi/protocol'
 import { createAttachmentAdapter } from '@/lib/attachmentAdapter'
-import { rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
+import { hasNewerMessagesOutsideWindow, rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
 import { ShareSeedConsumer } from '@/components/ShareSeedConsumer'
 import {
     createScratchlistAttachmentAdapter,
@@ -126,6 +126,7 @@ import { AgentTerminalView } from '@/components/AgentTerminal/AgentTerminalView'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { VoiceBackendSession, registerSessionStore, registerVoiceHooksStore, voiceHooks } from '@/realtime'
 import { isRemoteTerminalSupported } from '@/utils/terminalSupport'
+import { useConversationHistoryIndex } from '@/hooks/useConversationHistoryIndex'
 
 type SessionModelSelection = { provider: string; modelId: string } | string | null
 
@@ -574,6 +575,7 @@ type SessionChatProps = {
     messages: DecryptedMessage[]
     messagesWarning: string | null
     hasMoreMessages: boolean
+    hasNewerMessages?: boolean
     isSyncingTail: boolean
     isLoadingMoreMessages: boolean
     isSending: boolean
@@ -585,7 +587,9 @@ type SessionChatProps = {
     onBack: () => void
     onRefresh: () => void | Promise<void>
     onLoadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    onLoadNewer?: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     onCancelLoadMore: () => void
+    onLocateNativeHistoryPage?: (cursor: string | null, targetMessageId: string) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
     // inactive-session resume failed. Composer state that should only be cleared on
@@ -1561,6 +1565,15 @@ function SessionChatInner(props: SessionChatProps) {
         () => buildConversationOutline(reconciled.blocks),
         [reconciled.blocks]
     )
+    const historyIndex = useConversationHistoryIndex({
+        api: props.api,
+        session: props.session,
+        open: outlineOpen,
+        currentItems: outlineItems,
+        messagesVersion: props.messagesVersion,
+        viewMode: props.viewMode,
+        onLocateNativePage: props.onLocateNativeHistoryPage,
+    })
 
     // Permission mode change handler
     const handlePermissionModeChange = useCallback(async (mode: PermissionMode) => {
@@ -2005,8 +2018,10 @@ function SessionChatInner(props: SessionChatProps) {
                         isSyncingTail={props.isSyncingTail}
                         messagesWarning={props.messagesWarning}
                         hasMoreMessages={props.hasMoreMessages}
+                        hasNewerMessages={props.hasNewerMessages ?? hasNewerMessagesOutsideWindow(props.session.id)}
                         isLoadingMoreMessages={props.isLoadingMoreMessages}
                         onLoadMore={props.onLoadMore}
+                        onLoadNewer={props.onLoadNewer}
                         onCancelLoadMore={props.onCancelLoadMore}
                         unseenCount={unseenCount}
                         rawMessagesCount={visibleMessages.length}
@@ -2015,7 +2030,14 @@ function SessionChatInner(props: SessionChatProps) {
                         historyVersion={props.historyVersion}
                         forceScrollToken={forceScrollToken}
                         outlineOpen={outlineOpen}
-                        outlineItems={outlineItems}
+                        outlineItems={historyIndex.items}
+                        outlineHasEarlier={historyIndex.hasEarlier}
+                        outlineLoading={historyIndex.loading}
+                        outlineError={historyIndex.error}
+                        outlineCapped={historyIndex.capped}
+                        outlineScannedPages={historyIndex.scannedPages}
+                        onLoadEarlierOutline={historyIndex.loadEarlier}
+                        onLocateOutlineItem={historyIndex.locate}
                         onOutlineOpenChange={setOutlineOpen}
                     />
                     </div>

@@ -5,6 +5,7 @@ import {
     activateMessageWindow,
     cancelOlderMessageLoad,
     fetchOlderMessages,
+    fetchNewerMessages,
     getMessageWindowState,
     setMessageViewMode,
     subscribeMessageWindow,
@@ -41,6 +42,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
     historyVersion: number
     tailRevision: number
     loadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    loadNewer: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     cancelLoadMore: () => void
     refetch: () => Promise<void>
     setViewMode: (mode: MessageViewMode) => void
@@ -61,7 +63,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
     }, [sessionId])
 
     useEffect(() => {
-        if (api && sessionId) {
+        if (api && sessionId && getMessageWindowState(sessionId).viewMode !== 'history') {
             void syncTailMessages(api, sessionId)
         }
     }, [api, sessionId])
@@ -78,6 +80,10 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
             cancelOlderMessageLoad(sessionId)
         }
     }, [sessionId])
+    const loadNewer = useCallback(async (onBeforeApply?: (historyVersion: number) => boolean) => {
+        if (!api || !sessionId) return { kind: 'stopped', reason: 'unavailable' } as const
+        return fetchNewerMessages(api, sessionId, { onBeforeApply })
+    }, [api, sessionId])
 
     const refetch = useCallback(async () => {
         if (!api || !sessionId) return
@@ -104,6 +110,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
         historyVersion: state.historyVersion,
         tailRevision: state.tailRevision,
         loadMore,
+        loadNewer,
         cancelLoadMore,
         refetch,
         setViewMode,

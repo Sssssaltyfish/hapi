@@ -292,6 +292,8 @@ export default {
   'session.outline.searchLabel': '搜索大纲条目',
   'session.outline.searchResults': '{matched}/{total} 个条目',
   'session.outline.noSearchResults': '没有匹配的大纲条目',
+  'session.outline.locateFailed': '未能显示该消息。请重新选择条目以重试。',
+  'session.outline.indexedPages': '已检查 {n} 页历史记录。如目标提问仍未出现，可继续加载更早页面。',
   'session.outline.partialIndex': '搜索范围为已索引的用户提问。点击 ↑ 查找更早一页，无需将完整记录载入会话。',
   'session.outline.indexComplete': '已索引全部历史页面。',
   'session.outline.indexLimit': '搜索只覆盖当前有容量限制的提问摘要缓存。如还有更早页面，可点击 ↑ 继续查找，之前的缓存会逐步替换。',

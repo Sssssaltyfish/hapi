@@ -12,6 +12,8 @@ import { projectNativeItems } from './projectNativeItems'
 import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
+import { getConversationReadingPosition } from '@/lib/conversation-reading-position'
+import { buildConversationOutline } from '@/chat/outline'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
 
 export function NativeSessionPage({
@@ -53,7 +55,7 @@ function NativeSessionChat({
     outline?: boolean
 }) {
     const native = session.metadata!.nativeCodex!
-    const thread = useNativeThread(api, native.threadId, native.available !== false)
+    const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
     const autocompleteSuggestions = useNativeSuggestions(api, native.threadId)
     const observedReplies = useRef(new Map<string, string>())
     for (const [id, answer] of nativeQuestionReplies(thread.items))
@@ -75,7 +77,7 @@ function NativeSessionChat({
     const [settlement, setSettlement] = useState<SendMessageSettlement | null>(null)
     const [sendError, setSendError] = useState<ComposerSendError | null>(null)
     const [settingsError, setSettingsError] = useState<string | null>(null)
-    const [viewMode, setViewMode] = useState<'tail' | 'history'>('tail')
+    const [viewMode, setViewMode] = useState<'tail' | 'history'>(() => getConversationReadingPosition(session.id)?.atBottom === false ? 'history' : 'tail')
     const revision = useRef({ items: thread.items, value: 0 })
     if (revision.current.items !== thread.items)
         revision.current = { items: thread.items, value: revision.current.value + 1 }
@@ -160,6 +162,7 @@ function NativeSessionChat({
             messages={projected.messages}
             messagesWarning={settingsError || (native.error ?? thread.error) || null}
             hasMoreMessages={Boolean(thread.cursor)}
+            hasNewerMessages={thread.hasNewer}
             isSyncingTail={thread.loading}
             isLoadingMoreMessages={thread.olderLoading}
             isSending={sending}
@@ -170,7 +173,35 @@ function NativeSessionChat({
             tailRevision={revision.current.value}
             onBack={onBack}
             onRefresh={refresh}
-            onCancelLoadMore={() => {}}
+            onCancelLoadMore={thread.cancelOlder}
+            onLoadNewer={async (beforeApply) => {
+                let appliedVersion = revision.current.value
+                let addedRenderableCount = 0
+                const blocks = (messages: typeof projected.messages) => reduceChatBlocks(
+                    messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null),
+                    { requests: projected.requests }
+                ).blocks
+                const previousIds = new Set(blocks(projected.messages).map(block => block.id))
+                const applied = await thread.newer(entries => {
+                    appliedVersion = revision.current.value + 1
+                    if (beforeApply && !beforeApply(appliedVersion)) return false
+                    addedRenderableCount = blocks(projectNativeItems(entries, thread.requests, turnStateKnown, observedReplies.current).messages)
+                        .filter(block => !previousIds.has(block.id)).length
+                    return true
+                })
+                if (!applied) return { kind: 'stopped', reason: 'exhausted' }
+                setViewMode('history')
+                return { kind: 'applied', historyVersion: appliedVersion, hasMore: Boolean(applied.nextCursor), addedRenderableCount }
+            }}
+            onLocateNativeHistoryPage={async (cursor, targetMessageId) => {
+                const found = await thread.seek(cursor, entries => {
+                    const messages = projectNativeItems(entries, [], false).messages
+                    const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+                    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
+                })
+                if (found) setViewMode('history')
+                return found
+            }}
             onLoadMore={async (beforeApply) => {
                 let appliedVersion = revision.current.value
                 let addedRenderableCount = 0
@@ -207,6 +238,7 @@ function NativeSessionChat({
             onViewModeChange={(mode) => {
                 setViewMode(mode)
                 if (mode === 'tail') void thread.latest(true)
+                else thread.browseHistory()
             }}
             onSend={async (text, attachments, scheduledAt, deliveryMode) => {
                 if (sending || unavailable) return false

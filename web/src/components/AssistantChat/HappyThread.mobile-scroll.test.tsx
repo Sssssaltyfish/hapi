@@ -31,6 +31,9 @@ vi.mock('@assistant-ui/react', async (importOriginal) => {
 import { HappyThread } from '@/components/AssistantChat/HappyThread'
 import type { ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
+import { clearConversationReadingPosition, saveConversationReadingPosition } from '@/lib/conversation-reading-position'
+import type { ConversationOutlineItem } from '@/chat/outline'
+import type { OlderLoadOutcome } from '@/lib/message-window-store'
 
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -47,11 +50,18 @@ class TestResizeObserver {
     disconnect() {}
 }
 
-function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
+function renderThread(onViewModeChange = vi.fn(), unseenCount = 0, hasNewerMessages = false, outline: {
+    item?: ConversationOutlineItem
+    locate?: () => Promise<boolean>
+    onOpenChange?: (open: boolean) => void
+    loadNewer?: (beforeApply?: (version: number) => boolean) => Promise<OlderLoadOutcome>
+} = {}) {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } }
     })
-    const renderHappyThread = (forceScrollToken: number) => (
+    let outlineOpen = Boolean(outline.item)
+    let result: ReturnType<typeof render>
+    const renderHappyThread = (forceScrollToken: number, messagesVersion = 1) => (
         <QueryClientProvider client={queryClient}>
             <I18nProvider>
                 <HappyThread
@@ -65,23 +75,30 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
                     isSyncingTail={false}
                     messagesWarning={null}
                     hasMoreMessages={false}
+                    hasNewerMessages={hasNewerMessages}
                     isLoadingMoreMessages={false}
                     onLoadMore={vi.fn().mockResolvedValue({ status: 'exhausted' })}
+                    onLoadNewer={outline.loadNewer}
                     onCancelLoadMore={vi.fn()}
                     unseenCount={unseenCount}
                     rawMessagesCount={1}
                     normalizedMessagesCount={1}
-                    messagesVersion={1}
-                    historyVersion={0}
+                    messagesVersion={messagesVersion}
+                    historyVersion={messagesVersion - 1}
                     forceScrollToken={forceScrollToken}
-                    outlineOpen={false}
-                    outlineItems={[]}
-                    onOutlineOpenChange={vi.fn()}
+                    outlineOpen={outlineOpen}
+                    outlineItems={outline.item ? [outline.item] : []}
+                    onLocateOutlineItem={outline.locate}
+                    onOutlineOpenChange={open => {
+                        outlineOpen = open
+                        outline.onOpenChange?.(open)
+                        result.rerender(renderHappyThread(forceScrollToken, messagesVersion))
+                    }}
                 />
             </I18nProvider>
         </QueryClientProvider>
     )
-    const result = render(renderHappyThread(0))
+    result = render(renderHappyThread(0))
     const viewport = result.container.querySelector<HTMLElement>('.chat-scroll-y')
     if (!viewport) {
         throw new Error('Chat viewport was not rendered')
@@ -97,11 +114,13 @@ function renderThread(onViewModeChange = vi.fn(), unseenCount = 0) {
         ...result,
         viewport,
         onViewModeChange,
-        rerenderThread: (forceScrollToken: number) => result.rerender(renderHappyThread(forceScrollToken))
+        rerenderThread: (forceScrollToken: number) => result.rerender(renderHappyThread(forceScrollToken)),
+        rerenderMessages: (version: number) => result.rerender(renderHappyThread(0, version))
     }
 }
 
 beforeEach(() => {
+    clearConversationReadingPosition('mobile-scroll-session')
     vi.useFakeTimers()
     resizeCallbacks = []
     Object.defineProperty(globalThis, 'ResizeObserver', {
@@ -141,6 +160,104 @@ afterEach(() => {
 })
 
 describe('mobile initial scroll settling', () => {
+    it('loads forward on a downward edge gesture and restores the visible anchor after head eviction', async () => {
+        let position = 800
+        let scrollHeight = 1232
+        let apply!: () => void
+        let publish = () => {}
+        const loadNewer = vi.fn((beforeApply?: (version: number) => boolean) => new Promise<OlderLoadOutcome>(resolve => {
+            apply = () => {
+                expect(beforeApply?.(1)).toBe(true)
+                position = 400
+                scrollHeight = 1432
+                publish()
+                resolve({ kind: 'applied', historyVersion: 1, hasMore: true, addedRenderableCount: 5 })
+            }
+        }))
+        const result = renderThread(vi.fn(), 0, true, { loadNewer })
+        publish = () => result.rerenderMessages(2)
+        const { viewport, container } = result
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, get: () => scrollHeight })
+        vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530, height: 530 } as DOMRect)
+        const anchor = document.createElement('div')
+        anchor.id = 'hapi-message-user-text:forward-anchor'
+        vi.spyOn(anchor, 'getBoundingClientRect').mockImplementation(() => ({ top: position - viewport.scrollTop, bottom: position + 40 - viewport.scrollTop, height: 40 } as DOMRect))
+        container.querySelector('.happy-thread-messages')!.append(anchor)
+        act(() => { vi.advanceTimersByTime(2000) })
+        viewport.scrollTop = 702
+        fireEvent.scroll(viewport)
+        const before = anchor.getBoundingClientRect().top
+        fireEvent.wheel(viewport, { deltaY: 200 })
+        expect(loadNewer).toHaveBeenCalledTimes(1)
+        await act(async () => { apply() })
+        expect(anchor.getBoundingClientRect().top).toBe(before)
+        expect(viewport.scrollTop).toBe(302)
+    })
+
+    it('keeps navigation loading through delayed DOM mounting and reveals a page-end prompt after the composer returns', async () => {
+        let height = 500
+        const item: ConversationOutlineItem = { id: 'outline:user-text:native:page-end', targetMessageId: 'user-text:native:page-end', kind: 'user', label: 'Historical page-end prompt', createdAt: 1000 }
+        const { container, viewport, onViewModeChange } = renderThread(vi.fn(), 0, true, {
+            item, locate: vi.fn(async () => true), onOpenChange: open => { if (!open) height = 200 },
+        })
+        Object.defineProperties(viewport, {
+            scrollHeight: { configurable: true, value: 700 },
+            clientHeight: { configurable: true, get: () => height },
+        })
+        vi.spyOn(viewport, 'getBoundingClientRect').mockImplementation(() => ({ top: 0, bottom: height, height } as DOMRect))
+        await act(async () => { vi.advanceTimersByTime(2000) })
+        onViewModeChange.mockClear()
+        await act(async () => { fireEvent.click(container.querySelector('aside button.group')!) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(2500) })
+        expect(container.querySelector('aside button[aria-busy="true"]')).not.toBeNull()
+        expect(container.querySelector('aside')).not.toBeNull()
+        const target = document.createElement('div')
+        target.id = 'hapi-message-user-text:native:page-end'
+        vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => ({ top: 650 - viewport.scrollTop, bottom: 690 - viewport.scrollTop, height: 40 } as DOMRect))
+        container.querySelector('.happy-thread-messages')!.append(target)
+        await act(async () => { await vi.advanceTimersByTimeAsync(150) })
+        expect(container.querySelector('aside')).toBeNull()
+        expect(container.querySelector('[role="status"].pointer-events-none')).not.toBeNull()
+        await act(async () => { await vi.advanceTimersByTimeAsync(100) })
+        expect(target.getBoundingClientRect().top).toBeLessThan(height)
+        expect(target.getBoundingClientRect().bottom).toBeGreaterThan(0)
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).not.toHaveBeenCalledWith('tail')
+    })
+
+    it('does not replace an older window with latest when a historical page-end prompt reaches its bottom', () => {
+        const { viewport, onViewModeChange, container } = renderThread(vi.fn(), 0, true)
+        act(() => { vi.advanceTimersByTime(2000) })
+        onViewModeChange.mockClear()
+        viewport.scrollTop = 702
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).not.toHaveBeenCalledWith('tail')
+        expect(onViewModeChange).toHaveBeenCalledWith('history')
+        expect(container.querySelector('button[aria-label="Scroll to bottom"]')).not.toBeNull()
+        onViewModeChange.mockClear()
+        fireEvent.click(container.querySelector('button[aria-label="Scroll to bottom"]')!)
+        fireEvent.scroll(viewport)
+        expect(onViewModeChange).toHaveBeenCalledWith('tail')
+        expect(onViewModeChange).not.toHaveBeenCalledWith('history')
+    })
+
+    it('restores a reading anchor after returning from a preview without settling back to the bottom', () => {
+        saveConversationReadingPosition('mobile-scroll-session', {
+            anchor: { id: 'restored-message', topOffset: 20 }, scrollTop: 300, atBottom: false,
+        })
+        const { container, viewport, rerenderMessages, onViewModeChange } = renderThread()
+        const message = document.createElement('div')
+        message.id = 'restored-message'
+        container.querySelector('.happy-thread-messages')!.append(message)
+        vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 530 } as DOMRect)
+        vi.spyOn(message, 'getBoundingClientRect').mockImplementation(() => ({ top: 450 - viewport.scrollTop, bottom: 510 - viewport.scrollTop } as DOMRect))
+        rerenderMessages(2)
+        act(() => { vi.advanceTimersByTime(2000) })
+        expect(viewport.scrollTop).toBe(430)
+        expect(onViewModeChange).toHaveBeenCalledWith('history')
+        expect(container.querySelector('button[aria-label="Scroll to bottom"]')).not.toBeNull()
+    })
+
     it('checks the final keyboard position before clearing intent at scrollend', () => {
         const { container, viewport } = renderThread()
         const sentinel = container.querySelector('.chat-scroll-content > [aria-hidden="true"]')!

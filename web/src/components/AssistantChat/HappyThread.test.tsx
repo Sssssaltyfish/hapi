@@ -11,7 +11,6 @@ import {
     getScrollToBottomButtonVisibility,
     hasAppliedHistoryVersion,
     isNestedScrollEvent,
-    locateOutlineTargetMessage,
     prependMissingUserSnapshot,
     restoreScrollAnchor,
     shouldLoadOlderForViewport,
@@ -337,7 +336,7 @@ describe('scroll anchor helpers', () => {
         })
     })
 
-    it('shows the jump button only while scrolling down away from the bottom', () => {
+    it('shows the jump button whenever reading away from the bottom', () => {
         const downward = getScrollIntent({
             scrollTop: 610,
             previousScrollTop: 590,
@@ -359,7 +358,7 @@ describe('scroll anchor helpers', () => {
 
         expect(downward.isScrollingDown).toBe(true)
         expect(shouldShowScrollToBottomButton(downward)).toBe(true)
-        expect(shouldShowScrollToBottomButton(upward)).toBe(false)
+        expect(shouldShowScrollToBottomButton(upward)).toBe(true)
         expect(shouldShowScrollToBottomButton(atBottom)).toBe(false)
     })
 
@@ -391,7 +390,7 @@ describe('scroll anchor helpers', () => {
 
         expect(getScrollToBottomButtonVisibility(false, downward)).toBe(true)
         expect(getScrollToBottomButtonVisibility(true, stationary)).toBe(true)
-        expect(getScrollToBottomButtonVisibility(true, upward)).toBe(false)
+        expect(getScrollToBottomButtonVisibility(true, upward)).toBe(true)
     })
 
     it('cancels initial scroll settling when the user scrolls up away from the bottom', () => {
@@ -486,49 +485,6 @@ describe('top-triggered history loading', () => {
         expect(getPullToLoadState(16)).toBe('pulling')
         expect(getPullToLoadState(63)).toBe('pulling')
         expect(getPullToLoadState(64)).toBe('ready')
-    })
-})
-
-describe('outline target loading', () => {
-    it('loads older messages through the scroll-preserving wrapper until the target appears', async () => {
-        const loadOlderPreservingScroll = vi.fn<() => Promise<boolean>>()
-        let loadCount = 0
-        loadOlderPreservingScroll.mockImplementation(async () => {
-            loadCount += 1
-            return true
-        })
-
-        const findTarget = vi.fn((anchorId: string) => {
-            if (anchorId !== 'hapi-message-user-text:target') {
-                return null
-            }
-            return loadCount >= 2 ? document.createElement('div') : null
-        })
-
-        const target = await locateOutlineTargetMessage({
-            targetMessageId: 'user-text:target',
-            findTarget,
-            hasMoreMessages: () => loadCount < 2,
-            loadOlderPreservingScroll
-        })
-
-        expect(target).toBeInstanceOf(HTMLElement)
-        expect(loadOlderPreservingScroll).toHaveBeenCalledTimes(2)
-        expect(findTarget).toHaveBeenCalledWith('hapi-message-user-text:target')
-    })
-
-    it('stops when history is exhausted before the target is loaded', async () => {
-        const loadOlderPreservingScroll = vi.fn(async () => false)
-
-        const target = await locateOutlineTargetMessage({
-            targetMessageId: 'user-text:missing',
-            findTarget: () => null,
-            hasMoreMessages: () => true,
-            loadOlderPreservingScroll
-        })
-
-        expect(target).toBeNull()
-        expect(loadOlderPreservingScroll).toHaveBeenCalledTimes(1)
     })
 })
 
