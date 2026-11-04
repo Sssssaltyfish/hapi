@@ -7,6 +7,8 @@ import { initializeTheme } from '@/hooks/useTheme'
 import { initializeThemeColors } from '@/hooks/useThemeColors'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthSource } from '@/hooks/useAuthSource'
+import { usePasskeyGate } from '@/hooks/usePasskeyGate'
+import { PasskeyLogin, PasskeySessionStatus } from '@/components/PasskeyLogin'
 import { useServerUrl } from '@/hooks/useServerUrl'
 import { useSSE } from '@/hooks/useSSE'
 import { useFixedSessionOrder } from '@/hooks/useFixedSessionOrder'
@@ -70,7 +72,11 @@ export function App() {
 function AppInner() {
     const { t } = useTranslation()
     const { serverUrl, baseUrl, setServerUrl, clearServerUrl } = useServerUrl()
-    const { authSource, isLoading: isAuthSourceLoading, setAccessToken } = useAuthSource(baseUrl)
+    const { authSource: legacyAuthSource, isLoading: isAuthSourceLoading, setAccessToken } = useAuthSource(baseUrl)
+    const passkey = usePasskeyGate(baseUrl)
+    const authSource = useMemo(() => passkey.enabled === null ? null : passkey.enabled
+        ? (passkey.session ? { type: 'passkey' as const, token: passkey.session.token } : null)
+        : legacyAuthSource, [passkey.enabled, passkey.session, legacyAuthSource])
     const { token, api, isLoading: isAuthLoading, error: authError, needsBinding, bind } = useAuth(authSource, baseUrl)
     const [titleSuggestionAvailable, setTitleSuggestionAvailable] = useState(false)
     const goBack = useAppGoBack()
@@ -443,7 +449,11 @@ function AppInner() {
     })
 
     // Loading auth source
-    if (isAuthSourceLoading) {
+    if (passkey.error) return <div className="p-6 space-y-3"><p role="alert">{passkey.error}</p><button onClick={passkey.retry}>{t('button.retry')}</button></div>
+    if (passkey.enabled && (!authSource || authError)) {
+        return withPwaBanner(<PasskeyLogin baseUrl={baseUrl} onLogin={passkey.login} error={authError} />)
+    }
+    if (passkey.enabled === null || (!passkey.enabled && isAuthSourceLoading)) {
         return withPwaBanner(
             <div className="h-full flex items-center justify-center p-4">
                 <LoadingState label={t('loading')} className="text-sm" />
@@ -539,6 +549,7 @@ function AppInner() {
                 />
                 <RunnerVersionSkewBanner />
                 <div className="h-full min-h-0 flex flex-col">
+                    {passkey.enabled && pathname.startsWith('/settings') && <PasskeySessionStatus onLogout={() => { void passkey.logout().then(() => queryClient.clear()).catch(error => window.alert(String(error))) }} />}
                     <Outlet />
                 </div>
                 <ToastContainer />

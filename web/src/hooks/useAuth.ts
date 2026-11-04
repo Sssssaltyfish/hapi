@@ -5,6 +5,7 @@ import type { AuthResponse } from '@/types/api'
 export type AuthSource =
     | { type: 'telegram'; initData: string }
     | { type: 'accessToken'; token: string }
+    | { type: 'passkey'; token: string }
 
 function decodeJwtExpMs(token: string): number | null {
     const parts = token.split('.')
@@ -27,10 +28,20 @@ function decodeJwtExpMs(token: string): number | null {
 }
 
 function getAuthPayload(source: AuthSource): { initData: string } | { accessToken: string } {
+    if (source.type === 'passkey') throw new Error('Passkeys do not use access-token exchange')
     if (source.type === 'telegram') {
         return { initData: source.initData }
     }
     return { accessToken: source.token }
+}
+
+async function authenticateSource(source: AuthSource, baseUrl: string, currentToken?: string | null): Promise<AuthResponse> {
+    if (source.type !== 'passkey') return new ApiClient('', { baseUrl }).authenticate(getAuthPayload(source))
+    const response = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', headers: { Authorization: `Bearer ${currentToken ?? source.token}` } })
+    if (!response.ok) throw new ApiError(response.status === 401
+        ? '登录已过期或已撤销，请重新使用 Passkey 登录。'
+        : '认证服务暂时不可用，请稍后重试。', response.status)
+    return response.json() as Promise<AuthResponse>
 }
 
 function isNotBoundError(error: unknown): boolean {
@@ -100,8 +111,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             lastRefreshAttemptRef.current = now
 
             try {
-                const client = new ApiClient('', { baseUrl })
-                const auth = await client.authenticate(getAuthPayload(currentSource))
+                const auth = await authenticateSource(currentSource, baseUrl, currentToken)
                 tokenRef.current = auth.token
                 setToken(auth.token)
                 setUser(auth.user)
@@ -118,7 +128,8 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
                     return null
                 }
                 const isExpired = expMs ? Date.now() >= expMs : false
-                if (options?.hardFail || isExpired) {
+                const sessionRejected = error instanceof ApiError && error.status === 401
+                if (options?.hardFail || (currentSource.type === 'passkey' ? sessionRejected : isExpired)) {
                     tokenRef.current = null
                     setToken(null)
                     setUser(null)
@@ -193,6 +204,10 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
         async function run() {
             if (!authSource) {
                 // No auth source - waiting for login
+                tokenRef.current = null
+                setToken(null)
+                setUser(null)
+                setError(null)
                 setNeedsBinding(false)
                 return
             }
@@ -201,8 +216,7 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             setError(null)
             setNeedsBinding(false)
             try {
-                const client = new ApiClient('', { baseUrl }) // temporary for auth call
-                const auth = await client.authenticate(getAuthPayload(authSource))
+                const auth = await authenticateSource(authSource, baseUrl)
                 if (isCancelled) return
                 setToken(auth.token)
                 setUser(auth.user)
@@ -266,12 +280,13 @@ export function useAuth(authSource: AuthSource | null, baseUrl: string): {
             if (isCancelled) return
             const refreshed = await refreshAuth({ force: true })
             if (isCancelled) return
-            if (!refreshed && Date.now() < expMs) {
+            if (!refreshed && tokenRef.current) {
                 schedule(15_000)
             }
         }
 
-        schedule(expMs - 60_000 - Date.now())
+        // Near the shared session's fixed expiry, renewal may return the same expiry.
+        schedule(Math.max(15_000, expMs - 60_000 - Date.now()))
 
         return () => {
             isCancelled = true

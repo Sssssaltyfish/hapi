@@ -1,6 +1,6 @@
 import { Server as Engine } from '@socket.io/bun-engine'
 import { Server, type DefaultEventsMap } from 'socket.io'
-import { jwtVerify } from 'jose'
+import { verifyWebToken } from '../passkeys/config'
 import { z } from 'zod'
 import type { Store } from '../store'
 import { getConfiguration } from '../configuration'
@@ -146,7 +146,7 @@ export function createSocketServer(deps: SocketServerDeps): {
         }
 
         try {
-            const verified = await jwtVerify(token, deps.jwtSecret, { algorithms: ['HS256'] })
+            const verified = await verifyWebToken(token, deps.jwtSecret)
             const parsed = jwtPayloadSchema.safeParse(verified.payload)
             if (!parsed.success) {
                 return next(new Error('Invalid token payload'))

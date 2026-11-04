@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Mock the network layer so we can drive token refreshes deterministically.
 // The real ApiClient reads the live token via `getToken`, so the mock records the
@@ -42,6 +42,43 @@ type ApiWithOptions = {
     id: number
     options?: { getToken?: () => string | null; onUnauthorized?: () => unknown }
 }
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe('Passkey refresh', () => {
+    it('includes the persistent cookie and uses the latest JWT for successive refreshes', async () => {
+        let sequence = 0
+        const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({token:`passkey-${++sequence}`,user:{id:'u1'}}))
+        vi.stubGlobal('fetch',fetcher)
+        const source = {type:'passkey' as const,token:'initial'}
+        const {result} = renderHook(() => useAuth(source,'https://hub.test'))
+        await waitFor(() => expect(result.current.token).toBe('passkey-1'))
+        const api = result.current.api as unknown as ApiWithOptions
+        await act(async () => { await api.options?.onUnauthorized?.() })
+        await act(async () => { await api.options?.onUnauthorized?.() })
+        expect(result.current.token).toBe('passkey-3')
+        expect(fetcher.mock.calls.map(call => (call[1] as RequestInit).headers)).toEqual([
+            {Authorization:'Bearer initial'}, {Authorization:'Bearer passkey-1'}, {Authorization:'Bearer passkey-2'}
+        ])
+        expect(fetcher.mock.calls.every(call => (call[1] as RequestInit).credentials === 'include')).toBe(true)
+        expect(result.current.api).toBe(api as unknown as typeof result.current.api)
+    })
+    it('keeps the current session through issuer outages and rejects a revoked session', async () => {
+        let status = 200
+        vi.stubGlobal('fetch',vi.fn(async () => status === 200
+            ? Response.json({token:'current',user:{id:'u1'}}) : new Response('{}',{status})))
+        const source = {type:'passkey' as const,token:'initial'}
+        const {result} = renderHook(() => useAuth(source,'https://hub.test'))
+        await waitFor(() => expect(result.current.token).toBe('current'))
+        const api = result.current.api as unknown as ApiWithOptions
+        status = 503
+        await act(async () => { await api.options?.onUnauthorized?.() })
+        expect(result.current.token).toBe('current')
+        status = 401
+        await act(async () => { await api.options?.onUnauthorized?.() })
+        expect(result.current.token).toBeNull()
+    })
+})
 
 describe('useAuth — api identity stability across token refresh (issue #927)', () => {
     it('keeps the same ApiClient instance when the token refreshes', async () => {

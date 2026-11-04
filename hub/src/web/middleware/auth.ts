@@ -1,6 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import { z } from 'zod'
-import { jwtVerify } from 'jose'
+import { verifyWebToken } from '../../passkeys/config'
 
 export type WebAppEnv = {
     Variables: {
@@ -32,7 +32,7 @@ export function createAuthMiddleware(jwtSecret: Uint8Array): MiddlewareHandler<W
         }
 
         try {
-            const verified = await jwtVerify(token, jwtSecret, { algorithms: ['HS256'] })
+            const verified = await verifyWebToken(token, jwtSecret)
             const parsed = jwtPayloadSchema.safeParse(verified.payload)
             if (!parsed.success) {
                 return c.json({ error: 'Invalid token payload' }, 401)
