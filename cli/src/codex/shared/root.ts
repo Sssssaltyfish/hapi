@@ -8,6 +8,8 @@ import { listSlashCommands } from '@/modules/common/slashCommands';
 import { normalizeCodexModel } from '@/modules/common/codexModels';
 import { formatMessageWithAttachments } from '@/utils/attachmentFormatter';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
+import { CodexGoalControlRequestSchema, type CodexGoalControlRequest, type CodexGoalControlResult } from '@hapi/protocol/codexGoalControl';
+import { ThreadGoalSchema, type ThreadGoal } from '@hapi/protocol/schemas';
 import { ImplementCodexPlanRequestSchema, type ImplementCodexPlanResult } from '@hapi/protocol/apiTypes';
 import { CodexAppServerClient, isIndeterminateError } from '../codexAppServerClient';
 import { buildHapiMcpBridge, type HapiMcpBridge } from '../utils/buildHapiMcpBridge';
@@ -23,6 +25,7 @@ import { record, string } from './gateway';
 import { initializeSharedClient, type SharedLaunchOptions } from './launch';
 import { inheritedSandbox, settingsMatch } from './settings';
 import { planImplementationMessageId, planProposalForItem, planProposalForTurn } from './plan';
+import { CodexGuardianDenials, codexRecap, codexUsage } from '@hapi/protocol/codexManagement';
 
 type RuntimeSettings = NonNullable<Parameters<ApiSessionClient['keepAlive']>[2]>;
 export type RootHost = {
@@ -54,6 +57,7 @@ export class SharedCodexRoot {
     private work: Promise<unknown> = Promise.resolve();
     private notifications = Promise.resolve();
     private currentTurn: string | undefined;
+    private readonly guardianDenials = new CodexGuardianDenials();
     // Ephemeral observations only: dequeue/compaction never prove acceptance.
     private readonly dequeuedInputs = new Set<string>();
     private deliveryTurn?: string;
@@ -65,6 +69,10 @@ export class SharedCodexRoot {
     private steeringActive: boolean | undefined;
     private turnRevision = 0;
     private settingsRevision = 0;
+    private goalRevision = 0;
+    private goal: ThreadGoal | null | undefined;
+    private goalUnavailable: string | null | undefined;
+    private publishedGoalSignature?: string;
     private nameRevision = 0;
     private refreshing?: Promise<void>;
     private interrupted = false;
@@ -84,11 +92,14 @@ export class SharedCodexRoot {
         this.session = bootstrap.session;
         this.client = new CodexAppServerClient({ endpoint: host.endpoint, token: host.token, cwd: bootstrap.workingDirectory });
         this.client.setNotificationHandler((method, params) => {
+            this.guardianDenials.observe(this.threadId, method, params);
             if (method === 'serverRequest/resolved') {
                 this.permissions?.resolved(string(record(params).threadId) ?? '', record(params).requestId); return;
             }
             if (method === 'thread/settings/updated' && record(params).threadId === this.threadId) this.acceptSettings(record(record(params).threadSettings));
             if (record(params).threadId === this.threadId) {
+                if (method === 'thread/goal/updated') this.acceptGoal(record(params).goal);
+                if (method === 'thread/goal/cleared') this.acceptGoal(null);
                 if (method === 'thread/name/updated') this.nameRevision++;
                 if (method === 'turn/started') {
                     this.turnRevision++; this.currentTurn = string(record(record(params).turn).id); this.interrupted = false;
@@ -154,6 +165,7 @@ export class SharedCodexRoot {
             this.steeringActive = undefined;
             this.publishedPlanId = undefined;
             this.publishedCompactionIds = undefined;
+            this.publishedGoalSignature = undefined;
             void this.refresh().then(() => this.refreshChildren(false)).then(() => this.queue.replay())
                 .catch(error => logger.debug('[Codex shared] hub resync', error));
         });
@@ -369,7 +381,8 @@ export class SharedCodexRoot {
             const id = string(last?.id);
             this.latestTurn = id && last ? { id, status: string(last.status) ?? 'unknown', planId: planProposalForTurn(this.threadId, last) } : undefined;
         }
-        await this.projection.history(thread); await this.queue.reconcile(); this.alive();
+        await this.projection.history(thread); await this.queue.reconcile();
+        await this.refreshGoal(); this.alive();
     }
     private async refreshChildren(subscribe: boolean): Promise<void> {
         let cursor: string | undefined;
@@ -408,6 +421,7 @@ export class SharedCodexRoot {
     private async reconnect(): Promise<void> {
         if (this.closed || this.stopping || this.reconnecting || !this.threadId) return;
         this.reconnecting = true;
+        this.guardianDenials.clear();
         this.dequeuedInputs.clear(); this.deliveryTurn = undefined; this.compactingTurn = undefined;
         this.publishSteering(); this.publishPlan(); this.permissions.close();
         try {
@@ -545,6 +559,12 @@ export class SharedCodexRoot {
         }
         this.session.on('hub-archived', exitFromHubArchive);
         rpc.registerHandler(RPC_METHODS.SetSessionConfig, raw => this.applySettings(raw));
+        rpc.registerHandler(RPC_METHODS.CodexGoalControl, raw => {
+            const request = CodexGoalControlRequestSchema.parse(raw);
+            const work = this.work.catch(() => {}).then(() => this.goalControl(request));
+            this.work = work;
+            return work;
+        });
         rpc.registerHandler(RPC_METHODS.ImplementCodexPlan, raw => {
             const { planId } = ImplementCodexPlanRequestSchema.parse(raw);
             const work = this.work.catch(() => {}).then(() => this.implementPlan(planId));
@@ -592,6 +612,65 @@ export class SharedCodexRoot {
             config: { ...record(sandbox.config), model_reasoning_effort: this.settings.modelReasoningEffort ?? undefined } };
     }
     private notice(message: string): void { this.session.sendSessionEvent({ type: 'message', message }); }
+    private acceptGoal(value: unknown, advanceRevision = true): void {
+        const goal = value === null ? null : ThreadGoalSchema.parse(value);
+        if (goal && goal.threadId !== this.threadId) throw new Error('Goal belongs to another Codex thread');
+        if (advanceRevision) this.goalRevision++;
+        this.goal = goal;
+        this.goalUnavailable = null;
+        this.publishGoal();
+    }
+    private publishGoal(): void {
+        const goal = this.goal;
+        const unavailable = this.goalUnavailable;
+        if (goal === undefined && unavailable === undefined) return;
+        const signature = JSON.stringify([goal, unavailable]);
+        if (signature === this.publishedGoalSignature) return;
+        this.publishedGoalSignature = signature;
+        this.session.updateAgentState(state => ({ ...state,
+            ...(goal !== undefined ? { codexGoal: goal } : {}), codexGoalUnavailable: unavailable }));
+    }
+    private async refreshGoal(): Promise<void> {
+        const revision = this.goalRevision;
+        try {
+            const response = record(await this.client.request('thread/goal/get', { threadId: this.threadId }));
+            if (revision === this.goalRevision) this.acceptGoal(response.goal ?? null, false);
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            if (revision === this.goalRevision && /goals feature is disabled|unsupported|not supported|method not found|unknown method/i.test(detail)) {
+                this.goalRevision++;
+                this.goalUnavailable = detail;
+                this.publishGoal();
+            }
+            logger.debug('[Codex shared] goal snapshot unavailable', error);
+        }
+    }
+    private async goalControl(command: CodexGoalControlRequest): Promise<CodexGoalControlResult> {
+        if (this.closed || this.stopping || this.reconnecting || !this.client.isInitialized()) throw new Error('Codex is disconnected or stopping');
+        // Invalidate reads that began before this control. A background read
+        // during it cannot supersede the control's authoritative reply.
+        const revision = ++this.goalRevision;
+        const params = { threadId: this.threadId };
+        if (command.action === 'edit') {
+            const current = record(await this.client.request('thread/goal/get', params));
+            if (!current.goal || record(current.goal).objective !== command.expectedObjective) {
+                throw new Error('The goal changed elsewhere. Reopen the editor before saving.');
+            }
+        }
+        const response = record(command.action === 'show' ? await this.client.request('thread/goal/get', params)
+            : command.action === 'clear' ? await this.client.request('thread/goal/clear', { ...params, origin: 'user' })
+            : await this.client.request('thread/goal/set', { ...params, origin: 'user',
+                ...(command.action === 'edit' ? { objective: command.objective }
+                    : command.action === 'set' ? { objective: command.objective, status: 'active' } : { status: command.action === 'pause' ? 'paused' : 'active' }) }));
+        if (command.action === 'clear') {
+            // A false clear is not an acknowledgement that the goal is absent.
+            if (response.cleared === true && revision === this.goalRevision) this.acceptGoal(null);
+            else if (response.cleared !== true) await this.refreshGoal();
+            return { goal: this.goal ?? null, cleared: response.cleared === true };
+        }
+        if (revision === this.goalRevision) this.acceptGoal(command.action === 'show' ? response.goal ?? null : ThreadGoalSchema.parse(response.goal));
+        return { goal: this.goal ?? null };
+    }
     private async newConversation(): Promise<SharedCodexRoot> {
         const child = await this.host.create('thread/start', this.freshParams());
         await child.initialSettings({ collaborationMode: this.settings.collaborationMode }); return child;
@@ -601,7 +680,6 @@ export class SharedCodexRoot {
         if (command === '/clear' || command === '/new') {
             const child = await this.newConversation(); this.notice(`New conversation: /sessions/${child.session.sessionId}`); return null;
         }
-        if (command === '/compact') { await this.client.request('thread/compact/start', { threadId: this.threadId }); return null; }
         if (command === '/exit') { this.notice('/exit closes a native terminal, not this Web view. Use End session to archive this conversation.'); return null; }
         if (!command.startsWith('/')) return text;
         const slash = resolveCodexSlashCommand(text, { commands: await listSlashCommands('codex', this.bootstrap.workingDirectory),
@@ -609,12 +687,39 @@ export class SharedCodexRoot {
             collaborationMode: this.settings.collaborationMode ?? 'default', model: this.settings.model ?? undefined,
             modelReasoningEffort: parseReasoningEffortValue(this.settings.modelReasoningEffort), serviceTier: this.settings.serviceTier });
         if (slash.kind === 'passthrough') return text;
+        if (slash.kind === 'management') {
+            const request = (method: string, params: Record<string, unknown>) => this.client.request(method, params);
+            if (slash.command.command === 'compact') {
+                if (this.currentTurn) throw new Error('Wait for the current turn to finish before compacting');
+                await this.client.request('thread/compact/start', { threadId: this.threadId });
+                this.notice('Native compaction request accepted. Completion will be reported by Codex.');
+            } else if (slash.command.command === 'recap') {
+                if (this.currentTurn) throw new Error('Wait for the current turn to finish before generating a recap');
+                this.notice('Generating a conversation recap with a separate model call; the main context remains unchanged.');
+                this.notice((await codexRecap(request, this.threadId)).text);
+            } else if (slash.command.command === 'usage') {
+                this.notice(JSON.stringify(await codexUsage(request, this.threadId), null, 2));
+            } else if (slash.command.action === 'show') {
+                const denial = this.guardianDenials.show();
+                this.notice(denial
+                    ? `Automatic review denied this action:\n${JSON.stringify(denial.action, null, 2)}\n${denial.rationale ?? ''}\nTo retry this exact action once, send /approve ${denial.reviewId}`
+                    : 'No verified recent automatic-review denial is available.');
+            } else {
+                if (this.settingsNative.approvalsReviewer !== 'auto_review') throw new Error('Automatic review must be active to retry a denied action');
+                const event = this.guardianDenials.claim(slash.command.reviewId);
+                if (!event) throw new Error('This denial is no longer available for a one-time retry');
+                try {
+                    await request('thread/approveGuardianDeniedAction', { threadId: this.threadId, event });
+                } catch (error) {
+                    throw new Error(`Native retry was not confirmed; check the conversation before another attempt: ${error instanceof Error ? error.message : String(error)}`);
+                }
+                this.notice('Codex accepted one retry of the selected denied action under the current session policy.');
+            }
+            return null;
+        }
         if (slash.kind === 'goal') {
-            const params = { threadId: this.threadId };
-            const response = slash.action === 'show' ? await this.client.request('thread/goal/get', params)
-                : slash.action === 'clear' ? await this.client.request('thread/goal/clear', params)
-                : await this.client.request('thread/goal/set', { ...params, ...(slash.action === 'set' ? { objective: slash.objective } : { status: slash.action === 'pause' ? 'paused' : 'active' }) });
-            this.notice(JSON.stringify(response)); return null;
+            await this.goalControl(slash.action === 'set' ? { action: 'set', objective: slash.objective! } : { action: slash.action });
+            return null;
         }
         if (slash.updates?.proactiveMultiAgent !== undefined) throw new Error('This Codex version uses Ultra reasoning effort instead of a multi-agent toggle');
         if (slash.updates?.model === null) throw new Error('Choose an explicit model in a shared thread');
@@ -624,6 +729,7 @@ export class SharedCodexRoot {
     }
     stopAccepting(): void {
         this.stopping = true; this.ready();
+        this.guardianDenials.clear();
         this.publishSteering();
         this.publishPlan();
         this.session.onReconnect(null); this.client.setTransportAbandonedHandler(null);

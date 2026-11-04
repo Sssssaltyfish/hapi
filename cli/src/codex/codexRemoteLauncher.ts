@@ -3840,19 +3840,10 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
             if (!match) return null;
             const rest = match[1]?.trim() ?? '';
             if (!rest) return { action: 'show' };
-            switch (rest.toLowerCase()) {
-                case 'clear':
-                    return { action: 'clear' };
-                case 'pause':
-                    return { action: 'pause' };
-                case 'resume':
-                    return { action: 'resume' };
-                default:
-                    if ([...rest].length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
-                        return { action: 'set', error: `Goal objective must be at most ${MAX_CODEX_GOAL_OBJECTIVE_CHARS} characters.` };
-                    }
-                    return { action: 'set', objective: rest };
+            if ([...rest].length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
+                return { action: 'set', error: `Goal objective must be at most ${MAX_CODEX_GOAL_OBJECTIVE_CHARS} characters.` };
             }
+            return { action: 'set', objective: rest };
         };
 
         const ensureThreadForGoal = async (mode: EnhancedMode): Promise<string | null> => {

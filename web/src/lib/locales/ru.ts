@@ -1,4 +1,13 @@
 export default {
+  'goalEditor.objective': 'Текст цели',
+  'goalEditor.placeholder': 'Какой цели должен достичь Codex?',
+  'goalEditor.edit': 'Изменить цель',
+  'goalEditor.save': 'Сохранить цель',
+  'goalEditor.start': 'Запустить цель',
+  'goalEditor.clear': 'Удалить цель',
+  'goalEditor.cancelEditing': 'Отменить редактирование',
+  'goalEditor.changedElsewhere': 'Цель изменена в другом клиенте. Отмените редактирование и откройте актуальную цель.',
+  'goalEditor.usageReset': 'Изменение цели начинает отсчёт её использования заново.',
   'nativeManagement.compactDescription': 'Сжать контекст, когда Codex свободен.',
   'nativeManagement.approveDescription': 'Проверить недавний отказ автопроверки и подтвердить один повтор.',
   'nativeManagement.recapDescription': 'Создать обзор отдельным вызовом модели, сохранив основной контекст.',

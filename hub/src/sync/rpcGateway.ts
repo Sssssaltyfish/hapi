@@ -595,6 +595,10 @@ export class RpcGateway {
         return await this.sessionRpc(sessionId, RPC_METHODS.ImplementCodexPlan, { planId }, 60_000) as ImplementCodexPlanResult
     }
 
+    async controlCodexGoal(sessionId: string, request: import('@hapi/protocol/codexGoalControl').CodexGoalControlRequest): Promise<import('@hapi/protocol/codexGoalControl').CodexGoalControlResult> {
+        return await this.sessionRpc(sessionId, RPC_METHODS.CodexGoalControl, request) as import('@hapi/protocol/codexGoalControl').CodexGoalControlResult
+    }
+
     async rewindConversation(
         sessionId: string,
         params: { messageLocalId: string }

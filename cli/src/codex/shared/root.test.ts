@@ -14,8 +14,10 @@ vi.mock('../codexAppServerClient', () => ({
         initialized = false;
         thread = { id: 'thread', turns: [] as NativeTurn[] };
         settings: Record<string, unknown> = { model: 'mock', collaborationMode: { mode: 'default' } };
+        goal: Record<string, unknown> | null = null;
         queue: Array<{ id: string; clientUserMessageId: unknown; input: unknown }> = [];
         steers: Record<string, unknown>[] = [];
+        calls: Array<{ method: string; params: Record<string, unknown> }> = [];
         notify?: (method: string, params: unknown) => void;
         abandoned?: () => void;
         setNotificationHandler(handler: typeof this.notify) { this.notify = handler; }
@@ -26,8 +28,25 @@ vi.mock('../codexAppServerClient', () => ({
         isInitialized() { return this.initialized; }
         async disconnect() { this.initialized = false; }
         async request(method: string, params: Record<string, unknown> = {}) {
+            this.calls.push({ method, params });
             if (method === 'thread/read' || method === 'thread/resume') return { ...this.settings, thread: structuredClone(this.thread) };
             if (method === 'thread/list') return { data: [] };
+            if (method === 'thread/turns/list') return { data: [...this.thread.turns].reverse() };
+            if (method === 'thread/compact/start' || method === 'thread/approveGuardianDeniedAction') return {};
+            if (method === 'thread/sample') return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' };
+            if (method === 'account/usage/read') return { summary: { lifetimeTokens: 123 } };
+            if (method === 'account/rateLimits/read') return { rateLimits: {} };
+            if (method === 'thread/goal/get') return { goal: this.goal };
+            if (method === 'thread/goal/set') {
+                this.goal = { threadId: 'thread', objective: 'Finish the work', status: 'active', ...this.goal, ...params };
+                this.notify?.('thread/goal/updated', { threadId: 'thread', goal: this.goal });
+                return { goal: this.goal };
+            }
+            if (method === 'thread/goal/clear') {
+                this.goal = null;
+                this.notify?.('thread/goal/cleared', { threadId: 'thread' });
+                return { cleared: true };
+            }
             if (method === 'thread/queue/list') return { data: this.queue };
             if (method === 'thread/settings/update') {
                 this.settings = { ...this.settings, ...params };
@@ -101,6 +120,7 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         thread: { id: string; name?: string; preview?: string; turns: NativeTurn[] };
         queue: Array<{ id: string; clientUserMessageId: string; input: unknown }>;
         steers: Record<string, unknown>[];
+        calls: Array<{ method: string; params: Record<string, unknown> }>;
         notify(method: string, params: unknown): void;
         abandoned(): void;
     };
@@ -108,12 +128,39 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         root, native, rpc, send, events, consumed, uncertain, metadata: () => metadata, state: () => state, updateState,
         drain: () => (root as unknown as { notifications: Promise<void> }).notifications,
         reconnect: () => reconnect?.(),
+        dropHubGoal: () => { state = { ...state, codexGoal: undefined, codexGoalUnavailable: undefined }; },
         emitHubArchived: () => { for (const listener of hubArchivedListeners) listener(); },
         hubArchivedListenerCount: () => hubArchivedListeners.length,
         end,
         userMessage: (text: string, localId: string, mode: 'steer' | 'queue') => userMessage?.({ content: { text }, meta: { deliveryMode: mode } }, localId),
     };
 }
+
+describe('native management command delivery', () => {
+    it('dispatches management input without queueing a model turn and requires an exact one-time denial confirmation', async () => {
+        const f = await fixture();
+        f.native.thread.turns = [{ id: 'completed', status: 'completed', items: [] }];
+        await f.root.activate();
+        f.native.notify('thread/settings/updated', { threadId: 'thread', threadSettings: { approvalsReviewer: 'auto_review' } });
+        for (const name of ['compact', 'recap', 'usage']) {
+            f.userMessage(`/${name}`, name, 'steer');
+            await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith([name], expect.anything()));
+        }
+        f.native.notify('item/autoApprovalReview/completed', { threadId: 'thread', turnId: 'completed', reviewId: 'review',
+            decisionSource: 'agent', review: { status: 'denied', rationale: 'Check this command' },
+            action: { type: 'command', source: 'shell', command: 'echo exact', cwd: '/project' } });
+        f.userMessage('/approve', 'show-review', 'queue');
+        await vi.waitFor(() => expect(f.events.mock.calls.some(([event]) => String(event.message).includes('/approve review'))).toBe(true));
+        expect(f.native.calls.some(call => call.method === 'thread/approveGuardianDeniedAction')).toBe(false);
+        f.userMessage('/approve review', 'approve-review', 'queue');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['approve-review'], expect.anything()));
+        f.userMessage('/approve review', 'duplicate-review', 'queue');
+        await vi.waitFor(() => expect(f.events.mock.calls.some(([event]) => String(event.message).includes('no longer available'))).toBe(true));
+        expect(f.native.calls.filter(call => call.method === 'thread/approveGuardianDeniedAction')).toHaveLength(1);
+        expect(f.native.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false);
+        expect(f.native.calls.find(call => call.method === 'thread/sample')?.params).toMatchObject({ threadId: 'thread', expectedTurnId: 'completed' });
+    });
+});
 
 async function startCompaction(f: Awaited<ReturnType<typeof fixture>>, id = 'input', turnId = 'compacting-turn') {
     f.native.queue = [{ id: `native-${id}`, clientUserMessageId: id, input: [{ type: 'text', text: id }] }];
@@ -128,6 +175,93 @@ async function startCompaction(f: Awaited<ReturnType<typeof fixture>>, id = 'inp
     f.native.notify('item/started', { threadId: 'thread', turnId, item: { id: 'compact', type: 'contextCompaction' } });
     return turn;
 }
+
+describe('typed native goal controls', () => {
+    it('round trips goal state through the native APIs without enqueueing a prompt', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        const control = f.rpc.get(RPC_METHODS.CodexGoalControl)!;
+        expect(await control({ action: 'set', objective: 'pause' })).toMatchObject({ goal: { objective: 'pause', status: 'active' } });
+        expect(f.state().codexGoal).toMatchObject({ objective: 'pause', status: 'active' });
+        expect(await control({ action: 'pause' })).toMatchObject({ goal: { objective: 'pause', status: 'paused' } });
+        expect(await control({ action: 'edit', objective: 'Revised pause', expectedObjective: 'pause' })).toMatchObject({ goal: { objective: 'Revised pause', status: 'paused' } });
+        const edit = f.native.calls.filter(call => call.method === 'thread/goal/set').at(-1)!;
+        expect(edit.params).toEqual({ threadId: 'thread', origin: 'user', objective: 'Revised pause' });
+        await expect(control({ action: 'edit', objective: 'Stale', expectedObjective: 'pause' })).rejects.toThrow('changed elsewhere');
+        expect(await control({ action: 'resume' })).toMatchObject({ goal: { objective: 'Revised pause', status: 'active' } });
+        expect(await control({ action: 'clear' })).toEqual({ goal: null, cleared: true });
+        expect(f.state().codexGoal).toBeNull();
+        expect(f.native.queue).toEqual([]);
+        expect(f.events).not.toHaveBeenCalled();
+    });
+    it('keeps a newer native notification when an earlier snapshot resolves late', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        let release!: (value: unknown) => void;
+        const request = f.root.client.request.bind(f.root.client);
+        vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => method === 'thread/goal/get'
+            ? new Promise(resolve => { release = resolve; }) : request(method, params));
+        const reading = f.rpc.get(RPC_METHODS.CodexGoalControl)!({ action: 'show' });
+        await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+        f.native.notify('thread/goal/updated', { threadId: 'thread', goal: { threadId: 'thread', objective: 'New goal', status: 'paused' } });
+        release({ goal: null });
+        expect(await reading).toMatchObject({ goal: { objective: 'New goal', status: 'paused' } });
+        expect(f.state().codexGoal).toMatchObject({ objective: 'New goal', status: 'paused' });
+    });
+    it('does not let a background read discard an acknowledged control before its notification arrives', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        const control = f.rpc.get(RPC_METHODS.CodexGoalControl)!;
+        await control({ action: 'set', objective: 'Preserve the acknowledgement' });
+        let release!: (value: unknown) => void;
+        const request = f.root.client.request.bind(f.root.client);
+        vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => method === 'thread/goal/set'
+            ? new Promise(resolve => { release = resolve; }) : request(method, params));
+        const pausing = control({ action: 'pause' });
+        await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+        await f.root.refresh();
+        release({ goal: { ...f.state().codexGoal!, status: 'paused' } });
+        expect(await pausing).toMatchObject({ goal: { status: 'paused' } });
+        expect(f.state().codexGoal?.status).toBe('paused');
+    });
+    it('rejects invalid typed actions before calling the native runtime', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        const request = vi.spyOn(f.root.client, 'request');
+        await expect(f.rpc.get(RPC_METHODS.CodexGoalControl)!({ action: 'set', objective: '' })).rejects.toThrow();
+        expect(request).not.toHaveBeenCalled();
+    });
+    it('reports an unavailable native goal feature without changing runtime flags', async () => {
+        const f = await fixture();
+        const request = f.root.client.request.bind(f.root.client);
+        const calls = vi.spyOn(f.root.client, 'request').mockImplementation((method, params) => method === 'thread/goal/get'
+            ? Promise.reject(new Error('goals feature is disabled')) : request(method, params));
+        await f.root.refresh();
+        expect(f.state().codexGoalUnavailable).toBe('goals feature is disabled');
+        const updates = f.updateState.mock.calls.length;
+        await f.root.refresh();
+        expect(f.updateState).toHaveBeenCalledTimes(updates);
+        expect(calls.mock.calls.some(([method]) => method.startsWith('experimentalFeature/'))).toBe(false);
+    });
+    it('deduplicates identical reads and native notifications, but replays a lost Hub goal on reconnect', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        await f.rpc.get(RPC_METHODS.CodexGoalControl)!({ action: 'set', objective: 'Survive reconnect' });
+        await f.drain();
+        const updates = f.updateState.mock.calls.length;
+        await f.root.refresh(); await f.root.refresh();
+        f.native.notify('thread/goal/updated', { threadId: 'thread', goal: { ...f.state().codexGoal! } });
+        await f.drain();
+        expect(f.updateState).toHaveBeenCalledTimes(updates);
+        f.dropHubGoal();
+        expect(f.state().codexGoal).toBeUndefined();
+        f.reconnect();
+        await vi.waitFor(() => expect(f.state().codexGoal?.objective).toBe('Survive reconnect'));
+        const afterReconnect = f.updateState.mock.calls.length;
+        await f.root.refresh();
+        expect(f.updateState).toHaveBeenCalledTimes(afterReconnect);
+    });
+});
 
 describe('default steer delivery', () => {
     it('steers a live send into the captured turn through the existing native queue', async () => {

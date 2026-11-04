@@ -4,6 +4,7 @@ export type CodexThreadCommand =
     | { command: 'plan'; mode: 'plan' | 'default'; prompt?: string }
     | { command: 'goal'; action: 'show' | 'pause' | 'resume' | 'clear' }
     | { command: 'goal'; action: 'set'; objective: string }
+    | { command: 'goal'; action: 'edit'; objective: string; expectedObjective: string }
     | { command: 'compact' | 'recap' | 'usage' }
     | { command: 'approve'; action: 'show' }
     | { command: 'approve'; action: 'retry'; reviewId: string }
@@ -42,7 +43,7 @@ export type NativeCommandRequest = {
 
 export type NativeCommandResult =
     | { command: 'plan'; applied: Record<string, unknown>; submission?: Record<string, unknown> & { accepted: true; startError?: string } }
-    | { command: 'goal'; action: 'show' | 'set' | 'pause' | 'resume'; goal: NativeGoal | null; cleared?: never }
+    | { command: 'goal'; action: 'show' | 'set' | 'edit' | 'pause' | 'resume'; goal: NativeGoal | null; cleared?: never }
     | { command: 'goal'; action: 'clear'; cleared: boolean; goal?: never }
     | { command: 'compact'; accepted: true }
     | { command: 'recap'; text: string; sourceTurnId: string }
@@ -50,7 +51,7 @@ export type NativeCommandResult =
     | { command: 'approve'; action: 'show'; denial: { reviewId: string; turnId: string; action: Record<string, unknown>; rationale: string | null } | null }
     | { command: 'approve'; action: 'retry'; reviewId: string; accepted: true }
 
-export function parseCodexThreadCommand(text: string): CodexThreadCommand | null {
+export function parseCodexThreadCommand(text: string): Exclude<CodexThreadCommand, { command: 'goal'; action: 'edit' }> | null {
     const match = /^\/(plan|goal|compact|recap|usage|approve)(?:\s+([\s\S]*))?$/i.exec(text.trim())
     if (!match) return null
 

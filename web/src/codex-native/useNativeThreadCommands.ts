@@ -36,6 +36,7 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
         enabled, staleTime: 0, retry: false, refetchOnWindowFocus: true })
     const [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(null)
     const [pending, setPending] = useState(false)
+    const [goalEditorOpen, setGoalEditorOpen] = useState(false)
     const [pendingCommand, setPendingCommand] = useState<string | null>(null)
     const [managementResult, setManagementResult] = useState<Exclude<NativeCommandResult, { command: 'plan' | 'goal' }> | null>(null)
     const inFlight = useRef(false)
@@ -87,13 +88,12 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
                 if (result.command === 'goal' && result.goal !== undefined) return { ...previous, goal: result.goal }
                 return previous
             })
+            if (result.command === 'goal' && result.action === 'show') setGoalEditorOpen(true)
             setFeedback(result.command === 'plan' && result.submission?.startError
                 ? { text: t('nativeCommands.queuedStartError', { error: result.submission.startError }), error: true }
                 : result.command === 'goal' && result.action === 'clear' && result.cleared === false
                     ? { text: t('nativeCommands.notCleared'), error: true }
-                    : result.command === 'goal' && result.action === 'show' && result.goal === null
-                        ? { text: t('nativeCommands.noGoal'), error: false }
-                        : null)
+                    : null)
             void query.refetch()
             return result
         } catch (error) {
@@ -102,6 +102,7 @@ export function useNativeThreadCommands(api: ApiClient, threadId: string, endpoi
         } finally { inFlight.current = false; setPending(false); setPendingCommand(null) }
     }, [api, threadId, endpointId, client, query.refetch, t, scope])
     return { state: query.data, loading: query.isPending, readError: query.error, pending, feedback,
+        goalEditorOpen, setGoalEditorOpen,
         managementResult, pendingCommand, dismissManagementResult: () => setManagementResult(null),
         dismissFeedback: () => setFeedback(null), reportError: (text: string) => setFeedback({ text, error: true }), refresh: query.refetch, execute }
 }

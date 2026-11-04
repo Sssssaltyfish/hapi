@@ -2138,6 +2138,13 @@ export class SyncEngine {
         return await this.rpcGateway.implementCodexPlan(access.sessionId, planId)
     }
 
+    async controlCodexGoal(sessionId: string, namespace: string, request: import('@hapi/protocol/codexGoalControl').CodexGoalControlRequest): Promise<import('@hapi/protocol/codexGoalControl').CodexGoalControlResult> {
+        const access = this.sessionCache.resolveSessionAccess(sessionId, namespace)
+        if (!access.ok || !access.session.active || access.session.metadata?.flavor !== 'codex'
+            || !access.session.metadata.capabilities?.concurrentClients) throw new Error('An active shared Codex session is required')
+        return await this.rpcGateway.controlCodexGoal(access.sessionId, request)
+    }
+
     async switchSession(sessionId: string, to: 'remote' | 'local'): Promise<void> {
         if (this.getSession(sessionId)?.metadata?.capabilities?.concurrentClients) throw new Error('control_mode_not_applicable')
         if (this.historyActionsInFlight.has(sessionId)) {

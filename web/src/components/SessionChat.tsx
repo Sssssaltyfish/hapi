@@ -95,6 +95,9 @@ import { SessionHeader } from '@/components/SessionHeader'
 import { CursorMigrationBanner } from '@/components/CursorMigrationBanner'
 import { TeamPanel } from '@/components/TeamPanel'
 import { SessionStatusPanel } from '@/components/SessionStatusPanel'
+import { CodexGoalControls } from '@/components/CodexGoalControls'
+import { parseCodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
+import { RunnerPlanButton, useRunnerCodexControls } from '@/hooks/useRunnerCodexControls'
 import { buildSessionStatusData } from '@/chat/sessionStatus'
 import { usePlatform } from '@/hooks/usePlatform'
 import { useSessionActions } from '@/hooks/mutations/useSessionActions'
@@ -659,6 +662,7 @@ export function SessionChat(props: SessionChatProps) {
 
 function SessionChatInner(props: SessionChatProps) {
     const native = props.nativeCapabilities
+    const runnerControls = useRunnerCodexControls(props.api, props.session, Boolean(native))
     const { composerSendMode } = useComposerSendMode()
     const { haptic } = usePlatform()
     const { t } = useTranslation()
@@ -1503,14 +1507,14 @@ function SessionChatInner(props: SessionChatProps) {
     )
     const sessionStatus = useMemo(
         () => buildSessionStatusData({
-            goal: reduced.latestGoal,
+            goal: runnerControls.goalControlsAvailable ? null : reduced.latestGoal,
             tasks: props.session.todos,
             blocks: reconciled.blocks,
             messages: normalizedMessages,
             backgroundTaskCount: props.session.backgroundTaskCount
         }),
         [
-            reduced.latestGoal,
+            reduced.latestGoal, runnerControls.goalControlsAvailable,
             props.session.todos,
             props.session.backgroundTaskCount,
             reconciled.blocks,
@@ -2132,6 +2136,12 @@ function SessionChatInner(props: SessionChatProps) {
                                 />
                             ) : null}
                             {native?.queueContent}
+                            {runnerControls.goalControlsAvailable || runnerControls.goalEditorOpen ? <div className="mx-auto w-full max-w-content">
+                                <CodexGoalControls goal={runnerControls.goal ?? null} editing={runnerControls.goalEditorOpen}
+                                    onEditingChange={runnerControls.setGoalEditorOpen} disabled={!props.session.active || Boolean(runnerControls.goalUnavailable)}
+                                    pending={runnerControls.pending} onAction={runnerControls.controlGoal} />
+                            </div> : null}
+                            {runnerControls.error ? <div role="alert" className="mx-auto w-full max-w-content py-1 text-xs text-red-600">{runnerControls.error}</div> : null}
                             {!native && <QueuedMessagesBar
                                 sessionId={props.session.id}
                                 compactionPendingMessageIds={agentFlavor === 'codex' && props.session.active
@@ -2153,7 +2163,7 @@ function SessionChatInner(props: SessionChatProps) {
                         </div>
 
                         <HappyComposer
-                        modeControls={native?.modeControls}
+                        modeControls={native?.modeControls ?? <RunnerPlanButton controls={runnerControls} session={props.session} />}
                         attachmentsDisabled={Boolean(native && !props.session.active)}
                         focusInputRef={focusComposerRef}
                         key={`composer-${props.session.id}`}
@@ -2343,7 +2353,13 @@ function SessionChatInner(props: SessionChatProps) {
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={props.autocompleteSuggestions}
-                        onSubmitCommand={native?.onSubmitCommand}
+                        onSubmitCommand={native?.onSubmitCommand ?? (runnerControls.goalControlsAvailable ? async text => {
+                            const command = parseCodexThreadCommand(text)
+                            if (command?.command === 'goal' && command.action === 'show') {
+                                return await runnerControls.controlGoal({ action: 'show' }) ? 'handled' : 'failed'
+                            }
+                            return 'unhandled'
+                        } : undefined)}
                         voiceStatus={voice?.status}
                         voiceMicMuted={voice?.micMuted}
                         onVoiceToggle={voice && voiceBackendReady ? handleVoiceToggle : undefined}
