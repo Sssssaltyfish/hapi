@@ -85,6 +85,7 @@ import { markCodexSessionsImported } from '@/lib/codexImportedSessions'
 import { useToast } from '@/lib/toast-context'
 import { NativeCodexTarget, useNativeCreationTarget } from './NativeCodexTarget'
 import { NativeWorkspaceSection, useNativeWorkspace } from './NativeWorkspaceSection'
+import { NativeImportTree } from '@/codex-native/NativeImportTree'
 import { CREATION_CHOICES, creationChoiceFlavor, disabledCreationChoices, type CreationTarget } from './creationChoices'
 
 
@@ -1979,6 +1980,7 @@ export function NewSession(props: NewSessionProps) {
                     {t('newSession.noAvailableAgents')}
                 </div>
             ) : null)}
+            {isNative ? <NativeImportTree api={props.api} endpoints={nativeTarget.configured} /> : null}
             {!isNative && agent === 'codex' ? (
                 <CodexImportActions
                     selectedSession={selectedCodexImportSession}

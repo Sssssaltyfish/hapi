@@ -16,8 +16,9 @@ describe('Native launch workspace selection', () => {
         const api = { listCodexNativeProjects: vi.fn().mockResolvedValue({ data: [{ id: 'canonical-project', name: 'Existing', roots: [{ path: '/workspace' }] }], nextCursor: null }), createCodexNativeProject: create } as unknown as ApiClient
         const { result } = renderHook(() => useNativeWorkspace(api, 'native', true), { wrapper })
         expect(await result.current.resolveProjectId('/run-here')).toBeNull()
-        await waitFor(() => expect(result.current.projects).toHaveLength(1))
+        expect(api.listCodexNativeProjects).not.toHaveBeenCalled()
         act(() => { result.current.setMode('existing'); result.current.setProjectId('canonical-project') })
+        await waitFor(() => expect(result.current.projects).toHaveLength(1))
         expect(await result.current.resolveProjectId('/different-execution-path')).toBe('canonical-project')
         act(() => { result.current.setMode('new'); result.current.setName('Saved') })
         expect(await result.current.resolveProjectId('/workspace')).toBe('created-workspace')

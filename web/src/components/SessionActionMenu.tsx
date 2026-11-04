@@ -22,6 +22,8 @@ type SessionActionMenuProps = {
     onMarkUnread?: () => void
     onSyncCodex?: () => void
     onSyncPi?: () => void
+    onHide?: () => void
+    onMoveToProject?: () => void
     onArchive: () => void
     onReopen?: () => void
     reopenDisabledReason?: string
@@ -395,7 +397,12 @@ export function SessionActionMenu(props: SessionActionMenuProps) {
                     </button>
                 ) : null}
 
-                {sessionActive ? (
+                {props.onMoveToProject ? <button type="button" role="menuitem" className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`} disabled={Boolean(props.disabledActions?.rename)} onClick={() => { onClose(); props.onMoveToProject?.() }}>
+                    <ReopenIcon className="text-[var(--app-hint)]" />{t('native.catalog.move')}
+                </button> : null}
+                {props.onHide ? <button type="button" role="menuitem" className={`${baseItemClassName} hover:bg-[var(--app-subtle-bg)]`} onClick={() => { onClose(); props.onHide?.() }}>
+                    <ArchiveIcon className="text-[var(--app-hint)]" />{t('native.catalog.hide')}
+                </button> : sessionActive ? (
                     <button
                         type="button"
                         role="menuitem"

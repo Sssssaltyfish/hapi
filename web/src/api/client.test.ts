@@ -16,6 +16,25 @@ describe('ApiClient error mapping', () => {
         globalThis.fetch = originalFetch
     })
 
+    it('unwraps the native visibility snapshot returned by the endpoint route', async () => {
+        const visibility = {
+            initialized: true,
+            threadIds: ['thread-1'],
+            hiddenThreadIds: [],
+            projects: [{ id: 'project-1', name: 'Workspace', memberCount: 1, nextCursor: null, complete: true }]
+        }
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ visibility, sessions: [] }), { status: 200 }))
+
+        const api = new ApiClient('test-token')
+        const controller = new AbortController()
+        const snapshot = await api.getCodexNativeVisibility('endpoint/1', controller.signal)
+
+        expect(snapshot).toEqual(visibility)
+        expect(snapshot.projects.some(project => project.id === 'project-1')).toBe(true)
+        expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/codex-native/endpoints/endpoint%2F1/visibility')
+        expect(fetchMock.mock.calls[0]?.[1]?.signal).toBe(controller.signal)
+    })
+
     it('prefers the stable `code` field over the human-readable `error` message in ApiError.code', async () => {
         // Match the shape /sessions/:id/reopen actually returns on a 503.
         fetchMock.mockResolvedValueOnce(

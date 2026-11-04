@@ -80,6 +80,7 @@ import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
 import type { ConversationOutlineContinuation, ConversationOutlinePage } from '@/chat/outline'
 import type { NativeCommandRequest, NativeCommandResult, NativeCommandState } from '@/codex-native/nativeThreadCommands'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
+import type { NativeVisibilityAction, NativeVisibilityResponse, NativeVisibilityState } from '@hapi/protocol/codexNativeVisibility'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
 
 export type RetryIndeterminateMessageResponse =
@@ -367,9 +368,37 @@ export class ApiClient {
         )
     }
 
-    async listCodexNativeProjects(endpointId: string, cursor?: string): Promise<NativePage<NativeDaemonProject>> {
-        const query = cursor ? `?${new URLSearchParams({ cursor })}` : ''
-        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects${query}`)
+    async listCodexNativeProjects(endpointId: string, cursor?: string, signal?: AbortSignal): Promise<NativePage<NativeDaemonProject>> {
+        const query = new URLSearchParams({ limit: '50', ...(cursor ? { cursor } : {}) })
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects?${query}`, { signal })
+    }
+
+    async getCodexNativeVisibility(endpointId: string, signal?: AbortSignal): Promise<NativeVisibilityState> {
+        const response = await this.request<NativeVisibilityResponse>(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/visibility`, { signal })
+        return response.visibility
+    }
+
+    updateCodexNativeVisibility(endpointId: string, action: NativeVisibilityAction): Promise<NativeVisibilityResponse> {
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/visibility`, { method: 'POST', body: JSON.stringify(action) })
+    }
+
+    listCodexNativeProjectThreads(endpointId: string, projectId: string | null, cursor?: string, signal?: AbortSignal): Promise<NativePage<NativeRecord>> {
+        const project = projectId === null ? 'projectless' : `projects/${encodeURIComponent(projectId)}`
+        const query = new URLSearchParams({ limit: '50', ...(cursor ? { cursor } : {}) })
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/${project}/threads?${query}`, { signal })
+    }
+
+    listCodexNativeBackgroundThreads(endpointId: string, cursor?: string, signal?: AbortSignal): Promise<NativePage<NativeRecord>> {
+        const query = new URLSearchParams({ limit: '50', ...(cursor ? { cursor } : {}) })
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/background/threads?${query}`, { signal })
+    }
+
+    moveCodexNativeThread(endpointId: string, threadId: string, projectId: string | null): Promise<{ thread: NativeRecord }> {
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads/${encodeURIComponent(threadId)}/project`, { method: 'POST', body: JSON.stringify({ projectId }) })
+    }
+
+    renameCodexNativeProject(endpointId: string, projectId: string, name: string): Promise<{ project: NativeDaemonProject }> {
+        return this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects/${encodeURIComponent(projectId)}`, { method: 'PATCH', body: JSON.stringify({ name }) })
     }
 
     async createCodexNativeProject(endpointId: string, payload: { name: string; path: string; idempotencyKey: string }): Promise<{ project: NativeDaemonProject }> {
@@ -505,7 +534,14 @@ export class ApiClient {
     }
 
     async streamCodexNativeEvents(id: string, signal: AbortSignal, onEvent: (event: NativeEvent) => void): Promise<void> {
-        const path = `/api/codex-native/threads/${encodeURIComponent(id)}/events`
+        return this.streamCodexNativePath(`/api/codex-native/threads/${encodeURIComponent(id)}/events`, signal, onEvent)
+    }
+
+    async streamCodexNativeCatalog(endpointId: string, signal: AbortSignal, onEvent: (event: NativeEvent) => void): Promise<void> {
+        return this.streamCodexNativePath(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/catalog/events`, signal, onEvent)
+    }
+
+    private async streamCodexNativePath(path: string, signal: AbortSignal, onEvent: (event: NativeEvent) => void): Promise<void> {
         let token = this.getToken?.() ?? this.token
         let response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal })
         if (response.status === 401 && this.onUnauthorized) {

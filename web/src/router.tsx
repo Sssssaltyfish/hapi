@@ -199,10 +199,12 @@ function SessionsPage() {
     const handleSelectSession = useCallback((sessionId: string) => {
         navigate(getSessionListSelectionNavigation(sessionId))
     }, [navigate])
-    const handleNewSessionInDirectory = useCallback((args: { machineId: string | null; directory: string }) => {
+    const handleNewSessionInDirectory = useCallback((args: { machineId: string | null; directory: string; nativeEndpointId?: string }) => {
         navigate({
             to: '/sessions/new',
-            search: args.machineId
+            search: args.nativeEndpointId
+                ? { directory: args.directory, nativeEndpointId: args.nativeEndpointId }
+                : args.machineId
                 ? { directory: args.directory, machineId: args.machineId }
                 : { directory: args.directory },
             ...PRESERVE_SESSION_SIDEBAR_SCROLL,

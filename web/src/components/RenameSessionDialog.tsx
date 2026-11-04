@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { useTranslation } from '@/lib/use-translation'
 
 type RenameSessionDialogProps = {
+    title?: string
+    placeholder?: string
     isOpen: boolean
     onClose: () => void
     currentName: string
@@ -110,7 +112,7 @@ export function RenameSessionDialog(props: RenameSessionDialogProps) {
             <DialogContent className="max-w-sm">
                 <DialogHeader className="pr-0">
                     <DialogTitle className="min-h-6 px-10 text-center leading-6">
-                        {t('dialog.rename.title')}
+                        {props.title ?? t('dialog.rename.title')}
                     </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
@@ -124,7 +126,8 @@ export function RenameSessionDialog(props: RenameSessionDialogProps) {
                             setDraftEdited(true)
                         }}
                         onKeyDown={handleKeyDown}
-                        placeholder={t('dialog.rename.placeholder')}
+                        aria-label={props.placeholder ?? t('dialog.rename.placeholder')}
+                        placeholder={props.placeholder ?? t('dialog.rename.placeholder')}
                         className="w-full px-3 py-2.5 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] focus:border-transparent"
                         disabled={busy}
                         maxLength={255}

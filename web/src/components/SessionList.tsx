@@ -114,6 +114,7 @@ import { useTransientScrollbar } from '@/hooks/useTransientScrollbar'
 import { useCursorChatStoreStatus } from '@/hooks/queries/useCursorChatStoreStatus'
 import { SessionRowSummary } from '@/components/SessionRowSummary'
 import { Spinner } from '@/components/Spinner'
+import { NativeProjectActions, NativeThreadDialogs } from '@/codex-native/NativeCatalogActions'
 import { transferComposerDraftThenNavigate } from '@/lib/composer-draft-transfer'
 import { useToast } from '@/lib/toast-context'
 import { getPathDisplayName } from '@/utils/path'
@@ -161,6 +162,8 @@ type SessionGroup = {
     latestCreatedAt: number
     hasActiveSession: boolean
     hasPinnedSession: boolean
+    nativeEndpointId?: string
+    nativeProjectId?: string | null
 }
 
 const RUNNING_BUCKETS = [
@@ -430,11 +433,11 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
         const path = session.metadata?.nativeCodex?.projectPath ?? session.metadata?.worktree?.basePath ?? session.metadata?.path ?? 'Other'
         const machineId = session.metadata?.machineId ?? null
         const native = session.metadata?.nativeCodex
-        const identity = native ? (native.projectId ? `project:${native.projectId}` : `projectless:${path}`) : path
+        const identity = native ? `native:${native.endpointId}:${native.projectId ? `project:${native.projectId}` : 'projectless'}` : path
         const key = `${machineId ?? UNKNOWN_MACHINE_ID}::${identity}`
         if (!groups.has(key)) {
             groups.set(key, {
-                directory: path,
+                directory: native && !native.projectId ? '' : path,
                 machineId,
                 sessions: []
             })
@@ -465,6 +468,7 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
             const hasActiveSession = group.sessions.some(s => s.active)
             const hasPinnedSession = group.sessions.some(s => s.pinned)
             const displayName = group.sessions.find(session => session.metadata?.nativeCodex?.projectName)?.metadata?.nativeCodex?.projectName ?? getPathDisplayName(group.directory)
+            const native = group.sessions[0]?.metadata?.nativeCodex
 
             return {
                 key,
@@ -475,7 +479,8 @@ export function groupSessionsByDirectory(sessions: SessionSummary[], fixedOrder 
                 latestUpdatedAt,
                 latestCreatedAt,
                 hasActiveSession,
-                hasPinnedSession
+                hasPinnedSession,
+                ...(native ? { nativeEndpointId: native.endpointId, nativeProjectId: native.projectId ?? null } : {})
             }
         })
         .sort((a, b) => {
@@ -1175,6 +1180,7 @@ export const SessionItem = memo(function SessionItem(props: {
     const [exportOpen, setExportOpen] = useState(false)
     const [archiveOpen, setArchiveOpen] = useState(false)
     const [deleteOpen, setDeleteOpen] = useState(false)
+    const [nativeDialog, setNativeDialog] = useState<'hide' | 'move' | null>(null)
     const {
         status: cursorChatStoreStatus,
         isApplicable: cursorChatStoreApplicable,
@@ -1207,7 +1213,7 @@ export const SessionItem = memo(function SessionItem(props: {
     )
     const [reopenError, setReopenError] = useState<string | null>(null)
     const holdPanel = useContext(CollapsiblePanelHoldContext)
-    const overlayOpen = menuOpen || renameOpen || exportOpen || archiveOpen || deleteOpen || reopenError !== null
+    const overlayOpen = menuOpen || renameOpen || exportOpen || archiveOpen || deleteOpen || nativeDialog !== null || reopenError !== null
     useEffect(() => {
         if (!overlayOpen || !holdPanel) return
         holdPanel(true)
@@ -1323,9 +1329,12 @@ export const SessionItem = memo(function SessionItem(props: {
                 reopenDisabledReason={cursorReopenDisabledReason}
                 reopenHint={cursorReopenUnverifiedHint}
                 onDelete={() => setDeleteOpen(true)}
+                onHide={s.metadata?.nativeCodex && api ? () => setNativeDialog('hide') : undefined}
+                onMoveToProject={s.metadata?.nativeCodex && api ? () => setNativeDialog('move') : undefined}
                 anchorPoint={menuAnchorPoint}
             />
 
+            {nativeDialog && api && s.metadata?.nativeCodex ? <NativeThreadDialogs api={api} session={s} mode={nativeDialog} onClose={() => setNativeDialog(null)} /> : null}
             {reopenError ? (
                 <ConfirmDialog
                     isOpen={true}
@@ -1432,7 +1441,7 @@ export function SessionList(props: {
     sessions: SessionSummary[]
     onSelect: (sessionId: string) => void
     onNewSession: () => void
-    onNewSessionInDirectory?: (args: { machineId: string | null; directory: string }) => void
+    onNewSessionInDirectory?: (args: { machineId: string | null; directory: string; nativeEndpointId?: string }) => void
     onBrowse?: () => void
     onRefresh: () => Promise<unknown> | void
     isLoading: boolean
@@ -1777,6 +1786,7 @@ export function SessionList(props: {
     }
 
     const getVisibleGroupSessions = (group: SessionGroup): SessionSummary[] => {
+        if (group.nativeEndpointId) return group.sessions
         return getVisibleSessionPreview(
             group.sessions,
             {
@@ -1858,7 +1868,7 @@ export function SessionList(props: {
                                             selected={s.id === selectedSessionId}
                                             showDetailedStatus={showDetailedStatus}
                                             inRunningSection
-                                            projectLabel={getPathDisplayName(s.metadata?.worktree?.basePath ?? s.metadata?.path ?? 'Other')}
+                                            projectLabel={s.metadata?.nativeCodex ? s.metadata.nativeCodex.projectName ?? t('newSession.native.noWorkspace') : getPathDisplayName(s.metadata?.worktree?.basePath ?? s.metadata?.path ?? 'Other')}
                                             machineLabel={resolveMachineLabel(s.metadata?.machineId ?? null)}
                                             lastSeenVersion={lastSeenVersion}
                                         />
@@ -1875,27 +1885,30 @@ export function SessionList(props: {
     const renderActionOnlyGroupHeader = (group: SessionGroup) => {
         // With multiple machines in the unfiltered view, disambiguate
         // same-named directories by suffixing the machine label.
+        const groupName = group.nativeEndpointId && group.nativeProjectId === null ? t('newSession.native.noWorkspace') : group.displayName
         const groupTitle = showMachineFilterBar && activeMachineFilter === null
-            ? `${group.displayName} · ${resolveMachineLabel(group.machineId)}`
-            : group.displayName
+            ? `${groupName} · ${resolveMachineLabel(group.machineId)}`
+            : groupName
         return (
             <div key={group.key} data-session-scroll-anchor>
                 <div
                     className="group/project sticky top-0 z-10 flex items-center gap-2 bg-[var(--app-bg)] py-1.5 pl-2 pr-2 text-left rounded-lg transition-colors hover:bg-[var(--app-secondary-bg)] min-w-0 w-full select-none"
-                    title={group.directory}
+                    title={group.directory || undefined}
                 >
                     <span className="font-medium text-sm truncate flex-1">
                         {groupTitle}
                     </span>
-                    <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" />
-                    {onNewSessionInDirectory && group.directory !== 'Other' ? (
+                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} /> : null}
+                    {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
+                    {onNewSessionInDirectory && group.directory && group.directory !== 'Other' ? (
                         <button
                             type="button"
                             onClick={(event) => {
                                 event.stopPropagation()
                                 onNewSessionInDirectory({
                                     machineId: group.machineId,
-                                    directory: group.directory
+                                    directory: group.directory,
+                                    ...(group.nativeEndpointId ? { nativeEndpointId: group.nativeEndpointId } : {})
                                 })
                             }}
                             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] opacity-70 transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-link)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
@@ -1926,24 +1939,26 @@ export function SessionList(props: {
         const collapseCount = visibleGroupSessions.length - previousGroupSessions.length
         const canShowFewerSessions = previousLimit < currentLimit && collapseCount > 0
         const expandCount = Math.min(sessionPreviewLimit, hiddenSessionCount)
-        const canStartInGroupDirectory = group.directory !== 'Other'
+        const canStartInGroupDirectory = Boolean(group.directory) && group.directory !== 'Other'
         // With multiple machines in the unfiltered view, disambiguate
         // same-named directories by suffixing the machine label.
+        const groupName = group.nativeEndpointId && group.nativeProjectId === null ? t('newSession.native.noWorkspace') : group.displayName
         const groupTitle = showMachineFilterBar && activeMachineFilter === null
-            ? `${group.displayName} · ${resolveMachineLabel(group.machineId)}`
-            : group.displayName
+            ? `${groupName} · ${resolveMachineLabel(group.machineId)}`
+            : groupName
         return (
             <div key={group.key} data-session-scroll-anchor>
                 <div
                     className="group/project sticky top-0 z-10 flex items-center gap-2 bg-[var(--app-bg)] py-1.5 pl-2 pr-2 text-left rounded-lg transition-colors hover:bg-[var(--app-secondary-bg)] cursor-pointer min-w-0 w-full select-none"
                     onClick={() => toggleGroup(group.key, isCollapsed)}
-                    title={group.directory}
+                    title={group.directory || undefined}
                 >
                     <ChevronIcon className="h-3.5 w-3.5 text-[var(--app-hint)] shrink-0" collapsed={isCollapsed} />
                     <span className="font-medium text-sm truncate flex-1">
                         {groupTitle}
                     </span>
-                    <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" />
+                    {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} /> : null}
+                    {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
                     {onNewSessionInDirectory && canStartInGroupDirectory ? (
                         <button
                             type="button"
@@ -1951,7 +1966,8 @@ export function SessionList(props: {
                                 event.stopPropagation()
                                 onNewSessionInDirectory({
                                     machineId: group.machineId,
-                                    directory: group.directory
+                                    directory: group.directory,
+                                    ...(group.nativeEndpointId ? { nativeEndpointId: group.nativeEndpointId } : {})
                                 })
                             }}
                             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] opacity-70 transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-link)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
@@ -1990,7 +2006,7 @@ export function SessionList(props: {
                                 />
                             </div>
                         ))}
-                        {group.sessions.length > sessionPreviewLimit && (hiddenSessionCount > 0 || canShowFewerSessions) ? (
+                        {!group.nativeEndpointId && group.sessions.length > sessionPreviewLimit && (hiddenSessionCount > 0 || canShowFewerSessions) ? (
                             <div className="ml-2.5 mr-2 my-1 flex gap-1.5">
                                 {canShowFewerSessions ? (
                                     <button

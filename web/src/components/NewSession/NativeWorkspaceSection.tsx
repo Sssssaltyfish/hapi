@@ -5,6 +5,7 @@ import type { NativeDaemonProject } from '@/codex-native/types'
 import { SelectControl } from '@/components/ui/select-control'
 import { useTranslation } from '@/lib/use-translation'
 import type { NativeWorkspaceCreationDraft } from './newSessionFormDraft'
+import { nativeCatalogKey } from '@/codex-native/catalogQueries'
 
 export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: boolean) {
     const [mode, setMode] = useState<'none' | 'existing' | 'new'>('none')
@@ -14,11 +15,11 @@ export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: 
     const captureCreationDraft = useCallback(() => creation.current ? { ...creation.current } : undefined, [])
     const restoreCreationDraft = useCallback((draft?: NativeWorkspaceCreationDraft) => { creation.current = draft ? { ...draft } : null }, [])
     const query = useInfiniteQuery({
-        queryKey: ['codex-native', endpointId, 'projects'],
-        queryFn: ({ pageParam }) => api.listCodexNativeProjects(endpointId, pageParam),
+        queryKey: nativeCatalogKey(api, endpointId, 'projects'),
+        queryFn: ({ pageParam, signal }) => api.listCodexNativeProjects(endpointId, pageParam, signal),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: page => page.nextCursor ?? undefined,
-        enabled: enabled && Boolean(endpointId),
+        enabled: enabled && Boolean(endpointId) && mode === 'existing',
         staleTime: 30_000,
         retry: false,
     })
