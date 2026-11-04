@@ -16,14 +16,21 @@ function date(value: number | null, seconds = true): ReactNode {
     if (value === null) return null
     const parsed = new Date(value * (seconds ? 1000 : 1))
     if (!Number.isFinite(parsed.getTime())) return null
-    return <time dateTime={parsed.toISOString()}>{parsed.toLocaleString()}</time>
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(parsed)
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(value => value.type === type)?.value ?? ''
+    const formatted = `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}:${part('second')}`
+    return <time className="inline-block whitespace-nowrap" dateTime={parsed.toISOString()} title={zone}>{formatted}</time>
 }
 
 function Rows({ values }: { values: Array<[string, ReactNode]> }) {
-    return <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
-        {values.filter(([, value]) => value !== null && value !== undefined).map(([label, value]) => <div key={label} className="contents">
-            <dt className="text-[var(--app-hint)]">{label}</dt>
-            <dd className="break-words text-right tabular-nums">{value}</dd>
+    return <dl className="space-y-1.5 text-sm">
+        {values.filter(([, value]) => value !== null && value !== undefined).map(([label, value]) => <div key={label} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <dt className="min-w-0 text-[var(--app-hint)]">{label}</dt>
+            <dd className="ml-auto min-w-0 max-w-full break-words text-right tabular-nums">{value}</dd>
         </div>)}
     </dl>
 }
@@ -63,6 +70,10 @@ function Limit({ value }: { value: CodexUsageLimit }) {
     }
     const credits = value.credits
     const spending = value.spending
+    const showCreditAvailability = credits?.available !== null && credits?.available !== undefined
+        && (credits.available === false || (credits.balance === null && credits.unlimited !== true))
+    const hasCredits = credits && (credits.balance !== null || showCreditAvailability || credits.unlimited === true)
+    const hasSpending = spending && Object.values(spending).some(value => value !== null)
     return <section className="space-y-3">
         <div className="flex flex-wrap justify-between gap-2">
             <h3 className="font-medium">{value.name ?? value.id ?? t('codexUsage.allowance')}</h3>
@@ -73,23 +84,22 @@ function Limit({ value }: { value: CodexUsageLimit }) {
         {value.secondary && <Window value={value.secondary} label={t('codexUsage.secondary')} />}
         {!value.primary && !value.secondary && <p className="text-sm text-[var(--app-hint)]">{t('codexUsage.remainingUnknown')}</p>}
         {value.reachedReason && <p className="text-sm">{reasons[value.reachedReason] ?? t('codexUsage.limitReported')}</p>}
-        {credits && (credits.balance !== null || credits.available !== null || credits.unlimited !== null) && <div className="space-y-2 pt-2">
+        {credits && hasCredits && <div className="space-y-2 pt-2">
             <h4 className="text-sm font-medium">{t('codexUsage.credits')}</h4>
             <Rows values={[
                 [t('codexUsage.creditBalance'), credits.balance === null ? null : decimal(credits.balance)],
-                [t('codexUsage.creditAvailability'), credits.available === null ? null : credits.available ? t('codexUsage.available') : t('codexUsage.noCredits')],
-                [t('codexUsage.creditLimit'), credits.unlimited === null ? null : credits.unlimited ? t('codexUsage.unlimitedCredits') : t('codexUsage.limitedCredits')],
+                [t('codexUsage.creditAvailability'), !showCreditAvailability ? null : credits.available ? t('codexUsage.available') : t('codexUsage.noCredits')],
+                [t('codexUsage.creditLimit'), credits.unlimited === true ? t('codexUsage.unlimitedCredits') : null],
             ]} />
         </div>}
-        {(spending || value.spendControlReached !== null) && <div className="space-y-2 pt-2">
+        {(hasSpending || value.spendControlReached === true) && <div className="space-y-2 pt-2">
             <h4 className="text-sm font-medium">{t('codexUsage.spending')}</h4>
             <Rows values={[
                 [t('codexUsage.remaining'), spending?.remainingPercent == null ? null : commandNumber(spending.remainingPercent, { suffix: '%' })],
                 [t('codexUsage.spent'), spending?.used == null ? null : decimal(spending.used)],
                 [t('codexUsage.spendingLimit'), spending?.limit == null ? null : decimal(spending.limit)],
                 [t('codexUsage.resets'), date(spending?.resetsAt ?? null)],
-                [t('codexUsage.spendingStatus'), value.spendControlReached === null ? null
-                    : value.spendControlReached ? t('codexUsage.reached') : t('codexUsage.notReached')],
+                [t('codexUsage.spendingStatus'), value.spendControlReached === true ? t('codexUsage.reached') : null],
             ]} />
         </div>}
     </section>
@@ -106,7 +116,7 @@ export function CodexUsagePanel({ snapshot }: { snapshot: CodexUsageSnapshot }) 
     return <div className="space-y-3 text-left text-[var(--app-fg)]" aria-label={t('codexUsage.title')}>
         <div>
             <h2 className="font-semibold">{t('codexUsage.title')}</h2>
-            <p className="mt-1 text-xs text-[var(--app-hint)]">{t('codexUsage.snapshotAt')} {date(snapshot.readAt, false)}</p>
+            <p className="mt-1 flex flex-wrap items-baseline gap-x-1 gap-y-1 text-xs text-[var(--app-hint)]"><span>{t('codexUsage.snapshotAt')}</span> {date(snapshot.readAt, false)} <span>({Intl.DateTimeFormat().resolvedOptions().timeZone})</span></p>
         </div>
         {!hasUsage && <p className="text-sm text-[var(--app-hint)]">{t('codexUsage.usageUnavailable')}</p>}
         <Rows values={[[t('codexUsage.includedUsage'), snapshot.ordinaryUsageAllowed === null ? null

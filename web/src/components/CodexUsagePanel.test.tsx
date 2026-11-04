@@ -53,3 +53,29 @@ it('formats small nonzero costs with their units without changing the snapshot',
     expect(screen.getByText('<0.01')).toBeInTheDocument()
     expect(tiny.thread.usdMicros).toBe('1')
 })
+
+it('uses complete 24-hour timestamps and identifies the browser timezone', () => {
+    const { container } = render(<I18nProvider><CodexUsagePanel snapshot={snapshot} /></I18nProvider>)
+    const times = [...container.querySelectorAll('time')]
+    expect(times.length).toBeGreaterThan(1)
+    for (const time of times) {
+        expect(time.textContent).toMatch(/^\d{4}-\d{2}-\d{2} (?:[01]\d|2[0-3]):\d{2}:\d{2}$/)
+        expect(time).toHaveClass('whitespace-nowrap')
+        expect(time.title).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone)
+        expect(Number.isFinite(new Date(time.dateTime).getTime())).toBe(true)
+    }
+    expect(screen.getByText(`(${Intl.DateTimeFormat().resolvedOptions().timeZone})`)).toBeInTheDocument()
+})
+
+it('omits routine limit states and retains explicit unlimited credits and reached spending', () => {
+    const normal = { ...snapshot, limits: [{ ...snapshot.limits[0], spendControlReached: false }] }
+    const { rerender } = render(<I18nProvider><CodexUsagePanel snapshot={normal} /></I18nProvider>)
+    expect(screen.queryByText('Limited credits')).not.toBeInTheDocument()
+    expect(screen.queryByText('Not reached')).not.toBeInTheDocument()
+    expect(screen.queryByText('Spending control')).not.toBeInTheDocument()
+    const exceptional = { ...normal, limits: [{ ...normal.limits[0], spendControlReached: true,
+        credits: { available: true, balance: null, unlimited: true } }] }
+    rerender(<I18nProvider><CodexUsagePanel snapshot={exceptional} /></I18nProvider>)
+    expect(screen.getByText('Unlimited credits')).toBeInTheDocument()
+    expect(screen.getByText('Reached')).toBeInTheDocument()
+})
