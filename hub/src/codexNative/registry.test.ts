@@ -14,7 +14,7 @@ import { record, type NativeRecord } from './transport'
 const config: NativeEndpointConfig = { id: 'local', label: 'Configured daemon', endpoint: 'unix:///existing.sock', namespace: 'owner', legacyMachineIds: ['wsl'] }
 class FakeNative extends NativeService {
     fail = false
-    page: NativeRecord = { data: [{ id: 'fork', cwd: '/repo/worktree', name: 'Native title', status: { type: 'idle' }, desktopProject: { id: 'project', name: 'Project', path: '/repo' } }], nextCursor: 'opaque' }
+    page: NativeRecord = { data: [{ id: 'fork', cwd: '/repo/worktree', projectId: 'canonical-project', name: 'Native title', status: { type: 'idle' }, desktopProject: { id: 'legacy-project', name: 'Project', path: '/repo' } }], nextCursor: 'opaque' }
     calls: Array<{ method: string; params: NativeRecord }> = []
     override async readThread(threadId: string): Promise<unknown> {
         this.calls.push({ method: 'thread/read', params: { threadId, includeTurns: false } })
@@ -91,25 +91,23 @@ describe('native identities integrated into original sessions', () => {
         native.page = { data: [], nextCursor: 'older' }
         const result = await registry.list('owner', [legacy], { endpointId: 'local', projectId: 'different', catalog: 'background' })
         expect(result.sessions).toEqual([])
-        expect(result.nativePagination).toEqual([{ endpointId: 'local', nextCursor: 'older', available: true }])
-        expect(native.calls[0].params).toMatchObject({ projectId: 'different', catalog: 'background', limit: 100 })
+        expect(result.nativePagination).toEqual([{ endpointId: 'local', nextCursor: null, available: true }])
+        expect(native.calls[0].params).toMatchObject({ boundedMigration: true, limit: 100 })
+        expect(native.calls[0].params.catalog).toBeUndefined()
     })
     test('project grouping metadata preserves actual native worktree cwd', async () => {
         const { registry, legacy } = fixture()
         const result = await registry.list('owner', [legacy])
         expect(result.sessions).toHaveLength(1)
-        expect(result.sessions[0].metadata).toMatchObject({ path: '/repo/worktree', nativeCodex: { projectPath: '/repo', projectName: 'Project' } })
+        expect(result.sessions[0].metadata).toMatchObject({ path: '/repo/worktree', nativeCodex: { projectId: 'canonical-project', projectPath: '/repo', projectName: 'Project' } })
+        expect(nativeSession(config, { id: 'unassigned', projectId: null, cwd: '/repo', desktopProject: { id: 'legacy-project', name: 'Old inferred group', path: '/repo' } }).metadata?.nativeCodex?.projectId).toBeUndefined()
+        expect(nativeSession(config, { id: 'unknown-membership', cwd: '/repo', desktopProject: { id: 'legacy-project', name: 'Old inferred group' } }).metadata?.nativeCodex?.projectId).toBeUndefined()
         expect(nativeSession(config, { id: 'unnamed', preview: 'Native preview title' }).metadata?.name).toBe('Native preview title')
     })
-    test('endpoint pagination keeps the requested page size aligned with its native cursor', async () => {
+    test('home returns every tracked endpoint member without a daemon cursor or page cap', async () => {
         const { registry, native, legacy } = fixture()
         const threads = Array.from({ length: 120 }, (_, index) => ({ id: `thread-${index}`, cwd: '/repo', updatedAt: index }))
-        native.catalog = async params => {
-            native.calls.push({ method: 'thread/list', params })
-            const offset = params.cursor ? Number(String(params.cursor).slice('cursor-'.length)) : 0
-            const limit = Number(params.limit)
-            return { data: threads.slice(offset, offset + limit), nextCursor: offset + limit < threads.length ? `cursor-${offset + limit}` : null }
-        }
+        for (const thread of threads) await registry.trackCreated('owner', 'local', thread)
         const other = { ...legacy, id: 'claude-session', metadata: { ...legacy.metadata!, flavor: 'claude' } }
         const engine = {
             getSessionsByNamespace: () => [legacy, other],
@@ -119,21 +117,12 @@ describe('native identities integrated into original sessions', () => {
         const app = new Hono<WebAppEnv>()
         app.use('*', (c, next) => { c.set('namespace', 'owner'); return next() })
         app.route('/api', createSessionsRoutes(() => engine, registry))
-        const ids: string[] = []
-        let cursor: string | null = null
-        for (const expectedCount of [50, 50, 20]) {
-            const query = new URLSearchParams({ nativeEndpointId: 'local', limit: '50' })
-            if (cursor) query.set('nativeCursor', cursor)
-            const page = await (await app.request(`/api/sessions?${query}`)).json() as SessionsResponse
-            expect(page.sessions).toHaveLength(expectedCount)
-            expect(page.sessions.every(session => session.metadata?.nativeCodex?.endpointId === 'local')).toBe(true)
-            ids.push(...page.sessions.map(session => session.id))
-            cursor = page.nativePagination?.[0].nextCursor ?? null
-        }
-        expect(cursor).toBeNull()
-        expect(new Set(ids).size).toBe(threads.length)
-        expect(ids.sort()).toEqual(threads.map(thread => nativeSessionId('local', thread.id)).sort())
-        expect(native.calls.every(call => call.params.limit === 50)).toBe(true)
+        const page = await (await app.request('/api/sessions?nativeEndpointId=local&limit=50&nativeCursor=obsolete')).json() as SessionsResponse
+        expect(page.sessions).toHaveLength(120)
+        expect(page.sessions.every(session => session.metadata?.nativeCodex?.endpointId === 'local')).toBe(true)
+        expect(page.nativePagination?.[0].nextCursor).toBeNull()
+        expect(page.sessions.map(session => session.id).sort()).toEqual(threads.map(thread => nativeSessionId('local', thread.id)).sort())
+        expect(native.calls).toEqual([])
     })
     test('limited aggregate previews preserve ordering and scheduled counts without exposing a truncated native cursor', async () => {
         const { registry, legacy } = fixture()

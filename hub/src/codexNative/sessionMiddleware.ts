@@ -41,6 +41,9 @@ export function nativeSessionMiddleware(
         }
         if (binding?.endpoint && match[2] === '/archive' && c.req.method === 'POST') {
             await binding.endpoint.service.control(binding.threadId, 'thread/archive', {})
+            await registry.observeCatalogEvent(c.get('namespace'), binding.endpoint.config.id, {
+                method: 'thread/archived', params: { threadId: binding.threadId },
+            })
             return c.json({ success: true })
         }
         if ((binding?.endpoint || marked) && (match[2] || c.req.method !== 'GET'))

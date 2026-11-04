@@ -1,6 +1,7 @@
 import { record, text, type NativeRecord } from './transport'
 import type { NativeService } from './service'
 import type { DesktopProject } from './desktopSelection'
+import { isNativeBackgroundThread, NATIVE_ORDINARY_SOURCE_KINDS, NATIVE_BACKGROUND_SOURCE_KINDS } from '@hapi/protocol/codexNativeVisibility'
 
 export type DaemonProject = { id: string; name: string; roots: Array<{ path: string }>; legacyProjectId?: string }
 
@@ -13,6 +14,102 @@ export function daemonProject(value: unknown): DaemonProject | undefined {
     }) : []
     const legacyProjectId = text(record(project.metadata)['codex.localProjectId'])
     return id && name ? { id, name, roots, ...(legacyProjectId ? { legacyProjectId } : {}) } : undefined
+}
+
+export type NativeProjectPageOptions = { cursor?: string; limit: number }
+
+function nextProjectCursor(page: NativeRecord, cursor?: string): string | null {
+    const next = text(page.nextCursor) ?? null
+    if (next && next === cursor) throw new Error('Native project pagination did not advance')
+    return next
+}
+
+/** One native page. Importers decide when to request the next page. */
+export async function daemonProjectsPage(service: NativeService, options: NativeProjectPageOptions) {
+    const page = record(await service.call('project/list', {
+        limit: options.limit,
+        ...(options.cursor ? { cursor: options.cursor } : {}),
+    }))
+    return {
+        data: (Array.isArray(page.data) ? page.data : []).flatMap(value => {
+            const project = daemonProject(value)
+            return project ? [project] : []
+        }),
+        nextCursor: nextProjectCursor(page, options.cursor),
+    }
+}
+
+/** projectId:null is the protocol's unassigned filter; omitting it means all projects. */
+export async function daemonProjectThreadsPage(service: NativeService, projectId: string | null, options: NativeProjectPageOptions) {
+    const page = record(await service.call('thread/list', {
+        projectId,
+        limit: options.limit,
+        ...(options.cursor ? { cursor: options.cursor } : {}),
+        archived: false,
+        sourceKinds: NATIVE_ORDINARY_SOURCE_KINDS,
+        modelProviders: [],
+        useStateDbOnly: true,
+        sortKey: 'updated_at',
+        sortDirection: 'desc',
+    }))
+    return {
+        data: (Array.isArray(page.data) ? page.data : []).map(record).filter(thread => text(thread.id) && !isNativeBackgroundThread(thread)),
+        nextCursor: nextProjectCursor(page, options.cursor),
+    }
+}
+
+const backgroundCursorPrefix = 'hapi-bg-v1:'
+type BackgroundPage = { phase: 'native' | 'legacy'; cursor: string | null }
+export class NativeBackgroundCursorError extends Error {}
+function backgroundPage(cursor?: string): BackgroundPage {
+    if (!cursor) return { phase: 'native', cursor: null }
+    // Older clients may still hold a raw cursor for the original source family.
+    if (!cursor.startsWith(backgroundCursorPrefix)) {
+        if (cursor.length > 8192) throw new NativeBackgroundCursorError('Invalid native background cursor')
+        return { phase: 'native', cursor }
+    }
+    try {
+        const value = record(JSON.parse(Buffer.from(cursor.slice(backgroundCursorPrefix.length), 'base64url').toString('utf8')))
+        if ((value.phase !== 'native' && value.phase !== 'legacy') ||
+            (value.cursor !== null && (typeof value.cursor !== 'string' || !value.cursor.length || value.cursor.length > 8192))) throw Error('Invalid cursor')
+        return { phase: value.phase, cursor: value.cursor as string | null }
+    } catch { throw new NativeBackgroundCursorError('Invalid native background cursor') }
+}
+function backgroundCursor(page: BackgroundPage): string {
+    return backgroundCursorPrefix + Buffer.from(JSON.stringify(page)).toString('base64url')
+}
+
+/** One host-level page per explicit request, independent of project assignment. */
+export async function daemonBackgroundThreadsPage(service: NativeService, options: NativeProjectPageOptions) {
+    const current = backgroundPage(options.cursor)
+    const page = record(await service.call('thread/list', {
+        limit: options.limit, ...(current.cursor ? { cursor: current.cursor } : {}), archived: false,
+        sourceKinds: current.phase === 'native' ? NATIVE_BACKGROUND_SOURCE_KINDS : ['cli', 'vscode'], modelProviders: [], useStateDbOnly: true,
+        sortKey: 'updated_at', sortDirection: 'desc',
+    }))
+    const next = nextProjectCursor(page, current.cursor ?? undefined)
+    return { data: (Array.isArray(page.data) ? page.data : []).map(record)
+        .filter(thread => text(thread.id) && isNativeBackgroundThread(thread)),
+        nextCursor: next ? backgroundCursor({ phase: current.phase, cursor: next })
+            : current.phase === 'native' ? backgroundCursor({ phase: 'legacy', cursor: null }) : null }
+}
+
+export async function assignDaemonProject(service: NativeService, threadId: string, projectId: string | null): Promise<NativeRecord> {
+    // null/omitted leaves metadata unchanged. Desktop clears assignment with ''.
+    const response = record(await service.call('thread/metadata/update', { threadId, projectId: projectId ?? '' }))
+    const thread = record(response.thread)
+    if (thread.id !== threadId || !Object.hasOwn(thread, 'projectId') || thread.projectId !== projectId)
+        throw new Error('Native workspace assignment was not confirmed; refresh before retrying')
+    return thread
+}
+
+export async function renameDaemonProject(service: NativeService, projectId: string, name: string): Promise<DaemonProject> {
+    // Updating only name preserves roots, metadata, ordering, and thread workspace settings.
+    const response = record(await service.call('project/update', { projectId, name }))
+    const project = daemonProject(response.project)
+    if (!project || project.id !== projectId || project.name !== name)
+        throw new Error('Native workspace name was not confirmed; refresh before retrying')
+    return project
 }
 
 export async function listDaemonProjects(service: NativeService, deadline?: number): Promise<DaemonProject[]> {

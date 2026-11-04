@@ -6,6 +6,7 @@ import { CodexGuardianDenials } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
+import { NativeCatalogEvents, type NativeCatalogObserver } from './catalogEvents'
 import { nativeOutlinePage } from '../sync/conversationOutline'
 import { nativeTurnContext } from './turnContext'
 import { nativeItemLookup } from './itemLookup'
@@ -71,6 +72,7 @@ export function fallbackThread(thread: NativeRecord): boolean {
 }
 export class NativeService {
     dispose(): void {
+        this.catalogEvents.dispose()
         for (const entry of this.subscriptions.values()) clearTimeout(entry.timer)
         this.subscriptions.clear()
         for (const client of [...this.connections])
@@ -86,6 +88,7 @@ export class NativeService {
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private commandRuns = new Map<string, Promise<unknown>>()
+    private catalogEvents = new NativeCatalogEvents(() => this.connection())
     private identities = createWorkspaceIdentityReader()
     private daemonIdentities = createWorkspaceIdentityReader(async (path, args, timeout) => {
         const response = record(await this.call('command/exec', {
@@ -159,6 +162,9 @@ export class NativeService {
             if (live) return live.attached
             throw error
         }
+    }
+    subscribeCatalog(listener: (event: NativeEvent) => void, observer?: NativeCatalogObserver): Promise<() => void> {
+        return this.catalogEvents.subscribe(listener, observer)
     }
     async items(threadId: string, params: NativeRecord): Promise<unknown> {
         try {
@@ -282,6 +288,7 @@ export class NativeService {
         catalog?: string
         parentThreadId?: string
         deadline?: number
+        boundedMigration?: boolean
     }): Promise<NativeRecord> {
         const deadline = params.deadline ?? Date.now() + 5000
         const checkBudget = () => {
@@ -289,7 +296,7 @@ export class NativeService {
         }
         checkBudget()
         const background = params.catalog === 'background'
-        const canonicalProjects = listDaemonProjects(this, deadline).catch(() => [])
+        const canonicalProjects = params.boundedMigration ? Promise.resolve([]) : listDaemonProjects(this, deadline).catch(() => [])
         const page = record(
             await this.call(
                 'thread/list',
@@ -399,7 +406,13 @@ export class NativeService {
             )
         }
         if (!windowsDesktop || !desktop.state) checkBudget()
-        const canonical = projectMemberships(await canonicalProjects, desktop, this.config.desktopHostId)
+        // Migration examines exactly its bounded interactive thread page. Native
+        // project IDs prove membership without enumerating the global project list.
+        const knownProjects = params.boundedMigration
+            ? [...new Set(threads.map(thread => text(thread.projectId)).filter((id): id is string => Boolean(id)))]
+                .map(id => ({ id, name: id, roots: [] }))
+            : await canonicalProjects
+        const canonical = projectMemberships(knownProjects, desktop, this.config.desktopHostId)
         const isHapiThread = (thread: NativeRecord) => thread.originator === 'hapi-native' && thread.threadSource === 'user'
             && thread.ephemeral !== true && !thread.parentThreadId && !thread.parent_thread_id
             && !desktopHidesThread(desktop.state, thread)

@@ -67,7 +67,7 @@ codex app-server generate-json-schema --experimental --out schema-full
 
 | 能力 | Native 当前覆盖 | 对应接口或实现 | 不应据此推断的能力 |
 |---|---|---|---|
-| 会话目录及创建 | 已接通 | `thread/list`、`thread/read`、`thread/start`；`project/list/create`、文件夹读取 | 完整项目编辑/移动/删除、归档恢复、持久分区管理尚未因此接通。 |
+| 会话目录及创建 | 已接通 | `thread/list`、`thread/read`、`thread/start`；`project/list/create/read/update`、`thread/metadata/update` 与目录通知、文件夹读取 | 项目改名、会话换组及回到无工作区已接通。项目排序、删除和持久分区管理另计。 |
 | 连接与设置状态 | 已接通 | `thread/resume`、`thread/settings/updated`；断连重连与 SSE | `thread/read` 元数据并不提供完整 threadSettings；不能靠一次 metadata read 判断当前 Plan 模式。 |
 | 发送、引导、停止 | 已接通及间接实现 | `thread/queue/add/list/delete/start`、`turn/steer`、`turn/interrupt` | 不需要直接使用 `turn/start` 才能实现发送。队列由 daemon 调度，HAPI 仅在需要时显式启动；不能把 turn/start 未直接调用算作功能缺失。 |
 | 历史分页与精确读取 | 已接通 | `thread/turns/list`、`thread/items/list`、`thread/items/read` | 没有使用 `thread/timeline/list` 不等于没有历史时间线。现有读取与定位已经组合实现该产品能力。 |
@@ -105,7 +105,7 @@ Native API adapter 对未分类的会话操作默认拒绝；Hub middleware 也�
 | `mcpServer/oauth/login`、`mcpServer/resource/read`、`mcpServer/tool/call`、`mcpServer/event/stream/start/stop` | 未提供完整 MCP 客户端 | 模型工具调用可显示，不等于 Web 能任意手动调用。需要登录、账户选择、工具宿主、权限和订阅生命周期。 |
 | `thread/realtime/start/stop/listVoices/appendAudio/appendSpeech/appendText` | 原生 realtime 未接；实验 | 手机有语音价值，但需要音频 transport、播放、会话结束和 handoff。现有 HAPI 转写服务不能算作这些接口已接通。 |
 | `hooks/list`、`modelProvider/capabilities/read`、`configRequirements/read` | 未有专门设置/诊断 UI | 可先用于能力发现与解释功能不可用；provider capability 读取两端已验证。 |
-| `project/read/update/move/delete/import`、`thread/metadata/update` 的 projectId | 项目部分接入 | 已能列出/创建项目，缺重新归属和项目管理。项目 root、线程 cwd、Git worktree 是不同概念。 |
+| `project/read/update/move/delete/import`、`thread/metadata/update` 的 projectId | 项目部分接入 | 可创建、列出、改名并重新指定聊天归属。`project/move` 负责项目排序，HAPI 未接入排序或删除项目。项目 root、线程 cwd、Git worktree 是不同概念。 |
 | `process/spawn/writeStdin/resizePty/kill`、`command/exec/write/resize/terminate`、`thread/shellCommand` | 宿主执行控制；Native 仅有限内部使用 | 完整交互终端是另一产品功能。Runner 终端不能算成 Native daemon 的 process API 已接。 |
 | 账户登录/切换、provider setup、`userVerification/*`、`remoteControl/*`、`environment/*`、`windowsSandbox/*`、`externalAgentConfig/*` | 账户、平台或宿主管理 | 可能需要本机浏览器、验证设备、平台权限或另一个远控体系，不列为手机聊天首批缺口。账户三个新增方法属于本次版本差异。 |
 | 预测/采样、`thread/inject_items`、`thread/approveGuardianDeniedAction`、elicitation 计数、mock、诊断、反馈、rollout 压缩及账户额度消费动作 | 实验、专门授权、编排或维护用途 | 需要逐项确认用户场景与宿主契约；不能因导出中可见就做成通用聊天按钮，也不计作手机聊天覆盖率的缺分项。 |

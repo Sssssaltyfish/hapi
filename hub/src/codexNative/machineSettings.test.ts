@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Hono } from 'hono'
-import { NativeRegistry, type NativeEndpointConfig } from './registry'
+import { NativeRegistry, nativeSession, type NativeEndpointConfig } from './registry'
 import { NativeService } from './service'
 import { createNativeMachinesRoutes } from '../web/routes/nativeMachines'
 import type { WebAppEnv } from '../web/middleware/auth'
@@ -142,7 +142,7 @@ test('stalled earlier machines cannot starve a later healthy machine within the 
             }
         }
     } as unknown as NativeService))
-    const pending = registry.list('owner', [])
+    const pending = registry.list('owner', configs.map(config => nativeSession(config, { id: `existing-${config.id}` })))
     try {
         await new Promise(resolve => setTimeout(resolve, 0))
         expect(started).toContain('machine-5')
@@ -153,7 +153,11 @@ test('stalled earlier machines cannot starve a later healthy machine within the 
         release()
     }
     const result = await pending
-    expect(result.sessions.map(session => session.id)).toEqual(['codex-native:machine-5:healthy-thread'])
+    expect(result.sessions.map(session => session.id)).toEqual([
+        ...configs.slice(0, 5).map(config => `codex-native:${config.id}:existing-${config.id}`),
+        'codex-native:machine-5:healthy-thread',
+    ])
+    expect(result.sessions.filter(session => !session.id.endsWith(':healthy-thread')).every(session => !session.active)).toBe(true)
     expect(result.nativePagination.filter(page => !page.available)).toHaveLength(5)
     expect(active).toBe(0)
 })

@@ -10,6 +10,7 @@ import { record, type NativeRecord } from '../../codexNative/transport'
 import { createNativeMachinesRoutes, nativeMachineStatus } from './nativeMachines'
 import { createNativeMentionsRoutes } from './nativeMentions'
 import { createNativeCreationRoutes } from './nativeCreation'
+import { createNativeVisibilityRoutes } from './nativeVisibility'
 import { nativeThreadCommandRequest, NativeThreadCommandError } from '../../codexNative/threadCommands'
 import { queueNativeInput } from '../../codexNative/queueInput'
 
@@ -107,6 +108,7 @@ export function createCodexNativeRoutes(
     app.route('/', createNativeMachinesRoutes(registry))
     app.route('/', createNativeMentionsRoutes(registry))
     app.route('/', createNativeCreationRoutes(registry))
+    app.route('/', createNativeVisibilityRoutes(registry))
     app.post('/codex-native/endpoints/:endpointId/threads', async (c) => {
         const parsed = createThreadSchema.safeParse(await c.req.json())
         if (!parsed.success) return c.json({ error: 'Invalid native thread options' }, 400)
@@ -125,6 +127,9 @@ export function createCodexNativeRoutes(
             text ? { text, clientId: clientId ?? crypto.randomUUID() } : undefined
         )
         const thread = record(response.thread)
+        await registry.trackCreated(c.get('namespace'), endpoint.config.id, {
+            ...thread, model: response.model, reasoningEffort: response.reasoningEffort,
+        })
         return c.json({
             session: nativeSession(endpoint.config, {
                 ...thread,
