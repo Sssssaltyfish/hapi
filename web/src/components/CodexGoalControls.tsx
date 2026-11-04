@@ -34,7 +34,7 @@ function GoalEditor({ goal, disabled, pending, onAction, onClose }: {
     useLayoutEffect(() => {
         if (!input.current) return
         input.current.style.height = 'auto'
-        input.current.style.height = `${Math.min(128, Math.max(56, input.current.scrollHeight))}px`
+        input.current.style.height = `${Math.min(96, input.current.scrollHeight)}px`
     }, [draft])
     const save = async () => {
         if (!canSave) return
@@ -42,19 +42,18 @@ function GoalEditor({ goal, disabled, pending, onAction, onClose }: {
             : { action: 'edit', objective, expectedObjective: original })
         if (accepted) onClose()
     }
-    return <form data-testid="codex-goal-editor" onSubmit={event => { event.preventDefault(); void save() }} className="py-1">
-        <div className="mb-1 flex items-center justify-between gap-2">
-            <span>{t('nativeCommands.goal')}</span>
-            <div role="group" aria-label={t('nativeCommands.goal')} className="flex shrink-0 items-center gap-1">
+    return <form data-testid="codex-goal-editor" onSubmit={event => { event.preventDefault(); void save() }}>
+        <div className="flex items-center gap-1">
+            <textarea ref={input} autoFocus rows={1} aria-label={t('goalEditor.objective')} placeholder={t('goalEditor.placeholder')}
+                className="hapi-composer-field block min-h-9 max-h-24 min-w-0 flex-1 resize-none overflow-y-auto rounded-lg bg-[var(--app-secondary-bg)] px-3 py-2 text-sm text-[var(--app-fg)] outline-none focus:ring-1 focus:ring-[var(--app-link)]"
+                value={draft} disabled={disabled || pending} onChange={event => setDraft(event.target.value)}
+                onKeyDown={event => { if (event.key === 'Escape' && !pending) { event.preventDefault(); onClose() }
+                    else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void save() } }} />
+            <div role="group" aria-label={t('nativeCommands.goal')} className="flex shrink-0 items-center">
                 <button type="button" className={actionClass} disabled={pending} aria-label={t('goalEditor.cancelEditing')} title={t('goalEditor.cancelEditing')} onClick={onClose}><GoalIcon name="cancel" /></button>
                 <button type="submit" className={actionClass} disabled={!canSave} aria-label={original === null ? t('goalEditor.start') : t('goalEditor.save')} title={original === null ? t('goalEditor.start') : t('goalEditor.save')}><GoalIcon name="save" /></button>
             </div>
         </div>
-        <textarea ref={input} autoFocus aria-label={t('goalEditor.objective')} placeholder={t('goalEditor.placeholder')}
-            className="hapi-composer-field block max-h-32 min-h-14 w-full resize-none overflow-y-auto rounded-lg bg-[var(--app-secondary-bg)] px-3 py-2 text-sm text-[var(--app-fg)] outline-none focus:ring-1 focus:ring-[var(--app-link)]"
-            value={draft} disabled={disabled || pending} onChange={event => setDraft(event.target.value)}
-            onKeyDown={event => { if (event.key === 'Escape' && !pending) { event.preventDefault(); onClose() }
-                else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void save() } }} />
         {changedElsewhere ? <div role="alert" className="pt-1 text-red-600">{t('goalEditor.changedElsewhere')}</div> : null}
         {tooLong ? <div role="alert" className="pt-1 text-red-600">{t('nativeCommands.goalTooLong', { max: MAX_CODEX_GOAL_OBJECTIVE_CHARS })}</div> : null}
         {original !== null && objective !== original ? <div className="pt-1 text-[var(--app-hint)]">{t('goalEditor.usageReset')}</div> : null}
@@ -67,12 +66,18 @@ export function CodexGoalControls({ goal, editing, onEditingChange, disabled, pe
     disabled: boolean; pending: boolean; onAction: GoalAction
 }) {
     const { t } = useTranslation()
+    const [expanded, setExpanded] = useState(false)
     if (!goal && !editing) return null
-    return <section className="py-1 text-xs text-[var(--app-hint)]" data-testid="codex-goal-controls">
+    return <section className="text-xs text-[var(--app-hint)]" data-testid="codex-goal-controls">
         {editing ? <GoalEditor goal={goal} disabled={disabled} pending={pending} onAction={onAction} onClose={() => onEditingChange(false)} /> : goal ? <>
-            <div className="flex items-center justify-between gap-2">
-                <span>{t('nativeCommands.goal')}: {t(`nativeCommands.goalStatus.${goal.status}`)}</span>
-                <div role="group" aria-label={t('nativeCommands.goal')} className="flex shrink-0 items-center gap-1">
+            <div className="flex items-center gap-1">
+                <button type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}
+                    className="flex min-w-0 flex-1 items-center gap-1.5 self-stretch text-start">
+                    <svg aria-hidden="true" viewBox="0 0 16 16" className={`h-3 w-3 shrink-0 ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor"><path d="m6 3 5 5-5 5" /></svg>
+                    <span className="shrink-0">{t('nativeCommands.goal')}: {t(`nativeCommands.goalStatus.${goal.status}`)}</span>
+                    {!expanded && <span className="truncate text-[var(--app-fg)]">{goal.objective}</span>}
+                </button>
+                <div role="group" aria-label={t('nativeCommands.goal')} className="flex shrink-0 items-center">
                     <button type="button" className={actionClass} disabled={disabled || pending} aria-label={t('goalEditor.edit')} title={t('goalEditor.edit')} onClick={() => onEditingChange(true)}><GoalIcon name="edit" /></button>
                     {goal.status === 'active' || goal.status === 'paused' || goal.status === 'blocked' ? <button type="button" className={actionClass} disabled={disabled || pending}
                         aria-label={goal.status === 'active' ? t('nativeCommands.pause') : t('nativeCommands.resume')} title={goal.status === 'active' ? t('nativeCommands.pause') : t('nativeCommands.resume')}
@@ -80,8 +85,10 @@ export function CodexGoalControls({ goal, editing, onEditingChange, disabled, pe
                     <button type="button" className={actionClass} disabled={disabled || pending} aria-label={t('goalEditor.clear')} title={t('goalEditor.clear')} onClick={() => void onAction({ action: 'clear' })}><GoalIcon name="clear" /></button>
                 </div>
             </div>
-            <div className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[var(--app-fg)]" data-hapi-nested-scroll="true">{goal.objective}</div>
-            <div>{t('nativeCommands.tokens', { used: commandNumber(goal.tokensUsed), budget: goal.tokenBudget == null ? t('nativeCommands.unlimited') : commandNumber(goal.tokenBudget) })} · {t('nativeCommands.timeUsed', { seconds: commandNumber(goal.timeUsedSeconds) })}</div>
+            {expanded && <div className="pb-1">
+                <div className="max-h-20 overflow-y-auto whitespace-pre-wrap break-words text-[var(--app-fg)]" data-hapi-nested-scroll="true">{goal.objective}</div>
+                <div>{t('nativeCommands.tokens', { used: commandNumber(goal.tokensUsed), budget: goal.tokenBudget == null ? t('nativeCommands.unlimited') : commandNumber(goal.tokenBudget) })} · {t('nativeCommands.timeUsed', { seconds: commandNumber(goal.timeUsedSeconds) })}</div>
+            </div>}
         </> : null}
     </section>
 }
