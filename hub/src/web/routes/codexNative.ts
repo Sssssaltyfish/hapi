@@ -215,6 +215,22 @@ export function createCodexNativeRoutes(
             })) as NativeRecord
         )
     )
+    app.get('/codex-native/threads/:id/outline', async (c) => {
+        let boundaries: unknown
+        try { boundaries = c.req.query('stopIds') ? JSON.parse(c.req.query('stopIds')!) : c.req.query('stopId') ? [c.req.query('stopId')] : [] }
+        catch { return c.json({ error: 'Invalid outline boundary' }, 400) }
+        const parsed = z.array(z.string().max(1000)).max(64).safeParse(boundaries)
+        if (!parsed.success) return c.json({ error: 'Invalid outline boundary' }, 400)
+        return c.json(await getService(c).outline(c.req.param('id'), c.req.query('cursor') ?? null, parsed.data))
+    })
+    app.get('/codex-native/threads/:id/outline-context', async (c) => {
+        const parsed = z.object({
+            turnId: z.string().min(1).max(500),
+            itemId: z.string().min(1).max(500)
+        }).safeParse(c.req.query())
+        if (!parsed.success) return c.json({ error: 'Invalid turn navigation target' }, 400)
+        return c.json(await getService(c).turnContext(c.req.param('id'), parsed.data.turnId, parsed.data.itemId))
+    })
     app.get('/codex-native/threads/:id/queue', async (c) =>
         c.json(await getService(c).control(c.req.param('id'), 'thread/queue/list', {
             limit: limit(c.req.query('limit')), cursor: c.req.query('cursor'),

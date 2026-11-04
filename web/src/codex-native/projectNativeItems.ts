@@ -13,8 +13,6 @@ export function projectNativeItems(
     const messages: DecryptedMessage[] = []
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
     const replies = new Map([...observedReplies, ...nativeQuestionReplies(entries)])
-    const subagentStatuses = new Map<string, string>()
-    const subagentInputs = new Map<string, NativeRecord>()
     const add = (id: string, timestamp: number, body: NativeRecord, user = false) => {
         messages.push({
             id,
@@ -176,12 +174,8 @@ export function projectNativeItems(
                 entry.completedAtMs
             )
         } else if (item.type === 'subAgentActivity') {
-            const agentId = String(item.agentThreadId ?? '')
-            const event = nativeSubagentEvent(item, subagentStatuses.get(agentId), subagentInputs.get(agentId)?.startTimeKnown === true)
+            const event = nativeSubagentEvent(item)
             if (event) {
-                subagentStatuses.set(agentId, String(event.status))
-                event.input = { ...subagentInputs.get(agentId), ...record(event.input) }
-                subagentInputs.set(agentId, record(event.input))
                 add(id, at, { ...event, turn_id: entry.turnId })
             }
         } else if (collaboration) {

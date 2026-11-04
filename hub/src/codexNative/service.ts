@@ -2,6 +2,8 @@ import { readFile, stat } from 'node:fs/promises'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
+import { nativeOutlinePage } from '../sync/conversationOutline'
+import { nativeTurnContext } from './turnContext'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
@@ -154,6 +156,12 @@ export class NativeService {
             }
             throw error
         }
+    }
+    outline(threadId: string, cursor: string | null, stopIds?: string[]) {
+        return nativeOutlinePage((params) => this.control(threadId, 'thread/turns/list', params), cursor, stopIds)
+    }
+    turnContext(threadId: string, turnId: string, itemId: string) {
+        return nativeTurnContext((params) => this.items(threadId, params), turnId, itemId)
     }
     isCreatingEmpty(threadId: string): boolean {
         const entry = this.subscriptions.get(threadId)

@@ -17,6 +17,14 @@ import { buildConversationOutline } from '@/chat/outline'
 import { NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
+import type { NativeItemEntry } from './types'
+import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
+
+function containsOutlineTarget(entries: NativeItemEntry[], targetMessageId: string): boolean {
+    const messages = projectNativeItems(entries, [], false).messages
+    const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
+}
 
 export function NativeSessionPage({
     api,
@@ -77,6 +85,15 @@ function NativeSessionChat({
         [thread.items, thread.requests, turnStateKnown]
     )
     const [sending, setSending] = useState(false)
+    const historyLocators = useMemo(() => {
+        const locators = new Map<string, TimelineHistoryLocator>()
+        for (const entry of thread.items) {
+            if (!entry.turnId) continue
+            const locator: TimelineHistoryLocator = { kind: 'native', turnId: entry.turnId, itemId: entry.item.id }
+            for (const suffix of ['', ':call', ':result']) locators.set(`native:${entry.item.id}${suffix}`, locator)
+        }
+        return locators
+    }, [thread.items])
     const [settlement, setSettlement] = useState<SendMessageSettlement | null>(null)
     const [sendError, setSendError] = useState<ComposerSendError | null>(null)
     const [settingsError, setSettingsError] = useState<string | null>(null)
@@ -164,6 +181,14 @@ function NativeSessionChat({
                 />,
             }}
             messages={projected.messages}
+            historyLocators={historyLocators}
+            onHydrateHistoryRow={async locator => {
+                if (locator.kind !== 'native') return false
+                const found = await thread.seekTurn(locator.turnId, locator.itemId,
+                    entries => entries.some(entry => entry.item.id === locator.itemId))
+                if (found) setViewMode('history')
+                return found
+            }}
             messagesWarning={settingsError || (native.error ?? thread.error) || null}
             hasMoreMessages={Boolean(thread.cursor)}
             hasNewerMessages={thread.hasNewer}
@@ -178,6 +203,8 @@ function NativeSessionChat({
             onBack={onBack}
             onRefresh={refresh}
             onCancelLoadMore={thread.cancelOlder}
+            onPrefetchHistory={thread.prefetch}
+            conversationHistoryRevision={thread.historyResetRevision}
             onLoadNewer={async (beforeApply) => {
                 let appliedVersion = revision.current.value
                 let addedRenderableCount = 0
@@ -195,15 +222,13 @@ function NativeSessionChat({
                 })
                 if (!applied) return { kind: 'stopped', reason: 'exhausted' }
                 setViewMode('history')
-                return { kind: 'applied', historyVersion: appliedVersion, hasMore: Boolean(applied.nextCursor), addedRenderableCount }
+                return { kind: 'applied', historyVersion: appliedVersion, hasMore: applied.hasMore, addedRenderableCount }
             }}
-            onLocateNativeHistoryPage={async (cursor, targetMessageId) => {
-                const found = await thread.seek(cursor, entries => {
-                    const messages = projectNativeItems(entries, [], false).messages
-                    const normalized = messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
-                    return buildConversationOutline(reduceChatBlocks(normalized, null).blocks).some(item => item.targetMessageId === targetMessageId)
-                })
-                if (found) setViewMode('history')
+            onLocateNativeHistoryTurn={async (turnId, itemId, targetMessageId) => {
+                const found = await thread.seekTurn(turnId, itemId, entries => containsOutlineTarget(entries, targetMessageId))
+                if (found) {
+                    setViewMode('history')
+                }
                 return found
             }}
             onLoadMore={async (beforeApply) => {

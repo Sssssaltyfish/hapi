@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { unstable_convertExternalMessages as convertExternalMessages } from '@assistant-ui/react'
 import {
     type BlockWithThreadMessageId,
     aggregateResponseGroups,
@@ -8,11 +9,38 @@ import {
     getBlockPresentationTimestamp,
     getResponseGroupTimestamps,
     getResponseAnnotationTargets,
-    getResponseAnnotations
+    getResponseAnnotations,
+    toThreadMessageLike,
+    getMessagePartScrollAnchors
 } from './assistant-runtime'
 import type { AgentEventBlock, AgentTextBlock, CliOutputBlock, ToolCallBlock, UserTextBlock } from '@/chat/types'
 import { buildVisibleChatBlocks, type ToolGroupBlock, type VisibleChatBlock } from '@/chat/toolGroups'
 import { serializeResponseAnnotations } from './responseAnnotations'
+
+it('keeps exact SDK part sources for duplicate text and separately merged reasoning', () => {
+    const a = agentText('a', { text: 'Identical answer' })
+    const b = agentText('b', { text: 'Identical answer' })
+    const convert = (blocks: VisibleChatBlock[]) => convertExternalMessages(assignThreadMessageIds(blocks), ({ block, threadMessageId }) => (
+        toThreadMessageLike(block, threadMessageId, getBlockPresentationTimestamp(block))
+    ), false, {})
+    const initial = convert([a, b])
+    const prepended = convert([agentText('earlier', { text: 'Earlier answer' }), a, b])
+    const anchors = (part: typeof initial[0]['content'][number]) => getMessagePartScrollAnchors(part)
+    expect(initial).toHaveLength(1)
+    expect(initial[0].content).toHaveLength(2)
+    expect(anchors(initial[0].content[0])).toEqual(['agent-text:a'])
+    expect(anchors(initial[0].content[1])).toEqual(['agent-text:b'])
+    expect(anchors(prepended[0].content[2])).toEqual(['agent-text:b'])
+    const reasoning = assignThreadMessageIds(['r1', 'r2', 'r3'].map(id => ({ ...agentText(id, { text: 'same thought' }), kind: 'agent-reasoning' as const })))
+    const joined = convertExternalMessages(reasoning, source => {
+        const { block, threadMessageId } = source
+        const part = { type: 'reasoning' as const, text: 'text' in block ? block.text : '', parentId: block.id === 'r3' ? 'separate-parent' : 'shared-parent' }
+        return { id: threadMessageId, role: 'assistant' as const, content: [part] }
+    }, false, {})
+    expect(joined[0].content).toHaveLength(2)
+    expect(anchors(joined[0].content[0])).toEqual(['agent-reasoning:r1', 'agent-reasoning:r2'])
+    expect(anchors(joined[0].content[1])).toEqual(['agent-reasoning:r3'])
+})
 
 it('attaches quote context to the joined response and clears it for the next ordinary prompt', () => {
     const annotations = [{ text: 'Quoted passage', annotation: 'Please explain' }]

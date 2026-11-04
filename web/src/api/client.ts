@@ -72,9 +72,11 @@ import type {
     NativePage,
     NativeRecord,
     NativeStatus,
-    NativeThreadPage
+    NativeThreadPage,
+    NativeTurnContextPage
 } from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
+import type { ConversationOutlineContinuation, ConversationOutlinePage } from '@/chat/outline'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
 
@@ -177,6 +179,8 @@ export class ApiClient {
     private readonly getToken: (() => string | null) | null
     private readonly onUnauthorized: (() => Promise<string | null>) | null
     private nativeEndpointId: string | null = null
+    private outlineIdentityToken: string | null = null
+    private outlineIdentityKey = Math.random().toString(36)
 
     constructor(token: string, options?: ApiClientOptions) {
         this.token = token
@@ -388,11 +392,49 @@ export class ApiClient {
         })
     }
 
-    async getCodexNativeItems(id: string, cursor?: string, sortDirection: 'asc' | 'desc' = 'desc'): Promise<NativePage<NativeItemEntry>> {
+    async getCodexNativeItems(id: string, cursor?: string, sortDirection: 'asc' | 'desc' = 'desc', signal?: AbortSignal): Promise<NativePage<NativeItemEntry>> {
         const params = new URLSearchParams({ limit: '50' })
         if (cursor) params.set('cursor', cursor)
         if (sortDirection === 'asc') params.set('sortDirection', sortDirection)
-        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items?${params}`)
+        return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/items?${params}`, { signal })
+    }
+
+    async getCodexNativeTurnContext(id: string, turnId: string, itemId: string, signal?: AbortSignal): Promise<NativeTurnContextPage> {
+        const params = new URLSearchParams({ turnId, itemId })
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline-context?${params}`, { signal })
+    }
+
+    /** Only a stable authenticated principal can own a persistent prompt index. */
+    getConversationCacheScope(): { key: string; persistent: boolean } {
+        const token = this.getToken?.() ?? this.token
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+            if (typeof payload.ns === 'string' && (typeof payload.uid === 'string' || typeof payload.uid === 'number')) {
+                const origin = this.baseUrl ?? globalThis.location?.origin ?? 'local'
+                return { key: JSON.stringify([origin, payload.ns, payload.uid]), persistent: true }
+            }
+        } catch { /* Unidentified clients keep their cache in memory only. */ }
+        if (token !== this.outlineIdentityToken) {
+            this.outlineIdentityToken = token
+            this.outlineIdentityKey = Math.random().toString(36)
+        }
+        return { key: this.outlineIdentityKey, persistent: false }
+    }
+
+    async getConversationOutline(id: string, locator: ConversationOutlineContinuation, stopId?: string | string[]): Promise<ConversationOutlinePage> {
+        const params = new URLSearchParams()
+        if (Array.isArray(stopId)) params.set('stopIds', JSON.stringify(stopId))
+        else if (stopId) params.set('stopId', stopId)
+        if (locator.kind === 'native-turns') {
+            if (locator.cursor) params.set('cursor', locator.cursor)
+            return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/outline?${params}`)
+        }
+        if (locator.beforeAt !== null && locator.beforeSeq !== null) {
+            params.set('beforeAt', String(locator.beforeAt))
+            params.set('beforeSeq', String(locator.beforeSeq))
+        }
+        if (locator.epoch !== null) params.set('epoch', String(locator.epoch))
+        return this.request(`/api/sessions/${encodeURIComponent(id)}/outline?${params}`)
     }
 
     async getCodexNativeModels(): Promise<NativePage<NativeRecord>> {
@@ -565,7 +607,8 @@ export class ApiClient {
             untilAt?: number | null
             epoch?: number | null
             limit?: number
-        }
+        },
+        signal?: AbortSignal
     ): Promise<MessagesResponse> {
         const params = new URLSearchParams()
         if (options.beforeAt !== undefined && options.beforeAt !== null) {
@@ -595,7 +638,7 @@ export class ApiClient {
 
         const qs = params.toString()
         const url = `/api/sessions/${encodeURIComponent(sessionId)}/messages${qs ? `?${qs}` : ''}`
-        return await this.request<MessagesResponse>(url)
+        return await this.request<MessagesResponse>(url, { signal })
     }
 
     async getGitStatus(sessionId: string): Promise<GitCommandResponse> {

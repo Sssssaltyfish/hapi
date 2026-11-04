@@ -69,6 +69,7 @@ describe('conversation outline', () => {
         expect(items.map((item) => item.id)).toEqual([
             'outline:user-text:sent'
         ])
+        expect(items[0].createdAt).toBe(2500)
     })
 
     it('keeps block order stable', () => {

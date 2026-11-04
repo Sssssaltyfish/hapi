@@ -6,6 +6,7 @@ import {
     cancelOlderMessageLoad,
     fetchOlderMessages,
     fetchNewerMessages,
+    prefetchMessageHistory,
     getMessageWindowState,
     setMessageViewMode,
     subscribeMessageWindow,
@@ -43,6 +44,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
     tailRevision: number
     loadMore: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
     loadNewer: (onBeforeApply?: (historyVersion: number) => boolean) => Promise<OlderLoadOutcome>
+    prefetchHistory: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     cancelLoadMore: () => void
     refetch: () => Promise<void>
     setViewMode: (mode: MessageViewMode) => void
@@ -84,6 +86,9 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
         if (!api || !sessionId) return { kind: 'stopped', reason: 'unavailable' } as const
         return fetchNewerMessages(api, sessionId, { onBeforeApply })
     }, [api, sessionId])
+    const prefetchHistory = useCallback(async (direction: 'older' | 'newer', pages = 1) => {
+        if (api && sessionId) await prefetchMessageHistory(api, sessionId, direction, pages)
+    }, [api, sessionId])
 
     const refetch = useCallback(async () => {
         if (!api || !sessionId) return
@@ -111,6 +116,7 @@ export function useMessages(api: ApiClient | null, sessionId: string | null): {
         tailRevision: state.tailRevision,
         loadMore,
         loadNewer,
+        prefetchHistory,
         cancelLoadMore,
         refetch,
         setViewMode,

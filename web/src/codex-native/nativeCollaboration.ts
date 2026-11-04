@@ -1,37 +1,28 @@
 import { record } from './presentation'
 import type { NativeRecord } from './types'
+import type { AgentActivityEvent } from '@/chat/types'
 
 const text = (value: unknown): string | undefined =>
     typeof value === 'string' && value.trim() ? value : undefined
 const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((part): part is string => Boolean(text(part))) : []
 
-/** Desktop activity completion timestamps describe the record, not the child run. */
-export function nativeSubagentEvent(item: NativeRecord, previousStatus?: string, startTimeKnown = false): NativeRecord | null {
+/** Each Desktop record describes an activity at that point in history. */
+export function nativeSubagentEvent(item: NativeRecord): AgentActivityEvent | null {
     const agentId = text(item.agentThreadId)
-    if (!agentId) return null
+    const sourceItemId = text(item.id)
+    if (!agentId || !sourceItemId) return null
     const kind = text(item.kind) ?? 'interacted'
-    const status = kind === 'started' ? 'running'
-        : kind === 'completed' ? 'completed'
-          : kind === 'failed' || kind === 'errored' ? 'failed'
-            : previousStatus ?? 'running'
     const summary = text(item.agentPath) ?? agentId
     return {
-        type: kind === 'started' ? 'agent-run-start' : 'agent-run-update',
-        cardId: `codex-agent:${agentId}`,
+        type: 'agent-activity',
+        sourceItemId,
         agentId,
-        status,
-        statusText: status === 'running' ? 'Running' : status === 'completed' ? 'Completed' : 'Failed',
         summary,
         activityKind: kind,
-        input: {
-            agentId,
-            summary,
-            startTimeKnown: kind === 'started' || startTimeKnown,
-            ...(text(item.agentPath) ? { agentPath: item.agentPath } : {}),
-            ...(text(item.model) ? { model: item.model } : {}),
-            ...(text(item.reasoningEffort) ? { reasoning_effort: item.reasoningEffort } : {}),
-        },
+        ...(text(item.agentPath) ? { agentPath: text(item.agentPath) } : {}),
+        ...(text(item.model) ? { model: text(item.model) } : {}),
+        ...(text(item.reasoningEffort) ? { reasoningEffort: text(item.reasoningEffort) } : {}),
     }
 }
 

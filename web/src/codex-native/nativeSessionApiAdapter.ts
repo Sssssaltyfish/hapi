@@ -9,6 +9,8 @@ import type { projectNativeItems } from './projectNativeItems'
 
 type SupportedOperation =
     | 'getSessionCodexModels'
+    | 'getConversationOutline'
+    | 'getCodexNativeTurnContext'
     | 'renameSession'
     | 'archiveSession'
     | 'uploadFile'
@@ -74,6 +76,7 @@ const GLOBAL_OPERATIONS = [
     'fetchVoices',
     'sendVoiceTelemetry',
     'getAuthToken',
+    'getConversationCacheScope',
     'fetchVoiceBackend',
     'fetchTranscriptionProviders',
     'fetchTranscriptionCredentials',
@@ -220,6 +223,14 @@ export function createNativeSessionApiAdapter(
         }
     }
     const operations = {
+        getCodexNativeTurnContext: async (_id, turnId, itemId, signal) =>
+            target.getCodexNativeTurnContext(native.threadId, turnId, itemId, signal),
+        getConversationOutline: async (_id, page, stopIds) => {
+            if (page.kind !== 'native-turns') {
+                throw new Error('Native outlines require a turn-summary continuation')
+            }
+            return target.getConversationOutline(native.threadId, page, stopIds)
+        },
         setNativeApprovalSettings: async (patch) => {
             setSettingsError(null)
             try {

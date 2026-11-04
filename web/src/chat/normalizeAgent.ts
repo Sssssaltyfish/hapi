@@ -1029,6 +1029,7 @@ export function normalizeAgentRecord(
             data.type === 'agent-run-start'
             || data.type === 'agent-run-update'
             || data.type === 'agent-run-trace'
+            || data.type === 'agent-activity'
         ) {
             return {
                 id: messageId,

@@ -16,6 +16,7 @@ import {
     clearMessageWindow,
     fetchOlderMessages,
     fetchNewerMessages,
+    prefetchMessageHistory,
     hasNewerMessagesOutsideWindow,
     getMessageWindowState,
     getQueuedReconcileCandidateLocalIds,
@@ -29,6 +30,7 @@ import {
     removeOptimisticMessage,
     rewindMessageWindow,
     seekMessageWindow,
+    hydrateMessageWindow,
     setMessageViewMode,
     syncTailMessages,
     updateMessageStatus,
@@ -448,7 +450,7 @@ describe('message tail synchronization', () => {
             beforeAt: 1_000,
             beforeSeq: 1,
             limit: 200
-        })
+        }, expect.any(AbortSignal))
         expect(getMessageWindowState(id).messages.map((message) => message.id)).toEqual([
             'older',
             ...latestMessages.map((message) => message.id)
@@ -1292,6 +1294,84 @@ describe('message tail synchronization', () => {
 })
 
 describe('history view and older pagination', () => {
+    it('rehydrates a known row with context on both sides and rejects stale epochs', async () => {
+        const id = sessionId('virtual-row-hydration')
+        const current = makeUserMessage({ id: 'current', seq: 20, createdAt: 20000, invokedAt: 20000 })
+        const target = makeUserMessage({ id: 'target', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const later = makeAgentMessage({ id: 'response', seq: 11, at: 11000 })
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 20000, nextBeforeSeq: 20 }))
+            .mockResolvedValueOnce(beforeResponse([target], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(afterResponse([later], { epoch: 1, nextAfterAt: 11000, nextAfterSeq: 11, snapshotHeadAt: 20000, snapshotHeadSeq: 20 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 21000, beforeSeq: 21, epoch: 1 }, 'user-text:current')
+        const locator = { kind: 'runner' as const, beforeAt: 10000, beforeSeq: 11, epoch: 1, targetMessageId: 'target' }
+        expect(await hydrateMessageWindow(api, id, locator)).toBe(true)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['target', 'response'])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+        expect(await hydrateMessageWindow(api, id, { ...locator, epoch: 2 })).toBe(false)
+        expect(getMessages).toHaveBeenCalledTimes(3)
+    })
+
+    it('rejects repeated cursors in both directions without changing the reader window', async () => {
+        const id = sessionId('history-cursor-stalled')
+        const current = makeUserMessage({ id: 'current', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(beforeResponse([], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockResolvedValueOnce(afterResponse([], { epoch: 1, hasMore: true, nextAfterAt: 10000, nextAfterSeq: 10, snapshotHeadAt: 10000, snapshotHeadSeq: 10 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 11000, beforeSeq: 11, epoch: 1 }, 'user-text:current')
+        expect(await fetchOlderMessages(api, id)).toMatchObject({ kind: 'failed' })
+        expect(await fetchNewerMessages(api, id)).toMatchObject({ kind: 'failed' })
+        expect(getMessageWindowState(id).messages).toEqual([current])
+        expect(getMessageWindowState(id).isLoadingMore).toBe(false)
+        expect(getMessages).toHaveBeenCalledTimes(3)
+    })
+
+    it('does not exhaust a newer observed tail when joining an older speculative end response', async () => {
+        const id = sessionId('prefetch-moving-end')
+        const current = makeUserMessage({ id: 'current', seq: 10, createdAt: 10000, invokedAt: 10000 })
+        const arrived = makeUserMessage({ id: 'arrived', seq: 11, createdAt: 11000, invokedAt: 11000 })
+        const response = deferred<MessagesResponse>()
+        const getMessages = vi.fn()
+            .mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 10000, nextBeforeSeq: 10 }))
+            .mockReturnValueOnce(response.promise)
+            .mockResolvedValue(afterResponse([arrived], { epoch: 1, nextAfterAt: 11000, nextAfterSeq: 11, snapshotHeadAt: 11000, snapshotHeadSeq: 11 }))
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 12000, beforeSeq: 12, epoch: 1 }, 'user-text:current')
+        const warm = prefetchMessageHistory(api, id, 'newer')
+        const demand = fetchNewerMessages(api, id)
+        ingestIncomingMessages(id, [arrived])
+        response.resolve(afterResponse([], { epoch: 1, nextAfterAt: 10000, nextAfterSeq: 10, snapshotHeadAt: 10000, snapshotHeadSeq: 10 }))
+        await warm
+        expect(await demand).toMatchObject({ kind: 'applied', hasMore: true })
+        expect(hasNewerMessagesOutsideWindow(id)).toBe(true)
+        expect(await fetchNewerMessages(api, id)).toMatchObject({ kind: 'applied', hasMore: false })
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['current', 'arrived'])
+    })
+
+    it('warms adjacent pages without changing the viewport and adopts an in-flight read at the edge', async () => {
+        const id = sessionId('prefetch-adoption')
+        const current = makeUserMessage({ id: 'current', seq: 20, createdAt: 20000, invokedAt: 20000 })
+        const neighbor = makeUserMessage({ id: 'neighbor', seq: 19, createdAt: 19000, invokedAt: 19000 })
+        ingestIncomingMessages(id, [current])
+        setMessageViewMode(id, 'history')
+        const response = deferred<MessagesResponse>()
+        const getMessages = vi.fn().mockResolvedValueOnce(beforeResponse([current], { epoch: 1, hasMore: true, nextBeforeAt: 20000, nextBeforeSeq: 20 })).mockReturnValue(response.promise)
+        const api = createApi(getMessages)
+        await seekMessageWindow(api, id, { kind: 'runner', beforeAt: 21000, beforeSeq: 21, epoch: 1 }, 'user-text:current')
+        const baseline = getMessageWindowState(id)
+        const warm = prefetchMessageHistory(api, id, 'older')
+        expect(getMessageWindowState(id)).toBe(baseline)
+        const demand = fetchOlderMessages(api, id)
+        response.resolve(beforeResponse([neighbor], { epoch: 1, hasMore: false, nextBeforeAt: null, nextBeforeSeq: null }))
+        await warm
+        expect((await demand).kind).toBe('applied')
+        expect(getMessages).toHaveBeenCalledTimes(2)
+        expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['neighbor', 'current'])
+    })
+
     it('keeps the continuous forward cursor separate from retained queue and isolated SSE tail rows', async () => {
         const id = sessionId('forward-boundary-isolation')
         ingestIncomingMessages(id, [makeUserMessage({ id: 'queued-tail', seq: 100, createdAt: 100000, invokedAt: null, status: 'queued' })])
@@ -1304,11 +1384,11 @@ describe('history view and older pagination', () => {
         ingestIncomingMessages(id, [makeAgentMessage({ id: 'isolated-live-tail', seq: 101, at: 101000 })])
         expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['middle', 'queued-tail'])
         expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
-        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 10000, afterSeq: 10, epoch: 1, limit: 200 })
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 10000, afterSeq: 10, epoch: 1, limit: 200 }, expect.any(AbortSignal))
         ingestIncomingMessages(id, [makeUserMessage({ id: 'queued-tail', seq: 100, createdAt: 100000, invokedAt: 100000 })])
         expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(['middle', 'next'])
         expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
-        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 11000, afterSeq: 11, epoch: 1, limit: 200 })
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 11000, afterSeq: 11, epoch: 1, limit: 200 }, expect.any(AbortSignal))
     })
 
     it('reads newer records back after older pagination evicts the tail, preserving a bounded continuous window', async () => {
@@ -1328,8 +1408,10 @@ describe('history view and older pagination', () => {
         for (let i = 0; i < 3; i++) expect((await fetchOlderMessages(api, id)).kind).toBe('applied')
         expect(getMessageWindowState(id).messages.at(-1)?.id).toBe('m-1000')
         expect(hasNewerMessagesOutsideWindow(id)).toBe(true)
+        const warmedCalls = getMessages.mock.calls.length
         expect((await fetchNewerMessages(api, id)).kind).toBe('applied')
-        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 1000000, afterSeq: 1000, epoch: 1, limit: 200 })
+        expect(getMessages).toHaveBeenCalledTimes(warmedCalls)
+        expect(getMessages).toHaveBeenLastCalledWith(id, { afterAt: 1000000, afterSeq: 1000, epoch: 1, limit: 200 }, expect.any(AbortSignal))
         expect(getMessageWindowState(id).messages.map(message => message.id)).toEqual(range(401, 1200).map(message => message.id))
         expect(hasNewerMessagesOutsideWindow(id)).toBe(false)
         expect(getMessageWindowState(id).hasMore).toBe(true)
@@ -1426,7 +1508,7 @@ describe('history view and older pagination', () => {
             beforeAt: 3,
             beforeSeq: 3,
             limit: 200
-        })
+        }, expect.any(AbortSignal))
         expect(getMessageWindowState(id).messages).toHaveLength(VISIBLE_WINDOW_SIZE + 2)
     })
 
