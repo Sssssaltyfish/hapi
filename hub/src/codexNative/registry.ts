@@ -87,7 +87,7 @@ export function nativeSession(endpoint: NativeEndpointConfig, thread: NativeReco
                     : thread.desktopProject === undefined && text(thread.projectId) ? { projectId: text(thread.projectId) } : {})
             },
             lifecycleState: active ? 'running' : 'idle',
-            capabilities: { concurrentClients: true, terminal: false }
+            capabilities: { concurrentClients: true, terminal: false, permissionModes: [] }
         },
         agentState: { controlledByUser: false, requests: {} },
         model: text(thread.model) ?? (!available ? legacy?.model : null) ?? null,

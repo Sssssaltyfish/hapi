@@ -16,6 +16,11 @@ const harness = vi.hoisted(() => ({
     } | null,
     setConfigOptionCalls: [] as Array<{ sessionId: string; configId: string; value: string }>,
     configOptionError: null as Error | null,
+    configOptions: [] as Array<{ id: string; name?: string; category?: string; currentValue?: string; options: Array<{ value: string; name?: string }> }>,
+    promptPermissions: [] as Array<string | undefined>,
+    bridgeCleanup: vi.fn(async () => {}),
+    rejectInFlight: null as null | ((error: Error) => void),
+    promptBlocker: null as Promise<void> | null,
     // When set, newSession() parks on this promise — lets tests query the
     // catalog RPC while session/new is still pending.
     newSessionBlocker: null as null | Promise<void>
@@ -34,24 +39,32 @@ vi.mock('./utils/dshBackend', () => ({
             }),
             prompt: vi.fn(async (_sessionId: string, content: unknown[], onUpdate: (message: unknown) => void) => {
                 harness.prompts.push(content)
+                harness.promptPermissions.push(harness.configOptions.find(option => option.category === 'permission')?.currentValue)
+                if (harness.promptBlocker) await harness.promptBlocker
                 onUpdate({ type: 'text', text: 'answer' })
             }),
             cancelPrompt: vi.fn(async () => {}),
             getConfigOptionByCategory: vi.fn(() => harness.modelOption),
             getSessionModelsMetadata: vi.fn(() => harness.modelsMetadata),
+            getSessionConfigOptions: vi.fn(() => harness.configOptions),
+            onSessionConfigOptionsUpdate: vi.fn(),
             setConfigOption: vi.fn(async (sessionId: string, configId: string, value: string) => {
                 harness.setConfigOptionCalls.push({ sessionId, configId, value })
                 if (harness.configOptionError) throw harness.configOptionError
+                const option = harness.configOptions.find(option => option.id === configId)
+                if (option) option.currentValue = value
                 return {}
             }),
             onStderrError: vi.fn(),
             onPermissionRequest: vi.fn(),
-            disconnect: vi.fn(async () => {})
+            disconnect: vi.fn(async () => { harness.rejectInFlight?.(new Error('ACP connection closed')) })
         }
         harness.backend = backend
         return backend
     })
 }))
+
+vi.mock('./utils/permissionBridge', () => ({ prepareDshPermissionBridge: async () => ({ args: [], cleanup: harness.bridgeCleanup }) }))
 
 vi.mock('@/modules/common/permission/AcpPermissionHandler', () => ({
     AcpPermissionHandler: class {
@@ -74,7 +87,7 @@ function createSessionWithBatches(batches: Array<[string, DshMode]>) {
     return {
         path: '/tmp/dsh-test',
         logPath: '/tmp/dsh-test/hapi.log',
-        client: { rpcHandlerManager: { registerHandler: vi.fn() } },
+        client: { rpcHandlerManager: { registerHandler: vi.fn() }, updateMetadata: vi.fn() },
         queue,
         sessionId: null as string | null,
         getPermissionMode: () => 'default' as const,
@@ -97,6 +110,11 @@ describe('DshRemoteLauncher', () => {
         harness.modelsMetadata = null
         harness.setConfigOptionCalls = []
         harness.configOptionError = null
+        harness.configOptions = []
+        harness.promptPermissions = []
+        harness.bridgeCleanup.mockClear()
+        harness.rejectInFlight = null
+        harness.promptBlocker = null
         harness.newSessionBlocker = null
     })
 
@@ -117,6 +135,60 @@ describe('DshRemoteLauncher', () => {
         })
         expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'ready' })
         expect(harness.backend?.disconnect).toHaveBeenCalled()
+    })
+
+    it('applies opaque plugin permission values from each queued message before prompting', async () => {
+        harness.configOptions = [{ id: 'plugin-permissions', name: 'Plugin permissions', category: 'permission', currentValue: 'plugin:edit',
+            options: [{ value: 'plugin:inspect', name: 'Inspect' }, { value: 'plugin:edit', name: 'Edit' }] }]
+        const session = createSessionWithBatches([
+            ['inspect first', { configOptions: { 'plugin-permissions': 'plugin:inspect' } }],
+            ['edit next', { configOptions: { 'plugin-permissions': 'plugin:edit' } }],
+        ])
+        await new DshRemoteLauncher(session as never).launch()
+        expect(harness.promptPermissions).toEqual(['plugin:inspect', 'plugin:edit'])
+        expect(harness.setConfigOptionCalls.map(call => call.value)).toEqual(['plugin:inspect', 'plugin:edit'])
+    })
+
+    it('does not send a queued prompt when the permission preset is refused', async () => {
+        harness.configOptions = [{ id: 'permissions', category: 'permission', currentValue: 'original', options: [{ value: 'original' }, { value: 'requested' }] }]
+        harness.configOptionError = new Error('Preset is no longer installed')
+        const session = createSession({ configOptions: { permissions: 'requested' } })
+        await new DshRemoteLauncher(session as never).launch()
+        expect(harness.prompts).toEqual([])
+        expect(harness.configOptions[0].currentValue).toBe('original')
+        expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'message', message: expect.stringContaining('this message was not sent') })
+    })
+
+    it('rejects a withdrawn queued preset even if a stale current value still names it', async () => {
+        harness.configOptions = [{ id: 'permissions', category: 'permission', currentValue: 'removed', options: [{ value: 'available' }] }]
+        const session = createSession({ configOptions: { permissions: 'removed' } })
+        await new DshRemoteLauncher(session as never).launch()
+        expect(harness.prompts).toEqual([])
+        expect(harness.setConfigOptionCalls).toEqual([])
+        expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'message', message: expect.stringContaining('no longer available') })
+    })
+
+    it('waits for ACP and temporary plugin cleanup when killed during initialization', async () => {
+        harness.newSessionBlocker = new Promise((_resolve, reject) => { harness.rejectInFlight = reject })
+        const launcher = new DshRemoteLauncher(createSession() as never)
+        const running = launcher.launch()
+        await vi.waitFor(() => expect(harness.backend?.newSession).toHaveBeenCalled())
+        await launcher.kill()
+        await running
+        expect(harness.backend?.disconnect).toHaveBeenCalledOnce()
+        expect(harness.bridgeCleanup).toHaveBeenCalledOnce()
+        expect(harness.prompts).toEqual([])
+    })
+
+    it('ends an unresponsive prompt by closing ACP before waiting for cleanup', async () => {
+        harness.promptBlocker = new Promise((_resolve, reject) => { harness.rejectInFlight = reject })
+        const launcher = new DshRemoteLauncher(createSession() as never)
+        const running = launcher.launch()
+        await vi.waitFor(() => expect(harness.prompts).toHaveLength(1))
+        await launcher.kill()
+        await running
+        expect(harness.backend?.disconnect).toHaveBeenCalledOnce()
+        expect(harness.bridgeCleanup).toHaveBeenCalledOnce()
     })
 
     it('discovers the current model from the model config option', async () => {

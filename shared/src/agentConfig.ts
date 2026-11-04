@@ -38,6 +38,21 @@ export const AgentConfigDescriptorSchema = z.object({
 })
 export type AgentConfigDescriptor = z.infer<typeof AgentConfigDescriptorSchema>
 
+/** Opaque values and presentation supplied by the running agent, including plugins. */
+export const SessionConfigOptionSchema = z.object({
+    id: z.string().min(1),
+    name: z.string().optional(),
+    category: z.string().optional(),
+    currentValue: z.string().optional(),
+    selectedValue: z.string().optional(),
+    options: z.array(z.object({ value: z.string().min(1), name: z.string().optional(), description: z.string().optional() }))
+})
+export type SessionConfigOption = z.infer<typeof SessionConfigOptionSchema>
+export const SessionConfigOptionRequestSchema = z.object({
+    configId: z.string().min(1).max(500),
+    value: z.string().min(1).max(8192)
+}).strict()
+
 const MODEL: AgentConfigFieldDescriptor = {
     id: 'model', section: 'model', kind: 'select', optionSource: 'static', availability: 'both'
 }
@@ -66,7 +81,7 @@ const BUILTIN_DESCRIPTORS: Record<AgentFlavor, AgentConfigFieldDescriptor[]> = {
         { id: 'serviceTier', section: 'settings', kind: 'select', optionSource: 'model', availability: 'both' },
         { id: 'collaborationMode', section: 'settings', kind: 'select', optionSource: 'static', availability: 'both' }
     ),
-    dsh: fields(MANAGED_PERMISSION),
+    dsh: fields({ ...PERMISSION, optionSource: 'session', availability: 'session' }),
     copilot: fields({ ...MODEL, optionSource: 'directory' }, PERMISSION),
     cursor: fields({ id: 'model', section: 'model', kind: 'dependent-select', optionSource: 'machine', availability: 'both' }, PERMISSION),
     gemini: fields(MODEL, PERMISSION),

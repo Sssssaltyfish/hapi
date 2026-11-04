@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { COPILOT_AGENT_MODES, type CopilotAgentMode } from './copilotModes'
 import { CODEX_COLLABORATION_MODES, PERMISSION_MODES } from './modes'
-import { AgentConfigDescriptorSchema } from './agentConfig'
+import { AgentConfigDescriptorSchema, SessionConfigOptionSchema } from './agentConfig'
 
 export const PermissionModeSchema = z.enum(PERMISSION_MODES)
 export const CodexCollaborationModeSchema = z.enum(CODEX_COLLABORATION_MODES)
@@ -37,6 +37,7 @@ export type OpencodeClearOperation = z.infer<typeof OpencodeClearOperationSchema
 const SessionCapabilitiesSchema = z.object({
     concurrentClients: z.boolean().optional(),
     terminal: z.boolean().optional(),
+    permissionModes: z.array(PermissionModeSchema).optional(),
     conversationHistory: ConversationHistoryCapabilitiesSchema.optional()
 })
 
@@ -152,6 +153,7 @@ export const MetadataSchema = z.object({
     // for PTY sessions (a 'remote'/SDK session has no agent PTY to view).
     startingMode: z.enum(['local', 'remote', 'pty']).nullish(),
     capabilities: SessionCapabilitiesSchema.optional(),
+    sessionConfigOptions: z.array(SessionConfigOptionSchema).optional(),
     conversationHistoryPoints: z.record(z.string(), z.literal(true)).optional(),
     // Native locators for historical fork/rewind (e.g. Grok prompt indexes).
     // Kept separately from the boolean UI markers above.

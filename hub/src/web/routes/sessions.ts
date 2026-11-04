@@ -3,7 +3,8 @@ import {
     DeleteUploadRequestSchema,
     ForkConversationRequestSchema,
     ImplementCodexPlanRequestSchema,
-    getPermissionModesForFlavor,
+    getPermissionModesForSession,
+    SessionConfigOptionRequestSchema,
     isLiveLifecycleState,
     isPermissionModeAllowedForFlavor,
     RenameSessionRequestSchema,
@@ -607,6 +608,26 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
         return c.json({ ok: true })
     })
 
+    app.post('/sessions/:id/config-option', async (c) => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const access = requireSessionFromParam(c, engine, { requireActive: true })
+        if (access instanceof Response) return access
+        const parsed = SessionConfigOptionRequestSchema.safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid configuration option' }, 400)
+        const { configId, value } = parsed.data
+        const option = access.session.metadata?.sessionConfigOptions?.find(option => option.id === configId)
+        if (access.session.metadata?.flavor !== 'dsh' || !option?.options.some(choice => choice.value === value)) {
+            return c.json({ error: 'This configuration option is not available for this session' }, 400)
+        }
+        try {
+            await engine.setSessionConfigOption(access.sessionId, configId, value)
+            return c.json({ ok: true })
+        } catch (error) {
+            return c.json({ error: error instanceof Error ? error.message : 'Failed to select the agent configuration' }, 409)
+        }
+    })
+
     app.post('/sessions/:id/permission-mode', async (c) => {
         const engine = requireSyncEngine(c, getSyncEngine)
         if (engine instanceof Response) {
@@ -627,16 +648,16 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
         const flavor = sessionResult.session.metadata?.flavor ?? 'claude'
         const mode = parsed.data.mode
 
-        const allowedModes = getPermissionModesForFlavor(flavor)
+        const allowedModes = getPermissionModesForSession(sessionResult.session.metadata)
         if (allowedModes.length === 0) {
             return c.json({ error: 'Permission mode not supported for session flavor' }, 400)
         }
 
-        if (!isPermissionModeAllowedForFlavor(mode, flavor)) {
-            return c.json({ error: 'Invalid permission mode for session flavor' }, 400)
-        }
-        if (mode === 'safe-yolo' && sessionResult.session.metadata?.capabilities?.concurrentClients) {
-            return c.json({ error: 'Safe Yolo is not available for shared sessions' }, 400)
+        if (!allowedModes.includes(mode)) {
+            if (mode === 'safe-yolo' && sessionResult.session.metadata?.capabilities?.concurrentClients) {
+                return c.json({ error: 'Safe Yolo is not available for shared sessions' }, 400)
+            }
+            return c.json({ error: 'Permission mode is not available for this session' }, 400)
         }
         if (flavor === 'opencode' && mode === 'plan' && sessionResult.session.agentState?.controlledByUser === true && !sessionResult.session.metadata?.capabilities?.concurrentClients) {
             return c.json({ error: 'OpenCode plan mode is only supported for remote sessions' }, 409)

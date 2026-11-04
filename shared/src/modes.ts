@@ -28,6 +28,12 @@ export type ClaudePermissionMode = typeof CLAUDE_PERMISSION_MODES[number]
 export const CODEX_PERMISSION_MODES = ['default', 'read-only', 'safe-yolo', 'autoReview', 'yolo'] as const
 export type CodexPermissionMode = typeof CODEX_PERMISSION_MODES[number]
 
+// Native Codex exposes these independently from the sandbox permission policy.
+export const CODEX_APPROVAL_POLICIES = ['on-request', 'untrusted', 'never'] as const
+export type CodexApprovalPolicy = typeof CODEX_APPROVAL_POLICIES[number]
+export const CODEX_APPROVALS_REVIEWERS = ['user', 'auto_review'] as const
+export type CodexApprovalsReviewer = typeof CODEX_APPROVALS_REVIEWERS[number]
+
 export const CODEX_COLLABORATION_MODES = ['default', 'plan'] as const
 export type CodexCollaborationMode = typeof CODEX_COLLABORATION_MODES[number]
 
@@ -140,6 +146,8 @@ export function getPermissionModesForFlavor(flavor?: string | null): readonly Pe
         return KIMI_PERMISSION_MODES
     }
     if (flavor === 'dsh') {
+        // DSH presets are runtime/plugin-defined opaque values, exposed through
+        // sessionConfigOptions rather than another provider's static modes.
         return []
     }
     if (flavor === 'copilot') {
@@ -167,6 +175,30 @@ export function getPermissionModesForFlavor(flavor?: string | null): readonly Pe
 
 export function getPermissionModeOptionsForFlavor(flavor?: string | null): PermissionModeOption[] {
     return getPermissionModesForFlavor(flavor).map((mode) => ({
+        mode,
+        label: getPermissionModeLabel(mode),
+        tone: getPermissionModeTone(mode)
+    }))
+}
+
+type PermissionModeSessionMetadata = {
+    flavor?: string | null
+    capabilities?: {
+        concurrentClients?: boolean
+        permissionModes?: readonly PermissionMode[]
+    } | null
+}
+
+/** A session may narrow its provider's catalog, including disabling switching. */
+export function getPermissionModesForSession(metadata?: PermissionModeSessionMetadata | null): readonly PermissionMode[] {
+    return getPermissionModesForFlavor(metadata?.flavor).filter(mode =>
+        (!metadata?.capabilities?.concurrentClients || mode !== 'safe-yolo')
+        && (metadata?.capabilities?.permissionModes === undefined || metadata.capabilities.permissionModes.includes(mode))
+    )
+}
+
+export function getPermissionModeOptionsForSession(metadata?: PermissionModeSessionMetadata | null): PermissionModeOption[] {
+    return getPermissionModesForSession(metadata).map(mode => ({
         mode,
         label: getPermissionModeLabel(mode),
         tone: getPermissionModeTone(mode)

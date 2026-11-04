@@ -6,8 +6,10 @@ import {
     getLaunchPermissionModesForFlavor,
     getPermissionModeLabel,
     getPermissionModeOptionsForFlavor,
+    getPermissionModeOptionsForSession,
     getPermissionModeTone,
     getPermissionModesForFlavor,
+    getPermissionModesForSession,
     isPermissionModeAllowedForFlavor,
     isSteeringSupportedForFlavor,
     isSteeringSupportedForSession,
@@ -41,7 +43,7 @@ describe('getPermissionModesForFlavor', () => {
         ])
     })
 
-    test("returns no HAPI mode selector for DSH's server-owned permission policy", () => {
+    test("keeps DSH's opaque runtime presets out of the static permission catalog", () => {
         expect(getPermissionModesForFlavor('dsh')).toEqual([])
     })
 
@@ -66,6 +68,17 @@ describe('getPermissionModesForFlavor', () => {
 describe('getPermissionModeOptionsForFlavor', () => {
     test("returns [] for pi (no permission options offered)", () => {
         expect(getPermissionModeOptionsForFlavor('pi')).toEqual([])
+    })
+})
+
+describe('session permission mode capabilities', () => {
+    test('uses the provider catalog and narrows it to advertised capabilities', () => {
+        expect(getPermissionModesForSession({ flavor: 'claude' })).toEqual(getPermissionModesForFlavor('claude'))
+        expect(getPermissionModesForSession({ flavor: 'codex', capabilities: { concurrentClients: true } }))
+            .toEqual(['default', 'read-only', 'autoReview', 'yolo'])
+        expect(getPermissionModesForSession({ flavor: 'claude', capabilities: { permissionModes: ['default', 'acceptEdits', 'yolo'] } }))
+            .toEqual(['default', 'acceptEdits'])
+        expect(getPermissionModeOptionsForSession({ flavor: 'codex', capabilities: { permissionModes: [] } })).toEqual([])
     })
 })
 

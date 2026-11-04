@@ -75,6 +75,7 @@ function createApp(session: Session, opts?: {
     setSessionPinMode?: (sessionId: string, mode: 'none' | 'project' | 'global') => void
 }) {
     const applySessionConfigCalls: Array<[string, Record<string, unknown>]> = []
+    const sessionConfigOptionCalls: Array<[string, string, string]> = []
     const applySessionConfig = async (sessionId: string, config: Record<string, unknown>) => {
         applySessionConfigCalls.push([sessionId, config])
     }
@@ -142,6 +143,7 @@ function createApp(session: Session, opts?: {
             ? { ok: true, sessionId: session.id, session }
             : { ok: false, reason: 'not-found' },
         applySessionConfig,
+        setSessionConfigOption: async (id: string, configId: string, value: string) => { sessionConfigOptionCalls.push([id, configId, value]) },
         listCursorModelsForSession,
         listCodexModelsForSession: opts?.listCodexModelsForSession ?? (async () => ({
             success: true,
@@ -190,10 +192,23 @@ function createApp(session: Session, opts?: {
     })
     app.route('/api', createSessionsRoutes(() => engine as SyncEngine))
 
-    return { app, applySessionConfigCalls }
+    return { app, applySessionConfigCalls, sessionConfigOptionCalls }
 }
 
 describe('sessions routes', () => {
+    it('only forwards DSH configuration values currently advertised by that session', async () => {
+        const { app, sessionConfigOptionCalls } = createApp(createSession({ metadata: {
+            path: '/tmp/project', host: 'localhost', flavor: 'dsh',
+            sessionConfigOptions: [{ id: 'plugin-permission', category: 'permission', currentValue: 'inspect', options: [{ value: 'inspect' }, { value: 'edit' }] }]
+        } }))
+        for (const [configId, value, status] of [['plugin-permission', 'edit', 200], ['plugin-permission', 'missing-plugin', 400], ['not-advertised', 'edit', 400]] as const) {
+            const response = await app.request('/api/sessions/session-1/config-option', {
+                method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ configId, value })
+            })
+            expect(response.status).toBe(status)
+        }
+        expect(sessionConfigOptionCalls).toEqual([['session-1', 'plugin-permission', 'edit']])
+    })
     it('dispatches plan implementation using the authenticated namespace and returns stale/unknown outcomes', async () => {
         const session = createSession({ metadata: { path: '/tmp', host: 'test', flavor: 'codex', capabilities: { concurrentClients: true } } })
         const calls: unknown[] = []
@@ -1166,6 +1181,22 @@ describe('sessions routes', () => {
         expect(response.status).toBe(400)
         expect(await response.json()).toEqual({ error: 'Safe Yolo is not available for shared sessions' })
         expect(applySessionConfigCalls).toEqual([])
+    })
+
+    it('constrains runner mode changes to session capabilities', async () => {
+        for (const permissionModes of [[], ['default', 'read-only']] as const) {
+            const session = createSession({ metadata: {
+                path: '/tmp/project', host: 'localhost', flavor: 'codex',
+                capabilities: { permissionModes: [...permissionModes] }
+            } })
+            const { app, applySessionConfigCalls } = createApp(session)
+            const response = await app.request('/api/sessions/session-1/permission-mode', {
+                method: 'POST', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ mode: 'yolo' })
+            })
+            expect(response.status).toBe(400)
+            expect(applySessionConfigCalls).toEqual([])
+        }
     })
 
     it('applies permission mode changes for inactive sessions', async () => {

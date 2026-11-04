@@ -19,7 +19,7 @@ agent's integration; their supported syntax varies by agent.
 | GitHub Copilot | `hapi copilot` | ACP (`copilot --acp --stdio`) | ✓ | ✓ | `default` `read-only` `safe-yolo` `yolo` | ✓ |
 | Kimi | `hapi kimi` | ACP (`kimi acp`) | ✓ | ✓ | `default` `read-only` `safe-yolo` `yolo` | ✓ |
 | OpenCode | `hapi opencode` | ACP (`opencode acp`) | ✓ | ✓ | `default` `plan` `yolo` | ✓ |
-| DeepSeek Harness | `hapi dsh` | ACP (`dsh --profile acp` or configured server) | — | ✓ | Managed by DSH ACP composition | — |
+| DeepSeek Harness | `hapi dsh` | ACP (`dsh --profile acp` or configured server) | — | ✓ | Runtime permission presets, including configured/plugin options | — |
 | Antigravity (agy) | `hapi agy` | Headless print mode (per-turn `agy -p` + NDJSON) | — | ✓ | `request-review` `always-proceed` | ✓ |
 | Pi | `hapi pi` | `pi --mode rpc` (JSON-line RPC over stdio) | — | ✓ | none (always auto-approve) | ✓ |
 | Gemini CLI | — | **Removed** — Google sunset the consumer Gemini CLI (2026-06-18) | — | — | — | — |
@@ -30,7 +30,7 @@ Gemini is no longer launchable: `hapi gemini` is kept as a tombstone command tha
 
 ### ACP
 
-Most remote integrations speak the [Agent Client Protocol](https://agentclientprotocol.com) (ACP) over stdio through a shared HAPI backend. ACP gives remote sessions bidirectional permission approval, plan/todo updates, question UI, model catalogs, and session resume via `session/load`. Cursor, Grok, Copilot, Kimi, OpenCode, and DeepSeek Harness remote sessions all run over ACP. DSH's official ACP server is automation-focused and currently supports committed assistant output, cancellation, one-shot permissions, native session resume via `session/resume`, and per-turn model switching through `session/set_config_option`; it does not provide MCP injection or live tool/reasoning telemetry.
+Most remote integrations speak the [Agent Client Protocol](https://agentclientprotocol.com) (ACP) over stdio through a shared HAPI backend. Individual servers advertise the capabilities they implement. Cursor, Grok, Copilot, Kimi, OpenCode, and DeepSeek Harness remote sessions all run over ACP. DSH's official server exposes model and reasoning options, semantic assistant/tool updates, cancellation, one-shot permissions, MCP mounts, and native `session/resume`; HAPI currently uses fresh DSH sessions, supplies no MCP servers, and adds a public plugin wrapper for runtime permission presets.
 
 ### Permission modes
 
@@ -286,13 +286,31 @@ export HAPI_DSH_ACP_ARGS_JSON='["--dir", "/path/to/deepseek-harness", "run", "de
 hapi dsh
 ```
 
-DSH sessions are remote-only and fresh-session-only. HAPI does not inject MCP
-servers. Model selection is available: the DSH composition's model catalog is
-exposed through the session RPC `ListDshModels` and applied per turn with ACP
-`session/set_config_option`. Effort pickers are not exposed because the
-official ACP contract leaves that surface to the DSH composition. Pending
-one-shot permission requests remain answerable in the standard HAPI UI, but
-the ACP composition owns the overall permission policy.
+DSH sessions are remote-only and fresh-session-only in HAPI. HAPI does not inject
+MCP servers. Model selection uses the composition's catalog through `ListDshModels`
+and ACP `session/set_config_option`. The official ACP protocol also exposes
+reasoning effort; HAPI currently provides the model picker for this integration.
+
+For the default official launcher, HAPI adds a temporary plugin that wraps the
+upstream ACP server's public transport hook. It reads DSH's live
+`permissionPresets` catalog and changes the selected preset through that service.
+The original ACP configuration, prompt handling and approval decisions stay in
+the upstream implementation. No installed package or persistent profile is edited.
+Settings shows only the reported presets, including configured entries and live
+plugin contributions. Each sent message captures its selected permission values;
+changing Settings does not rewrite messages already queued. A rejected or withdrawn
+preset prevents that message from reaching the model and surfaces an error.
+
+DSH Web already provides current-session permission selection and a separate
+future-session default. The unextended official ACP server exposes model and
+reasoning configuration, plus one-shot permission requests, but omits permission
+preset switching and human commands. HAPI's bridge supplies that missing adapter
+surface; sending `/permission` as model text would not perform the Web command.
+Custom `HAPI_DSH_ACP_COMMAND` or `HAPI_DSH_ACP_ARGS_JSON` launchers keep their own
+contract; HAPI displays permission config options only when that server reports
+them. See the official [Web permission selector](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/client/ui-permission-presets/README.md),
+[permission preset service](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/interaction/permission-presets/README.md),
+and [ACP contract](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/acp/acp/README.md).
 
 ## Other agents
 

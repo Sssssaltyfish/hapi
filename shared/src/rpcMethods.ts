@@ -3,6 +3,7 @@ export const RPC_METHODS = {
     Abort: 'abort',
     Switch: 'switch',
     SetSessionConfig: 'set-session-config',
+    SetSessionConfigOption: 'set-session-config-option',
     KillSession: 'killSession',
     HandoffLocal: 'handoff-local',
     SpawnHappySession: 'spawn-happy-session',

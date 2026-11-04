@@ -23,7 +23,11 @@ it('renders native content after the native model catalogue reaches the existing
     const session = SessionSchema.parse({ id: 'codex-native:test:native-thread', namespace: 'test', seq: 0, createdAt: 1000, updatedAt: 2000,
         active: true, activeAt: 2000, metadataVersion: 1, agentStateVersion: 1, thinking: false, thinkingAt: 0, agentState: {},
         metadata: { flavor: 'codex', name: 'Native chat', host: 'Test daemon', path: '/tmp', nativeCodex: { endpointId: 'test', threadId: 'native-thread', available: true } }, model: 'gpt-6-astra', modelReasoningEffort: 'ultra' })
-    const codexNativeAction = vi.fn(async (_id: string, _action: string, patch: Record<string, unknown>) => ({ applied: { model: 'gpt-6-astra', ...patch } }))
+    let nativeSettings: Record<string, unknown> = { model: 'gpt-6-astra', effort: 'ultra', approvalsReviewer: 'auto_review', approvalPolicy: { granular: { sandbox_approval: true } }, sandboxPolicy: { type: 'readOnly' } }
+    const codexNativeAction = vi.fn(async (_id: string, _action: string, patch: Record<string, unknown>) => {
+        nativeSettings = { ...nativeSettings, ...patch }
+        return { applied: nativeSettings }
+    })
     const uploadCodexNativeFile = vi.fn(async (_id: string, filename: string) => ({ success: true, path: `native-upload:${filename}` }))
     const api = {
         codexNativeAction,
@@ -34,7 +38,10 @@ it('renders native content after the native model catalogue reaches the existing
         getCodexNativeActiveTurn: async () => ({ activeTurn: null }),
         getCodexNativeItems: async () => ({ data: [{ turnId: 'turn', item: { id: 'response', type: 'agentMessage', text: 'Native message renders here' }, startedAtMs: 2000, completedAtMs: 2001 }], nextCursor: null }),
         getCodexNativeModels: async () => ({ data: [{ id: 'gpt-6-astra', model: 'gpt-6-astra', displayName: 'Astra', isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Medium' }, { reasoningEffort: 'ultra', description: 'Ultra' }] }] }),
-        streamCodexNativeEvents: () => new Promise<void>(() => {}),
+        streamCodexNativeEvents: (_id: string, _signal: AbortSignal, onEvent: (event: unknown) => void) => {
+            onEvent({ method: 'hapi/ready', params: { thread: { id: 'native-thread', name: 'Native chat', status: { type: 'idle' } }, threadSettings: nativeSettings } })
+            return new Promise<void>(() => {})
+        },
         getSessions: async () => ({ sessions: [] }), getMachines: async () => ({ machines: [] }),
         fetchTranscriptionProviders: async () => ({ providers: [] }),
     }
@@ -47,6 +54,16 @@ it('renders native content after the native model catalogue reaches the existing
     fireEvent.click(screen.getByRole('button', { name: 'Default' }))
     await waitFor(() => expect(codexNativeAction).toHaveBeenCalledWith('native-thread', 'settings', { effort: 'medium' }))
     expect(await screen.findByRole('button', { name: 'Reasoning Effort: Medium' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(screen.getByLabelText('Ask for approval')).toHaveValue('')
+    expect(screen.getByLabelText('Approval reviewer')).toHaveValue('auto_review')
+    expect(screen.queryByRole('button', { name: 'Yolo' })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Approval reviewer'), { target: { value: 'user' } })
+    await waitFor(() => expect(codexNativeAction).toHaveBeenCalledWith('native-thread', 'settings', { approvalsReviewer: 'user' }))
+    await waitFor(() => expect(screen.getByLabelText('Approval reviewer')).toHaveValue('user'))
+    expect(screen.getByLabelText('Ask for approval')).toHaveValue('')
+    expect(screen.getByText('Sandbox: Read only')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     expect(screen.getByRole('button', { name: 'Attach file' })).toBeEnabled()
     fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [
         new File(['notes'], 'notes.txt', { type: 'text/plain' }),

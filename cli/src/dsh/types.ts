@@ -3,6 +3,8 @@ export type DshMode = {
      * null = explicit reset to the server default ("Default" in the picker);
      * undefined = no preference (keep whatever the backend is running). */
     model?: string | null
+    /** Exact runtime option values captured when this message was queued. */
+    configOptions?: Record<string, string>
 }
 
 /** Mode attached to an outgoing turn. The session preference is three-state:
@@ -10,6 +12,6 @@ export type DshMode = {
  *  all), null = the picker's explicit "Default" reset, string = a concrete
  *  model. Collapsing undefined into null would make every ordinary turn look
  *  like a reset request when no model is known. */
-export function dshModeForPreference(model: string | null | undefined): DshMode {
-    return model === undefined ? {} : { model }
+export function dshModeForPreference(model: string | null | undefined, configOptions?: Record<string, string>): DshMode {
+    return { ...(model === undefined ? {} : { model }), ...(configOptions ? { configOptions: { ...configOptions } } : {}) }
 }

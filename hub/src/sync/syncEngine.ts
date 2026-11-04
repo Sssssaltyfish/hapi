@@ -4413,6 +4413,10 @@ export class SyncEngine {
         return await this.rpcGateway.listDshModelsForSession(sessionId)
     }
 
+    async setSessionConfigOption(sessionId: string, configId: string, value: string): Promise<void> {
+        await this.rpcGateway.setSessionConfigOption(sessionId, configId, value)
+    }
+
     async listGrokReasoningEffortOptionsForSession(sessionId: string): Promise<RpcListGrokReasoningEffortOptionsResponse> {
         return await this.rpcGateway.listGrokReasoningEffortOptionsForSession(sessionId)
     }

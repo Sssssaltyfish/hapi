@@ -1,5 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
+import { CODEX_APPROVAL_POLICIES, CODEX_APPROVALS_REVIEWERS } from '@hapi/protocol'
 import type { WebAppEnv } from '../middleware/auth'
 import { NativeService } from '../../codexNative/service'
 import { NativeRegistry, nativeSession } from '../../codexNative/registry'
@@ -16,6 +17,8 @@ const settingsSchema = z
     .object({
         model: z.string().min(1).max(200).optional(),
         effort: z.string().min(1).max(100).optional(),
+        approvalPolicy: z.enum(CODEX_APPROVAL_POLICIES).optional(),
+        approvalsReviewer: z.enum(CODEX_APPROVALS_REVIEWERS).optional(),
     })
     .strict()
 const messageSchema = z

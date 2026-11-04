@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -35,6 +35,7 @@ import {
 } from '@/lib/codexModelCapabilities'
 import { createSerialAsyncQueue } from '@/lib/serialAsyncQueue'
 import { HappyComposer, type ComposerSendError } from '@/components/AssistantChat/HappyComposer'
+import { SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
 import {
     isDictateHotkeyBlockedTarget,
     isDictateToggleHotkey,
@@ -564,7 +565,7 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean }
+    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode }
     titleSuggestionAvailable?: boolean
     session: Session
     cursorChatOnDisk?: boolean
@@ -2100,6 +2101,12 @@ function SessionChatInner(props: SessionChatProps) {
                         onSchedule={native ? undefined : updatePendingSchedule}
                         onClearSchedule={() => updatePendingSchedule(null)}
                         permissionMode={props.session.permissionMode}
+                        availablePermissionModes={props.session.metadata?.capabilities?.permissionModes}
+                        approvalSettingsTitle={agentFlavor === 'dsh' ? t('misc.permissionMode') : undefined}
+                        approvalSettings={native?.approvalSettings ?? (agentFlavor === 'dsh' && props.session.metadata?.sessionConfigOptions?.length
+                            ? <SessionConfigSettings api={props.api} sessionId={props.session.id}
+                                options={props.session.metadata.sessionConfigOptions} disabled={!props.session.active} />
+                            : undefined)}
                         collaborationMode={!native && codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         copilotAgentMode={agentFlavor === 'copilot' ? props.session.copilotAgentMode : undefined}
                         model={props.session.model}

@@ -189,6 +189,10 @@ export class RpcGateway {
         return await this.sessionRpc(sessionId, RPC_METHODS.SetSessionConfig, config)
     }
 
+    async setSessionConfigOption(sessionId: string, configId: string, value: string): Promise<unknown> {
+        return await this.sessionRpc(sessionId, RPC_METHODS.SetSessionConfigOption, { configId, value })
+    }
+
     async killSession(sessionId: string): Promise<{ pid?: number; processStartMarker?: string }> {
         const result = await this.sessionRpc(sessionId, RPC_METHODS.KillSession, {})
         if (!result || typeof result !== 'object') return {}

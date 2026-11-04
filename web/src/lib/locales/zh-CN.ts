@@ -1,4 +1,6 @@
 export default {
+  'sessionConfig.unavailable': '暂不可用',
+  'sessionConfig.nextMessages': '应用于此后发送的消息；已排队的消息保留发送时选择的权限。',
   'settings.native.addMachine': '添加 Codex Native 设备',
   'settings.native.address': '连接地址',
   'settings.native.displayName': '名称（可选）',

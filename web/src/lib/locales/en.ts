@@ -1,4 +1,6 @@
 export default {
+  'sessionConfig.unavailable': 'Unavailable',
+  'sessionConfig.nextMessages': 'Applies to messages sent after this selection. Queued messages keep their selected permissions.',
   'settings.native.addMachine': 'Add Codex Native machine',
   'settings.native.address': 'Connection address',
   'settings.native.displayName': 'Name (optional)',
