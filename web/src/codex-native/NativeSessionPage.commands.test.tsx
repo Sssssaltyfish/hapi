@@ -21,7 +21,11 @@ vi.mock('@/components/SessionChat', () => ({ SessionChat: (props: ChatProps) => 
 vi.mock('./useNativeThread', () => ({ useNativeThread: () => thread }))
 vi.mock('./useNativeQueue', () => ({ useNativeQueue: () => queue }))
 vi.mock('@/hooks/queries/useSessions', () => ({ useSessions: () => ({ sessions: [] }) }))
-beforeEach(() => { ui.props = null; vi.clearAllMocks() })
+beforeEach(() => {
+    ui.props = null
+    thread.detail = { activeTurn: { id: 'active-turn', status: 'inProgress' } }
+    vi.clearAllMocks()
+})
 const state = { capabilities: { plan: true, goal: true }, collaborationMode: { mode: 'default' }, goal: null, planPresets: [], unavailable: {} }
 const session = { id: 'native-session', metadata: { flavor: 'codex', nativeCodex: { threadId: 'native-thread', endpointId: 'test' } } } as Session
 function setup(post = vi.fn().mockResolvedValue({ command: 'goal', action: 'show', goal: null })) {
@@ -33,6 +37,20 @@ function setup(post = vi.fn().mockResolvedValue({ command: 'goal', action: 'show
     </QueryClientProvider></I18nProvider>)
     return api
 }
+
+it.each([
+    { threadSettings: undefined, expected: 'xhigh' },
+    { threadSettings: { model: 'gpt-6-astra', effort: 'high' }, expected: 'high' },
+    { threadSettings: { model: 'gpt-6-astra', effort: null }, expected: null },
+])('uses read metadata until a live settings snapshot exists: $expected', async ({ threadSettings, expected }) => {
+    Object.assign(thread.detail, { thread: { id: 'native-thread', model: 'gpt-6-astra', reasoningEffort: 'xhigh' },
+        ...(threadSettings ? { threadSettings } : {}) })
+    const api = setup()
+    await waitFor(() => expect(api.getCodexNativeCommands).toHaveBeenCalled())
+    expect(ui.props!.session.model).toBe('gpt-6-astra')
+    expect(ui.props!.session.modelReasoningEffort).toBe(expected)
+    expect(api.codexNativeAction).not.toHaveBeenCalled()
+})
 
 it('runs management commands without a chat message, queue mutation or new model turn', async () => {
     const api = setup()

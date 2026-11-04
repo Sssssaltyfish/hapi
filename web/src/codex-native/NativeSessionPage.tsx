@@ -128,7 +128,7 @@ function NativeSessionChat({
     if (revision.current.items !== thread.items)
         revision.current = { items: thread.items, value: revision.current.value + 1 }
     const detail = record(thread.detail.thread)
-    const settings = record(thread.detail.threadSettings ?? thread.detail)
+    const settings = record(thread.detail.threadSettings ?? { ...detail, ...thread.detail })
     const effort = Object.hasOwn(settings, 'effort') ? settings.effort : settings.reasoningEffort
     const activeTurn = record(thread.detail.activeTurn)
     const unavailable = native.available === false
