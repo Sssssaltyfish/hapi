@@ -21,6 +21,7 @@ class Daemon {
     runtimeStatus = 'active'
     startFailure = false
     canonicalInstructions = false
+    sampleUnsupported = false
     emit(event: NativeEvent) {
         for (const client of this.clients) for (const listener of client.listeners) listener(event)
     }
@@ -82,7 +83,8 @@ class Daemon {
                         this.queued.push(params)
                         if (this.queueMalformed) return {}
                         return { queuedSubmission: { id: 'queued', clientUserMessageId: params.clientUserMessageId } }
-                    case 'thread/turns/list': return { data: [{ id: 'turn', status: this.latestStatus }] }
+                    case 'thread/turns/list': return { data: [{ id: 'turn', status: this.latestStatus, items: params.itemsView === 'full'
+                        ? [{ type: 'agentMessage', phase: 'final_answer', text: 'Existing final response.' }] : [] }] }
                     case 'thread/read': return { thread: { id: 'thread', status: { type: this.runtimeStatus } } }
                     case 'thread/queue/list': return { data: this.queued }
                     case 'thread/queue/start':
@@ -90,7 +92,9 @@ class Daemon {
                         return {}
                     case 'account/usage/read': return { summary: { lifetimeTokens: 123 }, threadUsage: { threadId: params.threadId, estimatedUsageCreditsMicros: 456 } }
                     case 'account/rateLimits/read': throw new Error('Rate limits unavailable')
-                    case 'thread/sample': return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' }
+                    case 'thread/sample':
+                        if (this.sampleUnsupported) throw new Error('Invalid request: unknown variant `thread/sample`, expected one of `initialize`, `thread/read`')
+                        return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' }
                     case 'thread/compact/start':
                     case 'thread/approveGuardianDeniedAction': return {}
                     default: return { data: [] }
@@ -173,6 +177,20 @@ describe('Native Plan and Goal commands', () => {
             expect((await command({ command: 'compact' }, { attachments: [{ path: '/tmp/file' }] })).status).toBe(400)
             expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
             expect(daemon.calls.some(call => call.method === 'experimentalFeature/list')).toBe(false)
+        } finally { service.dispose() }
+    })
+
+    test('native recap uses labeled existing history when the daemon rejects sampling', async () => {
+        const { daemon, service, command } = fixture()
+        try {
+            daemon.runtimeStatus = 'idle'
+            daemon.latestStatus = 'completed'
+            daemon.sampleUnsupported = true
+            const response = await command({ command: 'recap' })
+            expect(response.status).toBe(200)
+            expect(await response.json()).toMatchObject({ command: 'recap', source: 'history', sourceTurnId: 'turn',
+                text: 'Recent conversation excerpts\n\nLatest response\nExisting final response.' })
+            expect(daemon.calls.some(call => ['thread/fork', 'turn/start', 'turn/steer', 'thread/queue/add'].includes(call.method))).toBe(false)
         } finally { service.dispose() }
     })
 

@@ -19,7 +19,7 @@
 
 ## 输入区与会话命令
 
-`/compact` 启动原生上下文压缩。`/recap` 使用 `thread/sample` 对最近已结束的轮次单独生成摘要，会调用模型，主对话历史保持原样。`/approve` 展示当前线程中已观察到的自动审查拒绝，用户核对具体动作后可以请求一次重试。`/usage` 通过 `account/usage/read` 和 `account/rateLimits/read` 读取用量与额度，两项可用性分别显示。
+`/compact` 启动原生上下文压缩。`/recap` 在支持 `thread/sample` 的主机上对最近已结束的轮次单独生成摘要，会调用模型，主对话历史保持原样。主机明确拒绝该方法时，Native 和 managed 路径都会只读最近轮次，显示带有“Recent conversation excerpts”标签的原始请求、最终回复和计划摘录；摘录有长度上限，不冒充新生成的摘要，也不会另开模型轮次。`getConversationSummary` 只有预览和会话元信息，不用作摘要替代。`/approve` 展示当前线程中已观察到的自动审查拒绝，用户核对具体动作后可以请求一次重试。`/usage` 通过 `account/usage/read` 和 `account/rateLimits/read` 读取用量与额度，两项可用性分别显示。
 
 输入区的上下文占用取自最近一次实际 token 用量和 provider 报告的窗口上限。点击在百分比与 token 数之间切换。账户总用量和 Goal 的累计消耗另行展示。
 

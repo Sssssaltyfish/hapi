@@ -33,7 +33,7 @@ export function NativeManagementResult({ result, pendingCommand, pending, disabl
     return <section aria-label={t('nativeManagement.resultLabel')} className="max-h-[min(45vh,24rem)] overflow-y-auto overscroll-contain px-4 py-3">
         <div className="float-right ml-2"><button type="button" aria-label={t('nativeManagement.close')} onClick={dismiss}>×</button></div>
         {result.command === 'compact' && <p className="text-sm" role="status">{t('nativeManagement.compactAccepted')}</p>}
-        {result.command === 'recap' && <><p className="text-sm font-medium">{t('nativeManagement.recapTitle')}</p><p className="mt-1 whitespace-pre-wrap text-sm">{result.text}</p></>}
+        {result.command === 'recap' && <>{result.source !== 'history' && <p className="text-sm font-medium">{t('nativeManagement.recapTitle')}</p>}<p className="mt-1 whitespace-pre-wrap text-sm">{result.text}</p></>}
         {result.command === 'usage' && <CodexUsagePanel snapshot={result.snapshot} />}
         {result.command === 'approve' && (result.action === 'retry' ? <p className="text-sm" role="status">{t('nativeManagement.retryAccepted')}</p>
             : result.denial ? <>

@@ -72,4 +72,96 @@ describe('Codex management protocol', () => {
         }, 'thread')).toMatchObject({ command: 'usage', snapshot: { summary: { lifetimeTokens: '123' }, thread: null, limits: [],
             unavailable: { rateLimits: 'Rate limits unavailable for this account' } } })
     })
+
+    test('unsupported sampling returns bounded existing conversation excerpts without inference or mutation', async () => {
+        const calls: string[] = []
+        const result = await codexRecap(async (method, params) => {
+            calls.push(method)
+            if (method === 'thread/sample') throw new Error('Invalid request: unknown variant `thread/sample`, expected one of ' + 'internal methods, '.repeat(100))
+            expect(method).toBe('thread/turns/list')
+            return { data: [{ id: 'turn', status: 'completed', items: params.itemsView === 'full' ? [
+                { type: 'userMessage', content: [{ type: 'text', text: 'Fix the setting' }] },
+                { type: 'agentMessage', phase: 'commentary', text: 'Private progress should not be selected' },
+                { type: 'agentMessage', phase: 'final_answer', text: 'Fixed and verified. '.repeat(200) },
+                { type: 'plan', text: 'Verify the setting' },
+            ] : [] }] }
+        }, 'thread')
+        expect(result).toMatchObject({ source: 'history', sourceTurnId: 'turn' })
+        expect(result.text).toContain('Recent conversation excerpts')
+        expect(result.text).toContain('Latest request\nFix the setting')
+        expect(result.text).toContain('Latest response\nFixed and verified.')
+        expect(result.text).toContain('Latest plan\nVerify the setting')
+        expect(result.text).not.toContain('Private progress')
+        expect(result.text).not.toContain('internal methods')
+        expect(result.text.length).toBeLessThan(2200)
+        expect(calls).toEqual(['thread/turns/list', 'thread/sample', 'thread/turns/list'])
+    })
+
+    test('older hosts read stored turns; metadata preview is never presented as a recap', async () => {
+        const calls: string[] = []
+        const result = await codexRecap(async method => {
+            calls.push(method)
+            if (method === 'thread/turns/list') throw Object.assign(new Error('Method not found'), { code: -32601 })
+            expect(method).toBe('thread/read')
+            return { thread: { preview: 'Initial prompt only', turns: [{ id: 'old', status: 'completed', items: [
+                { type: 'agentMessage', text: 'Actual final response' },
+            ] }] } }
+        }, 'thread')
+        expect(result.source).toBe('history')
+        expect(result.text).toContain('Actual final response')
+        expect(result.text).not.toContain('Initial prompt only')
+        expect(calls).not.toContain('thread/sample')
+        expect(calls).not.toContain('getConversationSummary')
+    })
+
+    test('does not fall back or leak raw errors after an inference or transport failure', async () => {
+        const calls: string[] = []
+        await expect(codexRecap(async method => {
+            calls.push(method)
+            if (method === 'thread/turns/list') return { data: [{ id: 'turn', status: 'completed' }] }
+            throw new Error('HTTP 429 ' + 'sensitive internal detail '.repeat(100))
+        }, 'thread')).rejects.toThrow('Recap is unavailable because of an account usage limit. Check your allowance before retrying.')
+        expect(calls).toEqual(['thread/turns/list', 'thread/sample'])
+    })
+
+    test('empty legacy history returns one concise error without attempting a model call', async () => {
+        const calls: string[] = []
+        await expect(codexRecap(async method => {
+            calls.push(method)
+            if (method === 'thread/turns/list') throw new Error('unknown variant `thread/turns/list`')
+            return { thread: { preview: 'A title is not a recap', turns: [] } }
+        }, 'thread')).rejects.toThrow('No completed conversation is available to recap.')
+        expect(calls).not.toContain('thread/sample')
+        expect(calls).not.toContain('turn/start')
+    })
+
+    test('history fallback stays bound to the sampled source after another turn finishes', async () => {
+        let reads = 0
+        const result = await codexRecap(async method => {
+            if (method === 'thread/sample') throw new Error('unknown variant `thread/sample`')
+            reads++
+            return { data: reads === 1 ? [{ id: 'source', status: 'completed' }] : [
+                { id: 'newer', status: 'completed', items: [{ type: 'agentMessage', text: 'New response' }] },
+                { id: 'source', status: 'completed', items: [{ type: 'agentMessage', text: 'Bound response' }] },
+            ] }
+        }, 'thread')
+        expect(result.sourceTurnId).toBe('source')
+        expect(result.text).toContain('Bound response')
+        expect(result.text).not.toContain('New response')
+        reads = 0
+        await expect(codexRecap(async method => {
+            if (method === 'thread/sample') throw new Error('unknown variant `thread/sample`')
+            return { data: [{ id: ++reads === 1 ? 'source' : 'newer', status: 'completed' }] }
+        }, 'thread')).rejects.toThrow('The conversation changed while reading the recap. Run /recap again.')
+    })
+
+    test('network sampling failure offers reconnect without attempting history fallback', async () => {
+        const calls: string[] = []
+        await expect(codexRecap(async method => {
+            calls.push(method)
+            if (method === 'thread/turns/list') return { data: [{ id: 'turn', status: 'completed' }] }
+            throw new Error('WebSocket connection closed: internal details')
+        }, 'thread')).rejects.toThrow('Recap could not connect to Codex. Reconnect and try again.')
+        expect(calls).toEqual(['thread/turns/list', 'thread/sample'])
+    })
 })

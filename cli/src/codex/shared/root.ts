@@ -696,7 +696,6 @@ export class SharedCodexRoot {
                 this.notice('Native compaction request accepted. Completion will be reported by Codex.');
             } else if (slash.command.command === 'recap') {
                 if (this.currentTurn) throw new Error('Wait for the current turn to finish before generating a recap');
-                this.notice('Generating a conversation recap with a separate model call; the main context remains unchanged.');
                 this.notice((await codexRecap(request, this.threadId)).text);
             } else if (slash.command.command === 'usage') {
                 const { snapshot } = await codexUsage(request, this.threadId);

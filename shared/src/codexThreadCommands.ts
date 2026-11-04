@@ -50,7 +50,7 @@ export type NativeCommandResult =
     | { command: 'goal'; action: 'show' | 'set' | 'edit' | 'pause' | 'resume'; goal: NativeGoal | null; cleared?: never }
     | { command: 'goal'; action: 'clear'; cleared: boolean; goal?: never }
     | { command: 'compact'; accepted: true }
-    | { command: 'recap'; text: string; sourceTurnId: string }
+    | { command: 'recap'; text: string; sourceTurnId: string; source?: 'history' }
     | { command: 'usage'; snapshot: CodexUsageSnapshot }
     | { command: 'approve'; action: 'show'; denial: { reviewId: string; turnId: string; action: Record<string, unknown>; rationale: string | null } | null }
     | { command: 'approve'; action: 'retry'; reviewId: string; accepted: true }

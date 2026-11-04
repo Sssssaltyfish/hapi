@@ -117,6 +117,7 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
     await root.bind('thread', { model: 'mock', thread: { name: opts?.nativeName, turns: [] } }, false);
     const native = root.client as unknown as {
         initialized: boolean;
+        settings: Record<string, unknown>;
         thread: { id: string; name?: string; preview?: string; turns: NativeTurn[] };
         queue: Array<{ id: string; clientUserMessageId: string; input: unknown }>;
         steers: Record<string, unknown>[];
