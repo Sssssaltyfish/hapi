@@ -226,6 +226,13 @@ describe('isRichComposerMentionsEnabled', () => {
 })
 
 describe('resolveComposerPlaceholderKey', () => {
+    it('describes native file and app mentions when session handoff is unavailable', () => {
+        expect(resolveComposerPlaceholderKey({
+            richMentionsEnabled: true,
+            showContinueHint: false,
+            sessionMentionsEnabled: false,
+        })).toBe('misc.typeAMessageWithFileMentions')
+    })
     it('prefers continue hint over mention copy', () => {
         expect(resolveComposerPlaceholderKey({
             richMentionsEnabled: true,

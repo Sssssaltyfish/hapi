@@ -233,11 +233,11 @@ function createWebApp(options: {
     officialWebUrl?: string
 }): Hono<WebAppEnv> {
     const app = new Hono<WebAppEnv>()
-    const nativeRegistry = new NativeRegistry()
 
     app.use('*', logger())
 
     const configuration = getConfiguration()
+    const nativeRegistry = new NativeRegistry(undefined, undefined, { dataDir: configuration.dataDir })
     const corsOrigins = options.corsOrigins ?? configuration.corsOrigins
     const corsOriginOption = corsOrigins.includes('*') ? '*' : corsOrigins
     const corsMiddleware = cors({

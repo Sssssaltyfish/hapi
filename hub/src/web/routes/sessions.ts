@@ -88,6 +88,7 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
             ? Math.min(500, Math.max(1, Math.floor(parsedLimit)))
             : null
         const order = c.req.query('order')
+        await nativeRegistry?.refresh()
         const nativeEnabled = Boolean(nativeRegistry?.visible(namespace).length)
 
         let sessionRecords = engine.getSessionsByNamespace(namespace)

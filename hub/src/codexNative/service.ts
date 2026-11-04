@@ -1,9 +1,14 @@
 import { readFile, stat } from 'node:fs/promises'
+import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
+import { listDaemonProjects, projectMemberships } from './projects'
 import {
     createWorkspaceIdentityReader,
     desktopProjects,
+    desktopExcludesThread,
+    desktopHidesThread,
     desktopThreadSelection,
+    needsDesktopIdentity,
     type DesktopProject,
     type WorkspaceIdentity,
 } from './desktopSelection'
@@ -46,9 +51,30 @@ export function fallbackThread(thread: NativeRecord): boolean {
     )
 }
 export class NativeService {
+    dispose(): void {
+        for (const entry of this.subscriptions.values()) clearTimeout(entry.timer)
+        this.subscriptions.clear()
+        for (const client of [...this.connections])
+            client.close('Native machine connection changed')
+        this.connections.clear()
+    }
+    messageInput(threadId: string, message: string) {
+        return messageInput(this, threadId, message)
+    }
+    suggestions(threadId: string, query: string) {
+        return mentionSuggestions(this, threadId, query)
+    }
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private identities = createWorkspaceIdentityReader()
+    private daemonIdentities = createWorkspaceIdentityReader(async (path, args, timeout) => {
+        const response = record(await this.call('command/exec', {
+            command: ['git', ...args], cwd: path, timeoutMs: timeout,
+            outputBytesCap: 16_384, sandboxPolicy: { type: 'readOnly', networkAccess: false },
+        }, Date.now() + timeout))
+        if (response.exitCode !== 0) throw new Error('Native Git identity unavailable')
+        return text(response.stdout) ?? ''
+    })
     constructor(
         readonly config: NativeConfig,
         private createConnection = () => new NativeConnection(config.endpoint!, config.token)
@@ -69,7 +95,9 @@ export class NativeService {
                 namespace === this.config.namespace
         )
     }
-    async call(method: string, params: unknown): Promise<unknown> {
+    async call(method: string, params: unknown, deadline?: number): Promise<unknown> {
+        if (deadline !== undefined)
+            return this.withConnection((client) => client.request(method, params), deadline)
         const client = this.connection()
         try {
             return await client.request(method, params)
@@ -77,12 +105,27 @@ export class NativeService {
             client.close()
         }
     }
-    async withConnection<T>(action: (client: NativeConnection) => Promise<T>): Promise<T> {
+    async withConnection<T>(
+        action: (client: NativeConnection) => Promise<T>,
+        deadline?: number
+    ): Promise<T> {
+        if (deadline !== undefined && deadline <= Date.now())
+            throw new Error('Native directory operation timed out')
         const client = this.connection()
+        const timer =
+            deadline === undefined
+                ? undefined
+                : setTimeout(
+                      () => client.close('Native directory operation timed out'),
+                      Math.max(1, deadline - Date.now())
+                  )
         try {
             await client.connect()
+            if (deadline !== undefined && deadline <= Date.now())
+                throw new Error('Native directory operation timed out')
             return await action(client)
         } finally {
+            clearTimeout(timer)
             client.close()
         }
     }
@@ -176,7 +219,7 @@ export class NativeService {
             throw error
         }
     }
-    async desktop(): Promise<{
+    async desktop(deadline?: number): Promise<{
         state?: NativeRecord
         projects: DesktopProject[]
         membership: 'desktop' | 'fallback'
@@ -186,7 +229,13 @@ export class NativeService {
         try {
             if ((await stat(desktopStatePath)).size > 8 * 1024 * 1024)
                 throw new Error('Desktop state too large')
-            const state = record(JSON.parse(await readFile(desktopStatePath, 'utf8')))
+            const signal =
+                deadline === undefined
+                    ? undefined
+                    : AbortSignal.timeout(Math.max(1, deadline - Date.now()))
+            const state = record(
+                JSON.parse(await readFile(desktopStatePath, { encoding: 'utf8', signal }))
+            )
             return { state, projects: desktopProjects(state, desktopHostId), membership: 'desktop' }
         } catch {
             return { projects: [], membership: 'fallback' }
@@ -198,40 +247,64 @@ export class NativeService {
         projectId?: string
         catalog?: string
         parentThreadId?: string
+        deadline?: number
     }): Promise<NativeRecord> {
+        const deadline = params.deadline ?? Date.now() + 5000
+        const checkBudget = () => {
+            if (Date.now() >= deadline) throw new Error('Native directory operation timed out')
+        }
+        checkBudget()
         const background = params.catalog === 'background'
+        const canonicalProjects = listDaemonProjects(this, deadline).catch(() => [])
         const page = record(
-            await this.call('thread/list', {
-                cursor: params.cursor,
-                limit: params.limit,
-                archived: false,
-                sourceKinds: background
-                    ? [
-                          'cli',
-                          'vscode',
-                          'exec',
-                          'appServer',
-                          'subAgent',
-                          'subAgentReview',
-                          'subAgentCompact',
-                          'subAgentThreadSpawn',
-                          'subAgentOther',
-                          'unknown',
-                      ]
-                    : ['cli', 'vscode'],
-                parentThreadId: params.parentThreadId,
-                useStateDbOnly: true,
-                sortKey: 'updated_at',
-            })
+            await this.call(
+                'thread/list',
+                {
+                    cursor: params.cursor,
+                    limit: params.limit,
+                    archived: false,
+                    sourceKinds: background
+                        ? [
+                              'cli',
+                              'vscode',
+                              'exec',
+                              'appServer',
+                              'subAgent',
+                              'subAgentReview',
+                              'subAgentCompact',
+                              'subAgentThreadSpawn',
+                              'subAgentOther',
+                              'unknown',
+                          ]
+                        : ['cli', 'vscode'],
+                    parentThreadId: params.parentThreadId,
+                    useStateDbOnly: true,
+                    sortKey: 'updated_at',
+                },
+                deadline
+            )
         )
-        const desktop = await this.desktop()
+        checkBudget()
+        const desktop = await this.desktop(deadline)
+        checkBudget()
         const threads = Array.isArray(page.data) ? page.data.map(record) : []
+        // Empty newly-started threads are not in app-server's durable catalog until
+        // their first input. Keep its authoritative start response while HAPI owns
+        // the creating connection so changing launch/workspace modes is visible.
+        if (!params.cursor) {
+            const creating = await Promise.all([...this.subscriptions.values()].filter(entry => entry.creating && entry.empty).map(async entry => {
+                try { return record(record(await entry.attached).thread) } catch { return {} }
+            }))
+            for (const thread of creating) {
+                if (text(thread.id) && !threads.some(existing => existing.id === thread.id)) threads.unshift(thread)
+            }
+        }
         // State-db catalog rows omit provenance on some daemon versions. Resolve only this
         // page, four requests at a time, without loading any conversation items.
         if (desktop.membership === 'fallback' || background) {
-            const client = this.connection()
-            try {
+            await this.withConnection(async (client) => {
                 for (let offset = 0; offset < threads.length; offset += 4) {
+                    checkBudget()
                     await Promise.all(
                         threads.slice(offset, offset + 4).map(async (thread, index) => {
                             if (thread.source !== 'cli' && thread.source !== 'vscode') return
@@ -251,29 +324,38 @@ export class NativeService {
                         })
                     )
                 }
-            } finally {
-                client.close()
-            }
+                checkBudget()
+            }, deadline)
         }
         let selected = new Map<string, DesktopProject>()
+        const windowsDesktop = this.config.desktopHostId === 'local' && !this.config.endpoint?.startsWith('unix://')
         if (desktop.state) {
+            selected = desktopThreadSelection(desktop.state, this.config.desktopHostId!, threads)
+            const unresolved = windowsDesktop ? threads.filter((thread) =>
+                !selected.has(String(thread.id)) && needsDesktopIdentity(desktop.state, thread)
+            ) : threads
             const paths = [
                 ...new Set([
-                    ...desktop.projects.map((p) => p.path),
-                    ...threads.map((t) => text(t.cwd)).filter((p): p is string => Boolean(p)),
+                    ...(unresolved.length ? desktop.projects.flatMap((p) => p.rootPaths ?? [p.path]) : []),
+                    ...unresolved.map((t) => text(t.cwd)).filter((p): p is string => Boolean(p)),
                 ]),
             ].slice(0, 512)
             const identities = new Map<string, WorkspaceIdentity>()
             for (
                 let offset = 0;
-                this.config.endpoint?.startsWith('unix://') && offset < paths.length;
+                (this.config.endpoint?.startsWith('unix://') || this.config.desktopHostId === 'local') && offset < paths.length;
                 offset += 4
             ) {
-                await Promise.all(
+                if (windowsDesktop && Date.now() >= deadline) break
+                checkBudget()
+                const results = await Promise.allSettled(
                     paths.slice(offset, offset + 4).map(async (path) => {
-                        identities.set(path, await this.identities(path))
+                        const reader = this.config.endpoint?.startsWith('unix://') ? this.identities : this.daemonIdentities
+                        identities.set(path, await reader(path, deadline))
                     })
                 )
+                if (!windowsDesktop)
+                    for (const result of results) if (result.status === 'rejected') throw result.reason
             }
             selected = desktopThreadSelection(
                 desktop.state,
@@ -282,27 +364,39 @@ export class NativeService {
                 identities
             )
         }
+        if (!windowsDesktop || !desktop.state) checkBudget()
+        const canonical = projectMemberships(await canonicalProjects, desktop, this.config.desktopHostId)
+        const isHapiThread = (thread: NativeRecord) => thread.originator === 'hapi-native' && thread.threadSource === 'user'
+            && thread.ephemeral !== true && !thread.parentThreadId && !thread.parent_thread_id
+            && !desktopHidesThread(desktop.state, thread)
+        for (const thread of threads) {
+            if (isHapiThread(thread) && !text(thread.projectId)) selected.delete(String(thread.id))
+            const project = canonical.get(String(thread.projectId))
+            if (project && !desktopExcludesThread(desktop.state, thread) && (fallbackThread(thread) || isHapiThread(thread))) selected.set(String(thread.id), project)
+        }
+        const projects = [...new Map([...desktop.projects, ...canonical.values()].map(project => [project.id, project])).values()]
         const data = threads
             .filter((thread) => {
                 const membership = selected.get(String(thread.id))
                 const ordinary =
-                    desktop.membership === 'desktop' ? Boolean(membership) : fallbackThread(thread)
+                    desktop.membership === 'desktop' ? Boolean(membership) || isHapiThread(thread) : fallbackThread(thread) || isHapiThread(thread)
                 if (background)
                     return (
                         !membership &&
+                        !isHapiThread(thread) &&
                         (Boolean(thread.parentThreadId) ||
                             Boolean(thread.parent_thread_id) ||
                             (thread.source !== 'cli' && thread.source !== 'vscode') ||
                             thread.threadSource === 'agent_created_thread')
                     )
-                return ordinary && (!params.projectId || membership?.id === params.projectId)
+                return ordinary && (!params.projectId || membership?.id === params.projectId || thread.projectId === params.projectId)
             })
             .map((thread) => ({
                 ...thread,
                 desktopProjectId: selected.get(String(thread.id))?.id ?? null,
                 desktopProject: selected.get(String(thread.id)) ?? null,
             }))
-        return { ...page, data, projects: desktop.projects, membership: desktop.membership }
+        return { ...page, data, projects, membership: desktop.membership }
     }
     private acquire(threadId: string): Subscription {
         let entry = this.subscriptions.get(threadId)

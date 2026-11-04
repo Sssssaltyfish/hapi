@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import type { ApiClient } from '@/api/client'
-import type { Machine, MachineDirectoryEntry } from '@/types/api'
-import { queryKeys } from '@/lib/query-keys'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import type { MachineDirectoryEntry } from '@/types/api'
+import type { WorkspaceBrowserMachine, WorkspaceBrowserSource } from './WorkspaceBrowserSource'
 import { useTranslation } from '@/lib/use-translation'
 import { SelectControl } from '@/components/ui/select-control'
 
@@ -69,14 +68,8 @@ function CheckboxCheckedIcon(props: { className?: string }) {
     )
 }
 
-function getMachineTitle(machine: Machine): string {
-    if (machine.metadata?.displayName) return machine.metadata.displayName
-    if (machine.metadata?.host) return machine.metadata.host
-    return machine.id.slice(0, 8)
-}
-
-function getMachineRootsSummary(machine: Machine): string {
-    const roots = machine.metadata?.workspaceRoots ?? []
+function getMachineRootsSummary(machine: WorkspaceBrowserMachine): string {
+    const roots = machine.roots ?? []
     if (roots.length === 0) return ''
     if (roots.length === 1) return roots[0]
     return `${roots[0]} (+${roots.length - 1})`
@@ -91,7 +84,8 @@ function getPathSeparator(path: string): '/' | '\\' {
 }
 
 function normalizePathForComparison(path: string): string {
-    const normalized = path.replace(/[\\/]+/g, '/')
+    const slashes = path.replaceAll('\\', '/')
+    const normalized = slashes.startsWith('//') ? `//${slashes.slice(2).replace(/\/+/g, '/')}` : slashes.replace(/\/+/g, '/')
     if (/^[A-Za-z]:\/$/.test(normalized) || normalized === '/') {
         return normalized
     }
@@ -128,8 +122,9 @@ function parentPath(path: string): string {
 }
 
 function isPathWithin(candidate: string, root: string): boolean {
-    const c = normalizePathForComparison(candidate)
-    const r = normalizePathForComparison(root)
+    const windows = isWindowsStylePath(candidate) || isWindowsStylePath(root)
+    const c = windows ? normalizePathForComparison(candidate).toLowerCase() : normalizePathForComparison(candidate)
+    const r = windows ? normalizePathForComparison(root).toLowerCase() : normalizePathForComparison(root)
     return c === r || c.startsWith(r.endsWith('/') ? r : `${r}/`)
 }
 
@@ -169,15 +164,14 @@ function readShowHidden(): boolean {
 }
 
 export function WorkspaceBrowser(props: {
-    api: ApiClient
-    machines: Machine[]
-    machinesLoading: boolean
+    source: WorkspaceBrowserSource
     onStartSession: (machineId: string, directory: string) => void
     initialMachineId?: string
+    initialDirectory?: string
 }) {
     const { t } = useTranslation()
-    const { api, machines, machinesLoading, initialMachineId } = props
-    const queryClient = useQueryClient()
+    const { source, initialMachineId } = props
+    const { machines, isLoading: machinesLoading } = source
 
     const [machineId, setMachineId] = useState<string | null>(initialMachineId ?? null)
     const [selectedRoot, setSelectedRoot] = useState<string | null>(null)
@@ -186,6 +180,8 @@ export function WorkspaceBrowser(props: {
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [showHidden, setShowHidden] = useState<boolean>(readShowHidden)
+    const [truncated, setTruncated] = useState(false)
+    const directoryRequest = useRef(0)
 
     useEffect(() => {
         if (machines.length === 0) {
@@ -212,34 +208,55 @@ export function WorkspaceBrowser(props: {
         () => machineId ? machines.find(m => m.id === machineId) ?? null : null,
         [machineId, machines]
     )
-    const workspaceRoots = useMemo(
-        () => selectedMachine?.metadata?.workspaceRoots ?? [],
-        [selectedMachine?.metadata?.workspaceRoots]
-    )
+    const rootsQuery = useQuery({
+        queryKey: ['workspace-browser-roots', source.key, machineId, props.initialDirectory],
+        queryFn: () => source.loadRoots!(machineId!),
+        enabled: Boolean(selectedMachine && selectedMachine.roots === undefined && source.loadRoots),
+        retry: false,
+        staleTime: 30_000,
+    })
+    const workspaceRoots = selectedMachine?.roots ?? rootsQuery.data?.roots ?? []
 
-    const loadDirectory = useCallback(async (path: string, includeHiddenOverride?: boolean) => {
+    const loadDirectory = useCallback(async (path: string, includeHiddenOverride?: boolean, fallbackPath?: string) => {
         if (!machineId) return
+        const request = ++directoryRequest.current
         setIsLoading(true)
         setError(null)
         try {
-            const result = await api.listMachineDirectory(machineId, path, { includeHidden: includeHiddenOverride ?? showHidden })
+            const read = (path: string) => source.listDirectory(machineId, path, includeHiddenOverride ?? showHidden)
+            let loadedPath = path
+            let result
+            try {
+                result = await read(path)
+            } catch (initialError) {
+                if (!fallbackPath || request !== directoryRequest.current) throw initialError
+                loadedPath = fallbackPath
+                result = await read(fallbackPath)
+            }
+            if (!result.success && fallbackPath && loadedPath !== fallbackPath && request === directoryRequest.current) {
+                loadedPath = fallbackPath
+                result = await read(fallbackPath)
+            }
+            if (request !== directoryRequest.current) return
             if (result.success && result.entries) {
                 setEntries(result.entries)
-                setCurrentPath(path)
+                setCurrentPath(loadedPath)
+                setTruncated(Boolean(result.truncated))
             } else {
                 setError(result.error ?? 'Failed to list directory')
                 // CLI may have just pushed new metadata (e.g. workspaceRoots)
                 // that we haven't picked up yet — refetch so the UI can
                 // transition out of the no-root state if applicable.
-                void queryClient.invalidateQueries({ queryKey: queryKeys.machines })
+                source.onDirectoryError?.()
             }
         } catch (e) {
+            if (request !== directoryRequest.current) return
             setError(e instanceof Error ? e.message : 'Failed to list directory')
-            void queryClient.invalidateQueries({ queryKey: queryKeys.machines })
+            source.onDirectoryError?.()
         } finally {
-            setIsLoading(false)
+            if (request === directoryRequest.current) setIsLoading(false)
         }
-    }, [api, machineId, queryClient, showHidden])
+    }, [source, machineId, showHidden])
 
     useEffect(() => {
         if (workspaceRoots.length === 0) {
@@ -247,24 +264,30 @@ export function WorkspaceBrowser(props: {
             return
         }
         if (selectedRoot && workspaceRoots.includes(selectedRoot)) return
-        setSelectedRoot(workspaceRoots[0] ?? null)
-    }, [workspaceRoots, selectedRoot])
+        const initialPath = machineId === initialMachineId ? props.initialDirectory : rootsQuery.data?.initialPath
+        setSelectedRoot(workspaceRoots.find(root => initialPath && isPathWithin(initialPath, root)) ?? workspaceRoots[0] ?? null)
+    }, [workspaceRoots, selectedRoot, machineId, initialMachineId, props.initialDirectory, rootsQuery.data?.initialPath])
 
     // Auto-load selected root when a machine/root is selected
     useEffect(() => {
         if (!machineId || !selectedRoot) return
         if (currentPath && isPathWithin(currentPath, selectedRoot)) return
-        void loadDirectory(selectedRoot)
-    }, [machineId, selectedRoot, currentPath, loadDirectory])
+        const initialPath = (machineId === initialMachineId ? props.initialDirectory : undefined) || rootsQuery.data?.initialPath
+        const path = initialPath && isPathWithin(initialPath, selectedRoot) ? initialPath : selectedRoot
+        void loadDirectory(path, undefined, path !== selectedRoot ? selectedRoot : undefined)
+    }, [machineId, selectedRoot, currentPath, loadDirectory, initialMachineId, props.initialDirectory, rootsQuery.data?.initialPath])
 
     // 切换机器时才重置浏览状态；workspaceRoots 的刷新由上面的 effect
     // 只做 root 有效性校正，避免 metadata 更新时清空用户当前浏览位置。
     useEffect(() => {
+        directoryRequest.current++
         setSelectedRoot(workspaceRoots[0] ?? null)
         setCurrentPath(null)
         setEntries([])
         setError(null)
-    }, [machineId])
+        setIsLoading(false)
+        setTruncated(false)
+    }, [machineId, source.key])
 
     const handleEntryClick = useCallback((entry: MachineDirectoryEntry) => {
         if (entry.type !== 'directory' || !currentPath) return
@@ -318,7 +341,7 @@ export function WorkspaceBrowser(props: {
             >
                 {machines.map(m => (
                     <option key={m.id} value={m.id}>
-                        {getMachineTitle(m)}
+                        {m.label}
                         {getMachineRootsSummary(m) ? ` — ${getMachineRootsSummary(m)}` : ''}
                     </option>
                 ))}
@@ -343,7 +366,7 @@ export function WorkspaceBrowser(props: {
 
     // Selected machine hasn't reported workspace roots — show an info state.
     // Browsing is opt-in, triggered by `--workspace-root`.
-    if (selectedMachine && workspaceRoots.length === 0) {
+    if (selectedMachine && workspaceRoots.length === 0 && source.rootConfigurationHelp) {
         return (
             <div className="flex flex-col h-full">
                 <div className="px-3 py-2 border-b border-[var(--app-divider)]">{machineSelector}</div>
@@ -434,12 +457,13 @@ export function WorkspaceBrowser(props: {
                 )}
             </div>
 
-            {error && (
-                <div className="px-3 py-2 text-sm text-red-600">{error}</div>
+            {(error || rootsQuery.error) && (
+                <div role="alert" className="px-3 py-2 text-sm text-red-600">{error ?? rootsQuery.error?.message}</div>
             )}
+            {truncated ? <div className="px-3 py-2 text-xs text-[var(--app-hint)]">{t('browse.truncated')}</div> : null}
 
             <div className="flex-1 app-scroll-y">
-                {isLoading && entries.length === 0 ? (
+                {(isLoading || rootsQuery.isFetching) && entries.length === 0 ? (
                     <div className="flex items-center justify-center py-8 text-sm text-[var(--app-hint)]">{t('loading')}</div>
                 ) : directories.length === 0 ? (
                     <div className="flex items-center justify-center py-8 text-sm text-[var(--app-hint)]">{t('browse.empty')}</div>

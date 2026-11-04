@@ -62,7 +62,18 @@ import type {
     UploadFileResponse
 } from '@hapi/protocol/apiTypes'
 import { fetchThroughAuthProxy } from '@/api/authProxy'
-import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeStatus, NativeThreadPage } from '@/codex-native/types'
+import type {
+    NativeEndpoint,
+    NativeEndpointStatus,
+    NativeDaemonProject,
+    NativeDirectory,
+    NativeEvent,
+    NativeItemEntry,
+    NativePage,
+    NativeRecord,
+    NativeStatus,
+    NativeThreadPage
+} from '@/codex-native/types'
 import type { AgentFlavor, MessageDeliveryMode } from '@hapi/protocol'
 import type { CancelMessageResponse, SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { TranscriptionMode, TranscriptionProvider, TranscriptionProviderInfo } from '@hapi/protocol/voice'
@@ -287,11 +298,59 @@ export class ApiClient {
         return client
     }
 
-    async getCodexNativeEndpoints(): Promise<{ endpoints: { id: string; label: string; defaultCwd?: string }[] }> {
+    async getCodexNativeEndpoints(): Promise<{ endpoints: NativeEndpoint[] }> {
         return await this.request('/api/codex-native/endpoints')
     }
 
-    async createCodexNativeThread(endpointId: string, payload: { cwd: string; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
+    async createCodexNativeEndpoint(payload: {
+        address: string
+        displayName?: string
+        token?: string
+        defaultCwd?: string
+    }): Promise<{ endpoint: NativeEndpoint }> {
+        return await this.request('/api/codex-native/endpoints', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        })
+    }
+
+    async renameCodexNativeEndpoint(endpointId: string, displayName: string): Promise<{ endpoint: NativeEndpoint }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ displayName })
+        })
+    }
+
+    async getCodexNativeEndpointStatus(endpointId: string): Promise<NativeEndpointStatus> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/status`)
+    }
+
+    async getCodexNativeSuggestions(
+        threadId: string,
+        query: string,
+        signal?: AbortSignal
+    ): Promise<{ suggestions: { key: string; text: string; label: string; description?: string }[] }> {
+        return await this.request(
+            `/api/codex-native/threads/${encodeURIComponent(threadId)}/suggestions?${new URLSearchParams({ query })}`,
+            { signal }
+        )
+    }
+
+    async listCodexNativeProjects(endpointId: string, cursor?: string): Promise<NativePage<NativeDaemonProject>> {
+        const query = cursor ? `?${new URLSearchParams({ cursor })}` : ''
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects${query}`)
+    }
+
+    async createCodexNativeProject(endpointId: string, payload: { name: string; path: string; idempotencyKey: string }): Promise<{ project: NativeDaemonProject }> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/projects`, { method: 'POST', body: JSON.stringify(payload) })
+    }
+
+    async listCodexNativeDirectory(endpointId: string, path: string, includeHidden = false): Promise<NativeDirectory> {
+        const query = new URLSearchParams({ path, includeHidden: String(includeHidden) })
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/directory?${query}`)
+    }
+
+    async createCodexNativeThread(endpointId: string, payload: { cwd: string; projectId?: string | null; model?: string; effort?: string }): Promise<{ session: import('@/types/api').Session; thread: NativeRecord }> {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads`, { method: 'POST', body: JSON.stringify(payload) })
     }
 

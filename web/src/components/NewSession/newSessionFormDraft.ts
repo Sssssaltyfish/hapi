@@ -14,7 +14,10 @@ import { LEGACY_YOLO_BRIDGE_AGENTS } from '@/lib/codexFamilyPermissionAgents'
 
 const DRAFT_STORAGE_KEY = 'hapi:new-session-form-draft'
 
+export type NativeWorkspaceCreationDraft = { signature: string; idempotencyKey: string; projectId?: string }
+
 export type NewSessionFormDraft = {
+    browseDraftId?: string
     agent: AgentType
     model: string
     cursorSelectedBase: string
@@ -29,6 +32,13 @@ export type NewSessionFormDraft = {
     grokPermissionMode: GrokPermissionMode
     sessionType: SessionType
     worktreeName: string
+    native?: {
+        endpointId: string
+        workspaceMode: 'none' | 'existing' | 'new'
+        workspaceName: string
+        projectId: string
+        creation?: NativeWorkspaceCreationDraft
+    }
 }
 
 export function saveNewSessionFormDraft(draft: NewSessionFormDraft): void {
@@ -57,7 +67,25 @@ export function loadNewSessionFormDraft(): NewSessionFormDraft | null {
             ? (parsed.agent as AgentType)
             : 'claude'
         const agentPreserved = restoredAgent === parsed.agent
+        const native = agentPreserved && restoredAgent === 'codex' && parsed.native
+            && typeof parsed.native.endpointId === 'string' && parsed.native.endpointId
+            && ['none', 'existing', 'new'].includes(parsed.native.workspaceMode)
+            ? {
+                endpointId: parsed.native.endpointId,
+                workspaceMode: parsed.native.workspaceMode,
+                workspaceName: typeof parsed.native.workspaceName === 'string' ? parsed.native.workspaceName : '',
+                projectId: typeof parsed.native.projectId === 'string' ? parsed.native.projectId : '',
+                ...(parsed.native.creation
+                    && typeof parsed.native.creation.signature === 'string'
+                    && typeof parsed.native.creation.idempotencyKey === 'string'
+                    ? { creation: {
+                        signature: parsed.native.creation.signature,
+                        idempotencyKey: parsed.native.creation.idempotencyKey,
+                        ...(typeof parsed.native.creation.projectId === 'string' ? { projectId: parsed.native.creation.projectId } : {}),
+                    } } : {}),
+            } : undefined
         return {
+            ...(typeof parsed.browseDraftId === 'string' && parsed.browseDraftId ? { browseDraftId: parsed.browseDraftId } : {}),
             agent: restoredAgent,
             model: agentPreserved ? parsed.model : 'auto',
             cursorSelectedBase: agentPreserved && typeof parsed.cursorSelectedBase === 'string'
@@ -93,7 +121,8 @@ export function loadNewSessionFormDraft(): NewSessionFormDraft | null {
                 ? parsed.grokPermissionMode as GrokPermissionMode
                 : 'default',
             sessionType: (parsed.sessionType as SessionType | undefined) ?? 'simple',
-            worktreeName: typeof parsed.worktreeName === 'string' ? parsed.worktreeName : ''
+            worktreeName: typeof parsed.worktreeName === 'string' ? parsed.worktreeName : '',
+            ...(native ? { native } : {}),
         }
     } catch {
         return null
@@ -112,14 +141,18 @@ export function clearNewSessionFormDraft(): void {
 export function shouldRestoreNewSessionFormDraft(args: {
     initialDirectory?: string
     initialMachineId?: string
+    browseDraftId?: string
 }): boolean {
-    return Boolean(args.initialDirectory?.trim())
+    return Boolean(args.browseDraftId || args.initialDirectory?.trim())
 }
 
 export function newSessionDraftMatchesMachine(
     draft: NewSessionFormDraft,
-    machineId: string | null | undefined
+    machineId: string | null | undefined,
+    nativeEndpointId?: string
 ): boolean {
+    if (draft.native) return draft.native.endpointId === nativeEndpointId
+    if (nativeEndpointId) return false
     if (!draft.machineId || !machineId) {
         return true
     }

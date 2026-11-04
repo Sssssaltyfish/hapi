@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeFilePathHref, remarkFilePathLinks } from '@/lib/remark-file-path-links'
+import { decodeFilePathCandidateHref, decodeFilePathHref, remarkFilePathLinks } from '@/lib/remark-file-path-links'
 
 type TestNode = {
     type: string
@@ -33,6 +33,14 @@ function linkedPath(node: TestNode): string | null {
 }
 
 describe('remarkFilePathLinks', () => {
+    it('hands Windows file URIs to the workspace policy and retains source locations', () => {
+        for (const url of ['file:///C:/My%20Files/main.ts:42:3', 'file://localhost/C:/My%20Files/main.ts#L42']) {
+            const [link] = transformNodes([{ type: 'link', url, children: [{ type: 'text', value: 'source' }] }])
+            expect(decodeFilePathCandidateHref(link.url!)).toBe(url.includes('#') ? 'C:/My Files/main.ts#L42' : 'C:/My Files/main.ts:42:3')
+        }
+        const [posix] = transformNodes([{ type: 'link', url: 'file:///home/owner/main.ts' }])
+        expect(posix.url).toBe('file:///home/owner/main.ts')
+    })
     it('links relative code paths and strips line suffixes from the target path', () => {
         const nodes = transform('Open web/src/router.tsx:42 please')
         const link = nodes.find((node) => node.type === 'link')
@@ -195,13 +203,12 @@ describe('remarkFilePathLinks — explicit markdown links', () => {
         'C:\\Users\\dev\\project\\handoff.md',
         'D:/work/app/src/main.ts:12',
         'D:/outside/secret.ts#L1',
+        'C:/exports/handoff.zip',
     ])('rewrites Windows absolute file link %s to hapi-file-candidate (not premature hapi-file)', (url) => {
         const nodes = transformNodes([linkNode(url)])
         const link = nodes.find((node) => node.type === 'link')!
-        const withoutMeta = url.replace(/#.*$/, '').replace(/\?.*$/, '')
-        const expectedPath = withoutMeta.replace(/:\d+(?::\d+)?$/, '')
         expect(decodeFilePathHref(link.url as string)).toBeNull()
-        expect(link.url).toBe('hapi-file-candidate:' + encodeURIComponent(expectedPath))
+        expect(link.url).toBe('hapi-file-candidate:' + encodeURIComponent(url))
     })
 
     it.each([

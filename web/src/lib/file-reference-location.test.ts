@@ -7,6 +7,7 @@ describe('file reference locations', () => {
         ['/home/igna/project/main.ts#L42', '/home/igna/project/main.ts', 42],
         ['/home/igna/project/main.ts#L42-L48', '/home/igna/project/main.ts', 42],
         ['C:\\project\\main.ts:42:3', 'C:\\project\\main.ts', 42],
+        ['/C:/project/main.ts#L42', '/C:/project/main.ts', 42],
         ['/home/igna/my%20project/main.ts:42', '/home/igna/my project/main.ts', 42],
     ])('retains the path and source line in %s', (input, path, line) => {
         expect(parseFileReferenceLocation(input)).toEqual({ path, line })

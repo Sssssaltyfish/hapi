@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render as testingRender, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ApiClient } from '@/api/client'
 import type { Machine, PiModelSummary } from '@/types/api'
-import { saveNewSessionFormDraft } from './newSessionFormDraft'
+import { loadNewSessionFormDraft, saveNewSessionFormDraft } from './newSessionFormDraft'
 import {
     loadPreferredLaunchSettings,
     savePreferredAgent,
@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
     dshModels: [] as Array<{ modelId: string; name?: string }>,
     dshModelsLoading: false,
     directoryExists: undefined as boolean | undefined,
+    recentNativePaths: [] as string[],
     copilotModels: [] as Array<{ modelId: string; name?: string }>,
     copilotModelsLoading: false,
     kimiModels: [] as Array<{ modelId: string; name?: string; provider?: string }>,
@@ -67,7 +68,7 @@ vi.mock('@/hooks/queries/useSessions', () => ({
 }))
 vi.mock('@/hooks/useRecentPaths', () => ({
     useRecentPaths: () => ({
-        getRecentPaths: () => [],
+        getRecentPaths: (machineId: string | null) => machineId?.startsWith('codex-native:') ? mocks.recentNativePaths : [],
         addRecentPath: vi.fn(),
         getLastUsedMachineId: () => null,
         setLastUsedMachineId: vi.fn()
@@ -217,7 +218,7 @@ vi.mock('@/components/PiSessionImportDialog', () => ({
         </>
     ) : null
 }))
-vi.mock('./DirectorySection', () => ({ DirectorySection: () => null }))
+vi.mock('./DirectorySection', () => ({ DirectorySection: (props: { directory: string; onDirectoryChange: (value: string) => void; onChooseFolder?: () => void }) => props.onChooseFolder ? <><input data-testid="directory" value={props.directory} onChange={event => props.onDirectoryChange(event.target.value)} /><button type="button" data-testid="choose-folder" onClick={props.onChooseFolder}>browse</button></> : null }))
 vi.mock('./MachineSelector', () => ({
     MachineSelector: (props: { machines: Machine[]; machineId: string | null; isDisabled: boolean; onChange: (machineId: string) => void }) => (
         <select
@@ -310,6 +311,7 @@ import { NewSession } from './index'
 
 const machine = { id: 'machine-1' } as Machine
 const api = {} as ApiClient
+afterEach(() => { mocks.recentNativePaths.splice(0) })
 
 function render(tree: React.ReactNode) {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -326,10 +328,11 @@ it('uses one set of launch fields to create native Codex without a runner and re
     const nativeApi = { getCodexNativeEndpoints: endpoints,
         getCodexNativeEndpointStatus: async () => ({ available: true, platformOs: 'linux' }),
         createCodexNativeThread: create,
+        listCodexNativeProjects: async () => ({ data: [], nextCursor: null }),
         withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [{ model: 'gpt-5.6-terra', displayName: 'Terra', supportedReasoningEfforts: [{ reasoningEffort: 'max' }] }] }) }) } as unknown as ApiClient
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    render(<QueryClientProvider client={queryClient}><NewSession api={nativeApi} machines={[]} onSuccess={success} onCancel={vi.fn()} /></QueryClientProvider>)
+    render(<QueryClientProvider client={queryClient}><NewSession api={nativeApi} machines={[]} initialDirectory="/repo" onSuccess={success} onCancel={vi.fn()} /></QueryClientProvider>)
     expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeDisabled()
     fireEvent.click(screen.getByRole('radio', { name: 'Codex Native' }))
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Codex Native' })).toBeChecked())
@@ -346,9 +349,122 @@ it('uses one set of launch fields to create native Codex without a runner and re
     expect(endpoints).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByTestId('create'))
     await waitFor(() => expect(success).toHaveBeenCalledWith('codex-native:native-host:new-thread'))
-    expect(create).toHaveBeenCalledExactlyOnceWith('native-host', { cwd: '/repo', model: 'gpt-5.6-terra', effort: 'max' })
+    expect(create).toHaveBeenCalledExactlyOnceWith('native-host', { cwd: '/repo', projectId: null, model: 'gpt-5.6-terra', effort: 'max' })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['sessions'] })
     expect(mocks.spawnSession).not.toHaveBeenCalled()
+})
+
+it.each(['none', 'existing', 'new'] as const)('preserves the Native target, model, effort and %s workspace through the common Browse round trip', async mode => {
+    localStorage.clear()
+    sessionStorage.clear()
+    savePreferredCreationChoice('codex-native')
+    const create = vi.fn().mockResolvedValue({ session: { id: 'native-created' } })
+    const chooseFolder = vi.fn()
+    const nativeApi = {
+        getCodexNativeEndpoints: async () => ({ endpoints: [{ id: 'windows', label: 'Windows' }, { id: 'wsl', label: 'WSL' }] }),
+        getCodexNativeEndpointStatus: async () => ({ available: true, platformOs: 'linux' }),
+        listCodexNativeProjects: async () => ({ data: [{ id: 'canonical', name: 'Existing', roots: [{ path: '/repo' }] }], nextCursor: null }),
+        createCodexNativeProject: async () => ({ project: { id: 'new-project', name: 'New workspace', roots: [{ path: '/repo/chosen' }] } }),
+        createCodexNativeThread: create,
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [{ model: 'gpt-5.6-terra', displayName: 'Terra', supportedReasoningEfforts: [{ reasoningEffort: 'max' }] }] }) }),
+    } as unknown as ApiClient
+    const first = render(<NewSession api={nativeApi} machines={[]} initialNativeEndpointId="wsl" initialDirectory="/repo" onChooseFolder={chooseFolder} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('model-options')).toHaveTextContent('Terra'))
+    fireEvent.click(screen.getByTestId('model'))
+    fireEvent.click(screen.getByTestId('reasoning'))
+    fireEvent.change(screen.getByLabelText('newSession.native.workspace'), { target: { value: mode } })
+    if (mode === 'existing') {
+        await screen.findByRole('option', { name: 'Existing · /repo' })
+        fireEvent.change(screen.getByLabelText('newSession.native.existingWorkspace'), { target: { value: 'canonical' } })
+    } else if (mode === 'new') {
+        fireEvent.change(screen.getByLabelText('newSession.native.workspaceName'), { target: { value: 'New workspace' } })
+    }
+    fireEvent.click(screen.getByTestId('choose-folder'))
+    expect(chooseFolder).toHaveBeenCalledWith({ machineId: null, nativeEndpointId: 'wsl', directory: '/repo', browseDraftId: expect.any(String) })
+    const browseDraftId = loadNewSessionFormDraft()?.browseDraftId
+    expect(loadNewSessionFormDraft()?.native).toEqual({ endpointId: 'wsl', workspaceMode: mode, workspaceName: mode === 'new' ? 'New workspace' : '', projectId: mode === 'existing' ? 'canonical' : '' })
+    first.unmount()
+    render(<NewSession api={nativeApi} machines={[]} initialNativeEndpointId="wsl" initialDirectory="/repo/chosen" browseDraftId={browseDraftId} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('model')).toHaveTextContent('gpt-5.6-terra'))
+    expect(screen.getByLabelText('newSession.native.workspace')).toHaveValue(mode)
+    if (mode === 'new') expect(screen.getByLabelText('newSession.native.workspaceName')).toHaveValue('New workspace')
+    if (mode === 'existing') await waitFor(() => expect(screen.getByLabelText('newSession.native.existingWorkspace')).toHaveValue('canonical'))
+    await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() => expect(create).toHaveBeenCalledWith('wsl', { cwd: '/repo/chosen', projectId: mode === 'existing' ? 'canonical' : mode === 'new' ? 'new-project' : null, model: 'gpt-5.6-terra', effort: 'max' }))
+})
+
+it.each([
+    { chosen: '/repo', projectCreates: 1, projectId: 'project-1' },
+    { chosen: '/other', projectCreates: 2, projectId: 'project-2' },
+])('keeps Native workspace retry idempotent after a failed chat launch and Browse returning to $chosen', async ({ chosen, projectCreates, projectId }) => {
+    localStorage.clear()
+    sessionStorage.clear()
+    const createProject = vi.fn().mockImplementation(async () => ({ project: { id: `project-${createProject.mock.calls.length}`, name: 'Retry workspace', roots: [{ path: '/repo' }] } }))
+    const createThread = vi.fn().mockRejectedValueOnce(new Error('start failed')).mockResolvedValue({ session: { id: 'retried' } })
+    const api = {
+        getCodexNativeEndpoints: async () => ({ endpoints: [{ id: 'wsl', label: 'WSL' }] }),
+        getCodexNativeEndpointStatus: async () => ({ available: true }),
+        listCodexNativeProjects: async () => ({ data: [], nextCursor: null }),
+        createCodexNativeProject: createProject,
+        createCodexNativeThread: createThread,
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [] }) }),
+    } as unknown as ApiClient
+    const first = render(<NewSession api={api} machines={[]} initialNativeEndpointId="wsl" initialDirectory="/repo" onChooseFolder={vi.fn()} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('newSession.native.workspace'), { target: { value: 'new' } })
+    fireEvent.change(screen.getByLabelText('newSession.native.workspaceName'), { target: { value: 'Retry workspace' } })
+    await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+    fireEvent.click(screen.getByTestId('create'))
+    await screen.findByText('start failed')
+    fireEvent.click(screen.getByTestId('choose-folder'))
+    expect(loadNewSessionFormDraft()?.native?.creation).toMatchObject({ projectId: 'project-1', idempotencyKey: expect.any(String) })
+    const browseDraftId = loadNewSessionFormDraft()?.browseDraftId
+    first.unmount()
+    render(<NewSession api={api} machines={[]} initialNativeEndpointId="wsl" initialDirectory={chosen} browseDraftId={browseDraftId} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByLabelText('newSession.native.workspaceName')).toHaveValue('Retry workspace'))
+    await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() => expect(createThread).toHaveBeenCalledTimes(2))
+    expect(createThread).toHaveBeenLastCalledWith('wsl', { cwd: chosen, projectId })
+    expect(createProject).toHaveBeenCalledTimes(projectCreates)
+    if (projectCreates === 2) expect(createProject.mock.calls[1][1]).toMatchObject({ path: '/other' })
+})
+
+it('restores a cancelled Native Browse with an empty directory only for its explicit history entry', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    savePreferredCreationChoice('codex-native')
+    mocks.recentNativePaths.push('/recent-path')
+    const api = {
+        getCodexNativeEndpoints: async () => ({ endpoints: [{ id: 'wsl', label: 'WSL' }] }),
+        getCodexNativeEndpointStatus: async () => ({ available: true }),
+        listCodexNativeProjects: async () => ({ data: [], nextCursor: null }),
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [{ model: 'gpt-5.6-terra', displayName: 'Terra', supportedReasoningEfforts: [{ reasoningEffort: 'max' }] }] }) }),
+    } as unknown as ApiClient
+    const choose = vi.fn()
+    const first = render(<NewSession api={api} machines={[]} onChooseFolder={choose} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('model-options')).toHaveTextContent('Terra'))
+    expect(screen.getByTestId('directory')).toHaveValue('/recent-path')
+    fireEvent.change(screen.getByTestId('directory'), { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('model'))
+    fireEvent.click(screen.getByTestId('reasoning'))
+    fireEvent.change(screen.getByLabelText('newSession.native.workspace'), { target: { value: 'new' } })
+    fireEvent.change(screen.getByLabelText('newSession.native.workspaceName'), { target: { value: 'Keep on Back' } })
+    fireEvent.click(screen.getByTestId('choose-folder'))
+    const browseDraftId = choose.mock.calls[0][0].browseDraftId as string
+    // The replace before /browse updates this still-mounted page first.
+    first.rerender(<NewSession api={api} machines={[]} initialNativeEndpointId="wsl" initialDirectory="" browseDraftId={browseDraftId} onChooseFolder={choose} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    expect(loadNewSessionFormDraft()?.browseDraftId).toBe(browseDraftId)
+    first.unmount()
+    const unrelated = render(<NewSession api={api} machines={[]} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByLabelText('newSession.native.workspace')).toHaveValue('none')
+    unrelated.unmount()
+    render(<NewSession api={api} machines={[]} initialNativeEndpointId="wsl" initialDirectory="" browseDraftId={browseDraftId} onChooseFolder={choose} onSuccess={vi.fn()} onCancel={vi.fn()} />)
+    await waitFor(() => expect(screen.getByTestId('model')).toHaveTextContent('gpt-5.6-terra'))
+    expect(screen.getByLabelText('newSession.native.workspace')).toHaveValue('new')
+    expect(screen.getByLabelText('newSession.native.workspaceName')).toHaveValue('Keep on Back')
+    expect(await screen.findByTestId('directory')).toHaveValue('')
+    expect(loadNewSessionFormDraft()).toBeNull()
 })
 
 it('can leave a remembered Native choice while runner discovery loads and preserves the selected runner when switching back', async () => {
@@ -445,6 +561,19 @@ describe('NewSession launch preferences', () => {
 
         await waitFor(() => expect(screen.getByDisplayValue('codex')).toBeChecked())
         expect(screen.getByDisplayValue('claude')).toBeDisabled()
+    })
+
+    it('honors an explicit runner Browse target over a remembered Native preference without a form draft', async () => {
+        savePreferredCreationChoice('codex-native')
+        mocks.spawnSession.mockResolvedValue({ type: 'success', sessionId: 'runner-created' })
+        render(<NewSession api={api} machines={[machine]} initialMachineId="machine-1" initialDirectory="/home/igna" onSuccess={mocks.onSuccess} onCancel={vi.fn()} />)
+        expect(screen.getByRole('radio', { name: /^Codex$/ })).toBeChecked()
+        expect(screen.getByRole('radio', { name: 'Codex Native' })).not.toBeChecked()
+        expect(screen.getByLabelText('machine-selector')).toHaveValue('machine-1')
+        await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+        fireEvent.click(screen.getByTestId('create'))
+        await waitFor(() => expect(mocks.spawnSession).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1', directory: '/home/igna', agent: 'codex' })))
+        expect(mocks.onSuccess).toHaveBeenCalledWith('runner-created')
     })
 
     it('refuses a directory rejected by workspace-root validation', async () => {

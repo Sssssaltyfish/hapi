@@ -311,8 +311,13 @@ export function isRichComposerMentionsEnabled(): boolean {
 export function resolveComposerPlaceholderKey(opts: {
     richMentionsEnabled: boolean
     showContinueHint: boolean
-}): 'misc.typeMessage' | 'misc.typeAMessageWithMentions' | 'misc.typeAMessage' {
+    sessionMentionsEnabled?: boolean
+}): 'misc.typeMessage' | 'misc.typeAMessageWithMentions' | 'misc.typeAMessageWithFileMentions' | 'misc.typeAMessage' {
     if (opts.showContinueHint) return 'misc.typeMessage'
-    if (opts.richMentionsEnabled) return 'misc.typeAMessageWithMentions'
+    if (opts.richMentionsEnabled) {
+        return opts.sessionMentionsEnabled === false
+            ? 'misc.typeAMessageWithFileMentions'
+            : 'misc.typeAMessageWithMentions'
+    }
     return 'misc.typeAMessage'
 }

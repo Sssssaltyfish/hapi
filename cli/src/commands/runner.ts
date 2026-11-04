@@ -214,7 +214,7 @@ ${chalk.bold('Options:')}
   If you want to kill all hapi related processes run 
   ${chalk.cyan('hapi doctor clean')}
 
-${chalk.bold('Note:')} The runner runs in the background and manages Claude sessions.
+${chalk.bold('Note:')} The runner runs in the background and manages agent sessions.
 Running ${chalk.cyan('hapi runner start')} stops any existing runner first so new flags and environment variables take effect.
 
 ${chalk.bold('To clean up runaway processes:')} Use ${chalk.cyan('hapi doctor clean')}

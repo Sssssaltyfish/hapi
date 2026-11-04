@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { Machine } from '@/types/api'
+import type { Machine, SessionSummary } from '@/types/api'
 
 export function getMachineTitle(machine: Machine): string {
     if (machine.metadata?.displayName) return machine.metadata.displayName
@@ -48,10 +48,18 @@ function writeCachedLabels(labels: Record<string, string>): void {
  * query has not loaded yet keeps its last known name instead of falling
  * back to a raw id prefix.
  */
-export function useMachineLabels(machines: Machine[]): Record<string, string> {
+const NO_SESSIONS: readonly SessionSummary[] = []
+
+export function useMachineLabels(machines: Machine[], sessions: readonly Pick<SessionSummary, 'metadata'>[] = NO_SESSIONS): Record<string, string> {
     const previousLabelsRef = useRef<Record<string, string> | null>(null)
     const labels = useMemo(() => {
         const merged = readCachedLabels()
+        for (const session of sessions) {
+            const metadata = session.metadata
+            if (metadata?.nativeCodex && metadata.machineId && metadata.host) {
+                merged[metadata.machineId] = metadata.host
+            }
+        }
         for (const machine of machines) {
             merged[machine.id] = getMachineTitle(machine)
         }
@@ -70,7 +78,7 @@ export function useMachineLabels(machines: Machine[]): Record<string, string> {
 
         previousLabelsRef.current = merged
         return merged
-    }, [machines])
+    }, [machines, sessions])
 
     useEffect(() => {
         writeCachedLabels(labels)

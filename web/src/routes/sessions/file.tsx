@@ -252,7 +252,7 @@ export default function FilePage() {
     const targetLine = search.line
 
     const filePath = useMemo(() => decodePath(encodedPath), [encodedPath])
-    const fileName = filePath.split('/').pop() || filePath || t('file.page.fallbackName')
+    const fileName = filePath.split(/[\\/]/).pop() || filePath || t('file.page.fallbackName')
     const imageMimeType = useMemo(() => resolveImageMimeType(filePath), [filePath])
     const markdownFile = useMemo(() => isMarkdownFile(filePath), [filePath])
 
@@ -287,7 +287,7 @@ export default function FilePage() {
 
     const fileContentResult = fileQuery.data
     const decodedContentResult = fileContentResult?.success && fileContentResult.content
-        ? decodeBase64(fileContentResult.content)
+        ? decodeBase64(fileContentResult.content, true)
         : { text: '', ok: true }
     const decodedContent = decodedContentResult.text
     const binaryFile = fileContentResult?.success
@@ -315,6 +315,25 @@ export default function FilePage() {
         && contentSizeBytes <= MAX_COPYABLE_FILE_BYTES
 
     const canDownload = fileContentResult?.success === true && Boolean(fileContentResult.content)
+
+    const downloadedFileRef = useRef<string | null>(null)
+    const downloadViewRef = useRef(`${sessionId}:${filePath}`)
+    useEffect(() => {
+        const key = `${sessionId}:${filePath}`
+        if (downloadViewRef.current !== key) {
+            downloadViewRef.current = key
+            downloadedFileRef.current = null
+        }
+    }, [sessionId, filePath])
+    const downloadUnsupportedFile = useCallback(() => {
+        const key = `${sessionId}:${filePath}`
+        if (downloadedFileRef.current === key || !nativeIdentity || !canDownload) return
+        downloadedFileRef.current = key
+        downloadBase64File(fileName, fileContentResult!.content!, imageMimeType)
+    }, [sessionId, filePath, Boolean(nativeIdentity), imageMimeType, canDownload, fileName, fileContentResult])
+    useEffect(() => {
+        if (binaryFile && !imageMimeType) downloadUnsupportedFile()
+    }, [binaryFile, imageMimeType, downloadUnsupportedFile])
 
     const [displayMode, setDisplayMode] = useState<'diff' | 'file'>(nativeIdentity ? 'file' : 'diff')
     const { codeWrap, setCodeWrap } = useCodeWrap()
@@ -450,6 +469,7 @@ export default function FilePage() {
                             onClick={() => downloadBase64File(fileName, fileContentResult!.content!, imageMimeType)}
                             className="shrink-0 rounded p-1 text-[var(--app-hint)] hover:bg-[var(--app-subtle-bg)] hover:text-[var(--app-fg)] transition-colors"
                             title={t('file.page.download')}
+                            aria-label={t('file.page.download')}
                         >
                             <DownloadIcon className="h-3.5 w-3.5" />
                         </button>
@@ -524,6 +544,7 @@ export default function FilePage() {
                                 src={imagePreviewUrl}
                                 fileName={fileName}
                                 label={t('file.page.imagePreviewAlt', { name: fileName })}
+                                onError={downloadUnsupportedFile}
                             />
                         ) : binaryFile ? (
                             <div className="text-sm text-[var(--app-hint)]">

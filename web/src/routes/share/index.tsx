@@ -118,7 +118,7 @@ export default function SharePage() {
     const [load, setLoad] = useState<LoadState>({ state: 'loading' })
     const { sessions, isLoading: sessionsLoading } = useSessions(api)
     const { machines } = useMachines(api, true)
-    const machineLabelsById = useMachineLabels(machines)
+    const machineLabelsById = useMachineLabels(machines, sessions)
     const { sessionPreviewLimit } = useSessionPreviewLimit()
     const [searchQuery, setSearchQuery] = useState('')
     const [searchExpanded, setSearchExpanded] = useState(true)

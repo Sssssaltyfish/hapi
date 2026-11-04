@@ -8,11 +8,11 @@ export function cn(...inputs: ClassValue[]): string {
 /**
  * Decode base64 string to UTF-8 text
  */
-export function decodeBase64(value: string): { text: string; ok: boolean } {
+export function decodeBase64(value: string, fatal = false): { text: string; ok: boolean } {
     try {
         const binaryString = atob(value)
         const bytes = Uint8Array.from(binaryString, (char) => char.charCodeAt(0))
-        const text = new TextDecoder('utf-8').decode(bytes)
+        const text = new TextDecoder('utf-8', { fatal }).decode(bytes)
         return { text, ok: true }
     } catch {
         return { text: '', ok: false }

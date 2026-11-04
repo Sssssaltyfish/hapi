@@ -190,7 +190,7 @@ export function SessionHeader(props: {
         ? session.metadata.piSessionId?.trim() || null
         : null
     const { machines } = useMachines(api, Boolean(api))
-    const machineLabelsById = useMachineLabels(machines)
+    const machineLabelsById = useMachineLabels(machines, [session])
     const machineLabel = useMemo(
         () => resolveSessionHeaderMachineLabel(session, machineLabelsById),
         [session, machineLabelsById]

@@ -54,9 +54,10 @@ describe('newSessionFormDraft', () => {
         })
     })
 
-    it('restores only when returning from browse with a directory in search', () => {
+    it('restores when Browse returns a directory or an explicit draft identity', () => {
         expect(shouldRestoreNewSessionFormDraft({})).toBe(false)
         expect(shouldRestoreNewSessionFormDraft({ initialDirectory: '/tmp/proj' })).toBe(true)
+        expect(shouldRestoreNewSessionFormDraft({ browseDraftId: 'back-to-empty-form' })).toBe(true)
         expect(shouldRestoreNewSessionFormDraft({
             initialDirectory: '/tmp/proj',
             initialMachineId: 'machine-1'

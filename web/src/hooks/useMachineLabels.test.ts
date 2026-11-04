@@ -73,4 +73,11 @@ describe('useMachineLabels', () => {
 
         expect(result.current).toBe(initialLabels)
     })
+    it('uses Native machine names for synthetic IDs and follows renamed session metadata', () => {
+        const makeSessions = (host: string) => [{ metadata: { path: 'C:/Repo', machineId: 'codex-native:windows', host, nativeCodex: { endpointId: 'windows', threadId: 'thread', available: true } } }]
+        const { result, rerender } = renderHook(({ sessions }) => useMachineLabels([], sessions), { initialProps: { sessions: makeSessions('Windows Native') } })
+        expect(result.current['codex-native:windows']).toBe('Windows Native')
+        rerender({ sessions: makeSessions('Work PC') })
+        expect(result.current['codex-native:windows']).toBe('Work PC')
+    })
 })

@@ -4,7 +4,7 @@ import type { SessionsResponse } from '@hapi/protocol/apiTypes'
 import type { WebAppEnv } from '../web/middleware/auth'
 import type { SyncEngine } from '../sync/syncEngine'
 import { nativeFilePath } from './files'
-import { NativeRegistry, nativeSession, nativeSessionId, type NativeEndpointConfig } from './registry'
+import { NativeRegistry, configuredNativeEndpoints, nativeSession, nativeSessionId, type NativeEndpointConfig } from './registry'
 import { NativeService } from './service'
 import { nativeSessionMiddleware } from './sessionMiddleware'
 import { createSessionsRoutes } from '../web/routes/sessions'
@@ -38,6 +38,30 @@ function fixture() {
     return { native, registry, legacy }
 }
 describe('native identities integrated into original sessions', () => {
+    test('server endpoint configuration validates workspace and host file access', () => {
+        const keys = ['HAPI_CODEX_NATIVE_ENDPOINTS', 'HAPI_CODEX_NATIVE_SOCKET', 'HAPI_CODEX_NATIVE_NAMESPACE', 'HAPI_CODEX_NATIVE_FILE_ACCESS'] as const
+        const previous = keys.map(key => process.env[key])
+        try {
+            for (const fileAccess of ['workspace', 'host'] as const) {
+                process.env.HAPI_CODEX_NATIVE_ENDPOINTS = JSON.stringify([{ ...config, fileAccess }])
+                expect(configuredNativeEndpoints()[0].fileAccess).toBe(fileAccess)
+            }
+            process.env.HAPI_CODEX_NATIVE_ENDPOINTS = JSON.stringify([{ ...config, fileAccess: 'all' }])
+            expect(() => configuredNativeEndpoints()).toThrow()
+            delete process.env.HAPI_CODEX_NATIVE_ENDPOINTS
+            process.env.HAPI_CODEX_NATIVE_SOCKET = 'unix:///existing.sock'
+            process.env.HAPI_CODEX_NATIVE_NAMESPACE = 'owner'
+            process.env.HAPI_CODEX_NATIVE_FILE_ACCESS = 'host'
+            expect(configuredNativeEndpoints()[0].fileAccess).toBe('host')
+            process.env.HAPI_CODEX_NATIVE_FILE_ACCESS = 'all'
+            expect(() => configuredNativeEndpoints()).toThrow()
+        } finally {
+            keys.forEach((key, index) => {
+                if (previous[index] === undefined) delete process.env[key]
+                else process.env[key] = previous[index]
+            })
+        }
+    })
     test('same-namespace aliases use current fork identity and fresh native metadata', async () => {
         const { registry, native, legacy } = fixture()
         const result = await registry.resolve('owner', legacy.id, legacy)
@@ -53,7 +77,7 @@ describe('native identities integrated into original sessions', () => {
         const app = new Hono<WebAppEnv>()
         app.use('*', (c, next) => { c.set('namespace', 'owner'); return next() })
         app.route('/api', createCodexNativeRoutes(registry))
-        expect(await (await app.request('/api/codex-native/endpoints')).json()).toEqual({ endpoints: [{ id: 'local', label: 'Configured daemon' }] })
+        expect(await (await app.request('/api/codex-native/endpoints')).json()).toEqual({ endpoints: [{ id: 'local', label: 'Configured daemon', baseLabel: 'Configured daemon', address: 'unix:///existing.sock', source: 'env' }] })
         expect((await app.request('/api/codex-native/endpoints/foreign/threads/fork/file?path=README.md')).status).toBe(404)
         expect((await app.request('/api/codex-native/endpoints/foreign/threads', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"cwd":"/repo"}' })).status).toBe(404)
         expect(native.calls).toHaveLength(0)
@@ -140,11 +164,48 @@ describe('native identities integrated into original sessions', () => {
         expect((await app.request('/api/sessions/old-url/archive', { method: 'POST' })).status).toBe(200)
         expect(native.calls.at(-1)).toEqual({ method: 'thread/archive', params: { threadId: 'fork' } })
     })
-    test('remote file paths resolve relative links but reject escapes and symlinks before content reads', async () => {
+    test('remote file links resolve against the thread and allow daemon-accessible external paths and symlinks', async () => {
+        const { native } = fixture()
+        for (const [requested, expected] of [['src/file.ts', '/repo/src/file.ts'], ['../handoff.zip', '/handoff.zip'], ['/tmp/handoff.zip', '/tmp/handoff.zip'], ['link', '/repo/link']]) {
+            const result = await nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', requested)
+            expect(result.path).toBe(expected)
+            expect(native.calls.at(-1)).toEqual({ method: 'fs/getMetadata', params: { path: expected } })
+            if (requested === 'link') expect(result.metadata.isSymlink).toBe(true)
+        }
+        expect(native.calls.filter(call => call.method === 'fs/getMetadata')).toHaveLength(4)
+    })
+    test('Windows file links preserve drive and UNC paths outside the thread workspace', async () => {
+        const { native } = fixture()
+        native.readThread = async () => ({ thread: { cwd: 'C:\\repo' } })
+        for (const [requested, expected] of [['src/file.ts', 'C:\\repo\\src\\file.ts'], ['C:\\Users\\owner\\handoff.zip', 'C:\\Users\\owner\\handoff.zip'], ['D:/exports/handoff.zip', 'D:\\exports\\handoff.zip'], ['/D:/exports/handoff.zip', 'D:\\exports\\handoff.zip'], ['file:///D:/My%20Files/handoff.zip', 'D:\\My Files\\handoff.zip'], ['\\\\server\\share\\handoff.zip', '\\\\server\\share\\handoff.zip']]) {
+            expect((await nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', requested)).path).toBe(expected)
+            expect(native.calls.at(-1)).toEqual({ method: 'fs/getMetadata', params: { path: expected } })
+        }
+    })
+    test('Windows URL normalization keeps workspace containment and POSIX paths intact', async () => {
+        const { native } = fixture()
+        expect((await nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', '/C:/exports/handoff.zip')).path).toBe('/C:/exports/handoff.zip')
+        native.readThread = async () => ({ thread: { cwd: 'C:\\repo' } })
+        expect((await nativeFilePath(native, config, 'fork', '/C:/repo/src/file.ts')).path).toBe('C:\\repo\\src\\file.ts')
+        for (const requested of ['/C:/repo/../private/file.ts', 'file:///C:/private/file.ts']) {
+            await expect(nativeFilePath(native, config, 'fork', requested)).rejects.toThrow('outside')
+        }
+    })
+    test('remote file links reject malformed paths and pass through daemon failures', async () => {
+        const { native } = fixture()
+        for (const requested of ['bad\0path', 'a'.repeat(4097), 'file:///tmp/bad%00path', 'file:///tmp/bad%2Fpath']) {
+            await expect(nativeFilePath(native, config, 'fork', requested)).rejects.toThrow('Invalid file path')
+        }
+        expect(native.calls.some(call => call.method.startsWith('fs/'))).toBe(false)
+        native.call = async () => { throw new Error('Daemon permission denied') }
+        await expect(nativeFilePath(native, { ...config, fileAccess: 'host' }, 'fork', '/tmp/handoff.zip')).rejects.toThrow('Daemon permission denied')
+    })
+    test('workspace file access defaults to scoped paths and rejects symlinks', async () => {
         const { native } = fixture()
         expect((await nativeFilePath(native, config, 'fork', 'src/file.ts')).path).toBe('/repo/src/file.ts')
-        await expect(nativeFilePath(native, config, 'fork', '../../etc/passwd')).rejects.toThrow('outside')
+        await expect(nativeFilePath(native, config, 'fork', '/tmp/handoff.zip')).rejects.toThrow('outside')
+        await expect(nativeFilePath(native, { ...config, fileAccess: 'workspace' }, 'fork', '../handoff.zip')).rejects.toThrow('outside')
         await expect(nativeFilePath(native, config, 'fork', 'link/private.txt')).rejects.toThrow('Symbolic')
-        expect(native.calls.some(call => call.method === 'fs/readFile')).toBe(false)
+        expect((await nativeFilePath(native, { ...config, allowedRoots: ['/exports'] }, 'fork', '/exports/handoff.zip')).path).toBe('/exports/handoff.zip')
     })
 })

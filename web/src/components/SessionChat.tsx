@@ -2092,6 +2092,7 @@ function SessionChatInner(props: SessionChatProps) {
                         }}
                         attachmentOrderRef={attachmentOrderRef}
                         resolveSessionMentionTooltip={resolveSessionMentionTooltip}
+                        sessionMentionsEnabled={!native}
                         disabled={props.isSending}
                         pendingSchedule={pendingSchedule}
                         sendAcceptance={sendAcceptance}

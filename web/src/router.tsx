@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     Navigate,
     Outlet,
@@ -22,6 +22,8 @@ import { SessionChat } from '@/components/SessionChat'
 import { SessionList } from '@/components/SessionList'
 import { NewSession } from '@/components/NewSession'
 import { WorkspaceBrowser } from '@/components/WorkspaceBrowser'
+import { nativeWorkspaceBrowserSource, runnerWorkspaceBrowserSource } from '@/components/WorkspaceBrowserSource'
+import { selectedBrowserDirectorySearch, sessionCreationBrowseSearch, type SessionCreationBrowseSearch } from '@/routes/sessionCreationBrowse'
 import { LoadingState } from '@/components/LoadingState'
 import { useAppContext } from '@/lib/app-context'
 import { useAppGoBack } from '@/hooks/useAppGoBack'
@@ -162,7 +164,7 @@ function SessionsPage() {
         })()
     }, [addToast, refetch, t])
 
-    const machineLabelsById = useMachineLabels(machines)
+    const machineLabelsById = useMachineLabels(machines, sessions)
     const machinesById = useMemo(() => {
         const byId: Record<string, typeof machines[number]> = {}
         for (const machine of machines) {
@@ -663,7 +665,7 @@ function HapiSessionPage() {
     // Mention pool is stricter than sidebar (#1506): titled sessions only; match via sessionMatchesQuery.
     const { sessions: allSessions } = useSessions(api)
     const { machines: mentionMachines } = useMachines(api, true)
-    const mentionMachineLabelsById = useMachineLabels(mentionMachines)
+    const mentionMachineLabelsById = useMachineLabels(mentionMachines, allSessions)
     // Same fallbacks as share picker / SessionList search.
     const resolveMentionMachineLabel = useCallback((machineId: string | null) => {
         if (machineId && mentionMachineLabelsById[machineId]) {
@@ -902,7 +904,8 @@ function NewSessionPage() {
     const queryClient = useQueryClient()
     const { machines, isLoading: machinesLoading, error: machinesError } = useMachines(api, true)
     const { t } = useTranslation()
-    const { directory: initialDirectory, machineId: initialMachineId, shareTransferId } = newSessionRoute.useSearch()
+    const { directory: initialDirectory, machineId: initialMachineId, nativeEndpointId: initialNativeEndpointId, shareTransferId, browseDraftId } = newSessionRoute.useSearch()
+    const browseNavigationRef = useRef(false)
 
     const handleCancel = useCallback(() => {
         if (shareTransferId) {
@@ -935,16 +938,28 @@ function NewSessionPage() {
         })
     }, [navigate, queryClient, shareTransferId])
 
-    const handleChooseFolder = useCallback((args: { machineId: string | null; directory: string }) => {
+    const handleChooseFolder = useCallback(async (args: { machineId: string | null; nativeEndpointId?: string; directory: string; browseDraftId: string }) => {
+        if (browseNavigationRef.current) return
+        browseNavigationRef.current = true
         // Forward the currently-selected machine so /browse opens scoped to
         // it rather than falling back to `hapi:lastMachineId`, which can
         // disagree if the user changed machines without yet creating a
         // session. Preserve shareTransferId so a share-target spawn that
         // detours through /browse still seeds the composer after success.
-        const search: { machineId?: string; shareTransferId?: string } = {}
+        const search: SessionCreationBrowseSearch = {}
         if (args.machineId) search.machineId = args.machineId
+        if (args.nativeEndpointId) search.nativeEndpointId = args.nativeEndpointId
+        search.directory = args.directory
         if (shareTransferId) search.shareTransferId = shareTransferId
-        navigate({ to: '/browse', search })
+        search.browseDraftId = args.browseDraftId
+        try {
+            // Preserve the return destination for the header and browser Back
+            // controls, including a form whose execution directory is empty.
+            await navigate({ to: '/sessions/new', search, replace: true })
+            await navigate({ to: '/browse', search })
+        } finally {
+            browseNavigationRef.current = false
+        }
     }, [navigate, shareTransferId])
 
     return (
@@ -981,6 +996,8 @@ function NewSessionPage() {
                     onChooseFolder={handleChooseFolder}
                     initialDirectory={initialDirectory}
                     initialMachineId={initialMachineId}
+                    initialNativeEndpointId={initialNativeEndpointId}
+                    browseDraftId={browseDraftId}
                 />
             </div>
         </div>
@@ -993,16 +1010,26 @@ function BrowsePage() {
     const goBack = useAppGoBack()
     const { machines, isLoading: machinesLoading } = useMachines(api, true)
     const { t } = useTranslation()
-    const { machineId: initialMachineId, shareTransferId } = browseRoute.useSearch()
+    const context = browseRoute.useSearch()
+    const { machineId: initialMachineId, nativeEndpointId, directory: initialDirectory } = context
+    const queryClient = useQueryClient()
+    const endpoints = useQuery({
+        queryKey: ['codex-native', 'endpoints'],
+        queryFn: () => api.getCodexNativeEndpoints(),
+        enabled: Boolean(nativeEndpointId),
+        staleTime: 30_000,
+    })
+    const source = useMemo(() => nativeEndpointId
+        ? nativeWorkspaceBrowserSource(api, endpoints.data?.endpoints ?? [], endpoints.isPending, nativeEndpointId, initialDirectory)
+        : runnerWorkspaceBrowserSource(api, machines, machinesLoading, () => { void queryClient.invalidateQueries({ queryKey: queryKeys.machines }) }),
+    [api, nativeEndpointId, initialDirectory, endpoints.data, endpoints.isPending, machines, machinesLoading, queryClient])
 
     const handleStartSession = useCallback((machineId: string, directory: string) => {
         navigate({
             to: '/sessions/new',
-            search: shareTransferId
-                ? { directory, machineId, shareTransferId }
-                : { directory, machineId }
+            search: selectedBrowserDirectorySearch(machineId, directory, context)
         })
-    }, [navigate, shareTransferId])
+    }, [navigate, context])
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -1021,11 +1048,10 @@ function BrowsePage() {
 
             <div className="flex-1 min-h-0">
                 <WorkspaceBrowser
-                    api={api}
-                    machines={machines}
-                    machinesLoading={machinesLoading}
+                    source={source}
                     onStartSession={handleStartSession}
-                    initialMachineId={initialMachineId}
+                    initialMachineId={nativeEndpointId ?? initialMachineId}
+                    initialDirectory={initialDirectory}
                 />
             </div>
         </div>
@@ -1143,44 +1169,17 @@ const sessionFileRoute = createRoute({
     component: FilePage,
 })
 
-type NewSessionSearch = {
-    directory?: string
-    machineId?: string
-    shareTransferId?: string
-}
-
 const newSessionRoute = createRoute({
     getParentRoute: () => sessionsRoute,
     path: 'new',
-    validateSearch: (search: Record<string, unknown>): NewSessionSearch => {
-        const result: NewSessionSearch = {}
-        if (typeof search.directory === 'string' && search.directory) {
-            result.directory = search.directory
-        }
-        if (typeof search.machineId === 'string' && search.machineId) {
-            result.machineId = search.machineId
-        }
-        if (typeof search.shareTransferId === 'string' && search.shareTransferId) {
-            result.shareTransferId = search.shareTransferId
-        }
-        return result
-    },
+    validateSearch: sessionCreationBrowseSearch,
     component: NewSessionPage,
 })
 
 const browseRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/browse',
-    validateSearch: (search: Record<string, unknown>): { machineId?: string; shareTransferId?: string } => {
-        const result: { machineId?: string; shareTransferId?: string } = {}
-        if (typeof search.machineId === 'string' && search.machineId) {
-            result.machineId = search.machineId
-        }
-        if (typeof search.shareTransferId === 'string' && search.shareTransferId) {
-            result.shareTransferId = search.shareTransferId
-        }
-        return result
-    },
+    validateSearch: sessionCreationBrowseSearch,
     component: BrowsePage,
 })
 

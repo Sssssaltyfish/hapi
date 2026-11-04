@@ -37,6 +37,7 @@ export function ImagePreview(props: {
     imageClassName?: string
     imageStyle?: CSSProperties
     caption?: ReactNode
+    onError?: () => void
     galleryId?: string
     onTriggerPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
     onTriggerContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void
@@ -290,6 +291,7 @@ export function ImagePreview(props: {
             >
                 <img
                     src={props.src}
+                    onError={props.onError}
                     alt={props.label}
                     className={props.imageClassName ?? 'max-h-[calc(100vh-14rem)] max-w-full object-contain transition-transform group-hover:scale-[1.01]'}
                     style={props.imageStyle}

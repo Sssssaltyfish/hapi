@@ -5,6 +5,20 @@ import { dirname, join } from 'node:path'
 import { withSettingsFileLock } from '@hapi/protocol/settingsFileLock'
 
 export interface Settings {
+    /** Native machine connections only; conversation state remains daemon-owned. */
+    nativeCodexEndpoints?: Array<{
+        id: string
+        namespace: string
+        endpoint: string
+        displayName?: string
+        token?: string
+        defaultCwd?: string
+    }>
+    nativeCodexDisplayNames?: Array<{
+        id: string
+        namespace: string
+        displayName: string
+    }>
     machineId?: string
     machineIdConfirmedByServer?: boolean
     runnerAutoStartWhenRunningHappy?: boolean
