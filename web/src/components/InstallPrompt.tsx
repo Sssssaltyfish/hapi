@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
 import { usePlatform } from '@/hooks/usePlatform'
-import { CloseIcon, ShareIcon, PlusCircleIcon } from '@/components/icons'
+import { CloseIcon } from '@/components/icons'
+import { PWAInstallGuide } from '@/components/PWAInstallGuide'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useTranslation } from '@/lib/use-translation'
 
 export function InstallPrompt() {
@@ -34,55 +36,14 @@ export function InstallPrompt() {
     if (canInstallIOS) {
         if (showIOSGuide) {
             return (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-                    <div className="w-full max-w-lg bg-[var(--app-bg)] rounded-t-2xl p-5 pb-8 space-y-4 animate-slide-up">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-base font-semibold text-[var(--app-fg)]">
-                                {t('install.title')}
-                            </h3>
-                            <button
-                                onClick={() => setShowIOSGuide(false)}
-                                className="p-1 -mr-1 text-[var(--app-hint)] active:opacity-60"
-                                aria-label="Close"
-                            >
-                                <CloseIcon className="w-5 h-5" />
-                            </button>
-                        </div>
+                <Dialog open={showIOSGuide} onOpenChange={setShowIOSGuide}>
+                    <DialogContent className="top-auto bottom-0 translate-y-0 rounded-b-none p-5 pb-8 space-y-4">
+                        <DialogHeader>
+                            <DialogTitle>{t('install.title')}</DialogTitle>
+                            <DialogDescription>{t('install.description')}</DialogDescription>
+                        </DialogHeader>
 
-                        <div className="space-y-3">
-                            <div className="flex items-start gap-3">
-                                <div className="shrink-0 w-8 h-8 rounded-full bg-[var(--app-fg)] text-[var(--app-bg)] flex items-center justify-center text-sm font-medium">
-                                    1
-                                </div>
-                                <div className="flex-1 pt-1">
-                                    <p className="text-sm text-[var(--app-fg)]">
-                                        Tap the <ShareIcon className="inline w-5 h-5 align-text-bottom" /> Share button in the toolbar
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                                <div className="shrink-0 w-8 h-8 rounded-full bg-[var(--app-fg)] text-[var(--app-bg)] flex items-center justify-center text-sm font-medium">
-                                    2
-                                </div>
-                                <div className="flex-1 pt-1">
-                                    <p className="text-sm text-[var(--app-fg)]">
-                                        Scroll down and tap <PlusCircleIcon className="inline w-5 h-5 align-text-bottom" /> <strong>Add to Home Screen</strong>
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="flex items-start gap-3">
-                                <div className="shrink-0 w-8 h-8 rounded-full bg-[var(--app-fg)] text-[var(--app-bg)] flex items-center justify-center text-sm font-medium">
-                                    3
-                                </div>
-                                <div className="flex-1 pt-1">
-                                    <p className="text-sm text-[var(--app-fg)]">
-                                        Tap <strong>Add</strong> in the top right corner
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <PWAInstallGuide platform="ios" />
 
                         <button
                             onClick={() => {
@@ -93,8 +54,8 @@ export function InstallPrompt() {
                         >
                             {t('button.dismiss')}
                         </button>
-                    </div>
-                </div>
+                    </DialogContent>
+                </Dialog>
             )
         }
 
@@ -124,7 +85,7 @@ export function InstallPrompt() {
                             dismissInstall()
                         }}
                         className="shrink-0 p-2 text-[var(--app-hint)] active:opacity-60"
-                        aria-label="Dismiss"
+                        aria-label={t('button.dismiss')}
                     >
                         <CloseIcon className="w-4 h-4" />
                     </button>
@@ -169,7 +130,7 @@ export function InstallPrompt() {
                         dismissInstall()
                     }}
                     className="shrink-0 p-2 text-[var(--app-hint)] active:opacity-60"
-                    aria-label="Dismiss"
+                    aria-label={t('button.dismiss')}
                 >
                     <CloseIcon className="w-4 h-4" />
                 </button>

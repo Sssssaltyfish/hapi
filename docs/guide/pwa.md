@@ -16,6 +16,8 @@ A Progressive Web App (PWA) is a web application that can be installed on your d
 
 ## Installing HAPI PWA
 
+Open HAPI over HTTPS and go to **Settings → General → Install HAPI**. The entry remains available after you dismiss the install banner. It opens the browser's install dialog when available, or shows instructions for your browser.
+
 ### Android (Chrome/Edge)
 
 1. Open HAPI in Chrome or Edge browser

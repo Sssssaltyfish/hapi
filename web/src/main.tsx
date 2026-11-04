@@ -12,6 +12,7 @@ import { createAppRouter } from './router'
 import { I18nProvider } from './lib/i18n-context'
 import { restoreSpaRedirect } from './lib/spaRedirect'
 import { installScrollRestorationGuard } from './lib/scrollStorageGuard'
+import { initializePWAInstall } from './lib/pwa-install'
 
 function getStartParam(): string | null {
     const query = new URLSearchParams(window.location.search)
@@ -35,6 +36,7 @@ function getInitialPath(): string {
 }
 
 async function bootstrap() {
+    initializePWAInstall()
     installScrollRestorationGuard()
     initializeFontScale()
     initializeDisclosureDuration()
