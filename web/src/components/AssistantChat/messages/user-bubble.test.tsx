@@ -85,6 +85,36 @@ describe('UserBubbleContent', () => {
         expect(screen.getByTestId('lazy-rainbow-text')).toHaveTextContent('Files mentioned by the user:')
     })
 
+    it('keeps Desktop setup, quotes and pasted references in order with compact setup details', () => {
+        const worktree = '# Worktree instructions:\nThe user selected Worktree for this task. Worktree creation runs asynchronously. Use the supplied worktree creation status to check progress. Perform the requested task only in the resulting checkout.\n'
+        const ide = '# Context from my IDE setup:\n\n## Active file: /workspace/active.ts\n\n## Open tabs:\n- notes.md: /workspace/notes.md\n'
+        const pasted = '# Files pasted by the user:\n\n## "Pasted preview": /workspace/pasted.txt\n'
+        const wire = `${worktree}${serializeResponseAnnotations(`${ide}\n${pasted}\n## My request:\nCompare these files.`, [{ text: 'Quoted response' }])}`
+        const { container } = render(<I18nProvider><UserBubbleContent text={wire} /></I18nProvider>)
+        expect(Array.from(container.querySelectorAll('[data-testid$="-input-context"], [data-testid="response-annotation-cards"]')).map(element => element.getAttribute('data-testid'))).toEqual([
+            'worktree-input-context', 'response-annotation-cards', 'ide-input-context', 'pasted-input-context',
+        ])
+        expect(screen.getByTestId('worktree-input-context')).not.toHaveAttribute('open')
+        expect(screen.getByTestId('ide-input-context')).not.toHaveAttribute('open')
+        expect(screen.getByTitle('/workspace/active.ts')).toBeInTheDocument()
+        expect(screen.getByTitle('/workspace/notes.md')).toBeInTheDocument()
+        expect(screen.getByTitle('/workspace/pasted.txt')).toBeInTheDocument()
+        expect(screen.getByText('Compare these files.')).toBeVisible()
+        expect(container.textContent).not.toContain('# Context from my IDE setup:')
+    })
+
+    it('shows pasted-text-only requests and retains ambiguous IDE selections as ordinary text', () => {
+        const pasted = '# Files pasted by the user:\n\n## "Pasted request": /workspace/request.txt\n\nPasted text contains the user\'s request.\n\n## My request:\n'
+        const view = render(<I18nProvider><UserBubbleContent text={pasted} /></I18nProvider>)
+        expect(screen.getByTestId('pasted-input-context')).toHaveTextContent('Pasted request')
+        expect(screen.getByText('The request is in the pasted text.')).toBeVisible()
+        const ambiguous = '# Context from my IDE setup:\n\n## Active file: /workspace/example.md\n\n## Active selection of the file:\n## My request:\nThis heading is selected source text.'
+        view.rerender(<I18nProvider><UserBubbleContent text={ambiguous} /></I18nProvider>)
+        expect(screen.queryByTestId('ide-input-context')).not.toBeInTheDocument()
+        expect(screen.getByTestId('lazy-rainbow-text')).toHaveTextContent('This heading is selected source text.')
+        expect(screen.getByTestId('lazy-rainbow-text')).toHaveTextContent('Active selection of the file:')
+    })
+
     it('asks LazyRainbowText to preserve single newlines in sent prompt bodies', () => {
         const { container } = render(<UserBubbleContent text={'Line one\nLine two\nLine three'} />)
         const lazyText = container.querySelector('[data-testid="lazy-rainbow-text"]')

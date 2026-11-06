@@ -79,18 +79,21 @@ A single component-render regression reproduces the model-catalog failure throug
 
 ## Desktop and CLI message context
 
-HAPI projects recognized context envelopes into its existing chat controls while retaining the original Codex message. Desktop local file mentions appear as compact filename references using the existing file viewer and source-line navigation. The request text stays beneath the references; copying the message includes the filenames, paths, source lines and request.
+HAPI projects recognized context envelopes into its existing chat controls while retaining the original Codex message. Desktop local file mentions appear as compact filename references using the existing file viewer and source-line navigation. Context sections retain their original order, followed by the request. Copying the message includes context content, filenames, paths, source lines and request.
 
 | Verified input | HAPI presentation |
 | --- | --- |
 | Desktop `# Files mentioned by the user:` with local absolute paths, optional `(line N)` / `(lines N-M)`, and the complete Desktop attachment instruction footer | Filename references; clicking opens the existing file viewer at the first selected line. Windows paths and paths containing spaces are preserved. |
+| Desktop IDE context with an active local file and/or open local tabs, without an active selection | Collapsed IDE summary with the original active file and tab order; expanding it shows the existing file references. |
+| Desktop local pasted-text files with JSON-quoted preview labels | Existing file references under Pasted text. A pasted-text-only request keeps its request-in-pasted-text indicator. |
+| Desktop basic worktree setup instructions | Collapsed Worktree setup summary; expanding retains the complete setup instruction. |
 | Desktop response annotations with selected text and optional comments | Existing quote cards and source navigation when source metadata is available. |
 | Desktop referenced Codex chats with validated host/thread IDs | Existing thread links in the request; the model-facing reference instructions are omitted from display. |
 | Desktop asynchronous question replies | Existing question and answer presentation. |
 | Desktop complete scheduled heartbeat envelopes | Existing scheduled-message cards. |
 | Existing HAPI generic CLI grammar: command name, arguments, stdout and stderr tags | Existing CLI command/output presentation. This is HAPI's accepted grammar; it is not a claim that Codex CLI emits these tags. |
 
-The installed Desktop builder also emits pasted-text attachments, uploaded-file pointers, Source Files IDs, Library/shared-thread metadata, IDE selections and open tabs, browser/page/app context, worktree instructions, PR repair/check context and diff/browser comments. These require their own validated parsers and suitable viewers before conversion. They remain visible as context text today. A file section containing unsupported metadata or an upload variant also remains visible in full. This keeps unfamiliar context and user prose available while those integrations are developed.
+Uploaded-file pointers, Source Files IDs, Library/shared-thread metadata, browser/page/app context, PR repair/check context and diff/browser comments remain visible as context text. IDE active selections and standalone selected-text sections contain unescaped source text without a reliable closing boundary; the entire ambiguous section stays visible. Worktree sections with starting-state extensions also stay visible until those variants have a validated presentation. A file or pasted-text section containing unsupported metadata or an upload variant remains visible in full. This keeps unfamiliar context and user prose available while those integrations are developed.
 
 Only recognized leading context sections are projected. Quoted examples, fenced examples, malformed sections and unknown members stay visible. Parsing stops at the actual request, so a user-authored `## My request:` heading or another context example in that request is retained. The presentation conversion does not alter queued input, daemon history or the context received by the model.
 

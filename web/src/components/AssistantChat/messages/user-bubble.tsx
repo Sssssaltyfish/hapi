@@ -4,10 +4,9 @@ import { SparklesIcon } from '@/components/ToolCard/icons'
 import { cn } from '@/lib/utils'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
 import { splitCodexInputContext } from '@/lib/codexInputContext'
-import { ResponseAnnotationCards } from '@/components/AssistantChat/ResponseAnnotationCards'
 import { parseScheduledMessage } from '@/lib/scheduledMessage'
 import { ScheduledMessageCard } from './ScheduledMessageCard'
-import { UserFileReferences } from './UserFileReferences'
+import { UserInputContext } from './UserInputContext'
 
 const LEADING_DIRECTIVE_REGEX = /^([$\/][a-z0-9][\w-]*)(?=\s|$)/i
 
@@ -75,9 +74,8 @@ export function UserBubbleContent(props: { text: string }) {
         </div>)}
     </div>
     const annotated = splitCodexInputContext(props.text)
-    if (annotated.annotations.length > 0 || annotated.references.length > 0 || annotated.files.length > 0) return <div className="flex min-w-0 flex-col gap-2">
-        {annotated.annotations.length > 0 && <ResponseAnnotationCards annotations={annotated.annotations} />}
-        {annotated.files.length > 0 && <UserFileReferences files={annotated.files} />}
+    if (annotated.sections.length > 0 || annotated.references.length > 0) return <div className="flex min-w-0 flex-col gap-2">
+        <UserInputContext sections={annotated.sections} />
         {annotated.body.trim() ? <UserBubbleText text={annotated.body} /> : null}
     </div>
     return <UserBubbleText text={props.text} />
