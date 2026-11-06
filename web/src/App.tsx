@@ -45,6 +45,7 @@ import { ToastContainer } from '@/components/ToastContainer'
 import { PwaUpdateProvider } from '@/lib/pwa-update-context'
 import { ToastProvider, useToast } from '@/lib/toast-context'
 import type { SyncEvent } from '@/types/api'
+import { refreshAppIconLinks } from '@/lib/app-icon'
 
 type ToastEvent = Extract<SyncEvent, { type: 'toast' }>
 
@@ -78,6 +79,14 @@ function AppInner() {
         ? (passkey.session ? { type: 'passkey' as const, token: passkey.session.token } : null)
         : legacyAuthSource, [passkey.enabled, passkey.session, legacyAuthSource])
     const { token, api, isLoading: isAuthLoading, error: authError, needsBinding, bind } = useAuth(authSource, baseUrl)
+    useEffect(() => {
+        if (!api) return
+        let cancelled = false
+        void api.getAppIcon().then((icon) => {
+            if (!cancelled) refreshAppIconLinks(api.getAppIconUrl(icon.revision))
+        }).catch(() => {})
+        return () => { cancelled = true }
+    }, [api])
     const [titleSuggestionAvailable, setTitleSuggestionAvailable] = useState(false)
     const goBack = useAppGoBack()
     const pathname = useLocation({ select: (location) => location.pathname })

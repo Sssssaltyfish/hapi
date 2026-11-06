@@ -15,6 +15,7 @@ import { useSessionHeaderMetadata, type SessionHeaderMetadataKey } from '@/hooks
 import { useAppBadgePreference } from '@/hooks/useAppBadgePreference'
 import { useOpenExternalLinksInNewTab } from '@/hooks/useOpenExternalLinksInNewTab'
 import { SettingsChoiceGroup, SettingsFieldLabel, SettingsPageContent, SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings/SettingsPrimitives'
+import { AppIconSettings } from '@/components/settings/AppIconSettings'
 
 function MinusIcon() {
     return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true"><path d="M5 12h14" /></svg>
@@ -172,6 +173,7 @@ export default function SettingsDisplayPage() {
                 />
                 <ColorThemePicker />
                 <ThemeColorControls />
+                <AppIconSettings />
             </SettingsSection>
 
             <SettingsSection title={t('settings.display.typography')}>

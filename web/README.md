@@ -52,6 +52,21 @@ See `src/router.tsx` for route definitions.
 
 ## Features
 
+### App icon
+
+In Display settings, the hub owner (default namespace) can choose an image,
+position a square crop by dragging or using arrow keys, and adjust its zoom.
+The browser exports only the crop as a compressed 512 × 512 PNG; the original
+image stays in browser memory and is never uploaded. The hub keeps one
+`app-icon.png`, replacing it on each save; Restore default removes it.
+
+The icon applies across the hub to browser tabs and newly installed mobile
+PWAs when the hub serves the frontend. Image and manifest reads are public so
+browsers can install without an API token; changes require owner authentication.
+The generated manifest retains its existing start URL, scope, and share target.
+Installed apps may update their icon later or require removal and reinstallation
+(including adding the app to the home screen again on iOS).
+
 ### Session list (`src/components/SessionList.tsx`)
 
 - Active/inactive status indicator.

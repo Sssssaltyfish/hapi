@@ -1111,6 +1111,22 @@ export class ApiClient {
         return await this.request<HubSettingsResponse>('/api/hub-settings')
     }
 
+    getAppIconUrl(revision?: string | null): string {
+        return this.buildUrl(`/api/app-icon/image${revision ? `?v=${encodeURIComponent(revision)}` : ''}`)
+    }
+
+    async getAppIcon(): Promise<{ revision: string | null; canEdit: boolean }> {
+        return this.request('/api/app-icon')
+    }
+
+    async setAppIcon(image: Blob): Promise<{ revision: string | null; canEdit: boolean }> {
+        return this.request('/api/app-icon', { method: 'PUT', headers: { 'content-type': 'image/png' }, body: image })
+    }
+
+    async resetAppIcon(): Promise<{ revision: string | null; canEdit: boolean }> {
+        return this.request('/api/app-icon', { method: 'DELETE' })
+    }
+
     async updateHubSettings(settings: UpdateHubSettingsRequest): Promise<HubSettingsResponse> {
         return await this.request<HubSettingsResponse>('/api/hub-settings', {
             method: 'PUT',

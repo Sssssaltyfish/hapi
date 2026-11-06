@@ -37,6 +37,8 @@ import { createPushRoutes } from './routes/push'
 import { createDevicesRoutes } from './routes/devices'
 import { createVoiceRoutes } from './routes/voice'
 import { createHubSettingsRoutes } from './routes/hubSettings'
+import { AppIconStore } from './appIcon'
+import { createAppIconRoutes, createPublicAppIconRoutes, withAppIcon } from './routes/appIcon'
 import { createWorkGraphRoutes } from './routes/workGraph'
 import type { SSEManager } from '../sse/sseManager'
 import type { VisibilityTracker } from '../visibility/visibilityTracker'
@@ -239,6 +241,7 @@ function createWebApp(options: {
     app.use('*', logger())
 
     const configuration = getConfiguration()
+    const appIconStore = new AppIconStore(configuration.dataDir)
     const nativeRegistry = new NativeRegistry(undefined, undefined, { dataDir: configuration.dataDir })
     const corsOrigins = options.corsOrigins ?? configuration.corsOrigins
     const corsOriginOption = corsOrigins.includes('*') ? '*' : corsOrigins
@@ -292,6 +295,18 @@ function createWebApp(options: {
     if (!passkeyConfig() && !externalAuthConfig()) app.route('/api', createBindRoutes(options.jwtSecret, options.store))
     else app.post('/api/bind', c => c.json({ error: 'Passkey login required' }, 403))
 
+    // Browser install and favicon requests cannot attach an API bearer token.
+    app.route('/api', createPublicAppIconRoutes(appIconStore))
+    app.get('/manifest.webmanifest', async (c, next) => {
+        const sourcePath = options.embeddedAssetMap?.get('/manifest.webmanifest')?.sourcePath
+            ?? join(findWebappDistDir().distDir, 'manifest.webmanifest')
+        const file = Bun.file(sourcePath)
+        if (!await file.exists()) return next()
+        const manifest = await file.json() as Record<string, unknown>
+        c.header('Cache-Control', 'no-store')
+        c.header('Content-Type', 'application/manifest+json')
+        return c.body(JSON.stringify(withAppIcon(manifest, (await appIconStore.read())?.revision ?? null)))
+    })
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
     app.use('/api/sessions/*', nativeSessionMiddleware(nativeRegistry, options.getSyncEngine))
     app.route('/api', createEventsRoutes(options.getSseManager, options.getSyncEngine, options.getVisibilityTracker))
@@ -302,6 +317,7 @@ function createWebApp(options: {
     app.route('/api', createStorageRoutes(configuration.dbPath))
     app.route('/api', createCodexNativeRoutes(nativeRegistry))
     app.route('/api', createHubSettingsRoutes(configuration.dataDir))
+    app.route('/api', createAppIconRoutes(appIconStore))
     app.route('/api', createUsageRoutes(options.store))
     app.route('/api', createGitRoutes(options.getSyncEngine))
     // 中文注释：这里提供两类 Codex 辅助能力：扫描本地 transcript 以导入到 Hapi，以及按需重启 Codex Desktop 客户端。
