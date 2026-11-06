@@ -1,14 +1,26 @@
 import { expect, it } from 'bun:test'
 import { NATIVE_THREAD_REFERENCES_HEADER, NATIVE_THREAD_REFERENCES_INSTRUCTIONS } from './sessionCitation'
-import { serializeResponseAnnotations, codexInputDisplayText, splitCodexInputContext } from './codexInputContext'
+import { codexAnnotatedRequest, serializeResponseAnnotations, codexInputDisplayText, splitCodexInputContext } from './codexInputContext'
 
 const references = [{ hostId: 'local', threadId: 'thread-1' }]
 const referencePrefix = `${NATIVE_THREAD_REFERENCES_HEADER}\n${NATIVE_THREAD_REFERENCES_INSTRUCTIONS}\n${JSON.stringify(references)}\n`
 
+it('restores Desktop framing after transport trimming, including annotation-only and older HAPI inputs', () => {
+    const annotation = { text: 'Selected line', annotation: 'Why?', source: { messageId: 'item', startOffset: 1, endOffset: 14 } }
+    for (const body of ['', '## My request:\nMy own heading']) {
+        const wire = serializeResponseAnnotations(body, [annotation])
+        expect(codexAnnotatedRequest(wire.trim())).toEqual({ text: wire, body })
+        expect(splitCodexInputContext(wire).body).toBe(body)
+    }
+    const legacy = '# Response annotations:\nContext\n<response-annotations>\n[{"text":"quote"}]\n</response-annotations>\nExplain'
+    const text = '\n' + legacy.replace('\nExplain', '\n\n## My request:\nExplain')
+    expect(codexAnnotatedRequest(legacy)).toEqual({ text, body: 'Explain' })
+})
+
 it('projects Desktop context once, preserving the user request, selected text and notes', () => {
     const annotations = [{ text: 'Selected text', annotation: 'Explain this' }]
     const body = 'See [other chat](thread://thread-1?hostId=local).\n## My request:\nThis heading is my text.'
-    const wire = serializeResponseAnnotations(`${referencePrefix}\n## My request:\n${body}`, annotations)
+    const wire = serializeResponseAnnotations(body, annotations, referencePrefix)
     expect(splitCodexInputContext(wire)).toMatchObject({ body, annotations, references, files: [] })
     expect(splitCodexInputContext(wire.replace('# Response annotations:', '## Response annotations:'))).toMatchObject({ body, annotations, references, files: [] })
     expect(codexInputDisplayText(wire)).toBe(`Selected text\nExplain this\n\n${body}`)
@@ -28,7 +40,7 @@ const filesPrefix = '# Files mentioned by the user:\n\n## guide.md: /workspace/d
 it('projects Desktop local file mentions with annotations and thread references in builder order', () => {
     const annotations = [{ text: 'Earlier response', annotation: 'Keep this detail' }]
     const body = 'Please review these files.\n## My request:\nKeep my heading.'
-    const wire = serializeResponseAnnotations(`${filesPrefix}\n${referencePrefix}\n## My request:\n${body}`, annotations)
+    const wire = serializeResponseAnnotations(body, annotations, `${filesPrefix}\n${referencePrefix}`)
     expect(splitCodexInputContext(wire)).toMatchObject({
         body, annotations, references,
         files: [
@@ -64,7 +76,7 @@ const pasted = '# Files pasted by the user:\n\n## "Preview: \\"selected\\" text"
 const worktree = '# Worktree instructions:\nThe user selected Worktree for this task. Worktree creation runs asynchronously. Use the supplied worktree creation status to check progress. Perform the requested task only in the resulting checkout.\n'
 
 it('projects current Desktop IDE, pasted-file and basic worktree contexts in original order', () => {
-    const wire = `${worktree}${serializeResponseAnnotations(`${ide}\n${filesPrefix}\n${pasted}\n${referencePrefix}\n## My request:\nReview the selected files.`, [{ text: 'Earlier response' }])}`
+    const wire = worktree + serializeResponseAnnotations('Review the selected files.', [{ text: 'Earlier response' }], `${ide}\n${filesPrefix}\n${pasted}\n${referencePrefix}`)
     const result = splitCodexInputContext(wire)
     expect(result.body).toBe('Review the selected files.')
     expect(result.sections.map(section => section.kind)).toEqual(['worktree', 'annotations', 'ide', 'files', 'pasted'])

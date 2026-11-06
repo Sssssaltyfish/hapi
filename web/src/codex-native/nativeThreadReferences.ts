@@ -1,7 +1,7 @@
 import type { ApiClient } from '@/api/client'
 import {
     buildNativeThreadHref, extractSessionCitationIds, NATIVE_THREAD_REFERENCES_HEADER,
-    NATIVE_THREAD_REFERENCES_INSTRUCTIONS, NATIVE_USER_REQUEST_HEADER, SESSION_REFERENCE_STEER_SUFFIX,
+    NATIVE_THREAD_REFERENCES_INSTRUCTIONS, SESSION_REFERENCE_STEER_SUFFIX,
     type NativeThreadReference,
 } from '@hapi/protocol/sessionCitation'
 import { serializeResponseAnnotations } from '@/lib/responseAnnotations'
@@ -46,7 +46,6 @@ export async function nativeThreadReferenceMessage(
     // Canonical plain-text copies carry the runner peer-tool instruction. Every
     // referenced target here is native, so its actual tool is read_thread.
     if (extractSessionCitationIds(parsed.body).every(id => hrefs.has(id))) body = body.split(SESSION_REFERENCE_STEER_SUFFIX).join('')
-    const annotations = parsed.annotations.length ? serializeResponseAnnotations('', parsed.annotations).trim() : ''
-    return [annotations, NATIVE_THREAD_REFERENCES_HEADER, NATIVE_THREAD_REFERENCES_INSTRUCTIONS,
-        JSON.stringify(references), NATIVE_USER_REQUEST_HEADER, body].filter((value, index) => index !== 0 || value.length > 0).join('\n') + '\n'
+    const context = [NATIVE_THREAD_REFERENCES_HEADER, NATIVE_THREAD_REFERENCES_INSTRUCTIONS, JSON.stringify(references)].join('\n')
+    return serializeResponseAnnotations(body + '\n', parsed.annotations, context)
 }

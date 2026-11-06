@@ -1,7 +1,7 @@
 import { posix, win32 } from 'node:path'
 import type { NativeService } from './service'
 import { record, text, type NativeRecord } from './transport'
-import { splitCodexInputContext } from '@hapi/protocol/codexInputContext'
+import { codexAnnotatedRequest, splitCodexInputContext } from '@hapi/protocol/codexInputContext'
 
 export type NativeSuggestion = {
     key: string; text: string; label: string; description?: string
@@ -40,11 +40,21 @@ export function threadReferenceCapability(service: NativeService, threadId: stri
  * references as text because this daemon only resolves typed app/plugin mentions.
  * Kept pure to avoid importing CLI runtime/configuration into the hub. */
 export function nativeMessageInput(message: string, skills: readonly Skill[] = []): NativeRecord[] {
+    const annotated = codexAnnotatedRequest(message)
+    if (annotated) {
+        // Desktop reads the annotation and its request from one text input.
+        const entities = nativeMessageParts(annotated.body, skills).filter(item => item.type !== 'text')
+        return [{ type: 'text', text: annotated.text, text_elements: [] }, ...entities]
+    }
     const body = splitCodexInputContext(message).body
     if (body !== message && message.endsWith(body)) {
         const prefix = message.slice(0, message.length - body.length)
-        return [{ type: 'text', text: prefix, text_elements: [] }, ...(body ? nativeMessageInput(body, skills) : [])]
+        return [{ type: 'text', text: prefix, text_elements: [] }, ...(body ? nativeMessageParts(body, skills) : [])]
     }
+    return nativeMessageParts(message, skills)
+}
+
+function nativeMessageParts(message: string, skills: readonly Skill[]): NativeRecord[] {
     const input: NativeRecord[] = []
     const leading = /^\s*\$([^\s]+)(?=\s|$)/.exec(message)
     const skill = leading

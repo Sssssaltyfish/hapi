@@ -89,7 +89,7 @@ describe('UserBubbleContent', () => {
         const worktree = '# Worktree instructions:\nThe user selected Worktree for this task. Worktree creation runs asynchronously. Use the supplied worktree creation status to check progress. Perform the requested task only in the resulting checkout.\n'
         const ide = '# Context from my IDE setup:\n\n## Active file: /workspace/active.ts\n\n## Open tabs:\n- notes.md: /workspace/notes.md\n'
         const pasted = '# Files pasted by the user:\n\n## "Pasted preview": /workspace/pasted.txt\n'
-        const wire = `${worktree}${serializeResponseAnnotations(`${ide}\n${pasted}\n## My request:\nCompare these files.`, [{ text: 'Quoted response' }])}`
+        const wire = worktree + serializeResponseAnnotations('Compare these files.', [{ text: 'Quoted response' }], `${ide}\n${pasted}`)
         const { container } = render(<I18nProvider><UserBubbleContent text={wire} /></I18nProvider>)
         expect(Array.from(container.querySelectorAll('[data-testid$="-input-context"], [data-testid="response-annotation-cards"]')).map(element => element.getAttribute('data-testid'))).toEqual([
             'worktree-input-context', 'response-annotation-cards', 'ide-input-context', 'pasted-input-context',

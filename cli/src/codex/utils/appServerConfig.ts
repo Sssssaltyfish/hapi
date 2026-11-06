@@ -1,4 +1,5 @@
 import type { EnhancedMode } from '../loop';
+import { codexAnnotatedRequest } from '@hapi/protocol/codexInputContext';
 import type { CodexCliOverrides } from './codexCliOverrides';
 import type { CodexMcpServersConfig } from './codexMcpServers';
 import { getCodexSystemPrompt } from './systemPrompt';
@@ -145,6 +146,22 @@ function mentionNameFromPath(path: string): string {
 export function buildUserInputFromMessage(
     message: string,
     skills: readonly SkillMetadata[] = []
+): UserInput[] {
+    return buildAnnotatedUserInput(message, skills) ?? buildPlainUserInputFromMessage(message, skills);
+}
+
+export function buildAnnotatedUserInput(message: string, skills: readonly SkillMetadata[]): UserInput[] | null {
+    const annotated = codexAnnotatedRequest(message);
+    if (!annotated) return null;
+    return [
+        { type: 'text', text: annotated.text },
+        ...buildPlainUserInputFromMessage(annotated.body, skills).filter(input => input.type !== 'text')
+    ];
+}
+
+function buildPlainUserInputFromMessage(
+    message: string,
+    skills: readonly SkillMetadata[]
 ): UserInput[] {
     const inputs: UserInput[] = [];
     const skillMatch = /^\s*\$([^\s]+)(?=\s|$)/.exec(message);

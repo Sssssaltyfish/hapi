@@ -21,6 +21,7 @@ import { registerAppServerPermissionHandlers } from './utils/appServerPermission
 import {
     buildThreadStartParams,
     buildTurnStartParams,
+    buildAnnotatedUserInput,
     type CodexContextManagementConfig
 } from './utils/appServerConfig';
 import {
@@ -2104,7 +2105,7 @@ class CodexRemoteLauncher extends RemoteLauncherBase {
             try {
                 return await appServerClient.steerTurn({
                     threadId,
-                    input: [{ type: 'text', text: batch.message }],
+                    input: buildAnnotatedUserInput(batch.message, nativeSkills) ?? [{ type: 'text', text: batch.message }],
                     expectedTurnId: turnId,
                     // Echoed back as userMessage.clientId — lets an ambiguous
                     // transport failure reconcile the thread later.

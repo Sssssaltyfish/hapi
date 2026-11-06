@@ -75,10 +75,11 @@ test('inline selected skills become typed inputs while injected quote context re
         { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
         { type: 'text', text: ' next', text_elements: [] },
     ])
-    const message = serializeResponseAnnotations('Explain this quote', [{ text: 'The example mentions $tool in its text' }])
-    const input = nativeMessageInput(message, skills)
-    expect(input.every(item => item.type === 'text')).toBe(true)
-    expect(input.map(item => item.text).join('')).toBe(message)
+    const message = serializeResponseAnnotations('Ask @"app://connector" about this quote', [{ text: 'The example mentions $tool in its text' }])
+    expect(nativeMessageInput(message.trim(), skills)).toEqual([
+        { type: 'text', text: message, text_elements: [] },
+        { type: 'mention', name: 'connector', path: 'app://connector' },
+    ])
 })
 
 test('suggestions use the native workspace root and discover only enabled skills and installed enabled plugins/apps', async () => {

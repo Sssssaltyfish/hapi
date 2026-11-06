@@ -6,7 +6,8 @@ import type { ApiSessionClient } from '@/api/apiSession';
 import { logger } from '@/ui/logger';
 import { listSlashCommands } from '@/modules/common/slashCommands';
 import { normalizeCodexModel } from '@/modules/common/codexModels';
-import { formatMessageWithAttachments } from '@/utils/attachmentFormatter';
+import { formatAttachmentsForClaude, formatMessageWithAttachments } from '@/utils/attachmentFormatter';
+import { codexAnnotatedRequest } from '@hapi/protocol/codexInputContext';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
 import { CodexGoalControlRequestSchema, type CodexGoalControlRequest, type CodexGoalControlResult } from '@hapi/protocol/codexGoalControl';
 import { ThreadGoalSchema, type ThreadGoal } from '@hapi/protocol/schemas';
@@ -141,7 +142,9 @@ export class SharedCodexRoot {
                 await this.bound;
                 if (this.closed || this.stopping) return;
                 const id = localId ?? randomUUID();
-                const text = formatMessageWithAttachments(message.content.text, message.content.attachments);
+                const { text: body, attachments } = message.content;
+                const annotated = attachments?.length ? codexAnnotatedRequest(body, formatAttachmentsForClaude(attachments)) : null;
+                const text = annotated?.text ?? formatMessageWithAttachments(body, attachments);
                 const resolved = text.trim().startsWith('/') ? await this.queue.command(id, () => this.command(text)) : text;
                 if (resolved === null) { this.session.emitMessagesConsumed([id], { clearQueuedThinkingGrace: true }); return; }
                 await this.queue.enqueue(id, buildUserInputFromMessage(resolved), this.interrupted);

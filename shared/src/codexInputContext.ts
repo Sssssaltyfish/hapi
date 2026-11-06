@@ -172,7 +172,7 @@ function parseAnnotation(value: unknown): ResponseAnnotation | null {
 }
 
 /** A strict prefix parser. Quoted examples and malformed protocols remain text. */
-export function splitResponseAnnotations(text: string): { body: string; annotations: ResponseAnnotation[] } {
+function splitAnnotationEnvelope(text: string): { body: string; annotations: ResponseAnnotation[] } {
     const plain = { body: text, annotations: [] as ResponseAnnotation[] }
     const start = text.trimStart()
     const header = /^(?:#|##) Response annotations:\r?\n/.exec(start)
@@ -198,9 +198,19 @@ export function splitResponseAnnotations(text: string): { body: string; annotati
     }
 }
 
-export function serializeResponseAnnotations(body: string, annotations: readonly ResponseAnnotation[]): string {
-    if (annotations.length === 0) return body
-    return `\n${HEADER}\n${INSTRUCTIONS}\n${OPEN}\n${JSON.stringify(annotations)}\n${CLOSE}\n${body}`
+export function splitResponseAnnotations(text: string): { body: string; annotations: ResponseAnnotation[] } {
+    const draft = splitAnnotationEnvelope(text)
+    if (!draft.annotations.length) return draft
+    const marker = `\n${NATIVE_USER_REQUEST_HEADER}`
+    if (draft.body === marker) return { ...draft, body: '' }
+    if (draft.body.startsWith(marker + '\n')) return { ...draft, body: draft.body.slice(marker.length + 1) }
+    return draft
+}
+
+export function serializeResponseAnnotations(body: string, annotations: readonly ResponseAnnotation[], additionalContext = ''): string {
+    const envelope = annotations.length ? `\n${HEADER}\n${INSTRUCTIONS}\n${OPEN}\n${JSON.stringify(annotations)}\n${CLOSE}\n` : ''
+    const context = [envelope, additionalContext].filter(Boolean).join('\n')
+    return context ? `${context}\n${NATIVE_USER_REQUEST_HEADER}\n${body}` : body
 }
 
 export function appendResponseAnnotation(draft: string, annotation: ResponseAnnotation): string {
@@ -230,7 +240,7 @@ export function splitCodexInputContext(text: string): {
     // Consume each supported kind at most once, preserving the original order.
     // Never search inside the user's actual request.
     for (let index = 0; index < 6; index += 1) {
-        const annotated = annotations.length === 0 ? splitResponseAnnotations(body) : null
+        const annotated = annotations.length === 0 ? splitAnnotationEnvelope(body) : null
         if (annotated?.annotations.length) {
             annotations.push(...annotated.annotations)
             sections.push({ kind: 'annotations', annotations: annotated.annotations })
@@ -266,6 +276,19 @@ export function splitCodexInputContext(text: string): {
         else if (request === NATIVE_USER_REQUEST_HEADER) body = ''
     }
     return { body, annotations, references, files, sections }
+}
+
+/** Restore Desktop's framing at the daemon boundary, including for trimmed or older HAPI drafts. */
+export function codexAnnotatedRequest(message: string, prefixBody?: string): { text: string; body: string } | null {
+    const value = message.trimStart()
+    if (!value.startsWith(HEADER + '\n') && !value.startsWith('#' + HEADER + '\n')) return null
+    const { body, annotations } = splitCodexInputContext(value)
+    if (!annotations.length) return null
+    // Keep the original JSON and any following context. The request is always a suffix.
+    const context = value.slice(0, value.length - body.length).trimEnd().replace(/^## Response annotations:/, HEADER)
+    const header = context.endsWith('\n' + NATIVE_USER_REQUEST_HEADER) ? context : `${context}\n\n${NATIVE_USER_REQUEST_HEADER}`
+    const request = prefixBody ? [prefixBody, body].filter(Boolean).join('\n\n') : body
+    return { text: `\n${header}\n${request}`, body: request }
 }
 
 export function codexInputDisplayText(text: string): string {

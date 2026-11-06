@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { serializeResponseAnnotations } from '@hapi/protocol/codexInputContext';
 import { mkdtemp, rm } from 'node:fs/promises';
 import type { ApiSessionClient } from '@/api/apiSession';
 import type { AgentState, Metadata } from '@/api/types';
@@ -89,7 +90,7 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
     const send = vi.fn();
     const consumed = vi.fn();
     const events = vi.fn();
-    let userMessage: ((message: { content: { text: string }; meta?: { deliveryMode?: 'steer' | 'queue' } }, localId: string) => void) | undefined;
+    let userMessage: ((message: { content: { text: string; attachments?: Array<{ path: string }> }; meta?: { deliveryMode?: 'steer' | 'queue' } }, localId: string) => void) | undefined;
     const uncertain = vi.fn();
     const hubArchivedListeners: Array<() => void> = [];
     const session = {
@@ -134,7 +135,7 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
         emitHubArchived: () => { for (const listener of hubArchivedListeners) listener(); },
         hubArchivedListenerCount: () => hubArchivedListeners.length,
         end,
-        userMessage: (text: string, localId: string, mode: 'steer' | 'queue') => userMessage?.({ content: { text }, meta: { deliveryMode: mode } }, localId),
+        userMessage: (text: string, localId: string, mode: 'steer' | 'queue', attachments?: Array<{ path: string }>) => userMessage?.({ content: { text, attachments }, meta: { deliveryMode: mode } }, localId),
     };
 }
 
@@ -305,6 +306,17 @@ describe('typed native goal controls', () => {
 });
 
 describe('default steer delivery', () => {
+    it('keeps annotations first when attachments are added before native enqueue', async () => {
+        const f = await fixture();
+        await f.root.activate();
+        const message = serializeResponseAnnotations('inspect @"README.md"', [{ text: 'quoted @"ignored.md"' }]);
+        f.userMessage(message, 'annotated-attachment', 'queue', [{ path: '/tmp/upload.txt' }]);
+        await vi.waitFor(() => expect(f.native.queue).toHaveLength(1));
+        expect(f.native.queue[0]).toMatchObject({ input: [
+            { type: 'text', text: message.replace('## My request:\n', '## My request:\n@/tmp/upload.txt\n\n') },
+            { type: 'mention', name: 'README.md', path: 'README.md' }
+        ] });
+    });
     it('steers a live send into the captured turn through the existing native queue', async () => {
         const f = await fixture();
         await f.root.activate();

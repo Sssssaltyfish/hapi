@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { serializeResponseAnnotations } from '@hapi/protocol/codexInputContext';
 import type { EnhancedMode } from '../loop';
 import {
     buildThreadStartParams,
@@ -636,6 +637,20 @@ describe('appServerConfig', () => {
             { type: 'text', text: 'please inspect ' },
             { type: 'mention', name: 'index.ts', path: 'src/index.ts' },
             { type: 'text', text: ' now' }
+        ]);
+    });
+
+    it.each([false, true])('keeps response annotations in one Desktop text block (trimmed: %s)', trimmed => {
+        const body = '$hapi inspect @"docs/My File.md"';
+        const serialized = serializeResponseAnnotations(body, [{ text: 'Quote @"ignored.md"', annotation: 'note' }]);
+        const message = trimmed ? serialized.trim() : serialized;
+        const inputs = buildUserInputFromMessage(message, [{
+            name: 'hapi', path: '/skills/hapi/SKILL.md', description: 'HAPI', scope: 'user', enabled: true
+        }]);
+        expect(inputs).toEqual([
+            { type: 'text', text: serialized },
+            { type: 'skill', name: 'hapi', path: '/skills/hapi/SKILL.md' },
+            { type: 'mention', name: 'My File.md', path: 'docs/My File.md' }
         ]);
     });
 
