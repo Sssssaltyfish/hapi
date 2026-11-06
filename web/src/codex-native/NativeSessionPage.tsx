@@ -22,7 +22,7 @@ import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
 import { useQuery } from '@tanstack/react-query'
 import { useSessions } from '@/hooks/queries/useSessions'
 import { nativeThreadReferenceMessage } from './nativeThreadReferences'
-import { useNativeThreadCommands } from './useNativeThreadCommands'
+import { NativeCommandInactiveError, NativeRecapCanceledError, useNativeThreadCommands } from './useNativeThreadCommands'
 import { NativePlanButton, NativeThreadCommandsBar } from './NativeThreadCommandsBar'
 import { isNativeCommandSubmissionUnconfirmed } from './nativeThreadCommands'
 import { parseCodexThreadCommand, MAX_CODEX_GOAL_OBJECTIVE_CHARS } from '@hapi/protocol/codexThreadCommands'
@@ -202,8 +202,9 @@ function NativeSessionChat({
                 available: !unavailable,
                 connected: thread.connected,
                 modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
-                queueContent: <><NativeManagementResult result={commands.managementResult} pendingCommand={commands.pendingCommand}
-                    pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult} />
+                queueContent: <><NativeManagementResult result={commands.managementResult}
+                    pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult}
+                    recaps={commands.recaps} hideRecap={commands.hideRecap} showRecap={commands.showRecap} cancelRecap={commands.cancelRecap} />
                     <NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
                     activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
                 onSubmitCommand: text => {
@@ -229,7 +230,7 @@ function NativeSessionChat({
                     if (command.command === 'goal' && command.action === 'set' && Array.from(command.objective).length > MAX_CODEX_GOAL_OBJECTIVE_CHARS) {
                         commands.reportError(t('nativeCommands.goalTooLong', { max: MAX_CODEX_GOAL_OBJECTIVE_CHARS })); return 'failed'
                     }
-                    return commands.execute({ command }).then(() => 'handled' as const, () => 'failed' as const)
+                    return commands.execute({ command }).then(() => 'handled' as const, error => error instanceof NativeRecapCanceledError || error instanceof NativeCommandInactiveError ? 'handled' as const : 'failed' as const)
                 },
                 approvalSettings: <NativeApprovalSettings
                     settings={settings}
@@ -381,6 +382,7 @@ function NativeSessionChat({
                     void queue.refresh()
                     return { attemptId }
                 } catch (error) {
+                    if (error instanceof NativeCommandInactiveError) return false
                     const uncertain = commandPosted && (isNativeCommandSubmissionUnconfirmed(error) || !(error instanceof ApiError) || error.status >= 500)
                     if (uncertain) { unconfirmedPlan.current = text; void queue.refresh() }
                     setSettlement({ attemptId, status: 'error' })

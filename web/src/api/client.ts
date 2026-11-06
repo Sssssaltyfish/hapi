@@ -446,6 +446,10 @@ export class ApiClient {
         return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/commands`, { method: 'POST', body: JSON.stringify(payload) })
     }
 
+    cancelCodexNativeRecap(id: string, clientId: string): Promise<{ canceled: boolean }> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/commands/recap/${encodeURIComponent(clientId)}/cancel`, { method: 'POST', body: '{}' })
+    }
+
     async getCodexNativeActiveTurn(id: string): Promise<NativeRecord> {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/active-turn`)
     }

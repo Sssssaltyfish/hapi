@@ -90,6 +90,14 @@ it('dispatches the four native commands without chat input or discovery refresh 
     expect(api.codexNativeAction).not.toHaveBeenCalled()
 })
 
+it('treats an explicitly canceled recap as handled so the composer does not restore its command', async () => {
+    const api = setup(vi.fn().mockRejectedValue(new ApiError('Recap was canceled.', 409, undefined, JSON.stringify({ error: 'Recap was canceled.' }))))
+    await waitFor(() => expect(api.getCodexNativeCommands).toHaveBeenCalledOnce())
+    await act(async () => { expect(await ui.props!.nativeCapabilities!.onSubmitCommand!('/recap')).toBe('handled') })
+    expect(api.codexNativeCommand).toHaveBeenCalledWith('native-thread', { command: { command: 'recap' }, clientId: expect.any(String) })
+    expect(api.codexNativeAction).not.toHaveBeenCalled()
+})
+
 it.each(['Explain this', 'off'])('submits a quoted plan prompt %s once through the queue command even when explicit steer was requested', async prompt => {
     const post = vi.fn().mockResolvedValue({ command: 'plan', applied: { collaborationMode: { mode: 'plan' } }, submission: { accepted: true } })
     const api = setup(post)
