@@ -12,13 +12,19 @@ export function drawIconCrop(canvas: HTMLCanvasElement, image: HTMLImageElement,
 }
 
 export function exportIconCrop(canvas: HTMLCanvasElement): Promise<Blob> {
-    // Canvas serializes just the crop as a compressed PNG, without source metadata.
+    // Some browsers (including Safari) fall back to PNG when WebP encoding is
+    // unavailable. Preserve its real MIME type; the hub converts that crop.
     return new Promise((resolve, reject) => canvas.toBlob((blob) => {
-        if (blob) resolve(blob)
+        if (blob && (blob.type === 'image/webp' || blob.type === 'image/png')) resolve(blob)
         else reject(new Error('Could not export icon'))
-    }, 'image/png'))
+    }, 'image/webp', 0.8))
 }
 
-export function refreshAppIconLinks(url: string): void {
-    document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((link) => { link.href = url })
+export function refreshAppIconLinks(url: string, type?: string | null, appleTouchUrl = url): void {
+    document.querySelectorAll<HTMLLinkElement>('link[rel="icon"], link[rel="apple-touch-icon"]').forEach((link) => {
+        link.href = link.rel === 'apple-touch-icon' ? appleTouchUrl : url
+        if (link.rel === 'apple-touch-icon') link.type = 'image/png'
+        else if (type) link.type = type
+        else link.removeAttribute('type')
+    })
 }

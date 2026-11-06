@@ -305,7 +305,8 @@ function createWebApp(options: {
         const manifest = await file.json() as Record<string, unknown>
         c.header('Cache-Control', 'no-store')
         c.header('Content-Type', 'application/manifest+json')
-        return c.body(JSON.stringify(withAppIcon(manifest, (await appIconStore.read())?.revision ?? null)))
+        const icon = await appIconStore.read()
+        return c.body(JSON.stringify(withAppIcon(manifest, icon?.revision ?? null, icon?.type)))
     })
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
     app.use('/api/sessions/*', nativeSessionMiddleware(nativeRegistry, options.getSyncEngine))

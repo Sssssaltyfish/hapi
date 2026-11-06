@@ -1111,19 +1111,19 @@ export class ApiClient {
         return await this.request<HubSettingsResponse>('/api/hub-settings')
     }
 
-    getAppIconUrl(revision?: string | null): string {
-        return this.buildUrl(`/api/app-icon/image${revision ? `?v=${encodeURIComponent(revision)}` : ''}`)
+    getAppIconUrl(revision?: string | null, variant: 'image' | 'apple-touch' = 'image'): string {
+        return this.buildUrl(`/api/app-icon/${variant}${revision ? `?v=${encodeURIComponent(revision)}` : ''}`)
     }
 
-    async getAppIcon(): Promise<{ revision: string | null; canEdit: boolean }> {
+    async getAppIcon(): Promise<{ revision: string | null; type: 'image/png' | 'image/webp' | null; canEdit: boolean }> {
         return this.request('/api/app-icon')
     }
 
-    async setAppIcon(image: Blob): Promise<{ revision: string | null; canEdit: boolean }> {
-        return this.request('/api/app-icon', { method: 'PUT', headers: { 'content-type': 'image/png' }, body: image })
+    async setAppIcon(image: Blob): Promise<{ revision: string | null; type: 'image/png' | 'image/webp' | null; canEdit: boolean }> {
+        return this.request('/api/app-icon', { method: 'PUT', headers: { 'content-type': image.type }, body: image })
     }
 
-    async resetAppIcon(): Promise<{ revision: string | null; canEdit: boolean }> {
+    async resetAppIcon(): Promise<{ revision: string | null; type: 'image/png' | 'image/webp' | null; canEdit: boolean }> {
         return this.request('/api/app-icon', { method: 'DELETE' })
     }
 

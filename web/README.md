@@ -56,14 +56,22 @@ See `src/router.tsx` for route definitions.
 
 In Display settings, the hub owner (default namespace) can choose an image,
 position a square crop by dragging or using arrow keys, and adjust its zoom.
-The browser exports only the crop as a compressed 512 × 512 PNG; the original
-image stays in browser memory and is never uploaded. The hub keeps one
-`app-icon.png`, replacing it on each save; Restore default removes it.
+The browser exports only the crop as a 512 × 512 WebP at quality 80; the original
+image stays in browser memory and is never uploaded. Keeping 512 pixels preserves
+PWA installation quality while WebP reduces the saved and transferred bytes.
+When a browser cannot encode Canvas WebP (including Safari), its cropped PNG
+fallback is sent with its actual MIME type and converted by the hub. New saves
+keep one `app-icon.webp`, replacing it on each save and removing any legacy
+`app-icon.png`. Existing PNG icons remain readable until replaced or reset.
+Restore default removes both supported storage filenames.
 
 The icon applies across the hub to browser tabs and newly installed mobile
 PWAs when the hub serves the frontend. Image and manifest reads are public so
 browsers can install without an API token; changes require owner authentication.
-The generated manifest retains its existing start URL, scope, and share target.
+The generated manifest retains its existing start URL, scope, and share target,
+and reports the stored image's actual MIME type. Apple touch icons use a 180-pixel
+PNG generated on demand from the latest icon, with no extra file retained.
+Image conversion uses `Bun.Image` (Bun 1.3.14 or later; the project pins Bun 1.4).
 Installed apps may update their icon later or require removal and reinstallation
 (including adding the app to the home screen again on iOS).
 

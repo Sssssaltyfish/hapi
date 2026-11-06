@@ -50,7 +50,8 @@ export function AppIconSettings() {
         try {
             const result = reset ? await api.resetAppIcon() : await api.setAppIcon(await exportIconCrop(canvas.current!))
             queryClient.setQueryData(queryKey, result)
-            refreshAppIconLinks(api.getAppIconUrl(result.revision ?? `default-${Date.now()}`))
+            const revision = result.revision ?? `default-${Date.now()}`
+            refreshAppIconLinks(api.getAppIconUrl(revision), result.type, api.getAppIconUrl(revision, 'apple-touch'))
             setSource(null)
         } catch { setError(t('settings.display.appIcon.saveError')) }
         finally { setBusy(false) }
