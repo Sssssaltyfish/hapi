@@ -162,6 +162,14 @@ describe('native management command delivery', () => {
         await vi.waitFor(() => expect(f.native.queue.some(entry => entry.clientUserMessageId === 'ordinary-input')).toBe(true));
         finishRecap('A separate recap.');
         await vi.waitFor(() => expect(f.events.mock.calls.filter(([event]) => event.message === 'A separate recap.')).toHaveLength(1));
+        vi.mocked(sharedCodexRecap).mockImplementationOnce(options => new Promise((_, reject) => {
+            options.signal.addEventListener('abort', () => reject(new Error('Recap was canceled.')), { once: true });
+        }));
+        f.userMessage('/recap', 'cancelable-recap', 'queue');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['cancelable-recap'], expect.anything()));
+        f.userMessage('/recap cancel', 'cancel-recap', 'queue');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['cancel-recap'], expect.anything()));
+        await vi.waitFor(() => expect(f.events.mock.calls.filter(([event]) => event.message === 'Recap was canceled.')).toHaveLength(1));
         const usageEvent = f.events.mock.calls.map(([event]) => event).find(event => event.codexUsage);
         expect(usageEvent.codexUsage.summary.lifetimeTokens).toBe('123');
         expect(usageEvent.message).not.toContain('{');
@@ -179,7 +187,7 @@ describe('native management command delivery', () => {
         expect(f.native.calls.filter(call => call.method === 'thread/queue/add').map(call => call.params.clientUserMessageId)).toEqual(['ordinary-input']);
         expect(f.native.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method))).toBe(false);
         expect(sharedCodexRecap).toHaveBeenCalledWith(expect.objectContaining({ endpoint: 'mock', threadId: 'thread',
-            settings: expect.objectContaining({ model: 'mock' }), signal: expect.any(AbortSignal), subscribeSource: expect.any(Function) }));
+            settings: expect.objectContaining({ model: 'mock' }), signal: expect.any(AbortSignal) }));
         expect(f.events.mock.calls.filter(([event]) => event.message === 'A separate recap.')).toHaveLength(1);
     });
 });

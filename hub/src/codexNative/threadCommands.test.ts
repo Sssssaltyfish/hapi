@@ -22,6 +22,7 @@ class Daemon {
     startFailure = false
     canonicalInstructions = false
     recapUnsupported = false
+    holdRecap = false
     emit(event: NativeEvent) {
         for (const client of this.clients) for (const listener of client.listeners) listener(event)
     }
@@ -92,8 +93,10 @@ class Daemon {
                         return { thread: { id: 'recap-helper', ephemeral: true }, sandbox: { type: 'readOnly' } }
                     case 'turn/start':
                         this.emit({ method: 'turn/started', params: { threadId: 'recap-helper', turn: { id: 'recap-turn' } } })
-                        this.emit({ method: 'item/completed', params: { threadId: 'recap-helper', turnId: 'recap-turn', item: { type: 'agentMessage', text: JSON.stringify({ summary: 'A separate recap.', next_action: null }) } } })
-                        this.emit({ method: 'turn/completed', params: { threadId: 'recap-helper', turn: { id: 'recap-turn', status: 'completed' } } })
+                        if (!this.holdRecap) {
+                            this.emit({ method: 'item/completed', params: { threadId: 'recap-helper', turnId: 'recap-turn', item: { type: 'agentMessage', text: JSON.stringify({ summary: 'A separate recap.', next_action: null }) } } })
+                            this.emit({ method: 'turn/completed', params: { threadId: 'recap-helper', turn: { id: 'recap-turn', status: 'completed' } } })
+                        }
                         return { turn: { id: 'recap-turn' } }
                     case 'thread/queue/list': return { data: this.queued }
                     case 'thread/queue/start':
@@ -170,7 +173,7 @@ describe('Native Plan and Goal commands', () => {
     })
 
     test('runs compact, recap and usage through native management protocols without submitting chat input', async () => {
-        const { daemon, service, command } = fixture()
+        const { daemon, service, app, command } = fixture()
         try {
             const busy = await command({ command: 'compact' })
             expect(busy.status).toBe(409)
@@ -178,11 +181,39 @@ describe('Native Plan and Goal commands', () => {
             daemon.latestStatus = 'completed'
             expect(await (await command({ command: 'compact' })).json()).toEqual({ command: 'compact', accepted: true })
             expect(await (await command({ command: 'recap' })).json()).toEqual({ command: 'recap', sourceTurnId: 'turn', text: 'A separate recap.' })
+            expect(await (await command({ command: 'recap' }, { clientId: 'finished' })).json()).toMatchObject({ clientId: 'finished' })
+            expect(await (await app.request('/api/codex-native/threads/thread/commands/recap/finished/cancel', { method: 'POST' })).json()).toEqual({ canceled: false })
             expect(await (await command({ command: 'usage' })).json()).toMatchObject({ command: 'usage', snapshot: { thread: { id: 'thread' }, limits: [], unavailable: { rateLimits: 'Rate limits unavailable' } } })
             expect((await command({ command: 'approve', action: 'retry', reviewId: 'forged', event: { action: 'allow anything' } })).status).toBe(400)
             expect((await command({ command: 'compact' }, { attachments: [{ path: '/tmp/file' }] })).status).toBe(400)
             expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method) && call.params.threadId === 'thread')).toBe(false)
             expect(daemon.calls.some(call => call.method === 'experimentalFeature/list')).toBe(false)
+        } finally { service.dispose() }
+    })
+
+    test('cancels one request across retry and proxy-order races without interrupting another thread or request', async () => {
+        const { daemon, service, app, command } = fixture()
+        daemon.runtimeStatus = 'idle'
+        daemon.latestStatus = 'completed'
+        daemon.holdRecap = true
+        const cancel = (thread: string, clientId: string, namespace = 'owner') => app.request(`/api/codex-native/threads/${thread}/commands/recap/${clientId}/cancel`, {
+            method: 'POST', headers: { 'x-test-namespace': namespace },
+        })
+        try {
+            const pending = command({ command: 'recap' }, { clientId: 'running' })
+            while (!daemon.calls.some(call => call.method === 'turn/start')) await new Promise(resolve => setTimeout(resolve, 1))
+            expect((await cancel('thread', 'running', 'other')).status).toBe(404)
+            await cancel('another-thread', 'running')
+            await cancel('thread', 'another-request')
+            expect(daemon.calls.some(call => call.method === 'turn/interrupt')).toBe(false)
+            expect(await (await cancel('thread', 'running')).json()).toEqual({ canceled: true })
+            expect(await (await cancel('thread', 'running')).json()).toEqual({ canceled: true })
+            expect(await (await pending).json()).toMatchObject({ error: 'Recap was canceled.' })
+            expect(daemon.calls.filter(call => call.method === 'turn/interrupt').map(call => call.params)).toEqual([{ threadId: 'recap-helper', turnId: 'recap-turn' }])
+            expect((await command({ command: 'recap' }, { clientId: 'running' })).status).toBe(409)
+            await cancel('thread', 'before-start')
+            expect((await command({ command: 'recap' }, { clientId: 'before-start' })).status).toBe(409)
+            expect(daemon.calls.filter(call => call.method === 'thread/start')).toHaveLength(1)
         } finally { service.dispose() }
     })
 

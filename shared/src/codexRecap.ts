@@ -30,8 +30,8 @@ const DISABLED_FEATURES = ['apps', 'code_mode', 'code_mode_only', 'context_manag
     'multi_agent_v2', 'plugins', 'request_permissions_tool', 'shell_snapshot', 'shell_tool',
     'standalone_web_search', 'token_budget', 'tool_suggest', 'unified_exec', 'view_image']
 
-async function turns(request: CodexRecapTransport['request'], threadId: string, full: boolean): Promise<RecordValue[]> {
-    const page = record(await request('thread/turns/list', { threadId, sortDirection: 'desc', limit: full ? 9 : 1, itemsView: full ? 'full' : 'notLoaded' }))
+async function turns(request: CodexRecapTransport['request'], threadId: string): Promise<RecordValue[]> {
+    const page = record(await request('thread/turns/list', { threadId, sortDirection: 'desc', limit: 9, itemsView: 'full' }))
     if (!Array.isArray(page.data)) throw new Error('Conversation history was not confirmed')
     return page.data.map(record)
 }
@@ -45,19 +45,21 @@ export async function codexRecap(
     let helperId: string | undefined
     let turnId: string | undefined
     let completed = false
-    let sourceChanged = false
     let failure: Error | undefined
     let wake: (() => void) | undefined
     const events: Event[] = []
     const fail = (message: string) => { failure ??= new Error(message); wake?.() }
-    const abort = () => fail('Recap was canceled.')
+    let interruptedTurnId: string | undefined
+    let interruption: Promise<unknown> | undefined
+    const interruptHelper = () => {
+        if (!helperId || !turnId || completed || interruptedTurnId === turnId) return
+        interruptedTurnId = turnId
+        interruption = transport.request('turn/interrupt', { threadId: helperId, turnId }).catch(() => {})
+    }
+    const abort = () => { fail('Recap was canceled.'); interruptHelper() }
     const remove = transport.subscribe(event => {
         const params = record(event.params)
         if (event.method === 'hapi/disconnected') { fail('Recap could not connect to Codex. Reconnect and try again.'); return }
-        if (params.threadId === threadId && ['turn/started', 'turn/completed', 'thread/reverted', 'thread/deleted'].includes(event.method)) {
-            sourceChanged = true
-            fail('The conversation changed while generating the recap. Run /recap again.')
-        }
         if (!helperId) return
         if (event.method === 'hapi/request') {
             const request = record(event.params)
@@ -69,7 +71,10 @@ export async function codexRecap(
             return
         }
         if (params.threadId !== helperId) return
-        if (event.method === 'turn/started') turnId ??= string(record(params.turn).id)
+        if (event.method === 'turn/started') {
+            turnId ??= string(record(params.turn).id)
+            if (options.signal?.aborted) interruptHelper()
+        }
         if (!['item/completed', 'turn/completed', 'error'].includes(event.method)) return
         if (events.length >= 128) { fail('The recap helper returned too many events.'); return }
         // Only retain assistant text and completion metadata; unrelated tool output is never buffered.
@@ -107,7 +112,7 @@ export async function codexRecap(
     }
     try {
         const source = record(record(await request('thread/read', { threadId, includeTurns: false })).thread)
-        const recent = await turns(request, threadId, true)
+        const recent = await turns(request, threadId)
         const latest = recent[0] ?? {}
         const sourceTurnId = string(latest.id)
         if (record(source.status).type === 'active' || !sourceTurnId || !terminal(latest)) throw new Error('Recap requires an idle thread with a completed, failed, or interrupted turn')
@@ -139,7 +144,7 @@ export async function codexRecap(
         if (customProfile ? record(started.activePermissionProfile).id !== customProfile : record(started.sandbox).type !== 'readOnly') {
             throw new Error('The recap helper permissions could not be confirmed.')
         }
-        if (sourceChanged || failure) throw failure ?? new Error('The conversation changed while generating the recap. Run /recap again.')
+        if (failure) throw failure
         const startedTurn = record(await request('turn/start', { threadId: helperId, input: [{ type: 'text', text: prompt, text_elements: [] }], outputSchema: OUTPUT_SCHEMA }))
         const confirmedTurnId = string(record(startedTurn.turn).id)
         if (!confirmedTurnId || turnId && turnId !== confirmedTurnId) throw new Error('The recap helper turn was not confirmed.')
@@ -171,8 +176,7 @@ export async function codexRecap(
         if (!summary || Array.from(summary).length > 700 || !(next === null || typeof next === 'string')
             || typeof next === 'string' && Array.from(next).length > 200
             || Object.keys(parsed).sort().join(',') !== 'next_action,summary') throw new Error('The recap helper returned an invalid response.')
-        const current = (await turns(request, threadId, false))[0] ?? {}
-        if (sourceChanged || current.id !== sourceTurnId || !terminal(current)) throw new Error('The conversation changed while generating the recap. Run /recap again.')
+        if (failure) throw failure
         return { command: 'recap', sourceTurnId, text: next ? `${summary}\n\n${next}` : summary }
     } catch (error) {
         failure ??= error instanceof Error ? error : new Error(String(error))
@@ -185,7 +189,8 @@ export async function codexRecap(
     } finally {
         // No retries: an uncertain start must never create a second helper or turn.
         if (helperId) {
-            if (!completed && turnId) await bounded(transport.request('turn/interrupt', { threadId: helperId, turnId }), cleanupMs, 'cleanup timeout').catch(() => {})
+            interruptHelper()
+            if (interruption) await bounded(interruption, cleanupMs, 'cleanup timeout').catch(() => {})
             await bounded(transport.request('thread/unsubscribe', { threadId: helperId }), cleanupMs, 'cleanup timeout').catch(() => {})
         }
         options.signal?.removeEventListener('abort', abort)

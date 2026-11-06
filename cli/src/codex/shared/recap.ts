@@ -7,7 +7,6 @@ type Event = { method: string; params?: unknown };
 export async function sharedCodexRecap(options: {
     endpoint: string; token?: string; cwd: string; threadId: string;
     settings: Record<string, unknown>; signal: AbortSignal;
-    subscribeSource(listener: (event: Event) => void): () => void;
 }): Promise<string> {
     const client = new CodexAppServerClient({ endpoint: options.endpoint, token: options.token, cwd: options.cwd });
     const listeners = new Set<(event: Event) => void>();
@@ -21,8 +20,7 @@ export async function sharedCodexRecap(options: {
             request: (method, params) => client.request(method, params),
             subscribe: listener => {
                 listeners.add(listener);
-                const removeSource = options.subscribeSource(listener);
-                return () => { listeners.delete(listener); removeSource(); };
+                return () => { listeners.delete(listener); };
             },
             rejectRequest: id => client.respondError(id, { code: -32601, message: 'Recap helpers do not accept interaction requests' }),
         }, options.threadId, { settings: options.settings, signal: options.signal });

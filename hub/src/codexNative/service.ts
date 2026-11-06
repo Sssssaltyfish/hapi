@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
-import type { CodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
+import type { CodexThreadCommand, NativeCommandResult } from '@hapi/protocol/codexThreadCommands'
 import { CodexGuardianDenials, codexRecap } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
@@ -49,6 +49,13 @@ type Subscription = {
     snapshot?: NativeRecord
     denials?: CodexGuardianDenials
 }
+type RecapResult = Extract<NativeCommandResult, { command: 'recap' }>
+type RecapRun = {
+    controller: AbortController
+    state: 'running' | 'canceled' | 'finished'
+    expiresAt: number
+    promise?: Promise<RecapResult>
+}
 function settingsSnapshot(value: NativeRecord): NativeRecord {
     return { ...value, effort: Object.hasOwn(value, 'effort') ? value.effort : value.reasoningEffort ?? null }
 }
@@ -73,6 +80,7 @@ export function fallbackThread(thread: NativeRecord): boolean {
 }
 export class NativeService {
     dispose(): void {
+        for (const run of this.recapRuns.values()) run.controller.abort()
         this.invalidateDesktopWorkspaces()
         this.catalogEvents.dispose()
         for (const entry of this.subscriptions.values()) clearTimeout(entry.timer)
@@ -90,7 +98,8 @@ export class NativeService {
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private commandRuns = new Map<string, Promise<unknown>>()
-    private recapRuns = new Set<string>()
+    private recapRuns = new Map<string, RecapRun>()
+    private recapRequests = new Map<string, RecapRun>()
     private catalogEvents = new NativeCatalogEvents(() => this.connection())
     private desktopWorkspaces?: DesktopWorkspaceLookup
     private identities = createWorkspaceIdentityReader()
@@ -551,24 +560,70 @@ export class NativeService {
         // Controls use a separate connection and never wait for the subscription or history page.
         return this.call(method, { ...params, threadId })
     }
-    async recap(threadId: string) {
+    private recapRequestKey(threadId: string, clientId: string): string {
+        // The service instance already belongs to one configured namespace and endpoint.
+        return JSON.stringify([threadId, clientId])
+    }
+    private pruneRecapRequests(): void {
+        for (const [key, run] of this.recapRequests) {
+            if (run.state !== 'running' && run.expiresAt < Date.now()) this.recapRequests.delete(key)
+        }
+        if (this.recapRequests.size < 256) return
+        for (const [key, run] of this.recapRequests) {
+            if (run.state !== 'running') this.recapRequests.delete(key)
+            if (this.recapRequests.size < 256) break
+        }
+    }
+    cancelRecap(threadId: string, clientId: string): { canceled: boolean } {
+        this.pruneRecapRequests()
+        const key = this.recapRequestKey(threadId, clientId)
+        let run = this.recapRequests.get(key)
+        if (run?.state === 'finished') return { canceled: false }
+        // Retain cancellation briefly when its request overtakes the start POST at a proxy.
+        if (!run) {
+            run = { controller: new AbortController(), state: 'canceled', expiresAt: Date.now() + 5 * 60_000 }
+            this.recapRequests.set(key, run)
+        }
+        run.state = 'canceled'
+        run.controller.abort()
+        return { canceled: true }
+    }
+    async recap(threadId: string, clientId?: string): Promise<RecapResult> {
+        this.pruneRecapRequests()
+        const key = this.recapRequestKey(threadId, clientId ?? crypto.randomUUID())
+        const existing = this.recapRequests.get(key)
+        if (existing?.state === 'canceled') throw new NativeThreadCommandError(409, 'Recap was canceled.')
+        if (existing?.promise) return existing.promise
         if (this.recapRuns.has(threadId)) throw new NativeThreadCommandError(409, 'A recap is already being generated.')
-        this.recapRuns.add(threadId)
-        try {
-            const source = this.subscriptions.get(threadId)
-            const settings = source?.snapshot ?? (source ? record(await source.attached) : undefined)
-            return await this.withConnection(client => codexRecap({
-                request: (method, params) => client.request(method, params),
-                subscribe: listener => {
-                    client.listeners.add(listener)
-                    source?.client.listeners.add(listener)
-                    return () => { client.listeners.delete(listener); source?.client.listeners.delete(listener) }
-                },
-                rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
-                    error: { code: -32601, message: 'Recap helpers do not accept interaction requests' },
-                }),
-            }, threadId, { settings }))
-        } finally { this.recapRuns.delete(threadId) }
+        const run: RecapRun = { controller: new AbortController(), state: 'running', expiresAt: Date.now() + 5 * 60_000 }
+        this.recapRequests.set(key, run)
+        this.recapRuns.set(threadId, run)
+        const pending = (async (): Promise<RecapResult> => {
+            try {
+                const source = this.subscriptions.get(threadId)
+                const settings = source?.snapshot ?? (source ? record(await source.attached) : undefined)
+                const result = await this.withConnection(client => codexRecap({
+                    request: (method, params) => client.request(method, params),
+                    subscribe: listener => {
+                        client.listeners.add(listener)
+                        return () => { client.listeners.delete(listener) }
+                    },
+                    rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
+                        error: { code: -32601, message: 'Recap helpers do not accept interaction requests' },
+                    }),
+                }, threadId, { settings, signal: run.controller.signal }))
+                if (run.controller.signal.aborted) throw new NativeThreadCommandError(409, 'Recap was canceled.')
+                return clientId ? { ...result, clientId } : result
+            } catch (error) {
+                throw error instanceof NativeThreadCommandError ? error : new NativeThreadCommandError(409, error instanceof Error ? error.message : String(error))
+            } finally {
+                run.state = run.controller.signal.aborted ? 'canceled' : 'finished'
+                run.expiresAt = Date.now() + 5 * 60_000
+                if (this.recapRuns.get(threadId) === run) this.recapRuns.delete(threadId)
+            }
+        })()
+        run.promise = pending
+        return pending
     }
     guardianDenial(threadId: string) {
         return this.subscriptions.get(threadId)?.denials?.show() ?? null
@@ -605,11 +660,12 @@ export class NativeService {
             ? record(latest.collaborationMode) : null
         return state
     }
-    async threadCommand(threadId: string, command: CodexThreadCommand, submission?: { input: NativeRecord[]; clientId: string }) {
+    async threadCommand(threadId: string, command: CodexThreadCommand, submission?: { input: NativeRecord[]; clientId: string }, clientId?: string) {
+        if (command.command === 'recap') return this.recap(threadId, clientId)
         // Reads see preceding mutations without holding up subsequent commands.
         const previous = this.commandRuns.get(threadId) ?? Promise.resolve()
         const running = previous.catch(() => {}).then(() => executeThreadCommand(this, threadId, command, submission))
-        if (command.command === 'usage' || command.command === 'recap' ||
+        if (command.command === 'usage' ||
             ((command.command === 'goal' || command.command === 'approve') && command.action === 'show')) {
             return running
         }

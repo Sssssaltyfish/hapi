@@ -60,23 +60,31 @@ describe('Codex ephemeral conversation recap', () => {
         expect(listeners.size).toBe(0)
     })
 
-    test('source events interrupt generation immediately and only target the helper', async () => {
+    test('retains the captured recap when the source advances during generation', async () => {
         const { transport, calls, state, emit, listeners } = fixture()
         state.noCompletion = true
         const result = codexRecap(transport, 'source')
         while (!calls.some(call => call.method === 'turn/start')) await new Promise(resolve => setTimeout(resolve, 1))
         emit('turn/started', { threadId: 'source', turn: { id: 'new-source-turn' } })
-        await expect(result).rejects.toThrow('conversation changed')
-        expect(calls.slice(-2)).toEqual([{ method: 'turn/interrupt', params: { threadId: 'helper', turnId: 'helper-turn' } },
-            { method: 'thread/unsubscribe', params: { threadId: 'helper' } }])
+        emit('turn/completed', { threadId: 'source', turn: { id: 'new-source-turn', status: 'completed' } })
+        emit('item/completed', { threadId: 'helper', turnId: 'helper-turn', item: { type: 'agentMessage', text: JSON.stringify({ summary: state.summary, next_action: null }) } })
+        emit('turn/completed', { threadId: 'helper', turn: { id: 'helper-turn', status: 'completed' } })
+        expect(await result).toEqual({ command: 'recap', sourceTurnId: 'source-turn', text: state.summary })
+        expect(calls.filter(call => call.method === 'thread/turns/list')).toHaveLength(1)
+        expect(calls.some(call => call.method === 'turn/interrupt')).toBe(false)
         expect(listeners.size).toBe(0)
     })
 
-    test('times out and interrupts a running helper, then removes its listener', async () => {
+    test('explicit cancellation interrupts only the running helper once and removes its listener', async () => {
         const { transport, state, calls, listeners } = fixture()
         state.noCompletion = true
-        await expect(codexRecap(transport, 'source', { timeoutMs: 10 })).rejects.toThrow('timed out')
+        const controller = new AbortController()
+        const result = codexRecap(transport, 'source', { signal: controller.signal })
+        while (!calls.some(call => call.method === 'turn/start')) await new Promise(resolve => setTimeout(resolve, 1))
+        controller.abort()
+        await expect(result).rejects.toThrow('canceled')
         expect(calls.slice(-2).map(call => call.method)).toEqual(['turn/interrupt', 'thread/unsubscribe'])
+        expect(calls.filter(call => call.method === 'turn/interrupt').map(call => call.params)).toEqual([{ threadId: 'helper', turnId: 'helper-turn' }])
         expect(listeners.size).toBe(0)
     })
 

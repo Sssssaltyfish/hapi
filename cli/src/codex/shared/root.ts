@@ -62,7 +62,6 @@ export class SharedCodexRoot {
     private readonly guardianDenials = new CodexGuardianDenials();
     private recapController?: AbortController;
     private recapTask?: Promise<void>;
-    private readonly recapListeners = new Set<(event: { method: string; params?: unknown }) => void>();
     // Ephemeral observations only: dequeue/compaction never prove acceptance.
     private readonly dequeuedInputs = new Set<string>();
     private deliveryTurn?: string;
@@ -97,7 +96,6 @@ export class SharedCodexRoot {
         this.session = bootstrap.session;
         this.client = new CodexAppServerClient({ endpoint: host.endpoint, token: host.token, cwd: bootstrap.workingDirectory });
         this.client.setNotificationHandler((method, params) => {
-            for (const listener of this.recapListeners) listener({ method, params });
             this.guardianDenials.observe(this.threadId, method, params);
             if (method === 'serverRequest/resolved') {
                 this.permissions?.resolved(string(record(params).threadId) ?? '', record(params).requestId); return;
@@ -687,6 +685,11 @@ export class SharedCodexRoot {
             const child = await this.newConversation(); this.notice(`New conversation: /sessions/${child.session.sessionId}`); return null;
         }
         if (command === '/exit') { this.notice('/exit closes a native terminal, not this Web view. Use End session to archive this conversation.'); return null; }
+        if (command === '/recap cancel') {
+            if (this.recapController) this.recapController.abort();
+            else this.notice('No recap is currently being generated.');
+            return null;
+        }
         if (!command.startsWith('/')) return text;
         const slash = resolveCodexSlashCommand(text, { commands: await listSlashCommands('codex', this.bootstrap.workingDirectory),
             permissionMode: this.settings.permissionMode === 'yolo' || this.settings.permissionMode === 'read-only' || this.settings.permissionMode === 'autoReview' ? this.settings.permissionMode : 'default',
@@ -707,10 +710,8 @@ export class SharedCodexRoot {
                 // The command is consumed immediately; model generation must not hold the input queue.
                 const pending: Promise<void> = sharedCodexRecap({ endpoint: this.host.endpoint, token: this.host.token,
                     cwd: this.bootstrap.workingDirectory, threadId: this.threadId, settings: this.settingsNative,
-                    signal: controller.signal, subscribeSource: listener => {
-                        this.recapListeners.add(listener); return () => { this.recapListeners.delete(listener); };
-                    } }).then(text => { if (!this.closed) this.notice(text); }, error => {
-                        if (!this.closed) this.notice(error instanceof Error ? error.message : String(error));
+                    signal: controller.signal }).then(text => { if (!this.closed) this.notice(controller.signal.aborted ? 'Recap was canceled.' : text); }, error => {
+                        if (!this.closed) this.notice(controller.signal.aborted ? 'Recap was canceled.' : error instanceof Error ? error.message : String(error));
                     }).finally(() => {
                         this.controls.delete(pending);
                         this.recapController = undefined;

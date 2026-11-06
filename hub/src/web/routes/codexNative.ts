@@ -315,6 +315,11 @@ export function createCodexNativeRoutes(
     app.get('/codex-native/threads/:id/commands', async (c) =>
         c.json(await getService(c).threadCommandState(c.req.param('id')))
     )
+    app.post('/codex-native/threads/:id/commands/recap/:clientId/cancel', c => {
+        const parsed = z.string().min(1).max(200).safeParse(c.req.param('clientId'))
+        if (!parsed.success) return c.json({ error: 'Invalid recap request ID' }, 400)
+        return c.json(getService(c).cancelRecap(c.req.param('id'), parsed.data))
+    })
     app.post('/codex-native/threads/:id/commands', async (c) => {
         const parsed = nativeThreadCommandRequest.safeParse(await c.req.json().catch(() => null))
         if (!parsed.success) return c.json({ error: 'Invalid native command', issues: parsed.error.flatten() }, 400)
@@ -328,7 +333,7 @@ export function createCodexNativeRoutes(
             submission = { input, clientId }
         }
         try {
-            return c.json(await endpoint.service.threadCommand(threadId, command, submission))
+            return c.json(await endpoint.service.threadCommand(threadId, command, submission, clientId))
         } catch (error) {
             if (error instanceof NativeThreadCommandError) {
                 return c.json({ error: error.message, ...error.details }, error.status)
