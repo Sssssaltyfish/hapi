@@ -7,6 +7,7 @@ import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { ResponseAnnotationCards } from '@/components/AssistantChat/ResponseAnnotationCards'
 import { parseScheduledMessage } from '@/lib/scheduledMessage'
 import { ScheduledMessageCard } from './ScheduledMessageCard'
+import { UserFileReferences } from './UserFileReferences'
 
 const LEADING_DIRECTIVE_REGEX = /^([$\/][a-z0-9][\w-]*)(?=\s|$)/i
 
@@ -74,10 +75,15 @@ export function UserBubbleContent(props: { text: string }) {
         </div>)}
     </div>
     const annotated = splitCodexInputContext(props.text)
-    if (annotated.annotations.length > 0 || annotated.references.length > 0) return <div className="flex min-w-0 flex-col gap-2">
+    if (annotated.annotations.length > 0 || annotated.references.length > 0 || annotated.files.length > 0) return <div className="flex min-w-0 flex-col gap-2">
         {annotated.annotations.length > 0 && <ResponseAnnotationCards annotations={annotated.annotations} />}
-        {annotated.body.trim() ? <UserBubbleContent text={annotated.body} /> : null}
+        {annotated.files.length > 0 && <UserFileReferences files={annotated.files} />}
+        {annotated.body.trim() ? <UserBubbleText text={annotated.body} /> : null}
     </div>
+    return <UserBubbleText text={props.text} />
+}
+
+function UserBubbleText(props: { text: string }) {
     const { directives, body } = extractLeadingDirectives(props.text)
     const hasBody = body.trim().length > 0
     const shouldRenderInline = directives.length > 0 && hasBody && !/[\r\n]/.test(body)

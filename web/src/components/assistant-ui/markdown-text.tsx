@@ -538,7 +538,7 @@ function Code(props: ComponentPropsWithoutRef<'code'>) {
     )
 }
 
-function FilePathAnchor(props: ComponentPropsWithoutRef<'a'> & { filePath: string; sessionId: string }) {
+export function FilePathAnchor(props: ComponentPropsWithoutRef<'a'> & { filePath: string; sessionId: string }) {
     const { filePath, sessionId, ...anchorProps } = props
     const navigate = useNavigate()
     const rel = anchorProps.target === '_blank' ? (anchorProps.rel ?? 'noreferrer') : anchorProps.rel

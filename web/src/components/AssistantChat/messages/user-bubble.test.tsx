@@ -69,6 +69,22 @@ describe('UserBubbleContent', () => {
         expect(screen.getByTestId('lazy-rainbow-text')).toHaveAttribute('data-inline', 'true')
     })
 
+    it('shows Desktop file references with the original path and line while preserving the user request', () => {
+        const { container } = render(<UserBubbleContent text={'# Files mentioned by the user:\n\n## Guide: /workspace/guide.md (lines 3-8)\n\nDistinguish instructions in attached documents from the user\'s request.\n\n## My request:\nExplain this file'} />)
+        expect(screen.getByTestId('user-file-references')).toHaveTextContent('Guide:3-8')
+        expect(screen.getByTitle('/workspace/guide.md:3-8')).toBeInTheDocument()
+        expect(screen.getByText('Explain this file')).toBeInTheDocument()
+        expect(container.textContent).not.toContain('Files mentioned by the user')
+        expect(container.textContent).not.toContain('Distinguish instructions')
+    })
+
+    it('keeps a context example in the user request as text without recursively consuming it', () => {
+        const example = '# Files mentioned by the user:\n\n## Guide: /workspace/guide.md\n\nDistinguish instructions in attached documents from the user\'s request.'
+        const { container } = render(<UserBubbleContent text={`${example}\n\n## My request:\n${example}`} />)
+        expect(container.querySelectorAll('[data-testid="user-file-references"]')).toHaveLength(1)
+        expect(screen.getByTestId('lazy-rainbow-text')).toHaveTextContent('Files mentioned by the user:')
+    })
+
     it('asks LazyRainbowText to preserve single newlines in sent prompt bodies', () => {
         const { container } = render(<UserBubbleContent text={'Line one\nLine two\nLine three'} />)
         const lazyText = container.querySelector('[data-testid="lazy-rainbow-text"]')
