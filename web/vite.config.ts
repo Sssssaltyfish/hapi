@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { VitePWA, type VitePluginPWAAPI } from 'vite-plugin-pwa'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { shareTargetPathnameFromBase } from './src/lib/sharePath'
@@ -26,6 +26,23 @@ const base = process.env.VITE_BASE_URL || '/'
 const shareAction = shareTargetPathnameFromBase(base)
 const hubTarget = process.env.VITE_HUB_PROXY || 'http://127.0.0.1:3006'
 const appVersion = readAppVersion()
+
+function excludeDynamicManifest(): Plugin {
+    let pwa: VitePluginPWAAPI | undefined
+    return {
+        name: 'exclude-dynamic-manifest',
+        configResolved(config) {
+            pwa = config.plugins.find(plugin => plugin.name === 'vite-plugin-pwa')?.api as VitePluginPWAAPI | undefined
+        },
+        generateBundle() {
+            // VitePWA adds this after glob matching, and Workbox appends those
+            // entries AFTER manifestTransforms. Remove it through the plugin API
+            // before its closeBundle hook generates the service worker.
+            pwa?.extendManifestEntries(entries => entries.filter(entry =>
+                (typeof entry === 'string' ? entry : entry.url) !== 'manifest.webmanifest'))
+        }
+    }
+}
 
 function readAppVersion(): string {
     const buildInfoPath = resolve(__dirname, '../shared/src/buildInfo.ts')
@@ -205,7 +222,8 @@ export default defineConfig({
                 enabled: true,
                 type: 'module'
             }
-        })
+        }),
+        excludeDynamicManifest()
     ],
     base,
     optimizeDeps: {

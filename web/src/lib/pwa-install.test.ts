@@ -23,6 +23,17 @@ afterEach(() => {
 })
 
 describe('PWA browser install lifecycle', () => {
+    it('discards an offer created before a manifest change and waits for a fresh browser offer', async () => {
+        const controller = createController()
+        const stale = offer()
+        controller.invalidatePrompt()
+        expect(controller.getSnapshot().canPromptInstall).toBe(false)
+        expect(await controller.promptInstall()).toBe(false)
+        expect(stale.prompt).not.toHaveBeenCalled()
+        const fresh = offer()
+        await controller.promptInstall()
+        expect(fresh.prompt).toHaveBeenCalledTimes(1)
+    })
     it('keeps a browser offer received before login UI subscribes, including after floating dismissal', async () => {
         const controller = createController()
         const { event, prompt } = offer()

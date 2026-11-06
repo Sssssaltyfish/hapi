@@ -83,7 +83,10 @@ function AppInner() {
         if (!api) return
         let cancelled = false
         void api.getAppIcon().then((icon) => {
-            if (!cancelled) refreshAppIconLinks(api.getAppIconUrl(icon.revision, 'image', 64), icon.type, api.getAppIconUrl(icon.revision, 'apple-touch'))
+            if (!cancelled) {
+                const url = api.getAppIconUrl(icon.revision, 'image', 64)
+                refreshAppIconLinks(url, icon.type, api.getAppIconUrl(icon.revision, 'apple-touch'), icon.revision)
+            }
         }).catch(() => {})
         return () => { cancelled = true }
     }, [api])

@@ -57,6 +57,11 @@ export function createPWAInstallController(browser: Window) {
 
     return {
         getSnapshot: () => snapshot,
+        invalidatePrompt: () => {
+            deferredPrompt = null
+            if (installState === 'available') installState = 'idle'
+            publish()
+        },
         subscribe: (listener: () => void) => {
             listeners.add(listener)
             return () => { listeners.delete(listener) }
