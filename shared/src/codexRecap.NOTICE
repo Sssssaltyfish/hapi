@@ -1,0 +1,12 @@
+OpenAI Codex
+Copyright 2025 OpenAI
+
+This project includes code derived from [Ratatui](https://github.com/ratatui/ratatui), licensed under the MIT license.
+Copyright (c) 2016-2022 Florian Dehau
+Copyright (c) 2023-2025 The Ratatui Developers
+
+HAPI adapts the recap prompt, bounded history selection, and temporary structured
+request workflow from OpenAI Codex commit
+94ca55a93c11348c6e3431e292b8e9a33dfefc82 into TypeScript in codexRecapPrompt.ts
+and codexRecap.ts. HAPI adds daemon transport adapters, source freshness checks,
+and cleanup handling. The copied upstream notice above is retained for attribution.

@@ -2,7 +2,7 @@ import { readFile, stat } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
 import type { CodexThreadCommand } from '@hapi/protocol/codexThreadCommands'
-import { CodexGuardianDenials } from '@hapi/protocol/codexManagement'
+import { CodexGuardianDenials, codexRecap } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
@@ -90,6 +90,7 @@ export class NativeService {
     private subscriptions = new Map<string, Subscription>()
     private connections = new Set<NativeConnection>()
     private commandRuns = new Map<string, Promise<unknown>>()
+    private recapRuns = new Set<string>()
     private catalogEvents = new NativeCatalogEvents(() => this.connection())
     private desktopWorkspaces?: DesktopWorkspaceLookup
     private identities = createWorkspaceIdentityReader()
@@ -549,6 +550,25 @@ export class NativeService {
     async control(threadId: string, method: string, params: NativeRecord): Promise<unknown> {
         // Controls use a separate connection and never wait for the subscription or history page.
         return this.call(method, { ...params, threadId })
+    }
+    async recap(threadId: string) {
+        if (this.recapRuns.has(threadId)) throw new NativeThreadCommandError(409, 'A recap is already being generated.')
+        this.recapRuns.add(threadId)
+        try {
+            const source = this.subscriptions.get(threadId)
+            const settings = source?.snapshot ?? (source ? record(await source.attached) : undefined)
+            return await this.withConnection(client => codexRecap({
+                request: (method, params) => client.request(method, params),
+                subscribe: listener => {
+                    client.listeners.add(listener)
+                    source?.client.listeners.add(listener)
+                    return () => { client.listeners.delete(listener); source?.client.listeners.delete(listener) }
+                },
+                rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
+                    error: { code: -32601, message: 'Recap helpers do not accept interaction requests' },
+                }),
+            }, threadId, { settings }))
+        } finally { this.recapRuns.delete(threadId) }
     }
     guardianDenial(threadId: string) {
         return this.subscriptions.get(threadId)?.denials?.show() ?? null

@@ -6,6 +6,7 @@ import type { SessionBootstrapResult } from '@/agent/sessionFactory';
 import { SharedCodexRoot, type RootHost } from './root';
 import { codexPlanProposalId } from './plan';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
+import { sharedCodexRecap } from './recap';
 
 type NativeTurn = { id: string; status: string; items: unknown[] };
 
@@ -33,7 +34,6 @@ vi.mock('../codexAppServerClient', () => ({
             if (method === 'thread/list') return { data: [] };
             if (method === 'thread/turns/list') return { data: [...this.thread.turns].reverse() };
             if (method === 'thread/compact/start' || method === 'thread/approveGuardianDeniedAction') return {};
-            if (method === 'thread/sample') return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' };
             if (method === 'account/usage/read') return { summary: { lifetimeTokens: 123 } };
             if (method === 'account/rateLimits/read') return { rateLimits: {} };
             if (method === 'thread/goal/get') return { goal: this.goal };
@@ -68,6 +68,7 @@ vi.mock('../codexAppServerClient', () => ({
     },
     isIndeterminateError: () => false
 }));
+vi.mock('./recap', () => ({ sharedCodexRecap: vi.fn(async () => 'A separate recap.') }));
 vi.mock('../utils/buildHapiMcpBridge', () => ({ buildHapiMcpBridge: async () => ({
     mcpServers: {}, server: { stop() {} }
 }) }));
@@ -138,8 +139,14 @@ async function fixture(opts?: { hubArchived?: boolean; end?: RootHost['end']; na
 }
 
 describe('native management command delivery', () => {
-    it('dispatches management input without queueing a model turn and requires an exact one-time denial confirmation', async () => {
+    it('keeps input flowing during a recap, avoids duplicate helpers, and requires an exact denial confirmation', async () => {
         const f = await fixture();
+        let finishRecap!: (text: string) => void;
+        const recapCalls = vi.mocked(sharedCodexRecap).mock.calls.length;
+        vi.mocked(sharedCodexRecap).mockImplementationOnce(options => new Promise((resolve, reject) => {
+            finishRecap = resolve;
+            options.signal.addEventListener('abort', () => reject(new Error('Recap was canceled.')), { once: true });
+        }));
         f.native.thread.turns = [{ id: 'completed', status: 'completed', items: [] }];
         await f.root.activate();
         f.native.notify('thread/settings/updated', { threadId: 'thread', threadSettings: { model: 'mock', approvalsReviewer: 'auto_review' } });
@@ -147,6 +154,14 @@ describe('native management command delivery', () => {
             f.userMessage(`/${name}`, name, 'steer');
             await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith([name], expect.anything()));
         }
+        expect(f.events.mock.calls.some(([event]) => event.message === 'A separate recap.')).toBe(false);
+        f.userMessage('/recap', 'duplicate-recap', 'queue');
+        await vi.waitFor(() => expect(f.consumed).toHaveBeenCalledWith(['duplicate-recap'], expect.anything()));
+        expect(vi.mocked(sharedCodexRecap).mock.calls.length - recapCalls).toBe(1);
+        f.userMessage('Continue the ordinary work', 'ordinary-input', 'queue');
+        await vi.waitFor(() => expect(f.native.queue.some(entry => entry.clientUserMessageId === 'ordinary-input')).toBe(true));
+        finishRecap('A separate recap.');
+        await vi.waitFor(() => expect(f.events.mock.calls.filter(([event]) => event.message === 'A separate recap.')).toHaveLength(1));
         const usageEvent = f.events.mock.calls.map(([event]) => event).find(event => event.codexUsage);
         expect(usageEvent.codexUsage.summary.lifetimeTokens).toBe('123');
         expect(usageEvent.message).not.toContain('{');
@@ -161,8 +176,11 @@ describe('native management command delivery', () => {
         f.userMessage('/approve review', 'duplicate-review', 'queue');
         await vi.waitFor(() => expect(f.events.mock.calls.some(([event]) => String(event.message).includes('no longer available'))).toBe(true));
         expect(f.native.calls.filter(call => call.method === 'thread/approveGuardianDeniedAction')).toHaveLength(1);
-        expect(f.native.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false);
-        expect(f.native.calls.find(call => call.method === 'thread/sample')?.params).toMatchObject({ threadId: 'thread', expectedTurnId: 'completed' });
+        expect(f.native.calls.filter(call => call.method === 'thread/queue/add').map(call => call.params.clientUserMessageId)).toEqual(['ordinary-input']);
+        expect(f.native.calls.some(call => ['turn/start', 'turn/steer'].includes(call.method))).toBe(false);
+        expect(sharedCodexRecap).toHaveBeenCalledWith(expect.objectContaining({ endpoint: 'mock', threadId: 'thread',
+            settings: expect.objectContaining({ model: 'mock' }), signal: expect.any(AbortSignal), subscribeSource: expect.any(Function) }));
+        expect(f.events.mock.calls.filter(([event]) => event.message === 'A separate recap.')).toHaveLength(1);
     });
 });
 

@@ -119,7 +119,7 @@ export class NativeConnection {
             const timer = setTimeout(() => {
                 this.pending.delete(id)
                 reject(new Error('Native request timed out; mutation outcome may be unknown'))
-            }, method === 'thread/sample' ? 120_000 : 20_000)
+            }, 20_000)
             this.pending.set(id, { resolve, reject, timer })
             this.socket!.send(JSON.stringify({ id, method, params }), (error) => {
                 if (!error) return

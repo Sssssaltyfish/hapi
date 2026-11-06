@@ -7,7 +7,7 @@ import {
     type NativeCommandState as NativeThreadCommandState,
     type NativeCommandResult as NativeThreadCommandResult
 } from '@hapi/protocol/codexThreadCommands'
-import { codexRecap, codexUsage } from '@hapi/protocol/codexManagement'
+import { codexUsage } from '@hapi/protocol/codexManagement'
 import type { NativeService } from './service'
 import { queueNativeInput } from './queueInput'
 import { record, type NativeRecord } from './transport'
@@ -165,7 +165,7 @@ export async function executeThreadCommand(
     if (command.command === 'usage') return codexUsage((method, params) => method.startsWith('account/')
         ? native.call(method, params) : request(method, params), threadId)
     if (command.command === 'recap') {
-        try { return await codexRecap(request, threadId) }
+        try { return await native.recap(threadId) }
         catch (error) { throw new NativeThreadCommandError(409, error instanceof Error ? error.message : String(error)) }
     }
     if (command.command === 'compact') {

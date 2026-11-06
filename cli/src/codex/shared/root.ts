@@ -25,8 +25,9 @@ import { record, string } from './gateway';
 import { initializeSharedClient, type SharedLaunchOptions } from './launch';
 import { inheritedSandbox, settingsMatch } from './settings';
 import { planImplementationMessageId, planProposalForItem, planProposalForTurn } from './plan';
-import { CodexGuardianDenials, codexRecap, codexUsage } from '@hapi/protocol/codexManagement';
+import { CodexGuardianDenials, codexUsage } from '@hapi/protocol/codexManagement';
 import { codexUsageSummary } from '@hapi/protocol/codexUsage';
+import { sharedCodexRecap } from './recap';
 
 type RuntimeSettings = NonNullable<Parameters<ApiSessionClient['keepAlive']>[2]>;
 export type RootHost = {
@@ -59,6 +60,9 @@ export class SharedCodexRoot {
     private notifications = Promise.resolve();
     private currentTurn: string | undefined;
     private readonly guardianDenials = new CodexGuardianDenials();
+    private recapController?: AbortController;
+    private recapTask?: Promise<void>;
+    private readonly recapListeners = new Set<(event: { method: string; params?: unknown }) => void>();
     // Ephemeral observations only: dequeue/compaction never prove acceptance.
     private readonly dequeuedInputs = new Set<string>();
     private deliveryTurn?: string;
@@ -93,6 +97,7 @@ export class SharedCodexRoot {
         this.session = bootstrap.session;
         this.client = new CodexAppServerClient({ endpoint: host.endpoint, token: host.token, cwd: bootstrap.workingDirectory });
         this.client.setNotificationHandler((method, params) => {
+            for (const listener of this.recapListeners) listener({ method, params });
             this.guardianDenials.observe(this.threadId, method, params);
             if (method === 'serverRequest/resolved') {
                 this.permissions?.resolved(string(record(params).threadId) ?? '', record(params).requestId); return;
@@ -696,7 +701,23 @@ export class SharedCodexRoot {
                 this.notice('Native compaction request accepted. Completion will be reported by Codex.');
             } else if (slash.command.command === 'recap') {
                 if (this.currentTurn) throw new Error('Wait for the current turn to finish before generating a recap');
-                this.notice((await codexRecap(request, this.threadId)).text);
+                if (this.recapController) { this.notice('A recap is already being generated.'); return null; }
+                const controller = new AbortController();
+                this.recapController = controller;
+                // The command is consumed immediately; model generation must not hold the input queue.
+                const pending: Promise<void> = sharedCodexRecap({ endpoint: this.host.endpoint, token: this.host.token,
+                    cwd: this.bootstrap.workingDirectory, threadId: this.threadId, settings: this.settingsNative,
+                    signal: controller.signal, subscribeSource: listener => {
+                        this.recapListeners.add(listener); return () => { this.recapListeners.delete(listener); };
+                    } }).then(text => { if (!this.closed) this.notice(text); }, error => {
+                        if (!this.closed) this.notice(error instanceof Error ? error.message : String(error));
+                    }).finally(() => {
+                        this.controls.delete(pending);
+                        this.recapController = undefined;
+                        this.recapTask = undefined;
+                    });
+                this.recapTask = pending;
+                this.controls.add(pending);
             } else if (slash.command.command === 'usage') {
                 const { snapshot } = await codexUsage(request, this.threadId);
                 this.session.sendSessionEvent({ type: 'message', message: codexUsageSummary(snapshot), codexUsage: snapshot });
@@ -730,6 +751,7 @@ export class SharedCodexRoot {
     }
     stopAccepting(): void {
         this.stopping = true; this.ready();
+        this.recapController?.abort();
         this.guardianDenials.clear();
         this.publishSteering();
         this.publishPlan();
@@ -746,6 +768,7 @@ export class SharedCodexRoot {
         return this.closing ??= (async () => {
             this.stopAccepting(); this.closed = true; clearInterval(this.heartbeat);
             this.permissions?.close();
+            await this.recapTask;
             await this.client.disconnect(); await this.notifications; await this.queue?.flush(); this.bridge?.server.stop();
             if (archived) this.session.updateMetadata(metadata => ({ ...metadata, lifecycleState: 'archived', lifecycleStateSince: Date.now() }));
             // Inactive is resumable; uploads referenced by pending input must survive.

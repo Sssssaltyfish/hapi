@@ -21,7 +21,7 @@ class Daemon {
     runtimeStatus = 'active'
     startFailure = false
     canonicalInstructions = false
-    sampleUnsupported = false
+    recapUnsupported = false
     emit(event: NativeEvent) {
         for (const client of this.clients) for (const listener of client.listeners) listener(event)
     }
@@ -85,16 +85,22 @@ class Daemon {
                         return { queuedSubmission: { id: 'queued', clientUserMessageId: params.clientUserMessageId } }
                     case 'thread/turns/list': return { data: [{ id: 'turn', status: this.latestStatus, items: params.itemsView === 'full'
                         ? [{ type: 'agentMessage', phase: 'final_answer', text: 'Existing final response.' }] : [] }] }
-                    case 'thread/read': return { thread: { id: 'thread', status: { type: this.runtimeStatus } } }
+                    case 'thread/read': return { thread: { id: 'thread', model: 'current-model', modelProvider: 'openai', cwd: '/work', status: { type: this.runtimeStatus } } }
+                    case 'config/read': return { config: { mcp_servers: { test: { enabled: true } } } }
+                    case 'thread/start':
+                        if (this.recapUnsupported) throw new Error('Method not found')
+                        return { thread: { id: 'recap-helper', ephemeral: true }, sandbox: { type: 'readOnly' } }
+                    case 'turn/start':
+                        this.emit({ method: 'turn/started', params: { threadId: 'recap-helper', turn: { id: 'recap-turn' } } })
+                        this.emit({ method: 'item/completed', params: { threadId: 'recap-helper', turnId: 'recap-turn', item: { type: 'agentMessage', text: JSON.stringify({ summary: 'A separate recap.', next_action: null }) } } })
+                        this.emit({ method: 'turn/completed', params: { threadId: 'recap-helper', turn: { id: 'recap-turn', status: 'completed' } } })
+                        return { turn: { id: 'recap-turn' } }
                     case 'thread/queue/list': return { data: this.queued }
                     case 'thread/queue/start':
                         if (this.startFailure) throw new Error('Start confirmation unavailable')
                         return {}
                     case 'account/usage/read': return { summary: { lifetimeTokens: 123 }, threadUsage: { threadId: params.threadId, estimatedUsageCreditsMicros: 456 } }
                     case 'account/rateLimits/read': throw new Error('Rate limits unavailable')
-                    case 'thread/sample':
-                        if (this.sampleUnsupported) throw new Error('Invalid request: unknown variant `thread/sample`, expected one of `initialize`, `thread/read`')
-                        return { sourceTurnId: params.expectedTurnId, text: 'A separate recap.' }
                     case 'thread/compact/start':
                     case 'thread/approveGuardianDeniedAction': return {}
                     default: return { data: [] }
@@ -159,7 +165,7 @@ describe('Native Plan and Goal commands', () => {
             daemon.goal = null
             expect((await command({ command: 'goal', action: 'edit', objective: 'Recreate', expectedObjective: 'Revised' })).status).toBe(409)
             expect(daemon.calls.filter(call => call.method === 'thread/goal/set')).toHaveLength(1)
-            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
+            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method) && call.params.threadId === 'thread')).toBe(false)
         } finally { service.dispose() }
     })
 
@@ -175,22 +181,21 @@ describe('Native Plan and Goal commands', () => {
             expect(await (await command({ command: 'usage' })).json()).toMatchObject({ command: 'usage', snapshot: { thread: { id: 'thread' }, limits: [], unavailable: { rateLimits: 'Rate limits unavailable' } } })
             expect((await command({ command: 'approve', action: 'retry', reviewId: 'forged', event: { action: 'allow anything' } })).status).toBe(400)
             expect((await command({ command: 'compact' }, { attachments: [{ path: '/tmp/file' }] })).status).toBe(400)
-            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method))).toBe(false)
+            expect(daemon.calls.some(call => ['thread/queue/add', 'turn/start', 'turn/steer'].includes(call.method) && call.params.threadId === 'thread')).toBe(false)
             expect(daemon.calls.some(call => call.method === 'experimentalFeature/list')).toBe(false)
         } finally { service.dispose() }
     })
 
-    test('native recap uses labeled existing history when the daemon rejects sampling', async () => {
+    test('native recap reports unsupported ephemeral workflow without sampling or excerpt fallback', async () => {
         const { daemon, service, command } = fixture()
         try {
             daemon.runtimeStatus = 'idle'
             daemon.latestStatus = 'completed'
-            daemon.sampleUnsupported = true
+            daemon.recapUnsupported = true
             const response = await command({ command: 'recap' })
-            expect(response.status).toBe(200)
-            expect(await response.json()).toMatchObject({ command: 'recap', source: 'history', sourceTurnId: 'turn',
-                text: 'Recent conversation excerpts\n\nLatest response\nExisting final response.' })
-            expect(daemon.calls.some(call => ['thread/fork', 'turn/start', 'turn/steer', 'thread/queue/add'].includes(call.method))).toBe(false)
+            expect(response.status).toBe(409)
+            expect(await response.json()).toMatchObject({ error: 'This Codex host does not support the temporary recap workflow. Upgrade Codex before retrying.' })
+            expect(daemon.calls.some(call => ['thread/sample', 'thread/fork', 'turn/start', 'turn/steer', 'thread/queue/add'].includes(call.method))).toBe(false)
         } finally { service.dispose() }
     })
 

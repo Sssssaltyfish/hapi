@@ -19,7 +19,7 @@
 
 ## 输入区与会话命令
 
-`/compact` 启动原生上下文压缩。`/recap` 在支持 `thread/sample` 的主机上对最近已结束的轮次单独生成摘要，会调用模型，主对话历史保持原样。主机明确拒绝该方法时，Native 和 managed 路径都会只读最近轮次，显示带有“Recent conversation excerpts”标签的原始请求、最终回复和计划摘录；摘录有长度上限，不冒充新生成的摘要，也不会另开模型轮次。`getConversationSummary` 只有预览和会话元信息，不用作摘要替代。`/approve` 展示当前线程中已观察到的自动审查拒绝，用户核对具体动作后可以请求一次重试。`/usage` 通过 `account/usage/read` 和 `account/rateLimits/read` 读取用量与额度，两项可用性分别显示。
+`/compact` 启动原生上下文压缩。`/recap` 在 Native 和 managed 路径中使用与 CLI 一致的临时摘要线程：读取有界的近期用户可见历史，保留原顺序，使用原会话的模型、provider 和目录，在禁用工具、MCP、hooks、plugins、skills 和 memories 的 ephemeral helper 上执行结构化生成。摘要及可选下一步使用用户语言，完成后脱离临时线程，不改动原对话，也不创建持久会话。源会话发生变化、超时或取消时，丢弃结果并中断已知的 helper 轮次后清理。旧主机不支持该流程时返回升级说明，不再使用 sampling 或原始摘录兜底。CLI 没有独立的 recap RPC；`thread/sample` 是另一项公开实验 API。`getConversationSummary` 只有预览和会话元信息，不用作摘要替代。`/approve` 展示当前线程中已观察到的自动审查拒绝，用户核对具体动作后可以请求一次重试。`/usage` 通过 `account/usage/read` 和 `account/rateLimits/read` 读取用量与额度，两项可用性分别显示。
 
 输入区的上下文占用取自最近一次实际 token 用量和 provider 报告的窗口上限。点击在百分比与 token 数之间切换。账户总用量和 Goal 的累计消耗另行展示。
 
