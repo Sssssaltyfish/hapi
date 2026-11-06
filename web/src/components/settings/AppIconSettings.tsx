@@ -51,7 +51,7 @@ export function AppIconSettings() {
             const result = reset ? await api.resetAppIcon() : await api.setAppIcon(await exportIconCrop(canvas.current!))
             queryClient.setQueryData(queryKey, result)
             const revision = result.revision ?? `default-${Date.now()}`
-            refreshAppIconLinks(api.getAppIconUrl(revision), result.type, api.getAppIconUrl(revision, 'apple-touch'))
+            refreshAppIconLinks(api.getAppIconUrl(revision, 'image', 64), result.type, api.getAppIconUrl(revision, 'apple-touch'))
             setSource(null)
         } catch { setError(t('settings.display.appIcon.saveError')) }
         finally { setBusy(false) }
@@ -60,7 +60,7 @@ export function AppIconSettings() {
     return <>
         <SettingsRow label={t('settings.display.appIcon.title')} description={t('settings.display.appIcon.description')} trailing={
             <div className="flex items-center gap-2">
-                <img src={api.getAppIconUrl(data?.revision)} className="h-10 w-10 rounded-lg" alt="" />
+                <img src={api.getAppIconUrl(data?.revision, 'image', 64)} className="h-10 w-10 rounded-lg" alt="" />
                 <button type="button" className={`${buttonClass} bg-[var(--app-subtle-bg)]`} disabled={!data?.canEdit || busy} onClick={() => input.current?.click()}>{t('settings.display.appIcon.choose')}</button>
             </div>
         }>

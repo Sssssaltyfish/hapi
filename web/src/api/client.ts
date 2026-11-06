@@ -1111,8 +1111,12 @@ export class ApiClient {
         return await this.request<HubSettingsResponse>('/api/hub-settings')
     }
 
-    getAppIconUrl(revision?: string | null, variant: 'image' | 'apple-touch' = 'image'): string {
-        return this.buildUrl(`/api/app-icon/${variant}${revision ? `?v=${encodeURIComponent(revision)}` : ''}`)
+    getAppIconUrl(revision?: string | null, variant: 'image' | 'apple-touch' = 'image', size?: 64 | 192): string {
+        const params = new URLSearchParams()
+        if (variant === 'image' && size) params.set('size', String(size))
+        if (revision) params.set('v', revision)
+        const query = params.toString()
+        return this.buildUrl(`/api/app-icon/${variant}${query ? `?${query}` : ''}`)
     }
 
     async getAppIcon(): Promise<{ revision: string | null; type: 'image/png' | 'image/webp' | null; canEdit: boolean }> {

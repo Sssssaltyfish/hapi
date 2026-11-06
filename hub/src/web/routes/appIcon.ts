@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { ifNoneMatchMatches } from '../etag'
 import { AppIconStore, MAX_APP_ICON_BYTES, normalizeAppIcon, getAppIconType, type AppIconType } from '../appIcon'
 import type { WebAppEnv } from '../middleware/auth'
 
@@ -7,11 +8,20 @@ export function createPublicAppIconRoutes(store: AppIconStore): Hono {
     const app = new Hono()
     app.get('/app-icon/image', async (c) => {
         c.header('Cache-Control', 'no-store')
+        const size = c.req.query('size') ?? '512'
+        if (!['64', '192', '512'].includes(size)) return c.json({ error: 'Unsupported icon size' }, 400)
         const icon = await store.read()
-        if (!icon) return c.redirect('/pwa-512x512.png', 307)
+        if (!icon) return c.redirect(`/pwa-${size}x${size}.png`, 307)
+        const etag = `W/"${icon.revision}-${size}"`
+        c.header('Cache-Control', 'no-cache')
+        c.header('ETag', etag)
+        if (ifNoneMatchMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304)
         c.header('Content-Type', icon.type)
         c.header('X-Content-Type-Options', 'nosniff')
-        return c.body(new Uint8Array(icon.bytes))
+        if (size === '512') return c.body(new Uint8Array(icon.bytes))
+        const resized = new Bun.Image(icon.bytes, { maxPixels: 512 * 512 }).resize(Number(size), Number(size))
+        const bytes = await (icon.type === 'image/webp' ? resized.webp({ quality: 80 }) : resized.png()).bytes()
+        return c.body(new Uint8Array(bytes))
     })
     // Apple web clips use PNG. Generate the small derivative on demand without
     // retaining another file or a previous version of the user's icon.
@@ -19,6 +29,10 @@ export function createPublicAppIconRoutes(store: AppIconStore): Hono {
         c.header('Cache-Control', 'no-store')
         const icon = await store.read()
         if (!icon) return c.redirect('/apple-touch-icon-180x180.png', 307)
+        const etag = `W/"${icon.revision}-apple-180"`
+        c.header('Cache-Control', 'no-cache')
+        c.header('ETag', etag)
+        if (ifNoneMatchMatches(c.req.header('If-None-Match'), etag)) return c.body(null, 304)
         c.header('Content-Type', 'image/png')
         c.header('X-Content-Type-Options', 'nosniff')
         const png = await new Bun.Image(icon.bytes, { maxPixels: 512 * 512 }).resize(180, 180).png().bytes()
@@ -64,5 +78,8 @@ export function createAppIconRoutes(store: AppIconStore): Hono<WebAppEnv> {
 }
 
 export function withAppIcon(manifest: Record<string, unknown>, revision: string | null, type: AppIconType = 'image/png'): Record<string, unknown> {
-    return revision ? { ...manifest, icons: [{ src: `/api/app-icon/image?v=${revision}`, sizes: '512x512', type, purpose: 'any' }] } : manifest
+    return revision ? { ...manifest, icons: [
+        { src: `/api/app-icon/image?size=192&v=${revision}`, sizes: '192x192', type, purpose: 'any' },
+        { src: `/api/app-icon/image?v=${revision}`, sizes: '512x512', type, purpose: 'any' }
+    ] } : manifest
 }
