@@ -2,6 +2,7 @@ import type { DecryptedMessage, Session } from '@/types/api'
 import { nativeQuestionReplies, nativeText, record } from './presentation'
 import type { NativeItemEntry, NativeRecord, NativeRequest } from './types'
 import { nativeCollaborationTool, nativeSubagentEvent } from './nativeCollaboration'
+import { nativeReasoningMessageId, nativeReasoningParts } from './nativeReasoning'
 
 function nativePatchChanges(value: unknown): NativeRecord {
     if (!Array.isArray(value)) return record(value)
@@ -11,16 +12,35 @@ function nativePatchChanges(value: unknown): NativeRecord {
     }))
 }
 
+function latestActiveReasoning(entries: NativeItemEntry[], activeTurnId?: string): string | undefined {
+    if (!activeTurnId) return
+    for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex--) {
+        const { item, turnId } = entries[entryIndex]
+        if (turnId !== activeTurnId) continue
+        if (item.type === 'userMessage' || (item.type === 'steeringUserMessage' && item.status === 'accepted') ||
+            (item.type === 'agentMessage' && (item.phase === 'commentary' || item.phase === 'final_answer' || nativeText(item.text).trim())) ||
+            (item.type === 'plan' && nativeText(item.text).trim())) return
+        if (item.type !== 'reasoning') continue
+        const parts = nativeReasoningParts(item.summary)
+        for (let index = parts.length - 1; index >= 0; index--) {
+            if (parts[index]?.trim()) return nativeReasoningMessageId(item.id, index)
+        }
+    }
+    return undefined
+}
+
 /** Presentation only. No native record is imported into HAPI storage. */
 export function projectNativeItems(
     entries: NativeItemEntry[],
     requests: NativeRequest[],
     canAnswerAsync = true,
-    observedReplies: ReadonlyMap<string, string> = new Map()
+    observedReplies: ReadonlyMap<string, string> = new Map(),
+    activeTurnId?: string
 ) {
     const messages: DecryptedMessage[] = []
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
     const replies = new Map([...observedReplies, ...nativeQuestionReplies(entries)])
+    const activeReasoningId = latestActiveReasoning(entries, activeTurnId)
     const add = (id: string, timestamp: number, body: NativeRecord, user = false) => {
         messages.push({
             id,
@@ -47,6 +67,8 @@ export function projectNativeItems(
                               ? { nativeCodexMessagePhase: body.nativeMessagePhase } : {}),
                           ...(typeof body.nativeResponseItemId === 'string'
                               ? { nativeCodexResponseItemId: body.nativeResponseItemId } : {}),
+                          ...(typeof body.nativeReasoningSummaryIndex === 'number'
+                              ? { nativeReasoningSummaryIndex: body.nativeReasoningSummaryIndex, nativeReasoningActive: body.nativeReasoningActive === true } : {}),
                       },
                   },
         })
@@ -151,8 +173,14 @@ export function projectNativeItems(
                     }
             }
         } else if (item.type === 'reasoning') {
-            const text = nativeText(item.summary)
-            if (text) add(id, at, { type: 'reasoning', message: text, turn_id: entry.turnId })
+            nativeReasoningParts(item.summary).forEach((text, index) => {
+                if (!text.trim()) return
+                const summaryId = nativeReasoningMessageId(item.id, index)
+                add(summaryId, at, {
+                    type: 'reasoning', message: text, turn_id: entry.turnId, nativeResponseItemId: item.id,
+                    nativeReasoningSummaryIndex: index, nativeReasoningActive: summaryId === activeReasoningId,
+                })
+            })
         } else if (item.type === 'commandExecution') {
             tool(
                 id,

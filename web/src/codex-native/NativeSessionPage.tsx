@@ -9,6 +9,7 @@ import { reduceChatBlocks } from '@/chat/reducer'
 import type { NormalizedMessage } from '@/chat/types'
 import { nativeAsyncReplyTurn, nativeQuestionReplies, nativeState, record } from './presentation'
 import { projectNativeItems } from './projectNativeItems'
+import { nativeReasoningMessageId, nativeReasoningParts } from './nativeReasoning'
 import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
@@ -107,15 +108,20 @@ function NativeSessionChat({
     while (observedReplies.current.size > 300)
         observedReplies.current.delete(observedReplies.current.keys().next().value!)
     const turnStateKnown = thread.detail.activeTurn !== undefined
+    const activeTurn = record(thread.detail.activeTurn)
+    const activeTurnId = activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : undefined
+    const [viewMode, setViewMode] = useState<'tail' | 'history'>(() => getConversationReadingPosition(session.id)?.atBottom === false ? 'history' : 'tail')
+    const reasoningTurnId = viewMode === 'tail' ? activeTurnId : undefined
     const projected = useMemo(
         () =>
             projectNativeItems(
                 thread.items,
                 thread.requests,
                 turnStateKnown,
-                observedReplies.current
+                observedReplies.current,
+                reasoningTurnId
             ),
-        [thread.items, thread.requests, turnStateKnown]
+        [thread.items, thread.requests, turnStateKnown, reasoningTurnId]
     )
     const [sending, setSending] = useState(false)
     const historyLocators = useMemo(() => {
@@ -124,20 +130,21 @@ function NativeSessionChat({
             if (!entry.turnId) continue
             const locator: TimelineHistoryLocator = { kind: 'native', turnId: entry.turnId, itemId: entry.item.id }
             for (const suffix of ['', ':call', ':result']) locators.set(`native:${entry.item.id}${suffix}`, locator)
+            if (entry.item.type === 'reasoning') nativeReasoningParts(entry.item.summary).forEach((text, index) => {
+                if (text.trim()) locators.set(nativeReasoningMessageId(entry.item.id, index), locator)
+            })
         }
         return locators
     }, [thread.items])
     const [settlement, setSettlement] = useState<SendMessageSettlement | null>(null)
     const [sendError, setSendError] = useState<ComposerSendError | null>(null)
     const [settingsError, setSettingsError] = useState<string | null>(null)
-    const [viewMode, setViewMode] = useState<'tail' | 'history'>(() => getConversationReadingPosition(session.id)?.atBottom === false ? 'history' : 'tail')
-    const revision = useRef({ items: thread.items, value: 0 })
-    if (revision.current.items !== thread.items)
-        revision.current = { items: thread.items, value: revision.current.value + 1 }
+    const revision = useRef({ items: thread.items, reasoningTurnId, value: 0 })
+    if (revision.current.items !== thread.items || revision.current.reasoningTurnId !== reasoningTurnId)
+        revision.current = { items: thread.items, reasoningTurnId, value: revision.current.value + 1 }
     const detail = record(thread.detail.thread)
     const settings = record(thread.detail.threadSettings ?? { ...detail, ...thread.detail })
     const effort = Object.hasOwn(settings, 'effort') ? settings.effort : settings.reasoningEffort
-    const activeTurn = record(thread.detail.activeTurn)
     const unavailable = native.available === false
     const liveSession = useMemo<Session>(
         () => ({
@@ -213,7 +220,7 @@ function NativeSessionChat({
                     pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult}
                     recaps={commands.recaps} hideRecap={commands.hideRecap} showRecap={commands.showRecap} cancelRecap={commands.cancelRecap} />
                     <NativeThreadCommandsBar commands={commands} disabled={unavailable || !thread.connected} /><NativeQueuedMessagesBar key={native.threadId} api={api} threadId={native.threadId} queue={queue} connected={thread.connected}
-                    activeTurnId={activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : null} /></>,
+                    activeTurnId={activeTurnId ?? null} /></>,
                 onSubmitCommand: text => {
                     const command = parseCodexThreadCommand(text)
                     if (!command) {

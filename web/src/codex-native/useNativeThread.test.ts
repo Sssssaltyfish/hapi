@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
 import { useNativeThread } from './useNativeThread'
-import type { NativeEvent, NativePage } from './types'
+import type { NativeEvent, NativeItemEntry, NativePage } from './types'
 
 const entry = (id: string) => ({ turnId: 'turn', item: { id, type: 'agentMessage', text: id }, startedAtMs: 1234 })
 const deferredPage = () => {
@@ -12,6 +12,49 @@ const deferredPage = () => {
 }
 
 describe('native thread window', () => {
+    it('streams public summary slots without rolling back live text or mutating the history window', async () => {
+        let event!: (value: NativeEvent) => void
+        let resolvePage!: (page: NativePage<NativeItemEntry>) => void
+        let resolveTurn!: (value: unknown) => void
+        const initial = new Promise<NativePage<NativeItemEntry>>(done => { resolvePage = done })
+        const turn = new Promise(done => { resolveTurn = done })
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'reasoning-stream' } }),
+            getCodexNativeActiveTurn: vi.fn().mockReturnValue(turn),
+            getCodexNativeItems: vi.fn().mockReturnValue(initial),
+            streamCodexNativeEvents: vi.fn((_id: string, _signal: AbortSignal, onEvent: typeof event) => { event = onEvent; return new Promise<void>(() => {}) }),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'reasoning-stream'))
+        const params = { threadId: 'reasoning-stream', turnId: 'turn', itemId: 'reasoning' }
+        const send = (method: string, value: Record<string, unknown>) => event({ method, params: { ...params, ...value } })
+        const summary = () => result.current.items.find(value => value.item.id === 'reasoning')?.item.summary
+        act(() => {
+            send('turn/started', { turn: { id: 'turn', status: 'inProgress' } })
+            send('item/reasoning/summaryPartAdded', { summaryIndex: 0 })
+            send('item/reasoning/summaryTextDelta', { summaryIndex: 0, delta: 'First' })
+            send('item/reasoning/summaryPartAdded', { summaryIndex: 1 })
+            send('item/reasoning/summaryTextDelta', { summaryIndex: 2, delta: 'Third' })
+            send('item/reasoning/summaryPartAdded', { summaryIndex: 2 })
+            send('item/started', { item: { id: 'reasoning', type: 'reasoning', summary: [] } })
+        })
+        await act(async () => resolvePage({
+            data: [{ turnId: 'turn', item: { id: 'reasoning', type: 'reasoning', summary: ['Fir'] } }],
+            nextCursor: 'older',
+        }))
+        expect(summary()).toEqual(['First', '', 'Third'])
+        act(() => {
+            send('item/completed', { item: { id: 'reasoning', type: 'reasoning', summary: ['First', '', 'Third done'] } })
+            send('turn/completed', { turn: { id: 'turn', status: 'completed' } })
+            result.current.browseHistory()
+            send('item/reasoning/summaryTextDelta', { itemId: 'new', summaryIndex: 0, delta: 'Newer item' })
+        })
+        await act(async () => resolveTurn({ activeTurn: { id: 'turn', status: 'inProgress' } }))
+        expect(summary()).toEqual(['First', '', 'Third done'])
+        expect(result.current.detail.activeTurn).toBeNull()
+        expect(result.current.items.map(value => value.item.id)).toEqual(['reasoning'])
+        unmount()
+    })
+
     it('keeps confirmed settings when an older detail read finishes late', async () => {
         let resolve!: (value: Record<string, unknown>) => void
         const response = new Promise<Record<string, unknown>>(done => { resolve = done })

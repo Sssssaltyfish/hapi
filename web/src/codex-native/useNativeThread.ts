@@ -5,6 +5,7 @@ import { mergeNativeItems, record } from './presentation'
 import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import { codexContextUsage, type ContextUsage } from '@/lib/contextUsage'
+import { nativeReasoningParts, reconcileNativeReasoning } from './nativeReasoning'
 
 type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; newerCursor: string | null; hasNewer: boolean; browsingOlder: boolean; savedAt: number; contextUsage?: ContextUsage | null }
 const windowCache = new Map<string, NativeWindowSnapshot>()
@@ -23,6 +24,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const cached = useRef(readCachedWindow(cacheKey))
     const [detail, setDetail] = useState<NativeRecord>({})
     const settingsRevision = useRef(0)
+    const activeTurnRevision = useRef(0)
     const [contextUsage, setContextUsage] = useState<ContextUsage | null>(cached.current?.contextUsage ?? null)
     const [items, setItems] = useState<NativeItemEntry[]>(() => {
         if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
@@ -100,7 +102,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     useEffect(() => {
         if (!cacheKey || items.length === 0) return
         windowCache.delete(cacheKey)
-        windowCache.set(cacheKey, { items: items.slice(0, 300), cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now(), contextUsage })
+        // Stream revisions only order events against reads in this hook instance.
+        const cachedItems = items.slice(0, 300).map(({ reasoningStreamRevision, reasoningStreamCompleted, ...entry }) => entry)
+        windowCache.set(cacheKey, { items: cachedItems, cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now(), contextUsage })
         while (windowCache.size > MAX_CACHED_WINDOWS) windowCache.delete(windowCache.keys().next().value!)
     }, [cacheKey, items, cursor, newerCursor, hasNewer, contextUsage])
     const applySettings = useCallback((settings: NativeRecord) => {
@@ -117,8 +121,10 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     }, [api, id])
 
     const refreshActiveTurn = useCallback(async () => {
+        const revision = ++activeTurnRevision.current
         const response = await api.getCodexNativeActiveTurn(id)
-        if (alive.current) setDetail(current => ({ ...current, activeTurn: response.activeTurn }))
+        if (alive.current && revision === activeTurnRevision.current)
+            setDetail(current => ({ ...current, activeTurn: response.activeTurn }))
     }, [api, id])
 
     const latest = useCallback(async (reset = false) => {
@@ -138,6 +144,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             boundaries.current.clear()
         }
         const generation = historyGeneration.current
+        const revision = tailRevision.current
         const request = Symbol('latest-page')
         refreshing.current = request
         const isCurrent = () => alive.current && generation === historyGeneration.current && refreshing.current === request
@@ -147,16 +154,30 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (latestTailId.current !== page.data[0]?.item.id) tailRevision.current += 1
             latestTailId.current = page.data[0]?.item.id
             rememberPage(page, 'older')
+            const applyLatest = () => setItems(current => {
+                const incoming = [...page.data].reverse()
+                const previous = new Map(current.map(entry => [entry.item.id, entry]))
+                const incomingIds = new Set(incoming.map(entry => entry.item.id))
+                const pageEnd = current.findIndex(entry => entry.item.id === incoming.at(-1)?.item.id)
+                const streamed = current.filter((entry, index) => typeof entry.reasoningStreamRevision === 'number' &&
+                    !incomingIds.has(entry.item.id) && (entry.reasoningStreamRevision > revision ||
+                        (!reset && (!incoming.length || (pageEnd !== -1 && index > pageEnd)))))
+                return mergeNativeItems(incoming.map(entry => {
+                    const live = previous.get(entry.item.id)
+                    return typeof live?.reasoningStreamRevision === 'number' && (!reset || live.reasoningStreamRevision > revision)
+                        ? reconcileNativeReasoning(live, entry) : entry
+                }), streamed, 'latest')
+            })
             if (reset) {
                 browsingOlder.current = false
                 setHasNewer(false)
-                setItems([...page.data].reverse())
+                applyLatest()
                 setCursor(page.nextCursor)
                 setNewerCursor(page.backwardsCursor ?? null)
             } else if (browsingOlder.current) {
                 if (page.data[0]?.item.id !== itemsRef.current.at(-1)?.item.id) setHasNewer(true)
             } else {
-                setItems([...page.data].reverse())
+                applyLatest()
                 setCursor(page.nextCursor)
                 setNewerCursor(page.backwardsCursor ?? null)
             }
@@ -364,6 +385,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method === 'hapi/ready') {
                 setConnected(true)
                 settingsRevision.current += 1
+                if (Object.hasOwn(event.params, 'activeTurn')) activeTurnRevision.current += 1
                 if (event.params.thread) setDetail(current => ({ ...current, ...event.params }))
                 if (Array.isArray(event.params.requests)) setRequests((event.params.requests as NativeRequest[]).map(request => ({ ...request, receivedAt: Date.now() })))
                 invalidate()
@@ -386,10 +408,17 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 return
             }
             if (event.method === 'turn/started') {
+                activeTurnRevision.current += 1
                 setDetail(current => ({ ...current, activeTurn: event.params.turn, thread: { ...record(current.thread), status: { type: 'active' } } }))
             }
             if (event.method === 'turn/completed') {
-                setDetail(current => ({ ...current, activeTurn: null, thread: { ...record(current.thread), status: { type: 'idle' } } }))
+                activeTurnRevision.current += 1
+                const turnId = record(event.params.turn).id
+                setDetail(current => {
+                    const activeId = record(current.activeTurn).id
+                    if (activeId && turnId && turnId !== activeId) return current
+                    return { ...current, activeTurn: null, thread: { ...record(current.thread), status: { type: 'idle' } } }
+                })
             }
             if (event.method === 'hapi/request') {
                 const request = { ...event.params, receivedAt: Date.now() } as unknown as NativeRequest
@@ -398,6 +427,30 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             if (event.method === 'hapi/requestResolved') {
                 setRequests(current => current.filter(value => value.id !== event.params.id))
+                return
+            }
+            if (event.method === 'item/reasoning/summaryPartAdded' || event.method === 'item/reasoning/summaryTextDelta') {
+                const { itemId, turnId, summaryIndex, delta } = event.params
+                const partAdded = event.method === 'item/reasoning/summaryPartAdded'
+                if (browsingOlder.current || typeof itemId !== 'string' || typeof turnId !== 'string' ||
+                    typeof summaryIndex !== 'number' || !Number.isSafeInteger(summaryIndex) || summaryIndex < 0 ||
+                    (!partAdded && typeof delta !== 'string')) return
+                const revision = tailRevision.current
+                const observedAtMs = Date.now()
+                const text = typeof delta === 'string' ? delta : ''
+                setItems(current => {
+                    const previous = current.find(entry => entry.item.id === itemId)
+                    if (previous && (previous.item.type !== 'reasoning' || previous.completedAtMs != null ||
+                        previous.reasoningStreamCompleted === true)) return current
+                    const summary = nativeReasoningParts(previous?.item.summary)
+                    const prior = summary[summaryIndex]
+                    if (partAdded && prior !== undefined) return current
+                    summary[summaryIndex] = (prior ?? '') + (partAdded ? '' : text)
+                    return mergeNativeItems(current, [{
+                        observedAtMs, ...previous, turnId, reasoningStreamRevision: revision,
+                        item: { ...previous?.item, id: itemId, type: 'reasoning', summary },
+                    }], 'latest')
+                })
                 return
             }
             if (event.method === 'item/agentMessage/delta' || event.method === 'item/plan/delta') {
@@ -416,7 +469,15 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                     item: nativeItem as NativeItemEntry['item'],
                     turnId: typeof event.params.turnId === 'string' ? event.params.turnId : undefined,
                 }
-                setItems(current => mergeNativeItems(current, [entry], 'latest'))
+                const revision = tailRevision.current
+                setItems(current => {
+                    if (entry.item.type !== 'reasoning') return mergeNativeItems(current, [entry], 'latest')
+                    const previous = current.find(value => value.item.id === entry.item.id)
+                    const completed = event.method === 'item/completed'
+                    const incoming = { ...entry, reasoningStreamRevision: revision, reasoningStreamCompleted: completed }
+                    const updated = previous ? reconcileNativeReasoning(previous, incoming) : incoming
+                    return mergeNativeItems(current, [{ ...updated, reasoningStreamRevision: revision }], 'latest')
+                })
             }
             if (event.method.includes('request') || event.method.includes('approval')) invalidate()
             else if (!event.method.endsWith('/delta')) invalidate()

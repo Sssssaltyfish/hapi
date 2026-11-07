@@ -3,6 +3,30 @@ import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import type { NormalizedMessage } from '@/chat/types'
 import { projectNativeItems } from './projectNativeItems'
+import type { NativeItemEntry } from './types'
+
+it('keeps daemon reasoning parts separate and marks only the latest visible part of the active turn', () => {
+    const entries: NativeItemEntry[] = [
+        { turnId: 'active', item: { id: 'prior', type: 'reasoning', summary: 'One paragraph\n\nAnother paragraph', content: ['hidden'] } },
+        { turnId: 'active', item: { id: 'r', type: 'reasoning', summary: ['First', '', 'Third'] } },
+        { turnId: 'active', item: { id: 'cmd', type: 'commandExecution', command: 'pwd' } },
+    ]
+    const project = (source = entries, turnId?: string) => projectNativeItems(source, [], true, undefined, turnId).messages
+        .filter(message => message.id === 'native:prior' || message.id.startsWith('native:r'))
+    const live = project(entries, 'active')
+    expect(live).toMatchObject([
+        { id: 'native:prior', content: { content: { data: { message: 'One paragraph\n\nAnother paragraph' } },
+            meta: { nativeCodexResponseItemId: 'prior', nativeReasoningSummaryIndex: 0, nativeReasoningActive: false } } },
+        { id: 'native:r', content: { content: { data: { message: 'First' } },
+            meta: { nativeCodexResponseItemId: 'r', nativeReasoningSummaryIndex: 0, nativeReasoningActive: false } } },
+        { id: 'native:r:summary:2', content: { content: { data: { message: 'Third' } },
+            meta: { nativeCodexResponseItemId: 'r', nativeReasoningSummaryIndex: 2, nativeReasoningActive: true } } },
+    ])
+    expect(JSON.stringify(live)).not.toContain('hidden')
+    expect(project().at(-1)?.content).toMatchObject({ meta: { nativeReasoningActive: false } })
+    const commentary = { turnId: 'active', item: { id: 'comment', type: 'agentMessage', text: 'Continuing', phase: 'commentary' } }
+    expect(project([...entries, commentary], 'active').at(-1)?.content).toMatchObject({ meta: { nativeReasoningActive: false } })
+})
 
 it('feeds native text, tools, timestamps and idle asynchronous questions through the existing chat pipeline', () => {
     const projected = projectNativeItems([
