@@ -612,8 +612,10 @@ type SessionChatProps = {
     onPrefetchHistory?: (direction: 'older' | 'newer', pages?: number) => Promise<void>
     conversationHistoryRevision?: number
     onCancelLoadMore: () => void
+    canContinueHistoryEdge?: (direction: 'older' | 'newer') => boolean
     onLocateNativeHistoryTurn?: (turnId: string, itemId: string, targetMessageId: string, isCurrent?: () => boolean) => Promise<boolean>
     historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
+    nativeHistoryDirection?: 'older' | 'newer'
     onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
     // Returns the accepted mutation's attempt id, or false when
     // pre-mutation guards (no-api / no-session / pending) rejected the call OR async
@@ -1965,6 +1967,7 @@ function SessionChatInner(props: SessionChatProps) {
         blocks: visibleBlocks,
         toolGroupsCollapsed,
         historyLocators,
+        nativeHistoryDirection: props.nativeHistoryDirection,
         cacheResetRevision: native ? props.conversationHistoryRevision : `${historyEpoch ?? ''}:${rewindRevision}`,
         messagesVersion: props.messagesVersion,
         historyVersion: props.historyVersion,
@@ -2088,6 +2091,7 @@ function SessionChatInner(props: SessionChatProps) {
                         onHydrateHistoryRow={hydrateHistoryRow}
                         onPrefetchHistory={props.onPrefetchHistory}
                         onCancelLoadMore={props.onCancelLoadMore}
+                        canContinueHistoryEdge={props.canContinueHistoryEdge}
                         unseenCount={unseenCount}
                         rawMessagesCount={visibleMessages.length}
                         normalizedMessagesCount={normalizedMessages.length}

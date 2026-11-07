@@ -1,6 +1,7 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
 import { buildVisibleChatBlocks, getToolGroupEntries, type VisibleChatBlock, type VisibleChatBlockRole } from '@/chat/toolGroups'
 import type { ChatBlock } from '@/chat/types'
+import type { HistoryDirection } from './history-page-cache'
 
 export type TimelineHistoryLocator =
     | { kind: 'runner'; beforeAt: number; beforeSeq: number | null; epoch?: number; targetMessageId: string }
@@ -165,6 +166,7 @@ export class StableChatTimeline {
         incoming: readonly MaterializedTimelineRow[],
         locators?: ReadonlyMap<string, TimelineHistoryLocator>,
         toolGroupsCollapsed?: boolean,
+        continuousDirection?: HistoryDirection,
     ): TimelineProjection[] {
         const locatableAliases = incoming.flatMap(source => source.sourceIds.filter(alias => locators?.has(alias)))
         const hasKnownHistory = [...this.known.values()].some(row => row.locators.size > 0)
@@ -172,7 +174,8 @@ export class StableChatTimeline {
             const id = this.aliases.get(alias)
             return id !== undefined && this.known.get(id)?.locators.has(alias)
         })
-        if (hasKnownHistory && locatableAliases.length > 0 && !overlapsKnownHistory) {
+        const disjointHistory = hasKnownHistory && locatableAliases.length > 0 && !overlapsKnownHistory
+        if (disjointHistory && continuousDirection === undefined) {
             // A seek or latest reset can replace the entire source window.
             // Without explicit gap rows, retaining the old segment would imply
             // that its unread intervening history was chronologically adjacent.
@@ -284,6 +287,18 @@ export class StableChatTimeline {
             this.payloads.delete(id)
             this.order = this.order.filter(candidate => candidate !== id)
             for (const [alias, target] of this.aliases) if (target === id) this.aliases.delete(alias)
+        }
+
+        if (disjointHistory && continuousDirection) {
+            const knownOrder = new Set(this.order)
+            const hasLocator = (id: string) => Boolean(this.known.get(id)?.locators.size)
+            const incomingHistory = current.filter(id => !knownOrder.has(id) && hasLocator(id))
+            // A raw cursor can cross a gap with no rendered aliases. Keep
+            // server order, independently of timestamps or transient neighbors.
+            const boundary = continuousDirection === 'older'
+                ? Math.max(0, this.order.findIndex(hasLocator))
+                : this.order.findLastIndex(hasLocator) + 1
+            this.order.splice(boundary, 0, ...incomingHistory)
         }
 
         // Insert around observed neighbors. Existing rows keep their relative

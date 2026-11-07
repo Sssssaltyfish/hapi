@@ -8,6 +8,7 @@ import { codexContextUsage, type ContextUsage } from '@/lib/contextUsage'
 import { nativeReasoningParts, reconcileNativeReasoning } from './nativeReasoning'
 
 type NativeWindowSnapshot = { items: NativeItemEntry[]; cursor: string | null; newerCursor: string | null; hasNewer: boolean; browsingOlder: boolean; savedAt: number; contextUsage?: ContextUsage | null }
+type NativeWindow = { items: NativeItemEntry[]; historyDirection?: HistoryDirection }
 const windowCache = new Map<string, NativeWindowSnapshot>()
 const MAX_CACHED_WINDOWS = 12
 const WINDOW_TTL_MS = 30 * 60 * 1000
@@ -32,10 +33,19 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const activeTurnRevision = useRef(0)
     const activeLiveTurn = useRef<string | undefined>(undefined)
     const [contextUsage, setContextUsage] = useState<ContextUsage | null>(cached.current?.contextUsage ?? null)
-    const [items, setItems] = useState<NativeItemEntry[]>(() => {
+    const [{ items, historyDirection }, setWindow] = useState<NativeWindow>(() => {
         if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
-        return cached.current?.items ?? []
+        return { items: cached.current?.items ?? [] }
     })
+    const setItems = useCallback((update: (items: NativeItemEntry[]) => NativeItemEntry[]) => {
+        setWindow(current => {
+            const items = update(current.items)
+            if (items === current.items) return current
+            // Live updates and overlapping reads can share a commit with an
+            // accepted page. Only a source-window replacement clears its proof.
+            return { ...current, items }
+        })
+    }, [])
     const itemsRef = useRef(items)
     itemsRef.current = items
     const [cursor, setCursor] = useState<string | null>(cached.current?.cursor ?? null)
@@ -61,6 +71,9 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     }, [])
     const historyGeneration = useRef(0)
     const olderRequest = useRef<symbol | null>(null)
+    const continuedHistoryEdge = useRef<HistoryDirection | null>(null)
+    const canContinueHistoryEdge = useCallback((direction: HistoryDirection) =>
+        browsingOlder.current && !olderRequest.current && continuedHistoryEdge.current === direction, [])
     const olderPreviousBrowsing = useRef<boolean | null>(null)
     const alive = useRef(true)
     const refreshing = useRef<symbol | null>(null)
@@ -168,7 +181,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (latestTailId.current !== page.data[0]?.item.id) tailRevision.current += 1
             latestTailId.current = page.data[0]?.item.id
             rememberPage(page, 'older')
-            const applyLatest = () => setItems(current => {
+            const applyLatest = () => setWindow(({ items: current }) => {
                 const incoming = [...page.data].reverse()
                 const previous = new Map(current.map(entry => [entry.item.id, entry]))
                 const incomingIds = new Set(incoming.map(entry => entry.item.id))
@@ -176,14 +189,16 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 const streamed = current.filter((entry, index) => typeof entry.reasoningStreamRevision === 'number' &&
                     !incomingIds.has(entry.item.id) && (entry.reasoningStreamRevision > revision ||
                         (!reset && (!incoming.length || (pageEnd !== -1 && index > pageEnd)))))
-                return mergeNativeItems(incoming.map(entry => {
+                const items = mergeNativeItems(incoming.map(entry => {
                     const live = previous.get(entry.item.id)
                     return typeof live?.reasoningStreamRevision === 'number' && (!reset || live.reasoningStreamRevision > revision)
                         ? reconcileNativeReasoning(live, entry) : entry
                 }), streamed, 'latest')
+                return { items }
             })
             if (reset) {
                 browsingOlder.current = false
+                continuedHistoryEdge.current = null
                 updateLiveTail(true)
                 setHasNewer(false)
                 applyLatest()
@@ -221,6 +236,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                         ? (changed ? updated : previous) : mergeNativeItems(updated, incoming.slice(end + 1), 'latest')
                 })
             } else {
+                continuedHistoryEdge.current = null
                 updateLiveTail(true)
                 applyLatest()
                 setCursor(page.nextCursor)
@@ -235,7 +251,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setLoading(false)
             }
         }
-    }, [api, id, rememberPage, updateLiveTail])
+    }, [api, id, rememberPage, setItems, updateLiveTail])
 
     const readHistory = useCallback(async (direction: 'older' | 'newer', beforeApply?: (entries: NativeItemEntry[]) => boolean) => {
         const initialCursor = direction === 'older' ? cursor : newerCursor
@@ -278,7 +294,10 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             const accepted = beforeApply ? beforeApply(nextItems) : true
             if (!isCurrent()) return null
             if (!accepted) { browsingOlder.current = wasBrowsingOlder; return null }
-            setItems(nextItems)
+            // The daemon can advance through pages with no renderable rows.
+            // A retained projection is then behind this raw history edge.
+            continuedHistoryEdge.current = pageCursor && pageCursor !== initialCursor ? direction : null
+            setWindow({ items: nextItems, historyDirection: direction })
             const firstBoundary = boundaries.current.get(nextItems[0]?.item.id)
             const lastId = nextItems.at(-1)?.item.id
             const lastBoundary = lastId ? boundaries.current.get(lastId) : undefined
@@ -357,7 +376,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             rememberPage(page, 'older')
             browsingOlder.current = true
-            setItems(entries)
+            continuedHistoryEdge.current = null
+            setWindow({ items: entries })
             setCursor(page.nextCursor)
             setNewerCursor(page.backwardsCursor ?? page.newerResumeCursor ?? null)
             setHasNewer(Boolean(page.backwardsCursor))
@@ -430,6 +450,8 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method.startsWith('item/') || event.method === 'turn/started' || event.method === 'turn/completed') tailRevision.current += 1
             if (event.method === 'hapi/heartbeat' || event.method === 'thread/goal/updated' || event.method === 'thread/goal/cleared') return
             if (event.method === 'thread/rolledBack') {
+                continuedHistoryEdge.current = null
+                setWindow(current => current.historyDirection ? { items: current.items } : current)
                 const saved = cacheKey ? windowCache.get(cacheKey) : undefined
                 if (cacheKey && saved) windowCache.set(cacheKey, { ...saved, contextUsage: null })
                 setContextUsage(null)
@@ -561,6 +583,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         connect()
         return () => {
             alive.current = false
+            continuedHistoryEdge.current = null
             historyGeneration.current += 1
             seekController.current?.abort()
             seekController.current = null
@@ -572,7 +595,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             clearTimeout(retry)
             clearTimeout(refreshTimer)
         }
-    }, [api, id, enabled, cacheKey, latest, refreshDetail, refreshActiveTurn, updateLiveTail])
+    }, [api, id, enabled, cacheKey, latest, refreshDetail, refreshActiveTurn, setItems, updateLiveTail])
 
-    return { detail, contextUsage, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, includesLiveTail, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
+    return { detail, contextUsage, items, historyDirection, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, includesLiveTail, older, newer, prefetch, seek, seekTurn, cancelOlder, canContinueHistoryEdge, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }

@@ -918,6 +918,7 @@ export function useHappyRuntime(props: {
     messagesVersion: number
     historyVersion: number
     historyLocators?: ReadonlyMap<string, TimelineHistoryLocator>
+    nativeHistoryDirection?: 'older' | 'newer'
     cacheResetRevision?: string | number
     toolGroupsCollapsed?: boolean
     viewMode?: 'tail' | 'history'
@@ -1049,7 +1050,8 @@ export function useHappyRuntime(props: {
         buildMaterializedTimelineRows(props.blocks, props.toolGroupsCollapsed),
         props.historyLocators,
         props.toolGroupsCollapsed,
-    ), [timeline, props.blocks, props.historyLocators, props.toolGroupsCollapsed])
+        props.nativeHistoryDirection,
+    ), [timeline, props.blocks, props.historyLocators, props.toolGroupsCollapsed, props.nativeHistoryDirection])
     const timelineRows = timeline.getRows()
     const convertedMessages = useExternalMessageConverter({
         callback: convertTimelineProjection,

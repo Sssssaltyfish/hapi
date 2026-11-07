@@ -205,6 +205,53 @@ describe('native thread window', () => {
         unmount()
     })
 
+    it('continues past an invisible history gap after the retained top row leaves the native window', async () => {
+        const visible = entry('retained-top')
+        const olderVisible = entry('older-visible')
+        const page = (index: number): NativePage<NativeItemEntry> => ({
+            data: Array.from({ length: 50 }, (_, offset) => ({
+                turnId: 'turn', item: { id: `hidden-${index}-${offset}`, type: 'reasoning', summary: [] },
+            })),
+            nextCursor: index === 7 ? 'older-visible' : `older-${index + 1}`,
+        })
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'invisible-gap' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn(async (_id: string, cursor?: string) => {
+                if (!cursor) return { data: [visible], nextCursor: 'older-1' }
+                if (cursor === 'older-visible') return { data: [olderVisible], nextCursor: null }
+                return page(Number(cursor.slice('older-'.length)))
+            }),
+            getCodexNativeTurnContext: vi.fn().mockResolvedValue({ data: [visible], nextCursor: 'older-1', backwardsCursor: null }),
+            streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'invisible-gap'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        for (let index = 1; index <= 6; index++) {
+            await act(async () => { expect(await result.current.older()).not.toBeNull() })
+        }
+        expect(result.current.items).toHaveLength(300)
+        expect(result.current.items.some(({ item }) => item.id === visible.item.id)).toBe(false)
+        expect(projectNativeItems(result.current.items, []).messages).toEqual([])
+        expect(result.current.cursor).toBe('older-7')
+        expect(result.current.historyDirection).toBe('older')
+        expect(result.current.canContinueHistoryEdge('older')).toBe(true)
+        expect(result.current.canContinueHistoryEdge('newer')).toBe(false)
+        await act(async () => { await result.current.older() })
+        expect(result.current.cursor).toBe('older-visible')
+        expect(result.current.canContinueHistoryEdge('older')).toBe(true)
+        await act(async () => { await result.current.older() })
+        expect(result.current.items[0]?.item.id).toBe(olderVisible.item.id)
+        expect(result.current.historyDirection).toBe('older')
+        expect(api.getCodexNativeTurnContext).not.toHaveBeenCalled()
+
+        await act(async () => { await result.current.seekTurn('turn', visible.item.id, () => true) })
+        expect(result.current.cursor).toBe('older-1')
+        expect(result.current.historyDirection).toBeUndefined()
+        expect(result.current.canContinueHistoryEdge('older')).toBe(false)
+        unmount()
+    })
+
     it('shares a slow prefetched page with boundary demand without publishing it early', async () => {
         const page = deferredPage()
         const nextPage = deferredPage()
@@ -329,8 +376,13 @@ describe('native thread window', () => {
             expect((await demand)?.hasMore).toBe(true)
         })
         expect(result.current.hasNewer).toBe(true)
-        await act(async () => { expect((await result.current.newer())?.hasMore).toBe(false) })
-        expect(result.current.items.at(-1)?.item.id).toBe('arrived')
+        await act(async () => {
+            expect((await result.current.newer())?.hasMore).toBe(false)
+            event({ method: 'turn/started', params: { threadId: 'moving-end', turn: { id: 'turn', status: 'inProgress' } } })
+            event({ method: 'item/started', params: { threadId: 'moving-end', turnId: 'turn', item: entry('live-after-page').item } })
+        })
+        expect(result.current.items.slice(-2).map(({ item }) => item.id)).toEqual(['arrived', 'live-after-page'])
+        expect(result.current.historyDirection).toBe('newer')
         expect(result.current.hasNewer).toBe(false)
         unmount()
     })

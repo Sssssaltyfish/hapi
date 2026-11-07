@@ -33,6 +33,27 @@ describe('stable logical chat timeline', () => {
         expect(timeline.getRowSnapshot('latest')).toBeNull()
     })
 
+    it.each(['older', 'newer'] as const)('keeps ordered %s pages across invisible records and a shared pending row', direction => {
+        const timeline = new StableChatTimeline()
+        const initial = user('initial', 100)
+        const first = user('first', direction === 'older' ? 200 : 10)
+        const second = user('second', first.createdAt)
+        const sought = user('sought', 500)
+        const pending = user('pending', 1000, { status: 'sending', localId: 'request' })
+        const locator = (itemId: string): TimelineHistoryLocator => ({ kind: 'native', turnId: 'turn', itemId })
+        const locators = new Map([initial, first, second, sought].map(block => [block.id, locator(block.id)]))
+        timeline.update(buildMaterializedTimelineRows([initial, pending]), locators)
+        // The source window crossed pages of raw items with no visible rows.
+        timeline.update(buildMaterializedTimelineRows([pending]), locators, undefined, direction)
+        timeline.update(buildMaterializedTimelineRows([first, second, pending]), locators, undefined, direction)
+        const ordered = direction === 'older' ? ['first', 'second', 'initial', 'pending'] : ['initial', 'first', 'second', 'pending']
+        expect(timeline.getRows().map(row => row.id)).toEqual(ordered.map(id => `user-text:${id}`))
+        expect(timeline.resolveRowId('initial')).toBe('user-text:initial')
+
+        timeline.update(buildMaterializedTimelineRows([sought, pending]), locators)
+        expect(timeline.getRows().map(row => row.id)).toEqual(['user-text:sought', 'user-text:pending'])
+    })
+
     it('preserves locator-backed row identity across overlapping pages and known-row rehydration', () => {
         const timeline = new StableChatTimeline(0)
         const earlier = user('earlier', 1)

@@ -17,7 +17,7 @@ export type VirtualThreadHandle = {
     materializeTurn: (alias: string) => Promise<() => void>
     /** DOM materialization must precede native select-all. Released on selection collapse. */
     materializeSelection: () => Promise<void>
-    prepareHistoryEdge: (direction: 'older' | 'newer') => Promise<boolean>
+    prepareHistoryEdge: (direction: 'older' | 'newer', isCurrent?: () => boolean) => Promise<boolean>
     hydrateLocator: (locator: TimelineHistoryLocator) => Promise<boolean>
     captureHistoryContentAnchor: () => void
 }
@@ -29,6 +29,7 @@ type Props = {
     resolveRowId?: (alias: string) => string | null
     pinTimelineRows?: (ids: readonly string[]) => void
     onHydrateHistoryRow?: (locator: TimelineHistoryLocator, isCurrent?: () => boolean) => Promise<boolean>
+    onHistoryAnchorAdjust?: (scrollTop: number) => void
     components: ComponentProps<typeof ThreadPrimitive.Unstable_MessageById>['components']
     followLatest: RefObject<boolean>
 }
@@ -261,6 +262,7 @@ export function VirtualThreadMessages(props: Props) {
         if (Math.abs(delta) > 0.5) {
             virtualizer.cancelScroll()
             viewport.scrollTop += delta
+            current.current.props.onHistoryAnchorAdjust?.(viewport.scrollTop)
         }
         // AUI can commit content after its row descriptor. Keep watching the
         // affected row until its geometry settles, with a separate hard bound.
@@ -312,7 +314,7 @@ export function VirtualThreadMessages(props: Props) {
         }
         pending.deadlineTimer = setTimeout(() => { if (semanticAnchor.current === pending) clearSemanticAnchor() }, 5000)
     }, [currentRow, getScrollElement, clearSemanticAnchor, refineSemanticAnchor])
-    const demand = useCallback((row: TimelineRow, requireSource = false): Promise<boolean> => {
+    const demand = useCallback((row: TimelineRow, requireSource = false, isCurrent: () => boolean = () => true): Promise<boolean> => {
         const latest = currentRow(row.id) ?? row
         if (requireSource ? latest.current : latest.resident) return Promise.resolve(true)
         if (!latest.locator || !current.current.props.onHydrateHistoryRow) return Promise.resolve(false)
@@ -323,7 +325,7 @@ export function VirtualThreadMessages(props: Props) {
         // Capture ownership when the request is created, including a pin's
         // range effect. Joining an existing background request keeps its owner.
         const navigation = pendingNavigation.current
-        const canApply = () => !navigation || navigation.isCurrent()
+        const canApply = () => isCurrent() && (!navigation || navigation.isCurrent())
         // Native seeks replace the source window. All demand paths share one
         // queue so outline, selection and range fetches cannot cancel each other.
         const request = hydrationTail.current.then(async () => {
@@ -458,20 +460,20 @@ export function VirtualThreadMessages(props: Props) {
             hydrationTail.current = request.then(() => {}, () => {})
             return request
         },
-        prepareHistoryEdge: async direction => {
+        prepareHistoryEdge: async (direction, isCurrent = () => true) => {
             const rows = current.current.rows
             const locatable = rows.filter(row => row.locator)
             const row = direction === 'newer' ? locatable.at(-1) : locatable[0]
             if (!row || row.current) return true
             const revision = committed.current.revision
-            if (!await demand(row, true)) return false
+            if (!await demand(row, true, isCurrent)) return false
             const deadline = Date.now() + 5000
-            while (Date.now() < deadline) {
+            while (isCurrent() && Date.now() < deadline) {
                 await frame()
                 const id = current.current.props.resolveRowId?.(row.id) ?? row.id
                 if (committed.current.revision > revision && committed.current.rows.some(candidate => candidate.id === id && candidate.current)) {
                     await frame()
-                    return true
+                    return isCurrent()
                 }
             }
             return false

@@ -254,6 +254,7 @@ function NativeSessionChat({
             }}
             messages={projected.messages}
             historyLocators={historyLocators}
+            nativeHistoryDirection={thread.historyDirection}
             onHydrateHistoryRow={async (locator, isCurrent = () => true) => {
                 if (locator.kind !== 'native') return false
                 const found = await thread.seekTurn(locator.turnId, locator.itemId,
@@ -275,6 +276,7 @@ function NativeSessionChat({
             onBack={onBack}
             onRefresh={refresh}
             onCancelLoadMore={thread.cancelOlder}
+            canContinueHistoryEdge={thread.canContinueHistoryEdge}
             onPrefetchHistory={thread.prefetch}
             conversationHistoryRevision={thread.historyResetRevision}
             onLoadNewer={async (beforeApply) => {
