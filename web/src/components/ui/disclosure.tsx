@@ -25,16 +25,31 @@ export function DisclosureContent(props: {
     const deferredOpen = useDeferredValue(props.open)
     const [present, setPresent] = useState(props.open || props.keepMounted === true)
     const [expanded, setExpanded] = useState(props.open)
+    const openedContent = useRef(present)
     const ready = props.open && deferredOpen
     if ((ready || props.keepMounted) && !present) setPresent(true)
 
     useLayoutEffect(() => {
+        if (!present) openedContent.current = false
         if (ready === expanded) return
-        // Newly rendered content first gets a real closed grid baseline. The
-        // subsequent commit animates its full height instead of an empty panel.
-        if (ready) panel.current?.getBoundingClientRect()
-        setExpanded(ready)
-    }, [ready, expanded])
+        if (!ready || openedContent.current
+            || window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+            || document.documentElement.style.getPropertyValue('--app-disclosure-duration') === '0ms') {
+            if (ready) openedContent.current = true
+            setExpanded(ready)
+            return
+        }
+
+        // Give freshly mounted content a closed grid frame before animating,
+        // without forcing layout of the whole panel in the opening commit.
+        let frame = requestAnimationFrame(() => {
+            frame = requestAnimationFrame(() => {
+                openedContent.current = true
+                setExpanded(true)
+            })
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [ready, expanded, present])
 
     useEffect(() => {
         if (props.open || expanded || !present || props.keepMounted) return

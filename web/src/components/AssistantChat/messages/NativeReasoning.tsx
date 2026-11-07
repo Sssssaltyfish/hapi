@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useId, useLayoutEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import type { AgentReasoningBlock } from '@/chat/types'
 import { getToolGroupEntryAnchor, isActiveNativeCodexReasoning } from '@/chat/toolGroups'
@@ -11,15 +11,15 @@ import { cn } from '@/lib/utils'
 
 const INLINE_PREVIEW_ELEMENTS = ['strong', 'em', 'code']
 
-export function NativeReasoningPreview({ text }: { text: string }) {
+export const NativeReasoningPreview = memo(function NativeReasoningPreview({ text }: { text: string }) {
     return (
         <ReactMarkdown allowedElements={INLINE_PREVIEW_ELEMENTS} unwrapDisallowed>
             {text.trim().split(/\r\n?|\n/, 1)[0]}
         </ReactMarkdown>
     )
-}
+})
 
-export function NativeReasoning({ block, className }: { block: AgentReasoningBlock; className?: string }) {
+export const NativeReasoning = memo(function NativeReasoning({ block, className }: { block: AgentReasoningBlock; className?: string }) {
     const { t } = useTranslation()
     const { reasoningCollapsed } = useReasoningCollapse()
     const expansion = useNativeReasoningExpansionState()
@@ -35,23 +35,33 @@ export function NativeReasoning({ block, className }: { block: AgentReasoningBlo
     const saved = expansion.get(block.id)
     const followsPreference = active && !saved?.manual
     const open = followsPreference ? !reasoningCollapsed : saved?.open ?? false
+    const textToMeasure = typeof ResizeObserver === 'undefined' ? text : null
 
     useLayoutEffect(() => {
         const frame = widthRef.current
         const preview = previewRef.current
         if (!frame || !preview) return
-        const measure = () => {
+        if (typeof ResizeObserver === 'undefined') {
             const available = frame.getBoundingClientRect().width
             if (available > 0) setFits(preview.getBoundingClientRect().width <= available)
+            return
         }
-        // The same rendered line acts as the measurement even while the card is visible.
-        measure()
-        if (typeof ResizeObserver === 'undefined') return
-        const observer = new ResizeObserver(measure)
+
+        let frameWidth: number | undefined
+        let previewWidth: number | undefined
+        const observer = new ResizeObserver(entries => {
+            for (const entry of entries) {
+                if (entry.target === frame) frameWidth = entry.contentRect.width
+                if (entry.target === preview) previewWidth = entry.contentRect.width
+            }
+            if (frameWidth !== undefined && frameWidth > 0 && previewWidth !== undefined) {
+                setFits(previewWidth <= frameWidth)
+            }
+        })
         observer.observe(frame)
         observer.observe(preview)
         return () => observer.disconnect()
-    }, [text, hasBlockStructure])
+    }, [textToMeasure, hasBlockStructure])
 
     useLayoutEffect(() => {
         // Keep an opened card in place when the active summary moves on.
@@ -98,4 +108,4 @@ export function NativeReasoning({ block, className }: { block: AgentReasoningBlo
             </div>
         </div>
     )
-}
+})

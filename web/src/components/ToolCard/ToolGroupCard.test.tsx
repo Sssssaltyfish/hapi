@@ -158,7 +158,7 @@ describe('ToolGroupCard', () => {
         expect(await screen.findByRole('button', { name: 'Reasoning' })).toHaveAttribute('aria-expanded', 'true')
     })
 
-    it('summarizes minimal groups while keeping actual single-line commands in expanded rows', () => {
+    it('summarizes minimal groups while keeping actual single-line commands in expanded rows', async () => {
         renderCard(makeGroup({ presentationMode: 'codex-exploration', tools: [
             makeToolBlock('read', 'CodexBash', { command: ['cat', 'README.md'], parsed_cmd: [{ type: 'read', path: 'README.md', name: 'README.md' }] }),
             makeToolBlock('test', 'Bash', { command: 'bun test' }),
@@ -171,14 +171,15 @@ describe('ToolGroupCard', () => {
         expect(screen.getByText('2 actions')).toBeInTheDocument()
         expect(screen.queryByText('Duration')).not.toBeInTheDocument()
         fireEvent.click(header)
-        const command = screen.getByText('bun test')
+        const row = await screen.findByRole('button', { name: 'bun test' })
+        const command = within(row).getByText('bun test')
         expect(command).toHaveClass('truncate', 'whitespace-nowrap')
-        fireEvent.click(command.closest('button')!)
+        fireEvent.click(row)
         expect(screen.getByRole('dialog')).toHaveTextContent('bun test')
         expect(screen.getByRole('dialog')).toHaveTextContent('done')
     })
 
-    it.each(['minimal', 'compact', 'detailed'] as const)('uses the shared default-collapse preference in %s and preserves manual state across density changes', (displayMode) => {
+    it.each(['minimal', 'compact', 'detailed'] as const)('uses the shared default-collapse preference in %s and preserves manual state across density changes', async (displayMode) => {
         const tools = [makeToolBlock('read', 'Read', { file_path: 'repo/a.ts' }), makeToolBlock('bash', 'Bash', { command: 'bun test' })]
         const group = (collapsed: boolean) => {
             const block = buildVisibleChatBlocks(tools, { hasMoreMessages: false, toolGroupsCollapsed: collapsed })[0]
@@ -189,7 +190,7 @@ describe('ToolGroupCard', () => {
         expect(screen.getByRole('button', { expanded: false })).toBeInTheDocument()
         view.rerenderGroup(group(false))
         const header = screen.getByRole('button', { expanded: true })
-        expect(screen.getAllByRole('button').length).toBeGreaterThan(1)
+        expect(await screen.findByRole('button', { name: /bun test/i })).toBeInTheDocument()
         fireEvent.click(header)
         expect(header).toHaveAttribute('aria-expanded', 'false')
         view.rerenderGroup(group(false), displayMode === 'minimal' ? 'detailed' : 'minimal')
@@ -309,12 +310,8 @@ describe('ToolGroupCard', () => {
         expect(screen.getByText('src/a.ts')).toBeInTheDocument()
         expect(screen.getByText('bun test')).toBeInTheDocument()
 
-        const firstRowButton = within(view.container)
-            .getAllByRole('button')
-            .find((button) => button !== groupToggle)
-
-        expect(firstRowButton).toBeDefined()
-        fireEvent.click(firstRowButton!)
+        const firstRowButton = await within(view.container).findByRole('button', { name: /src\/a\.ts/i })
+        fireEvent.click(firstRowButton)
 
         await waitFor(() => {
             expect(screen.getByRole('dialog')).toBeInTheDocument()

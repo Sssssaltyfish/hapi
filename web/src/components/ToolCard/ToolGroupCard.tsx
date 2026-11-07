@@ -1,6 +1,6 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { getToolGroupEntries, getToolGroupEntryAnchor, isActiveNativeCodexReasoning, type ToolGroupBlock } from '@/chat/toolGroups'
-import type { ToolCallBlock } from '@/chat/types'
+import type { ChatToolCall, ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
 import type { SessionMetadataSummary } from '@/types/api'
 import { useHappyChatContext, useToolGroupExpansionState } from '@/components/AssistantChat/context'
@@ -19,6 +19,7 @@ import { getMinimalToolPreview } from './toolPreview'
 import { getCompactCodexAgentTool } from './codexAgents'
 
 const TIMING_INTERVAL_MS = 1000
+const GroupNowContext = createContext(0)
 
 export function getToolGroupTiming(tools: ToolCallBlock[], now: number): {
     startedAt: number | null
@@ -43,6 +44,34 @@ export function getToolGroupTiming(tools: ToolCallBlock[], now: number): {
         : null
 
     return { startedAt, completedAt, durationMs, running }
+}
+
+function ToolGroupClock({ running, children }: { running: boolean; children: ReactNode }) {
+    const [now, setNow] = useState(Date.now)
+    useEffect(() => {
+        if (!running) return
+        setNow(Date.now())
+        const id = setInterval(() => setNow(Date.now()), TIMING_INTERVAL_MS)
+        return () => clearInterval(id)
+    }, [running])
+
+    // Clock ticks update the subscribed timing labels, not the expanded rows.
+    return <GroupNowContext.Provider value={now}>{children}</GroupNowContext.Provider>
+}
+
+function GroupTimingSummary({ tools }: { tools: ToolCallBlock[] }) {
+    const now = useContext(GroupNowContext)
+    return <ToolTimingSummary {...getToolGroupTiming(tools, now)} typography="group" />
+}
+
+function GroupRowDuration({ tool, now = 0 }: { tool: ChatToolCall; now?: number }) {
+    const { durationMs } = getToolTimingDetails(tool, now)
+    return durationMs == null ? null : <span className="font-mono text-xs text-[var(--app-hint)]">{formatDuration(durationMs)}</span>
+}
+
+function LiveGroupRowDuration({ tool }: { tool: ChatToolCall }) {
+    const now = useContext(GroupNowContext)
+    return <GroupRowDuration tool={tool} now={now} />
 }
 
 function SummaryBadge(props: { className: string; text: string; title?: string }) {
@@ -176,15 +205,7 @@ export function ToolGroupCard(props: {
     const memberIds = entries.map(entry => entry.id)
     const open = expansion.get(memberIds, props.block.defaultOpen)
     const [selectedToolId, setSelectedToolId] = useState<string | null>(null)
-    const [now, setNow] = useState(() => Date.now())
-    const groupTiming = getToolGroupTiming(props.block.tools, now)
-
-    useEffect(() => {
-        if (!groupTiming.running) return
-        setNow(Date.now())
-        const id = setInterval(() => setNow(Date.now()), TIMING_INTERVAL_MS)
-        return () => clearInterval(id)
-    }, [groupTiming.running, groupTiming.startedAt])
+    const runningTool = props.block.tools.some(tool => tool.tool.state === 'running')
 
     useEffect(() => {
         setSelectedToolId(null)
@@ -209,7 +230,7 @@ export function ToolGroupCard(props: {
     const toolCount = props.block.tools.length
     const activityCount = entries.filter(entry => entry.kind === 'agent-event').length
     const latestReasoning = entries.findLast(entry => entry.kind === 'agent-reasoning')
-    const running = groupTiming.running || (latestReasoning !== undefined && isActiveNativeCodexReasoning(latestReasoning))
+    const running = runningTool || (latestReasoning !== undefined && isActiveNativeCodexReasoning(latestReasoning))
     const reasoningPreview = !open && running ? latestReasoning?.text : undefined
     const primaryTitle = toolCount > 0 ? formatGroupedHeaderTitle(props.block, t)
         : t(latestReasoning ? 'toolGroup.workProcess' : 'toolGroup.agentActivity')
@@ -235,7 +256,7 @@ export function ToolGroupCard(props: {
     const hasStatusBadges = props.block.summary.runningCount > 0 || props.block.summary.pendingCount > 0
         || props.block.summary.errorCount > 0 || fileCount > 0
 
-    return (
+    const card = (
         <Card data-hapi-scroll-anchors={JSON.stringify(entries.map(getToolGroupEntryAnchor))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
             <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && summaryParts.length > 0 ? 'pb-2' : null)}>
                 <button
@@ -269,12 +290,7 @@ export function ToolGroupCard(props: {
                                     {reasoningPreview ? <NativeReasoningPreview text={reasoningPreview} /> : primaryTitle}
                                 </CardTitle>
                             </div>
-                            {!minimal ? <ToolTimingSummary
-                                startedAt={groupTiming.startedAt}
-                                completedAt={groupTiming.completedAt}
-                                durationMs={groupTiming.durationMs}
-                                typography="group"
-                            /> : null}
+                            {!minimal ? <GroupTimingSummary tools={props.block.tools} /> : null}
                         </div>
                         {headerSummary || (!minimal && hasStatusBadges) ? (
                             <div className="ml-auto flex min-w-0 max-w-[45%] shrink-0 items-center text-xs text-[var(--app-hint)]">
@@ -341,7 +357,6 @@ export function ToolGroupCard(props: {
                                 if (compactAgent) {
                                     return <CompactCodexAgentToolRow key={tool.id} block={tool} metadata={props.metadata} detail={compactAgent.detail} />
                                 }
-                                const timing = getToolTimingDetails(tool.tool, now)
                                 return (
                                     <button
                                         key={tool.id}
@@ -355,11 +370,9 @@ export function ToolGroupCard(props: {
                                         </span>
                                         <RowLabel block={tool} metadata={props.metadata} minimal={minimal} />
                                         {!minimal ? <div className="flex shrink-0 items-center gap-2">
-                                            {timing.durationMs != null ? (
-                                                <span className="font-mono text-xs text-[var(--app-hint)]">
-                                                    {formatDuration(timing.durationMs)}
-                                                </span>
-                                            ) : null}
+                                            {tool.tool.state === 'running'
+                                                ? <LiveGroupRowDuration tool={tool.tool} />
+                                                : <GroupRowDuration tool={tool.tool} />}
                                             <RowStatusBadge block={tool} />
                                         </div> : null}
                                     </button>
@@ -388,4 +401,5 @@ export function ToolGroupCard(props: {
             </Dialog>
         </Card>
     )
+    return <ToolGroupClock running={runningTool}>{card}</ToolGroupClock>
 }
