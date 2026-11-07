@@ -9,7 +9,7 @@ import { isQueuedForInvocation, mergeMessages } from '@/lib/messages'
 import { buildConversationOutline, type ConversationHistoryPage } from '@/chat/outline'
 import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { clearConversationReadingPosition, getConversationReadingPosition } from '@/lib/conversation-reading-position'
-import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
+import { HISTORY_PREFETCH_MAX_PAGES, HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
 import type { ContextUsage } from '@/lib/contextUsage'
 import { mergeSessionContextUsage, type SessionContextSnapshot } from '@/lib/sessionContextUsage'
@@ -134,7 +134,7 @@ export async function prefetchMessageHistory(api: ApiClient, sessionId: string, 
     if (initial.isSyncingTail || (direction === 'older' ? !initial.hasMore : !initial.requiresLatestReset)) return
     let position = direction === 'older' ? pagePosition(initial.oldestPositionAt, initial.oldestPositionSeq) : getNewestCursor(initial)
     try {
-        for (let count = 0; position && count < Math.min(2, pages); count++) {
+        for (let count = 0; position && count < Math.min(HISTORY_PREFETCH_MAX_PAGES, pages); count++) {
             const response = await readHistoryPage(api, sessionId, direction, position, initial.epoch)
             const current = getState(sessionId)
             if (current.epoch !== initial.epoch || current.syncGeneration !== initial.syncGeneration || response.page.epoch !== initial.epoch || response.page.reset || !response.page.hasMore) break
@@ -1262,6 +1262,8 @@ export async function fetchOlderMessages(
             return { kind: 'stopped', reason: 'invalidated' }
         }
         const afterApply = getState(sessionId)
+        if (response.page.hasMore && nextBefore && comparePosition(nextBefore, before) < 0)
+            void prefetchMessageHistory(api, sessionId, 'older')
         if (getNewestCursor(afterApply)?.seq !== getNewestCursor(initial)?.seq) void prefetchMessageHistory(api, sessionId, 'newer')
         return {
             kind: 'applied',
@@ -1351,7 +1353,12 @@ export async function fetchNewerMessages(
                 warning: null,
             })
         }, true)
-        if (historyVersion && getState(sessionId).oldestPositionSeq !== initial.oldestPositionSeq) void prefetchMessageHistory(api, sessionId, 'older')
+        if (historyVersion) {
+            if (hasMore && nextAfter && comparePosition(nextAfter, after) > 0)
+                void prefetchMessageHistory(api, sessionId, 'newer')
+            if (getState(sessionId).oldestPositionSeq !== initial.oldestPositionSeq)
+                void prefetchMessageHistory(api, sessionId, 'older')
+        }
         return historyVersion
             ? { kind: 'applied', historyVersion, hasMore, addedRenderableCount }
             : { kind: 'stopped', reason: 'invalidated' }

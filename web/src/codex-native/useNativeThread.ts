@@ -3,7 +3,7 @@ import type { ApiClient } from '@/api/client'
 import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequest, NativeTurnContextPage } from './types'
 import { mergeNativeItems, record } from './presentation'
 import { clearConversationReadingPosition } from '@/lib/conversation-reading-position'
-import { HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
+import { HISTORY_PREFETCH_MAX_PAGES, HistoryPageCache, type HistoryDirection } from '@/lib/history-page-cache'
 import { codexContextUsage, type ContextUsage } from '@/lib/contextUsage'
 import { nativeReasoningParts, reconcileNativeReasoning } from './nativeReasoning'
 
@@ -102,7 +102,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         const generation = historyGeneration.current
         let next = start
         try {
-            for (let count = 0; next && count < Math.min(2, pages); count++) {
+            for (let count = 0; next && count < Math.min(HISTORY_PREFETCH_MAX_PAGES, pages); count++) {
                 const requested = next
                 const page = await readPage(direction, requested)
                 if (!alive.current || generation !== historyGeneration.current || page.nextCursor === requested) break
@@ -306,6 +306,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                     void prefetchFrom('older', backward)
                 }
             }
+            if (pageCursor && pageCursor !== initialCursor) void prefetchFrom(direction, pageCursor)
             setError('')
             return { items: nextItems, nextCursor: pageCursor, hasMore }
         } catch (error) {

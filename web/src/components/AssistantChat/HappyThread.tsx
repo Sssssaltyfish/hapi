@@ -688,6 +688,15 @@ export function HappyThread(props: {
         sessionIdRef.current = props.sessionId
     }, [props.sessionId])
 
+    const historyReadyForPrefetch = props.rawMessagesCount > 0 && !props.isSyncingTail
+    useEffect(() => {
+        if (!historyReadyForPrefetch) return
+        // Prime only the immediate neighbors; the first fling need not wait
+        // for a cold request. This fills the transport cache, not the timeline.
+        if (props.hasMoreMessages) void prefetchHistoryRef.current?.('older', 1)
+        if (props.hasNewerMessages) void prefetchHistoryRef.current?.('newer', 1)
+    }, [props.sessionId, historyReadyForPrefetch, props.hasMoreMessages, props.hasNewerMessages])
+
     const isInitialScrollSettling = useCallback(() => {
         return initialScrollSessionRef.current === sessionIdRef.current && Date.now() < initialScrollDeadlineRef.current
     }, [])
@@ -763,6 +772,10 @@ export function HappyThread(props: {
         if (!viewport) return
 
         lastScrollTopRef.current = viewport.scrollTop
+        const beginPrefetchGesture = () => scrollPrefetchRef.current.beginGesture(
+            viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, Date.now()
+        )
+        beginPrefetchGesture()
 
         const setAutoScrollMode = (enabled: boolean) => {
             if (autoScrollEnabledRef.current === enabled) {
@@ -784,6 +797,7 @@ export function HappyThread(props: {
         let pointerResumeLatched = false
         let keyboardResumeActive = false
         let lastWheelAt = 0
+        let lastPrefetchWheelAt = 0
         let wheelIntentUntil = 0
         let wheelLatched = false
 
@@ -842,6 +856,14 @@ export function HappyThread(props: {
                 pending.scrollHeight = viewport.scrollHeight
             }
 
+            if (!outlineSeekPendingRef.current && !tailScrollInProgressRef.current && !isSyncingTailRef.current
+                && (!isInitialScrollSettling() || hasExplicitUpwardIntent(intent))) {
+                const plan = scrollPrefetchRef.current.sample(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, Date.now())
+                if (plan && (plan.direction === 'older' ? hasMoreMessagesRef.current : hasNewerMessagesRef.current)) {
+                    void prefetchHistoryRef.current?.(plan.direction, plan.pages)
+                }
+            }
+
             const needsCoverage = needsViewportCoverageRef.current()
             const needsNewerCoverage = needsNewerCoverageRef.current()
             const activeDirection = historyLoaderRef.current.direction
@@ -872,13 +894,6 @@ export function HappyThread(props: {
                     }
                 }
                 return
-            }
-
-            if (!pending && !outlineSeekPendingRef.current && !tailScrollInProgressRef.current && !isSyncingTailRef.current) {
-                const plan = scrollPrefetchRef.current.sample(viewport.scrollTop, viewport.scrollHeight, viewport.clientHeight, Date.now())
-                if (plan && (plan.direction === 'older' ? hasMoreMessagesRef.current : hasNewerMessagesRef.current)) {
-                    void prefetchHistoryRef.current?.(plan.direction, plan.pages)
-                }
             }
 
             // Scroll position is the source of truth. The loader controller
@@ -983,6 +998,7 @@ export function HappyThread(props: {
             if (isNestedScrollEvent(event) || event.button !== 0) {
                 return
             }
+            beginPrefetchGesture()
             armPointerIntent()
         }
 
@@ -1034,6 +1050,9 @@ export function HappyThread(props: {
 
         const handleWheel = (event: WheelEvent) => {
             if (isNestedScrollEvent(event)) return
+            const sampledAt = Date.now()
+            if (sampledAt - lastPrefetchWheelAt > WHEEL_GESTURE_GAP_MS) beginPrefetchGesture()
+            lastPrefetchWheelAt = sampledAt
             keyboardResumeActive = false
             if (event.deltaY >= 0) {
                 wheelIntentUntil = 0
@@ -1066,6 +1085,7 @@ export function HappyThread(props: {
 
         const handleTouchStart = (event: TouchEvent) => {
             if (isNestedScrollEvent(event)) return
+            beginPrefetchGesture()
             keyboardResumeActive = false
             lastTouchY = event.touches[0]?.clientY ?? null
         }
@@ -1363,13 +1383,15 @@ export function HappyThread(props: {
             clientHeight: viewport.clientHeight,
             viewportTop: viewportRect.top,
             sentinelTop: sentinelRect.top,
-            sentinelBottom: sentinelRect.bottom
+            sentinelBottom: sentinelRect.bottom,
+            preloadMarginPx: scrollPrefetchRef.current.loadMargin('older', viewport.clientHeight, Date.now())
         })
     }, [])
     needsViewportCoverageRef.current = needsViewportCoverage
     const needsNewerCoverage = useCallback(() => {
         const viewport = viewportRef.current
-        return Boolean(viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= HISTORY_PRELOAD_MARGIN_PX)
+        return Boolean(viewport && viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+            <= scrollPrefetchRef.current.loadMargin('newer', viewport.clientHeight, Date.now()))
     }, [])
     needsNewerCoverageRef.current = needsNewerCoverage
     const needsHistoryCoverage = useCallback((direction?: 'older' | 'newer') => direction === 'newer' ? needsNewerCoverage() : needsViewportCoverage(), [needsNewerCoverage, needsViewportCoverage])
@@ -1450,6 +1472,7 @@ export function HappyThread(props: {
 
         void (async () => {
             let outcome: OlderLoadOutcome
+            const startedAt = performance.now()
             try {
                 // The rendered edge can live in the projection cache while
                 // transport cursors still describe a different source window.
@@ -1485,6 +1508,7 @@ export function HappyThread(props: {
                     historyLoaderRef.current = { ...current, phase: 'awaiting-render' }
                     return true
                 })
+                if (outcome.kind === 'applied') scrollPrefetchRef.current.recordLoad(performance.now() - startedAt)
             } catch (error) {
                 outcome = {
                     kind: 'failed',

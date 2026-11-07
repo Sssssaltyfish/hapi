@@ -270,14 +270,37 @@ describe('mobile initial scroll settling', () => {
         const { viewport } = renderThread(vi.fn(), 0, true, { prefetch, loadNewer })
         Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 5000 })
         act(() => { vi.advanceTimersByTime(2000) })
-        viewport.scrollTop = 3000
+        viewport.scrollTop = 2400
         fireEvent.scroll(viewport)
         act(() => { vi.advanceTimersByTime(16) })
-        viewport.scrollTop = 3600
+        viewport.scrollTop = 3000
         fireEvent.scroll(viewport)
-        expect(prefetch).toHaveBeenCalledWith('newer', 2)
+        expect(prefetch).toHaveBeenCalledWith('newer', 4)
         expect(loadNewer).not.toHaveBeenCalled()
-        expect(viewport.scrollTop).toBe(3600)
+        expect(viewport.scrollTop).toBe(3000)
+    })
+
+    it('loads before a fast touch reaches the edge and keeps prefetching while that load is pending', async () => {
+        const prefetch = vi.fn().mockResolvedValue(undefined)
+        const loadMore = vi.fn(() => new Promise<OlderLoadOutcome>(() => {}))
+        const { viewport, container } = renderThread(vi.fn(), 0, false, { prefetch, loadMore })
+        Object.defineProperty(viewport, 'scrollHeight', { configurable: true, value: 5000 })
+        const sentinel = container.querySelector('.chat-scroll-content > [aria-hidden="true"]')!
+        vi.spyOn(sentinel, 'getBoundingClientRect').mockImplementation(() => ({ top: -viewport.scrollTop, bottom: 1 - viewport.scrollTop, height: 1 } as DOMRect))
+        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+        viewport.scrollTop = 2000
+        fireEvent.scroll(viewport)
+        fireEvent.touchStart(viewport, { touches: [{ clientY: 100 }] })
+        for (const top of [1400, 900, 600]) {
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(16)
+                viewport.scrollTop = top
+                fireEvent.scroll(viewport)
+            })
+        }
+        expect(loadMore).toHaveBeenCalledOnce()
+        expect(prefetch.mock.calls.filter(([direction, pages]) => direction === 'older' && pages === 4)).toHaveLength(3)
+        expect(viewport.scrollTop).toBe(600)
     })
 
     it('loads forward on a downward edge gesture while retained head geometry stays intact', async () => {

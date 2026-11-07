@@ -1,4 +1,5 @@
 export type HistoryDirection = 'older' | 'newer'
+export const HISTORY_PREFETCH_MAX_PAGES = 4
 
 /** Short-lived transport pages, separate from the rendered message window. */
 export class HistoryPageCache<T> {
@@ -158,28 +159,58 @@ export class HistoryPageCache<T> {
 export class HistoryScrollPrefetch {
     private previous: {
         top: number
+        height: number
+        viewport: number
         time: number
     } | null = null
     private speed = 0
+    private direction: HistoryDirection | null = null
+    private responseTime = 500
+    private lastMovementAt = 0
+
+    beginGesture(top: number, height: number, viewport: number, now: number): void {
+        this.previous = { top, height, viewport, time: now }
+        this.speed = 0
+        this.direction = null
+    }
+
+    recordLoad(durationMs: number): void {
+        // React quickly to a slow page, but do not let one cache hit erase the
+        // lead time needed by the next network request.
+        this.responseTime = Math.min(1500, Math.max(250, durationMs, this.responseTime * 0.9))
+    }
+
+    loadMargin(direction: HistoryDirection, viewport: number, now: number): number {
+        if (direction !== this.direction || now - this.lastMovementAt > this.responseTime + 500) return 200
+        return Math.max(200, Math.min(viewport * 2, this.speed * (this.responseTime + 150)))
+    }
 
     sample(top: number, height: number, viewport: number, now: number): {
         direction: HistoryDirection
         pages: number
     } | null {
         const previous = this.previous
-        this.previous = { top, time: now }
+        this.previous = { top, height, viewport, time: now }
+        // Prepends and row remeasurement change scrollTop to preserve the
+        // reader's anchor. Rebase without treating that correction as a fling.
+        if (previous && (height !== previous.height || viewport !== previous.viewport)) return null
         if (!previous || now <= previous.time || now - previous.time > 400) {
             this.speed = 0
+            this.direction = null
             return null
         }
         if (Math.abs(top - previous.top) < 2) {
             return null
         }
         const delta = top - previous.top
-        this.speed = this.speed * 0.4 + Math.abs(delta) / Math.max(16, now - previous.time) * 0.6
-        const horizon = Math.min(viewport * 4, Math.max(viewport, this.speed * 650))
         const direction = delta < 0 ? 'older' : 'newer'
+        const speed = Math.abs(delta) / Math.max(16, now - previous.time)
+        this.speed = direction === this.direction ? this.speed * 0.4 + speed * 0.6 : speed
+        this.direction = direction
+        this.lastMovementAt = now
+        const horizon = Math.min(viewport * 6, Math.max(viewport, this.speed * (this.responseTime * 2 + 300)))
         const distance = direction === 'older' ? top : height - top - viewport
-        return distance <= horizon ? { direction, pages: this.speed >= 1 ? 2 : 1 } : null
+        const pages = Math.min(HISTORY_PREFETCH_MAX_PAGES, Math.max(1, Math.ceil(this.speed * this.responseTime / Math.max(1, viewport))))
+        return distance <= horizon ? { direction, pages } : null
     }
 }

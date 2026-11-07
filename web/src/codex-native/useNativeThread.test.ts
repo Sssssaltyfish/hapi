@@ -207,10 +207,12 @@ describe('native thread window', () => {
 
     it('shares a slow prefetched page with boundary demand without publishing it early', async () => {
         const page = deferredPage()
+        const nextPage = deferredPage()
         const api = {
             getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'prefetch-native' } }),
             getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
-            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('current')], nextCursor: 'opaque-neighbor' }).mockReturnValue(page.promise),
+            getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('current')], nextCursor: 'opaque-neighbor' })
+                .mockReturnValueOnce(page.promise).mockReturnValue(nextPage.promise),
             streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
         }
         const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'prefetch-native'))
@@ -222,12 +224,20 @@ describe('native thread window', () => {
         let demand!: ReturnType<typeof result.current.older>
         act(() => { demand = result.current.older() })
         await act(async () => {
-            page.resolve({ data: [entry('neighbor')], nextCursor: null })
+            page.resolve({ data: [entry('neighbor')], nextCursor: 'opaque-next-neighbor' })
             await speculative
             expect(await demand).not.toBeNull()
         })
-        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(2)
+        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(3)
+        expect(api.getCodexNativeItems).toHaveBeenLastCalledWith('prefetch-native', 'opaque-next-neighbor', 'desc', expect.any(AbortSignal))
         expect(result.current.items.map(value => value.item.id)).toEqual(['neighbor', 'current'])
+        await act(async () => {
+            const next = result.current.older()
+            nextPage.resolve({ data: [entry('next-neighbor')], nextCursor: null })
+            expect(await next).not.toBeNull()
+        })
+        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(3)
+        expect(result.current.items.map(value => value.item.id)).toEqual(['next-neighbor', 'neighbor', 'current'])
         unmount()
     })
 
@@ -431,6 +441,7 @@ describe('native thread window', () => {
             getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
             getCodexNativeItems: vi.fn().mockResolvedValueOnce({ data: [entry('initial')], nextCursor: 'older-cursor' })
                 .mockResolvedValueOnce({ data: [entry('older')], nextCursor: 'history-cursor' })
+                .mockResolvedValueOnce({ data: [entry('warmed')], nextCursor: null })
                 .mockReturnValueOnce(backgroundPage.promise).mockReturnValueOnce(resetPage.promise),
             streamCodexNativeEvents: vi.fn(() => new Promise<void>(() => {})),
         }
@@ -441,7 +452,8 @@ describe('native thread window', () => {
         let reset!: Promise<void>
         act(() => { background = result.current.latest() })
         act(() => { reset = result.current.latest(true) })
-        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(4)
+        expect(api.getCodexNativeItems).toHaveBeenCalledTimes(5)
+        expect(api.getCodexNativeItems).toHaveBeenNthCalledWith(3, 'native', 'history-cursor', 'desc', expect.any(AbortSignal))
         await act(async () => { resetPage.resolve({ data: [entry('reset-tail')], nextCursor: 'reset-cursor' }); await reset })
         await act(async () => { backgroundPage.resolve({ data: [entry('stale-background')], nextCursor: 'stale-cursor' }); await background })
         expect(result.current.items.map(value => value.item.id)).toEqual(['reset-tail'])
