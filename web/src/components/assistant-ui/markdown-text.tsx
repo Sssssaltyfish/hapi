@@ -671,6 +671,60 @@ function InertMarkdownHref(props: { href: string; children?: ReactNode; classNam
     )
 }
 
+function scrollMarkdownFragment(target: HTMLElement): void {
+    const boundary = target.closest('[data-hapi-thread-viewport], [data-hapi-file-scroll], [role="dialog"]')
+    const document = target.ownerDocument
+    const view = document.defaultView
+    if (!boundary || !view) return
+
+    // Align from the innermost scroller outward and stop at the content
+    // viewport. scrollIntoView would also move the shell around the composer.
+    for (let pane = target.parentElement;
+        pane && pane !== document.scrollingElement && pane !== document.body && pane !== document.documentElement;
+        pane = pane.parentElement) {
+        const overflow = view.getComputedStyle(pane).overflowY
+        if (pane.clientHeight > 0 && pane.scrollHeight > pane.clientHeight
+            && (overflow === 'auto' || overflow === 'scroll' || overflow === 'overlay')) {
+            const rect = target.getBoundingClientRect()
+            const top = pane.getBoundingClientRect().top + pane.clientTop
+            const bottom = top + pane.clientHeight
+            let delta = 0
+            if (rect.top < top && rect.bottom <= bottom) {
+                delta = Math.max(rect.top - top, rect.bottom - bottom)
+            } else if (rect.top >= top && rect.bottom > bottom) {
+                delta = Math.min(rect.top - top, rect.bottom - bottom)
+            }
+            if (delta !== 0) pane.scrollTo({ top: pane.scrollTop + delta, behavior: 'instant' })
+        }
+        if (pane === boundary) break
+    }
+}
+
+function revealMarkdownFragment(link: HTMLAnchorElement, fragment: string): void {
+    const root = link.closest('.aui-md')
+    if (!root || !fragment) return
+
+    let decoded = fragment
+    try {
+        decoded = decodeURIComponent(fragment)
+    } catch {
+        // Generated IDs can contain literal percent signs.
+    }
+
+    const targets = Array.from(root.querySelectorAll('[id], a[name]'))
+    const findTarget = (id: string) => targets.find(element =>
+        (element.id === id || (element.localName === 'a' && element.getAttribute('name') === id))
+        && element.closest('.aui-md') === root
+    )
+    // GFM can use the encoded spelling in the generated ID itself.
+    const target = findTarget(fragment) ?? (decoded !== fragment ? findTarget(decoded) : undefined)
+    if (!(target instanceof HTMLElement)) return
+
+    if (target.tabIndex < 0 && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1')
+    target.focus({ preventScroll: true })
+    scrollMarkdownFragment(target)
+}
+
 function A(props: ComponentPropsWithoutRef<'a'>) {
     const chat = useOptionalHappyChatContext()
     // useContext must be called unconditionally before any early return so that
@@ -798,6 +852,13 @@ function A(props: ComponentPropsWithoutRef<'a'>) {
 
         if (classification === 'iana') {
             onClick?.(e)
+            const fragmentHref = url.trim()
+            if (!e.defaultPrevented && fragmentHref.startsWith('#')) {
+                // Fragment links belong to this Markdown render, even when
+                // another mounted message has an identical GFM footnote ID.
+                e.preventDefault()
+                revealMarkdownFragment(e.currentTarget, fragmentHref.slice(1))
+            }
             return
         }
 

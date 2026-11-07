@@ -272,8 +272,9 @@ describe('markdown <A> component — SPA-safe no-scheme hrefs still navigate', (
         clickAndCheckNotPrevented('/settings')
     })
 
-    it('#section → click not prevented (hash fragment link)', () => {
-        clickAndCheckNotPrevented('#section')
+    it('#section → prevents document navigation when the message target is absent', () => {
+        renderA({ href: '#section', children: 'link' })
+        expect(fireEvent.click(document.querySelector('a')!)).toBe(false)
     })
 
     it('?q=1 → click not prevented (query-only link)', () => {
