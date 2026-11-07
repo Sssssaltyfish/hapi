@@ -14,14 +14,15 @@ vi.mock('@tanstack/react-router', () => ({
 afterEach(cleanup)
 
 it('keeps the child link and recorded model details available in a concise historical activity', () => {
-    render(<EventMessage event={{
+    const { container } = render(<EventMessage event={{
         type: 'agent-activity', sourceItemId: 'native-item', agentId: 'child-thread',
         activityKind: 'interacted', summary: '/root/reviewer', agentPath: '/root/reviewer',
         model: 'gpt-6.1-sol', reasoningEffort: 'high',
     }} />)
     expect(screen.getByText('Interacted with /root/reviewer')).toBeDefined()
-    expect(screen.getByRole('link', { name: 'child-thread', hidden: true }).getAttribute('href')).toBe('/sessions/codex-native%3Awindows%3Achild-thread')
+    expect(screen.getByRole('link', { name: 'Interacted with /root/reviewer' }).getAttribute('href')).toBe('/sessions/codex-native%3Awindows%3Achild-thread')
     expect(screen.getByText('gpt-6.1-sol')).toBeDefined()
     expect(screen.getByText('high')).toBeDefined()
     expect(screen.queryByText('Running')).toBeNull()
+    expect(container.querySelector('details')).toBeNull()
 })

@@ -1,5 +1,6 @@
 import { isObject, safeStringify } from '@hapi/protocol'
 import { getInputStringAny, truncate } from '@/lib/toolInputUtils'
+import type { ToolCallBlock } from '@/chat/types'
 
 export const codexAgentToolNames = [
     'spawn_agent',
@@ -205,6 +206,9 @@ export function getCodexAgentFieldRows(toolName: string, input: unknown): Array<
         const timeout = typeof input.timeout_ms === 'number' ? `${input.timeout_ms} ms` : null
         if (timeout) rows.push({ label: 'Timeout', value: timeout })
 
+        const interrupt = asBooleanLabel(input.interrupt)
+        if (interrupt) rows.push({ label: 'Interrupt', value: interrupt })
+
         const pathPrefix = asNonEmptyString(input.path_prefix)
         if (pathPrefix) rows.push({ label: 'Path prefix', value: pathPrefix })
     }
@@ -250,13 +254,15 @@ function extractStatusText(value: unknown): string | null {
     }
     if (!isObject(value)) return null
 
-    const candidates = ['completed', 'errored', 'failed', 'error', 'message', 'output', 'text', 'reason']
+    const candidates = ['completed', 'errored', 'failed', 'error', 'message', 'output', 'result', 'text', 'reason']
     for (const key of candidates) {
-        const candidate = value[key]
-        if (typeof candidate === 'string') return candidate
+        const candidate = asNonEmptyString(value[key])
+        if (candidate) return candidate
     }
 
-    return safeStringify(value)
+    return Object.keys(value).some(key => key !== 'status' && key !== 'state' && value[key] != null)
+        ? safeStringify(value)
+        : null
 }
 
 const CODEX_AGENT_STATUS_STATES = new Set([
@@ -331,6 +337,49 @@ export function parseCodexWaitAgentResult(result: unknown): {
     return { statuses, timedOut, message }
 }
 
+const compactCommunicationTools = new Set(['send_input', 'send_message', 'followup_task'])
+const compactTextLimit = 80
+const compactInputFields = new Set(['target', 'targets', 'id', 'agent_id', 'agentId', 'message', 'prompt', 'sender_thread_id', 'timeout_ms'])
+
+function fitsCompactLine(value: string): boolean {
+    return value.length <= compactTextLimit && !/[\r\n]/.test(value)
+}
+
+/** Returns the entire short detail when the call can be shown without a dialog. */
+export function getCompactCodexAgentTool(block: ToolCallBlock): { detail: string | null } | null {
+    const { name, input, result, permission } = block.tool
+    if (permission || block.children.length > 0) return null
+    if (name !== 'wait_agent' && !compactCommunicationTools.has(name)) return null
+    if (isObject(input) && Object.keys(input).some(key => !compactInputFields.has(key))) return null
+    const targets = getCodexAgentTargets(input)
+    if (targets.length > 1) return null
+
+    const output = parseMaybeJsonObject(result)
+    if (result != null && !output && typeof result !== 'string') return null
+    const outputText = output === null ? asNonEmptyString(result) : null
+    const error = asNonEmptyString(output?.error)
+    if (name === 'wait_agent') {
+        if (output && Object.keys(output).some(key => !['status', 'timed_out', 'timedOut', 'message', 'error'].includes(key))) return null
+        const wait = parseCodexWaitAgentResult(result)
+        const status = wait?.statuses[0]
+        if ((wait?.statuses.length ?? 0) > 1 || (status && !targets.includes(status.agentId))) return null
+        const timeout = isObject(input) && typeof input.timeout_ms === 'number' ? `${input.timeout_ms} ms` : null
+        const outcome = error ?? summarizeCodexAgentResult(name, result) ?? outputText
+        const message = wait?.message === outcome ? null : wait?.message
+        const detail = [targets[0], timeout, outcome, message, status?.text].filter(Boolean).join(' · ')
+        return !detail || fitsCompactLine(detail) ? { detail: detail || null } : null
+    }
+
+    if (output && Object.keys(output).some(key => !['targets', 'status', 'message', 'error', 'agentsStates'].includes(key))) return null
+    if (output && isObject(output.agentsStates) && Object.keys(output.agentsStates).length > 0) return null
+    const prompt = getCodexAgentPrompt(input)
+    const receipt = error ?? asNonEmptyString(output?.message)
+        ?? (output?.status !== 'completed' ? asNonEmptyString(output?.status) : null)
+        ?? outputText
+    const detail = [targets[0], prompt, receipt].filter(Boolean).join(' · ')
+    return !detail || fitsCompactLine(detail) ? { detail: detail || null } : null
+}
+
 export function parseCodexCloseAgentResult(result: unknown): CodexAgentStatus | null {
     const obj = parseMaybeJsonObject(result)
     if (!obj) return null
@@ -393,7 +442,7 @@ export function summarizeCodexAgentResult(toolName: string, result: unknown): st
         if (completed > 0) parts.push(`${completed} completed`)
         if (failed > 0) parts.push(`${failed} non-completed`)
         if (parsed.timedOut) parts.push('timed out')
-        return parts.length > 0 ? parts.join(', ') : 'No agent status yet'
+        return parts.length > 0 ? parts.join(', ') : null
     }
 
     if (toolName === 'close_agent' || toolName === 'interrupt_agent') {

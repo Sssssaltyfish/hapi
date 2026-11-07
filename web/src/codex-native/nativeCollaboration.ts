@@ -42,6 +42,7 @@ export function nativeCollaborationTool(item: NativeRecord) {
     if (!name) return null
     const targets = strings(item.receiverThreadIds ?? item.receiver_thread_ids ?? item.targets)
     const states = record(item.agentsStates ?? item.agents_states)
+    const timeoutMs = item.timeoutMs ?? item.timeout_ms
     const input: NativeRecord = {
         ...(text(item.prompt ?? item.message) ? { message: item.prompt ?? item.message } : {}),
         ...(text(item.agentType ?? item.agent_type) ? { agent_type: item.agentType ?? item.agent_type } : {}),
@@ -50,6 +51,7 @@ export function nativeCollaborationTool(item: NativeRecord) {
         ...(typeof (item.forkContext ?? item.fork_context) === 'boolean' ? { fork_context: item.forkContext ?? item.fork_context } : {}),
         ...(text(item.senderThreadId ?? item.sender_thread_id) ? { sender_thread_id: item.senderThreadId ?? item.sender_thread_id } : {}),
         ...(targets.length ? { targets, target: targets[0] } : {}),
+        ...(typeof timeoutMs === 'number' ? { timeout_ms: timeoutMs } : {}),
     }
     let output: NativeRecord = { status: item.status, agentsStates: states }
     if (name === 'spawn_agent') output = {
@@ -57,7 +59,17 @@ export function nativeCollaborationTool(item: NativeRecord) {
         ...(targets[0] ? { agent_id: targets[0] } : {}),
         ...(text(item.agentPath ?? item.nickname) ? { nickname: item.agentPath ?? item.nickname } : {}),
     }
-    if (name === 'wait_agent') output = { status: states, timed_out: item.status === 'timedOut' || item.status === 'timed_out' }
+    if (name === 'wait_agent') {
+        const timedOut = item.timedOut ?? item.timed_out
+        output = {
+            status: states,
+            ...(typeof timedOut === 'boolean' ? { timed_out: timedOut } : {}),
+            ...(item.status === 'timedOut' || item.status === 'timed_out' ? { timed_out: true } : {}),
+            ...(item.status === 'completed' && Object.keys(states).length === 0 && timedOut !== true
+                ? { message: 'Wait completed' } : {}),
+            ...(item.status === 'interrupted' ? { message: 'Wait interrupted' } : {}),
+        }
+    }
     if (name === 'close_agent' || name === 'interrupt_agent') output = {
         previous_status: targets[0] ? states[targets[0]] : Object.values(states)[0],
         ...(targets[0] ? { agent_id: targets[0] } : {}),

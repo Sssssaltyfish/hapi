@@ -28,6 +28,7 @@ import { useTranslation } from '@/lib/use-translation'
 import { TraceSection } from '@/components/ToolCard/trace'
 import { isSubagentToolName } from '@/chat/subagentTool'
 import { getMinimalToolPreview } from './toolPreview'
+import { getCompactCodexAgentTool } from './codexAgents'
 
 const ELAPSED_INTERVAL_MS = 1000
 const TERMINAL_RELATED_TOOL_NAMES = new Set(['Bash', 'CodexBash', 'shell_command', 'run_shell_command'])
@@ -408,6 +409,31 @@ export function ToolDetailDialogContent(props: {
     )
 }
 
+export function CompactCodexAgentToolRow(props: {
+    block: ToolCallBlock
+    metadata: SessionMetadataSummary | null
+    detail: string | null
+}) {
+    const { t } = useTranslation()
+    const { block, detail, metadata } = props
+    const { name, input, result, state } = block.tool
+    const presentation = getToolPresentation({
+        toolName: name, input, result, metadata,
+        childrenCount: block.children.length,
+        description: block.tool.nativeTitle ?? block.tool.description,
+    }, t)
+    return (
+        <div data-hapi-scroll-anchor={`tool:${block.id}`} className="flex min-w-0 items-center gap-2 px-2 py-0.5 text-xs text-[var(--app-hint)]">
+            <span className="shrink-0 text-[var(--app-tool-card-accent)]">{presentation.icon}</span>
+            <span className="shrink-0">{presentation.title}</span>
+            {detail ? <span className="min-w-0 [overflow-wrap:anywhere]">{detail}</span> : null}
+            <span className={cn('shrink-0', toolStatusColorClass(state))} title={state === 'completed' ? undefined : t(`toolGroup.rowStatus.${state}`)}>
+                <ToolStatusIcon state={state} />
+            </span>
+        </div>
+    )
+}
+
 function ToolCardInner(props: ToolCardProps) {
     const { t } = useTranslation()
     const [detailsOpen, setDetailsOpen] = useState(false)
@@ -646,4 +672,9 @@ function ToolCardInner(props: ToolCardProps) {
     )
 }
 
-export const ToolCard = memo(ToolCardInner)
+export const ToolCard = memo(function ToolCard(props: ToolCardProps) {
+    const compactAgent = getCompactCodexAgentTool(props.block)
+    return compactAgent
+        ? <CompactCodexAgentToolRow block={props.block} metadata={props.metadata} detail={compactAgent.detail} />
+        : <ToolCardInner {...props} />
+})

@@ -17,3 +17,22 @@ it('feeds native text, tools, timestamps and idle asynchronous questions through
     expect(reduced.blocks.some(block => block.kind === 'tool-call' && block.tool.name === 'mcp__github__search')).toBe(true)
     expect(projected.requests['native-async:text'].tool).toBe('request_user_input')
 })
+
+it('keeps native patch paths, diffs and failure output through the chat pipeline', () => {
+    const path = 'src/app.ts'
+    const change = { path, kind: { type: 'update', move_path: null }, diff: '@@ -1 +1 @@\n-old\n+new' }
+    const projected = projectNativeItems([
+        { item: { id: 'patch', type: 'fileChange', changes: [change], status: 'failed', stderr: 'Hunk did not match' } },
+    ], [])
+    const normalized = projected.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+    const reduced = reduceChatBlocks(normalized, { requests: projected.requests })
+    expect(reduced.blocks).toMatchObject([{
+        kind: 'tool-call',
+        tool: {
+            name: 'CodexPatch',
+            state: 'error',
+            input: { changes: { [path]: change } },
+            result: { status: 'failed', stderr: 'Hunk did not match' },
+        },
+    }])
+})

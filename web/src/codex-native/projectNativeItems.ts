@@ -3,6 +3,14 @@ import { nativeQuestionReplies, nativeText, record } from './presentation'
 import type { NativeItemEntry, NativeRecord, NativeRequest } from './types'
 import { nativeCollaborationTool, nativeSubagentEvent } from './nativeCollaboration'
 
+function nativePatchChanges(value: unknown): NativeRecord {
+    if (!Array.isArray(value)) return record(value)
+    return Object.fromEntries(value.flatMap((value) => {
+        const change = record(value)
+        return typeof change.path === 'string' && change.path ? [[change.path, change]] : []
+    }))
+}
+
 /** Presentation only. No native record is imported into HAPI storage. */
 export function projectNativeItems(
     entries: NativeItemEntry[],
@@ -161,15 +169,17 @@ export function projectNativeItems(
                 entry.completedAtMs
             )
         } else if (item.type === 'fileChange') {
+            const failed = item.status === 'failed' || item.status === 'declined'
             tool(
                 id,
                 at,
                 'CodexPatch',
-                { changes: item.changes },
-                { success: item.status === 'completed', changes: item.changes },
-                completed,
+                { changes: nativePatchChanges(item.changes) },
+                { status: item.status, stdout: item.stdout, stderr: item.stderr, output: item.output, error: item.error },
+                completed || failed,
                 entry.turnId,
-                entry.completedAtMs
+                entry.completedAtMs,
+                failed
             )
         } else if (item.type === 'mcpToolCall') {
             tool(
@@ -189,7 +199,8 @@ export function projectNativeItems(
             }
         } else if (collaboration) {
             tool(id, at, collaboration.name, collaboration.input, collaboration.output,
-                completed, entry.turnId, entry.completedAtMs, item.status === 'failed' || Boolean(item.error))
+                completed || item.status === 'interrupted', entry.turnId, entry.completedAtMs,
+                item.status === 'failed' || Boolean(item.error))
         } else if (item.type === 'plan') {
             const text = nativeText(item.text)
             if (text) add(id, at, { type: 'message', message: text, turn_id: entry.turnId })

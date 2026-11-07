@@ -718,26 +718,28 @@ const MutationResultView: ToolViewComponent = (props: ToolViewProps) => {
 }
 
 const CodexPatchResultView: ToolViewComponent = (props: ToolViewProps) => {
-    const result = props.block.tool.result
-    const text = extractTextFromResult(result)
-    if (text) {
+    const { result, state } = props.block.tool
+    const streams = extractStdoutStderr(result)
+    const streamText = [streams?.stdout, streams?.stderr].filter((value) => value?.trim()).join('\n')
+    const text = streamText || extractTextFromResult(result)
+    if (text?.trim()) {
         return (
             <>
-                {renderText(text, { mode: 'auto', collapseLongContent: props.surface === 'inline', surface: props.surface })}
+                {streamText ? renderPlainTextQuote(text, props.surface) : renderText(text, {
+                    mode: 'auto', collapseLongContent: props.surface === 'inline', surface: props.surface
+                })}
                 <RawJsonDevOnly value={result} surface={props.surface} />
             </>
         )
     }
 
-    if (result === undefined || result === null) {
-        return props.block.tool.state === 'completed'
-            ? <ResultStatusPill text="Done" />
-            : <ResultStatusPill text={placeholderForState(props.block.tool.state)} />
-    }
-
+    let status = placeholderForState(state)
+    if (isObject(result) && result.status === 'declined') status = 'Patch declined'
+    else if (state === 'error' || (isObject(result) && result.success === false)) status = 'Patch failed'
+    else if (state === 'completed') status = 'Applied changes'
     return (
         <>
-            <ResultStatusPill text="(no output)" />
+            <ResultStatusPill text={status} />
             <RawJsonDevOnly value={result} surface={props.surface} />
         </>
     )
@@ -847,7 +849,12 @@ const CodexAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
         const parsed = parseCodexWaitAgentResult(result)
         if (parsed) {
             if (parsed.statuses.length === 0) {
-                return <ResultStatusPill text={parsed.timedOut ? 'Timed out' : parsed.message ?? 'No status'} />
+                return (
+                    <div className="flex flex-col gap-2">
+                        <ResultStatusPill text={parsed.timedOut ? 'Timed out' : 'Wait completed'} />
+                        {showDetails && parsed.message ? renderText(parsed.message, { mode: 'auto', surface: props.surface }) : null}
+                    </div>
+                )
             }
 
             return (
@@ -864,6 +871,7 @@ const CodexAgentResultView: ToolViewComponent = (props: ToolViewProps) => {
                     </div>
                     {showDetails ? (
                         <div className="flex flex-col gap-2">
+                            {parsed.message ? renderText(parsed.message, { mode: 'auto', surface: props.surface }) : null}
                             {parsed.statuses.map((status) => (
                                 <div key={status.agentId} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-subtle-bg)] px-3 py-2">
                                     <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[var(--app-hint)]">

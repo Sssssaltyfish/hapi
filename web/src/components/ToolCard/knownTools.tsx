@@ -23,11 +23,14 @@ const DEFAULT_ICON_CLASS = 'h-3.5 w-3.5'
 const COMMANDS_WITH_SUBCOMMAND = new Set(['git', 'bun', 'npm', 'pnpm', 'yarn', 'docker', 'systemctl', 'cargo', 'go'])
 const COMMAND_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/
 const AMBIGUOUS_SHELL_RE = /[;&|<>$`(){}\n\r]/
+const COMMAND_WORD_RE = /(?:[^\s'"]+|"[^"]*"|'[^']*')+|['"]/g
 
 export function formatTerminalCommandTitle(command: string | null): string | null {
     if (!command || AMBIGUOUS_SHELL_RE.test(command)) return null
 
-    const parts = command.trim().split(/\s+/).filter(Boolean)
+    const words = command.match(COMMAND_WORD_RE) ?? []
+    if (words.some((word) => word === '"' || word === "'")) return null
+    const parts = words.map((word) => word.replace(/^(['"])(.*)\1$/, '$2'))
     let index = 0
     while (COMMAND_ASSIGNMENT_RE.test(parts[index] ?? '')) index += 1
 

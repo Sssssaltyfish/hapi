@@ -166,9 +166,8 @@ describe('getToolResultViewComponent registry', () => {
 })
 
 describe('dialog result formatting', () => {
-    const ResultView = getToolResultViewComponent('SomeUnknownTool')
-
-    function renderResult(result: unknown) {
+    function renderResult(result: unknown, toolName = 'SomeUnknownTool') {
+        const ResultView = getToolResultViewComponent(toolName)
         const block: ToolCallBlock = {
             id: 'tool-1',
             localId: null,
@@ -177,7 +176,7 @@ describe('dialog result formatting', () => {
             children: [],
             tool: {
                 id: 'tool-1',
-                name: 'SomeUnknownTool',
+                name: toolName,
                 state: 'completed',
                 input: {},
                 result,
@@ -217,6 +216,16 @@ describe('dialog result formatting', () => {
         expect(container.querySelector('[class*="border-l-"]')).toBeNull()
         expect(container.querySelector('pre')).not.toBeNull()
         expect(container).toHaveTextContent('const value = 1')
+    })
+
+    it('renders native patch status when the daemon omits output', () => {
+        renderResult({ status: 'completed' }, 'CodexPatch')
+        expect(screen.getByText('Applied changes')).toBeInTheDocument()
+    })
+
+    it('preserves patch output as plain text', () => {
+        const { container } = renderResult({ stdout: 'A src/app.ts\nM src/app.test.ts', stderr: 'Warning' }, 'CodexPatch')
+        expect(container.querySelector('.tool-result-quote')?.textContent).toBe('A src/app.ts\nM src/app.test.ts\nWarning')
     })
 })
 

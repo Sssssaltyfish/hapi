@@ -15,33 +15,32 @@ export function EventMessage({ event, timestamp }: { event: AgentEvent; timestam
     const presentation = getEventPresentation(event)
     const activity = isAgentActivityEvent(event) ? event : null
     const endpointId = context?.metadata?.nativeCodex?.endpointId
+    const text = activity && endpointId ? (
+        <Link
+            to="/sessions/$sessionId"
+            params={{ sessionId: `codex-native:${endpointId}:${activity.agentId}` }}
+            className="underline"
+        >
+            {presentation.text}
+        </Link>
+    ) : <span>{presentation.text}</span>
     const label = (
-        <span className="inline-flex flex-wrap items-center justify-center gap-1">
+        <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5">
             {presentation.icon ? <span aria-hidden="true">{presentation.icon}</span> : null}
-            <span>{presentation.text}</span>
+            {text}
+            {activity?.model ? <span>{activity.model}</span> : null}
+            {activity?.reasoningEffort ? <span>{activity.reasoningEffort}</span> : null}
             {timestamp}
         </span>
     )
 
     return (
-        <div className="mx-auto w-fit max-w-[92%] px-2 text-center text-xs text-[var(--app-hint)] opacity-80">
-            {activity ? (
-                <details className="min-w-0" data-native-agent-id={activity.agentId} data-native-activity-id={activity.sourceItemId}>
-                    <summary className="cursor-pointer break-words">{label}</summary>
-                    <dl className="mt-2 space-y-1 break-all text-left">
-                        <div><dt className="inline font-medium">Agent: </dt><dd className="inline">
-                            {endpointId ? (
-                                <Link to="/sessions/$sessionId" params={{ sessionId: `codex-native:${endpointId}:${activity.agentId}` }} className="underline">
-                                    {activity.agentId}
-                                </Link>
-                            ) : activity.agentId}
-                        </dd></div>
-                        {activity.agentPath ? <div><dt className="inline font-medium">Work: </dt><dd className="inline">{activity.agentPath}</dd></div> : null}
-                        {activity.model ? <div><dt className="inline font-medium">Model: </dt><dd className="inline">{activity.model}</dd></div> : null}
-                        {activity.reasoningEffort ? <div><dt className="inline font-medium">Reasoning: </dt><dd className="inline">{activity.reasoningEffort}</dd></div> : null}
-                    </dl>
-                </details>
-            ) : label}
+        <div
+            className="mx-auto w-fit max-w-[92%] break-all px-2 text-center text-xs text-[var(--app-hint)] opacity-80"
+            data-native-agent-id={activity?.agentId}
+            data-native-activity-id={activity?.sourceItemId}
+        >
+            {label}
         </div>
     )
 }

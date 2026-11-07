@@ -3,6 +3,8 @@ import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import type { ChatBlock, NormalizedMessage, ToolCallBlock } from '@/chat/types'
 import { getEventPresentation } from '@/chat/presentation'
+import { getCompactCodexAgentTool } from '@/components/ToolCard/codexAgents'
+import { buildVisibleChatBlocks } from '@/chat/toolGroups'
 import { projectNativeItems } from './projectNativeItems'
 import type { NativeItemEntry } from './types'
 
@@ -94,4 +96,41 @@ it('marks a failed native collaboration tool as an error in the existing card', 
         id: 'failed-spawn', type: 'collabAgentToolCall', tool: 'spawnAgent', status: 'failed', error: 'Agent limit reached',
     } }])
     expect(cards[0].tool.state).toBe('error')
+})
+
+it('shows a daemon mailbox wait as complete when its item has no result details', () => {
+    const [card] = tools([{ turnId: 'native-turn', item: {
+        id: 'wait', type: 'collabAgentToolCall', tool: 'wait', status: 'completed',
+        senderThreadId: 'parent', receiverThreadIds: [], agentsStates: {},
+    } }])
+    expect(card.tool.result).toEqual({ status: {}, message: 'Wait completed' })
+    expect(getCompactCodexAgentTool(card)).toEqual({ detail: 'Wait completed' })
+})
+
+it('groups short and detailed communication and waits while keeping short detail compact', () => {
+    const message = (id: string, prompt: string): NativeItemEntry => ({
+        turnId: 'turn', startedAtMs: 100, completedAtMs: 200, item: {
+            id, type: 'collabAgentToolCall', tool: 'sendMessage', status: 'completed', prompt, receiverThreadIds: [agentId],
+        },
+    })
+    const calls = tools([
+        message('short', 'Keep going.'),
+        message('long', 'Review this call in its original context.\nInclude the full response in the report.'),
+        { turnId: 'turn', startedAtMs: 200, completedAtMs: 300, item: {
+            id: 'rich-wait', type: 'collabAgentToolCall', tool: 'wait', status: 'completed',
+            receiverThreadIds: [agentId],
+            agentsStates: { [agentId]: { status: 'completed', message: 'The first check passed.\nThe second check found a problem.' } },
+        } },
+    ])
+    expect(getCompactCodexAgentTool(calls[0])?.detail).toContain('Keep going.')
+    expect(getCompactCodexAgentTool(calls[1])).toBeNull()
+    expect(getCompactCodexAgentTool(calls[2])).toBeNull()
+    const visible = buildVisibleChatBlocks(calls, { hasMoreMessages: false })
+    expect(visible).toMatchObject([
+        { kind: 'tool-group', defaultOpen: false, tools: [
+            { id: 'native:short' },
+            { id: 'native:long' },
+            { id: 'native:rich-wait' },
+        ] },
+    ])
 })

@@ -10,6 +10,8 @@ describe('formatTerminalCommandTitle', () => {
         ['sudo systemctl restart hapi', 'systemctl restart'],
         ['CI=1 env NODE_ENV=test npm run lint -- --fix', 'npm run lint'],
         ['/usr/bin/docker compose up -d', 'docker compose up'],
+        [String.raw`"C:\Program Files\PowerShell\7\pwsh.exe" -Command "Get-Date"`, 'pwsh.exe'],
+        ["'/usr/local/bin/git' status", 'git status'],
         ['git -C /tmp/repo status', 'git'],
         ['sudo -u root systemctl restart hapi', null],
         ['bun test && bun typecheck', null],

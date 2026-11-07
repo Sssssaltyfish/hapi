@@ -4,7 +4,7 @@ import type { ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
 import type { SessionMetadataSummary } from '@/types/api'
 import { useHappyChatContext, useToolGroupExpansionState } from '@/components/AssistantChat/context'
-import { getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
+import { CompactCodexAgentToolRow, getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/use-translation'
 import { formatDuration } from '@/chat/presentation'
 import { getMinimalToolPreview } from './toolPreview'
+import { getCompactCodexAgentTool } from './codexAgents'
 
 const TIMING_INTERVAL_MS = 1000
 
@@ -323,6 +324,10 @@ export function ToolGroupCard(props: {
                             {props.block.presentationMode === 'codex-exploration' && !minimal ? (
                                 <CodexExplorationRows tools={props.block.tools} onSelect={setSelectedToolId} />
                             ) : props.block.tools.map((tool) => {
+                                const compactAgent = getCompactCodexAgentTool(tool)
+                                if (compactAgent) {
+                                    return <CompactCodexAgentToolRow key={tool.id} block={tool} metadata={props.metadata} detail={compactAgent.detail} />
+                                }
                                 const timing = getToolTimingDetails(tool.tool, now)
                                 return (
                                     <button
