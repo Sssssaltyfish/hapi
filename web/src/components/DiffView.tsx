@@ -246,7 +246,7 @@ function DiffInlineView(props: {
             style={props.scrollY ? { maxHeight: props.maxHeight ?? 420 } : undefined}
         >
             <div className={cn(
-                'font-mono',
+                'hapi-diff-code',
                 isComfortable ? 'text-sm leading-6' : 'text-xs',
                 codeWrap ? 'w-full' : 'w-max min-w-full'
             )}>
