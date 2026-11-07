@@ -27,6 +27,36 @@ describe('DiffView', () => {
         expect(screen.getByText('example.ts')).toBeInTheDocument()
     })
 
+    it('uses the original line numbers and change colors for each unified diff hunk', () => {
+        const unifiedDiff = [
+            '@@ -42,3 +42,4 @@',
+            ' first context',
+            '-old line',
+            '+new line',
+            '+extra line',
+            ' another context line',
+            '@@ -100,2 +101 @@',
+            '-second deletion',
+            ' second context',
+            '\\ No newline at end of file',
+        ].join('\n')
+        render(<I18nProvider><DiffView unifiedDiff={unifiedDiff} filePath="example.ts" variant="inline" /></I18nProvider>)
+
+        const newRow = screen.getByText('new line').closest('.grid')!
+        const deletedRow = screen.getByText('second deletion').closest('.grid')!
+        const contextRow = screen.getByText('second context').closest('.grid')!
+        expect(newRow).toHaveClass('bg-[var(--app-diff-added-bg)]')
+        expect(newRow.children[0]).toBeEmptyDOMElement()
+        expect(newRow.children[1]).toHaveTextContent('43')
+        expect(deletedRow).toHaveClass('bg-[var(--app-diff-removed-bg)]')
+        expect(deletedRow.children[0]).toHaveTextContent('100')
+        expect(deletedRow.children[1]).toBeEmptyDOMElement()
+        expect(contextRow.children[0]).toHaveTextContent('101')
+        expect(contextRow.children[1]).toHaveTextContent('101')
+        expect(screen.getByText('+2')).toBeInTheDocument()
+        expect(screen.getByText('-2')).toBeInTheDocument()
+    })
+
     it('renders a single visible header in preview mode', () => {
         render(
             <I18nProvider>

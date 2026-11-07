@@ -1,5 +1,5 @@
 import type { ToolViewProps } from '@/components/ToolCard/views/_all'
-import { CodeBlock } from '@/components/CodeBlock'
+import { DiffView } from '@/components/DiffView'
 import { isObject } from '@hapi/protocol'
 import { resolveDisplayPath } from '@/utils/path'
 
@@ -13,18 +13,29 @@ export function CodexPatchView(props: ToolViewProps) {
     return (
         <div className="flex flex-col gap-2">
             {files.map(([file, change]) => {
-                const display = resolveDisplayPath(file, props.metadata)
-                const diff = isObject(change) ? change.diff ?? change.unified_diff : null
-                const movePath = isObject(change) && isObject(change.kind) ? change.kind.move_path : null
+                const details = isObject(change) ? change : {}
+                const kind = isObject(details.kind) ? details.kind : null
+                const type = kind?.type ?? details.type ?? details.kind
+                const movePath = kind?.move_path ?? details.move_path
+                const source = resolveDisplayPath(file, props.metadata)
+                const filePath = typeof movePath === 'string' && movePath
+                    ? `${source} → ${resolveDisplayPath(movePath, props.metadata)}` : source
+                const viewProps = { filePath, variant: 'inline', scrollY: true, size: 'comfortable' } as const
+                if (typeof details.unified_diff === 'string' && details.unified_diff) {
+                    return <DiffView key={file} {...viewProps} unifiedDiff={details.unified_diff} />
+                }
+                if (type === 'add' || type === 'delete') {
+                    const content = details.content ?? details.diff
+                    if (typeof content === 'string') {
+                        return <DiffView key={file} {...viewProps} oldString={type === 'delete' ? content : ''} newString={type === 'add' ? content : ''} />
+                    }
+                }
+                if (typeof details.diff === 'string' && details.diff) {
+                    return <DiffView key={file} {...viewProps} unifiedDiff={details.diff} />
+                }
                 return (
-                    <div key={file} className="min-w-0 space-y-1">
-                        <div className="text-sm text-[var(--app-fg)] font-mono break-all">
-                            {display}
-                            {typeof movePath === 'string' && ` → ${resolveDisplayPath(movePath, props.metadata)}`}
-                        </div>
-                        {typeof diff === 'string' && diff.length > 0 && (
-                            <CodeBlock code={diff} language="diff" scrollY size="comfortable" />
-                        )}
+                    <div key={file} className="text-sm text-[var(--app-fg)] font-mono break-all">
+                        {filePath}
                     </div>
                 )
             })}
