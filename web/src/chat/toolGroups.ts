@@ -319,7 +319,7 @@ export function buildVisibleChatBlocks(
             cursor += 1
         }
 
-        if (entries.length < 2 && entry.kind === 'tool-call' && groupingFamily !== 'codex-exploration') {
+        if (entries.length < 2 && groupingFamily !== 'codex-exploration') {
             visibleBlocks.push(block)
             continue
         }

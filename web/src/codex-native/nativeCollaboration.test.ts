@@ -149,9 +149,9 @@ it('folds native activity and waits in recorded order without crossing turn or e
     const visible = buildVisibleChatBlocks([...recorded.slice(0, 4), marker, recorded[4]], { hasMoreMessages: false })
     expect(visible.map(block => isToolGroupBlock(block) ? getToolGroupEntries(block).map(entry => entry.id) : block.id)).toEqual([
         ['native:send', 'native:wait', 'native:done'],
-        ['native:next'],
+        'native:next',
         'unrelated',
-        ['native:after'],
+        'native:after',
     ])
     expect(visible[0]).toMatchObject({ defaultOpen: false, summary: { totalTools: 1 } })
 })
