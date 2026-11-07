@@ -5,6 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState, type KeyboardEvent, type Mo
 import { getClaudeModelLabel, isObject, safeStringify } from '@hapi/protocol'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CodeBlock } from '@/components/CodeBlock'
+import { AgentActivityRow } from '@/components/AgentActivityRow'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DisclosureChevron } from '@/components/ui/disclosure'
@@ -423,14 +424,13 @@ export function CompactCodexAgentToolRow(props: {
         description: block.tool.nativeTitle ?? block.tool.description,
     }, t)
     return (
-        <div data-hapi-scroll-anchor={`tool:${block.id}`} className="flex min-w-0 items-center gap-2 px-2 py-0.5 text-xs text-[var(--app-hint)]">
-            <span className="shrink-0 text-[var(--app-tool-card-accent)]">{presentation.icon}</span>
+        <AgentActivityRow icon={presentation.icon} data-hapi-scroll-anchor={`tool:${block.id}`}>
             <span className="shrink-0">{presentation.title}</span>
             {detail ? <span className="min-w-0 [overflow-wrap:anywhere]">{detail}</span> : null}
             <span className={cn('shrink-0', toolStatusColorClass(state))} title={state === 'completed' ? undefined : t(`toolGroup.rowStatus.${state}`)}>
                 <ToolStatusIcon state={state} />
             </span>
-        </div>
+        </AgentActivityRow>
     )
 }
 
