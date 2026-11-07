@@ -2,14 +2,6 @@
 @import "katex/dist/katex.min.css";
 @config "../tailwind.config.ts";
 
-@font-face {
-    font-family: "HAPI Code Mono";
-    src: url("./assets/fonts/iosevka-fixed-code.woff2") format("woff2");
-    font-style: normal;
-    font-weight: 400;
-    font-display: swap;
-}
-
 :root {
     --app-bg: var(--tg-theme-bg-color, #ffffff);
     --app-fg: var(--tg-theme-text-color, #111827);
@@ -690,13 +682,14 @@ html:has(.chat-scroll-y) #root {
     background-color: transparent !important;
 }
 
-/* Use half-em cells for Latin and diagram symbols so full-em CJK fallback fits two cells. */
+/* Preserve Maple's 2:1 CJK grid by keeping fractional glyph advances. */
 :is([data-hapi-code-grid], .shiki, .hapi-diff-code),
 :is([data-hapi-code-grid], .shiki) code {
     font-family: "HAPI Code Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-kerning: none;
     font-variant-ligatures: none;
     letter-spacing: normal;
+    text-rendering: geometricPrecision;
 }
 
 /* Shiki dual theme colors */

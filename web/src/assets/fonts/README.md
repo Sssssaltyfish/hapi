@@ -1,5 +1,15 @@
 # Code font
 
-`iosevka-fixed-code.woff2` is a subset of `WOFF2/IosevkaFixed-Regular.woff2` from the [Iosevka Fixed 34.9.1 webfont release](https://github.com/be5invis/Iosevka/releases/download/v34.9.1/PkgWebFont-IosevkaFixed-34.9.1.zip). The original font's SHA-256 is `4ffa0132b2114428ccb5bea50f2299977c24635ecc44853b43bf4afa39ea1e6e`.
+The code font comes from the Regular face in the [Maple Mono 7.9 Normal NL CN unhinted release](https://github.com/subframe7536/maple-font/releases/download/v7.9/MapleMonoNormalNL-CN-unhinted.zip). The CN edition builds on [Resource Han Rounded](https://github.com/CyanoHao/Resource-Han-Rounded).
 
-The subset retains Latin, Greek, Cyrillic and symbols used in code and text diagrams. It preserves the upstream glyph outlines and advances. The [SIL Open Font License](./Iosevka-OFL.txt) applies to the bundled font.
+`maple-code/` contains a base WOFF2 face for letters, punctuation and symbols, plus Han faces of up to 384 code points each. The generated CSS lists disjoint Unicode ranges so the browser fetches only the faces used on the page. Together the faces retain all 22,731 mapped code points and their upstream horizontal metrics.
+
+To regenerate, extract `MapleMonoNormalNL-CN-Regular.ttf` from the release archive and run the command below from the repository root with Python 3.10 or newer, FontTools 4.60.1 and Brotli 1.1.0. The script verifies the pinned input hash and checks each WOFF2's character mappings and horizontal metrics.
+
+```sh
+python web/src/assets/fonts/prepare_maple_code.py /path/to/MapleMonoNormalNL-CN-Regular.ttf
+```
+
+Upstream TTF SHA-256 `8cec0b9c25139a75d4fb02b0690fc2fe970ecd3bae7b69451edc53627256897f`.
+
+The [upstream SIL Open Font License](../../../public/fonts/Maple-Mono-OFL.txt) ships with the web build.

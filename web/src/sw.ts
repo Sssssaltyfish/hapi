@@ -33,6 +33,22 @@ type PushPayload = {
 precacheAndRoute(self.__WB_MANIFEST)
 
 registerRoute(
+    ({ request, url, sameOrigin }) => sameOrigin && request.destination === 'font'
+        && /^\/assets\/maple-code-(?:base|han-\d{2})-[\w-]+\.woff2$/.test(url.pathname),
+    new CacheFirst({
+        cacheName: 'maple-code-fonts',
+        plugins: [
+            cacheOkResponsesOnly,
+            new ExpirationPlugin({
+                maxEntries: 32,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                purgeOnQuotaError: true,
+            }),
+        ],
+    })
+)
+
+registerRoute(
     ({ url }) => url.pathname === '/api/sessions',
     new NetworkFirst({
         cacheName: 'api-sessions',
