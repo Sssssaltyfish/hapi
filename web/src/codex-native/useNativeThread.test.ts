@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { ApiClient } from '@/api/client'
+import { projectNativeItems } from './projectNativeItems'
 import { useNativeThread } from './useNativeThread'
 import type { NativeEvent, NativeItemEntry, NativePage } from './types'
 
@@ -112,6 +113,49 @@ describe('native thread window', () => {
         expect(result.current.items.map(value => value.item.id)).toEqual(['reading'])
         expect(result.current.hasNewer).toBe(true)
         expect(result.current.newerCursor).toBe('opaque-forward-reading')
+        unmount()
+    })
+
+    it('keeps the retained live process current while the reader has stopped following the tail', async () => {
+        let event!: (value: NativeEvent) => void
+        const recent: NativeItemEntry[] = [
+            { turnId: 'turn', item: { id: 'first', type: 'reasoning', summary: ['First heading'] } },
+            entry('reading'),
+        ]
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'retained-live' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: { id: 'turn', status: 'inProgress' } }),
+            getCodexNativeItems: vi.fn().mockResolvedValue({ data: recent, nextCursor: 'opaque-older', backwardsCursor: 'opaque-newer' }),
+            streamCodexNativeEvents: vi.fn((_id: string, _signal: AbortSignal, onEvent: typeof event) => { event = onEvent; return new Promise<void>(() => {}) }),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'retained-live'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        const send = (method: string, params: NativeEvent['params']) => event({ method, params: { threadId: 'retained-live', turnId: 'turn', ...params } })
+        const reasoning = (turnId?: string) => projectNativeItems(result.current.items, [], true, undefined, turnId)
+            .messages.find(message => message.id === 'native:latest:summary:1')?.content
+        act(() => {
+            result.current.browseHistory()
+            send('item/started', { item: { id: 'latest', type: 'reasoning', summary: ['Beginning'] } })
+            send('item/reasoning/summaryPartAdded', { itemId: 'latest', summaryIndex: 1 })
+            send('item/reasoning/summaryTextDelta', { itemId: 'latest', summaryIndex: 1, delta: 'Live heading' })
+            send('item/started', { item: { id: 'command', type: 'commandExecution', command: 'pwd', status: 'inProgress' } })
+        })
+        expect(result.current.includesLiveTail).toBe(true)
+        expect(reasoning('turn')).toMatchObject({
+            content: { data: { message: 'Live heading' } }, meta: { nativeReasoningActive: true },
+        })
+        expect(result.current.items.map(({ item }) => item.id)).toEqual(['reading', 'first', 'latest', 'command'])
+        expect(result.current.cursor).toBe('opaque-older')
+        expect(result.current.newerCursor).toBe('opaque-newer')
+
+        act(() => {
+            send('item/completed', { item: { id: 'command', type: 'commandExecution', command: 'pwd', status: 'completed' } })
+            send('turn/completed', { turn: { id: 'turn', status: 'completed' } })
+        })
+        expect(result.current.detail.activeTurn).toBeNull()
+        expect(reasoning()).toMatchObject({ meta: { nativeReasoningActive: false } })
+        expect(result.current.items.at(-1)?.item.status).toBe('completed')
+        expect(result.current.items[0].item.id).toBe('reading')
         unmount()
     })
 

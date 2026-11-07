@@ -111,7 +111,7 @@ function NativeSessionChat({
     const activeTurn = record(thread.detail.activeTurn)
     const activeTurnId = activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : undefined
     const [viewMode, setViewMode] = useState<'tail' | 'history'>(() => getConversationReadingPosition(session.id)?.atBottom === false ? 'history' : 'tail')
-    const reasoningTurnId = viewMode === 'tail' ? activeTurnId : undefined
+    const reasoningTurnId = thread.includesLiveTail ? activeTurnId : undefined
     const projected = useMemo(
         () =>
             projectNativeItems(

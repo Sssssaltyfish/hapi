@@ -12,6 +12,11 @@ const windowCache = new Map<string, NativeWindowSnapshot>()
 const MAX_CACHED_WINDOWS = 12
 const WINDOW_TTL_MS = 30 * 60 * 1000
 
+function inProgressTurnId(value: unknown): string | undefined {
+    const turn = record(value)
+    return turn.status === 'inProgress' && typeof turn.id === 'string' ? turn.id : undefined
+}
+
 function readCachedWindow(key?: string): NativeWindowSnapshot | null {
     if (!key) return null
     const cached = windowCache.get(key)
@@ -25,6 +30,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const [detail, setDetail] = useState<NativeRecord>({})
     const settingsRevision = useRef(0)
     const activeTurnRevision = useRef(0)
+    const activeLiveTurn = useRef<string | undefined>(undefined)
     const [contextUsage, setContextUsage] = useState<ContextUsage | null>(cached.current?.contextUsage ?? null)
     const [items, setItems] = useState<NativeItemEntry[]>(() => {
         if (cacheKey && preserveHistory && !cached.current) clearConversationReadingPosition(cacheKey)
@@ -47,6 +53,12 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     }, [])
     const [hasNewer, setHasNewer] = useState(Boolean(cached.current && preserveHistory && (cached.current.hasNewer ?? true)))
     const browsingOlder = useRef(Boolean(cached.current && preserveHistory))
+    const [includesLiveTail, setIncludesLiveTail] = useState(!browsingOlder.current || cached.current?.hasNewer === false)
+    const liveTailIncluded = useRef(includesLiveTail)
+    const updateLiveTail = useCallback((included: boolean) => {
+        liveTailIncluded.current = included
+        setIncludesLiveTail(included)
+    }, [])
     const historyGeneration = useRef(0)
     const olderRequest = useRef<symbol | null>(null)
     const olderPreviousBrowsing = useRef<boolean | null>(null)
@@ -103,7 +115,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         if (!cacheKey || items.length === 0) return
         windowCache.delete(cacheKey)
         // Stream revisions only order events against reads in this hook instance.
-        const cachedItems = items.slice(0, 300).map(({ reasoningStreamRevision, reasoningStreamCompleted, ...entry }) => entry)
+        const cachedItems = items.slice(0, 300).map(({ reasoningStreamRevision, reasoningStreamCompleted, itemStreamRevision, ...entry }) => entry)
         windowCache.set(cacheKey, { items: cachedItems, cursor, newerCursor, hasNewer, browsingOlder: browsingOlder.current, savedAt: Date.now(), contextUsage })
         while (windowCache.size > MAX_CACHED_WINDOWS) windowCache.delete(windowCache.keys().next().value!)
     }, [cacheKey, items, cursor, newerCursor, hasNewer, contextUsage])
@@ -123,8 +135,10 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
     const refreshActiveTurn = useCallback(async () => {
         const revision = ++activeTurnRevision.current
         const response = await api.getCodexNativeActiveTurn(id)
-        if (alive.current && revision === activeTurnRevision.current)
+        if (alive.current && revision === activeTurnRevision.current) {
+            activeLiveTurn.current = inProgressTurnId(response.activeTurn)
             setDetail(current => ({ ...current, activeTurn: response.activeTurn }))
+        }
     }, [api, id])
 
     const latest = useCallback(async (reset = false) => {
@@ -170,13 +184,44 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             })
             if (reset) {
                 browsingOlder.current = false
+                updateLiveTail(true)
                 setHasNewer(false)
                 applyLatest()
                 setCursor(page.nextCursor)
                 setNewerCursor(page.backwardsCursor ?? null)
             } else if (browsingOlder.current) {
-                if (page.data[0]?.item.id !== itemsRef.current.at(-1)?.item.id) setHasNewer(true)
+                const incoming = [...page.data].reverse()
+                const current = itemsRef.current
+                const currentEnd = current.at(-1)?.item.id
+                const incomingEnd = incoming.at(-1)?.item.id
+                const overlap = incoming.findIndex(entry => entry.item.id === currentEnd)
+                const coversEnd = current.some(entry => entry.item.id === incomingEnd)
+                const activeTurnId = activeLiveTurn.current
+                // A background read can extend a retained live process. Ordinary
+                // newer history still arrives through the explicit forward cursor.
+                const canExtend = liveTailIncluded.current && overlap >= 0 && !olderRequest.current &&
+                    activeTurnId !== undefined && current.at(-1)?.turnId === activeTurnId &&
+                    incoming.slice(overlap + 1).every(entry => entry.turnId === activeTurnId)
+                if (!olderRequest.current && incomingEnd !== undefined) {
+                    updateLiveTail(coversEnd || canExtend)
+                    setHasNewer(!coversEnd && !canExtend)
+                }
+                const updates = new Map(incoming.map(entry => [entry.item.id, entry]))
+                setItems(previous => {
+                    let changed = false
+                    const updated = previous.map(entry => {
+                        const read = updates.get(entry.item.id)
+                        if (!read || (typeof entry.itemStreamRevision === 'number' && entry.itemStreamRevision > revision)) return entry
+                        changed = true
+                        return reconcileNativeReasoning(entry, read)
+                    })
+                    if (!canExtend) return changed ? updated : previous
+                    const end = incoming.findIndex(entry => entry.item.id === previous.at(-1)?.item.id)
+                    return end < 0 || end === incoming.length - 1
+                        ? (changed ? updated : previous) : mergeNativeItems(updated, incoming.slice(end + 1), 'latest')
+                })
             } else {
+                updateLiveTail(true)
                 applyLatest()
                 setCursor(page.nextCursor)
                 setNewerCursor(page.backwardsCursor ?? null)
@@ -190,7 +235,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setLoading(false)
             }
         }
-    }, [api, id, rememberPage])
+    }, [api, id, rememberPage, updateLiveTail])
 
     const readHistory = useCallback(async (direction: 'older' | 'newer', beforeApply?: (entries: NativeItemEntry[]) => boolean) => {
         const initialCursor = direction === 'older' ? cursor : newerCursor
@@ -242,6 +287,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setCursor(pageCursor)
                 const previousEnd = currentItems.at(-1)?.item.id
                 if (previousEnd && !nextItems.some(entry => entry.item.id === previousEnd)) {
+                    updateLiveTail(false)
                     const forward = lastBoundary?.newer === undefined ? oppositeCursor : lastBoundary.newer
                     setNewerCursor(forward)
                     setHasNewer(Boolean(forward))
@@ -252,6 +298,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 // arrive while this reader remains in history mode.
                 setNewerCursor(pageCursor ?? lastRequestedCursor)
                 setHasNewer(hasMore)
+                updateLiveTail(!hasMore)
                 const previousStart = currentItems[0]?.item.id
                 if (previousStart && !nextItems.some(entry => entry.item.id === previousStart)) {
                     const backward = firstBoundary?.older === undefined ? oppositeCursor : firstBoundary.older
@@ -274,7 +321,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setOlderLoading(false)
             }
         }
-    }, [cursor, newerCursor, readPage, prefetchFrom])
+    }, [cursor, newerCursor, readPage, prefetchFrom, updateLiveTail])
     const older = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('older', beforeApply), [readHistory])
     const newer = useCallback((beforeApply?: (entries: NativeItemEntry[]) => boolean) => readHistory('newer', beforeApply), [readHistory])
 
@@ -313,6 +360,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             setCursor(page.nextCursor)
             setNewerCursor(page.backwardsCursor ?? page.newerResumeCursor ?? null)
             setHasNewer(Boolean(page.backwardsCursor))
+            updateLiveTail(page.backwardsCursor === null)
             setError('')
             return true
         } catch (error) {
@@ -329,7 +377,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 setOlderLoading(false)
             }
         }
-    }, [rememberPage])
+    }, [rememberPage, updateLiveTail])
     const seek = useCallback((pageCursor: string | null, accepts: (entries: NativeItemEntry[]) => boolean) => (
         seekFrom(signal => api.getCodexNativeItems(id, pageCursor ?? undefined, 'desc', signal), accepts)
     ), [api, id, seekFrom])
@@ -369,6 +417,12 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                 void latest()
             }, 750)
         }
+        const liveInsertion = (turnId: unknown) => {
+            const following = !browsingOlder.current
+            const attached = liveTailIncluded.current && !olderRequest.current &&
+                typeof turnId === 'string' && activeLiveTurn.current === turnId
+            return (items: NativeItemEntry[]) => following || (attached && items.at(-1)?.turnId === turnId)
+        }
         const onEvent = (event: NativeEvent) => {
             if (!alive.current) return
             for (const listener of eventListeners.current) listener(event)
@@ -385,7 +439,10 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method === 'hapi/ready') {
                 setConnected(true)
                 settingsRevision.current += 1
-                if (Object.hasOwn(event.params, 'activeTurn')) activeTurnRevision.current += 1
+                if (Object.hasOwn(event.params, 'activeTurn')) {
+                    activeTurnRevision.current += 1
+                    activeLiveTurn.current = inProgressTurnId(event.params.activeTurn)
+                }
                 if (event.params.thread) setDetail(current => ({ ...current, ...event.params }))
                 if (Array.isArray(event.params.requests)) setRequests((event.params.requests as NativeRequest[]).map(request => ({ ...request, receivedAt: Date.now() })))
                 invalidate()
@@ -409,11 +466,13 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             if (event.method === 'turn/started') {
                 activeTurnRevision.current += 1
+                activeLiveTurn.current = inProgressTurnId(event.params.turn)
                 setDetail(current => ({ ...current, activeTurn: event.params.turn, thread: { ...record(current.thread), status: { type: 'active' } } }))
             }
             if (event.method === 'turn/completed') {
                 activeTurnRevision.current += 1
                 const turnId = record(event.params.turn).id
+                if (!turnId || turnId === activeLiveTurn.current) activeLiveTurn.current = undefined
                 setDetail(current => {
                     const activeId = record(current.activeTurn).id
                     if (activeId && turnId && turnId !== activeId) return current
@@ -432,14 +491,16 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method === 'item/reasoning/summaryPartAdded' || event.method === 'item/reasoning/summaryTextDelta') {
                 const { itemId, turnId, summaryIndex, delta } = event.params
                 const partAdded = event.method === 'item/reasoning/summaryPartAdded'
-                if (browsingOlder.current || typeof itemId !== 'string' || typeof turnId !== 'string' ||
+                if (typeof itemId !== 'string' || typeof turnId !== 'string' ||
                     typeof summaryIndex !== 'number' || !Number.isSafeInteger(summaryIndex) || summaryIndex < 0 ||
                     (!partAdded && typeof delta !== 'string')) return
                 const revision = tailRevision.current
                 const observedAtMs = Date.now()
                 const text = typeof delta === 'string' ? delta : ''
+                const canInsert = liveInsertion(turnId)
                 setItems(current => {
                     const previous = current.find(entry => entry.item.id === itemId)
+                    if (!previous && !canInsert(current)) return current
                     if (previous && (previous.item.type !== 'reasoning' || previous.completedAtMs != null ||
                         previous.reasoningStreamCompleted === true)) return current
                     const summary = nativeReasoningParts(previous?.item.summary)
@@ -456,13 +517,14 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             if (event.method === 'item/agentMessage/delta' || event.method === 'item/plan/delta') {
                 const itemId = event.params.itemId
                 const delta = event.params.delta
-                if (typeof itemId === 'string' && typeof delta === 'string' && !browsingOlder.current) {
+                if (typeof itemId === 'string' && typeof delta === 'string') {
+                    const revision = tailRevision.current
                     setItems(current => current.map(entry => entry.item.id === itemId
-                        ? { ...entry, item: { ...entry.item, text: String(entry.item.text ?? '') + delta } } : entry))
+                        ? { ...entry, itemStreamRevision: revision, item: { ...entry.item, text: String(entry.item.text ?? '') + delta } } : entry))
                 }
             }
             const nativeItem = record(event.params.item)
-            if (typeof nativeItem.id === 'string' && typeof nativeItem.type === 'string' && !browsingOlder.current) {
+            if (typeof nativeItem.id === 'string' && typeof nativeItem.type === 'string') {
                 const entry: NativeItemEntry = {
                     ...event.params,
                     observedAtMs: Date.now(),
@@ -470,9 +532,12 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
                     turnId: typeof event.params.turnId === 'string' ? event.params.turnId : undefined,
                 }
                 const revision = tailRevision.current
+                const canInsert = liveInsertion(entry.turnId)
                 setItems(current => {
-                    if (entry.item.type !== 'reasoning') return mergeNativeItems(current, [entry], 'latest')
                     const previous = current.find(value => value.item.id === entry.item.id)
+                    if (!previous && !canInsert(current)) return current
+                    if (entry.item.type !== 'reasoning')
+                        return mergeNativeItems(current, [{ ...entry, itemStreamRevision: revision }], 'latest')
                     const completed = event.method === 'item/completed'
                     const incoming = { ...entry, reasoningStreamRevision: revision, reasoningStreamCompleted: completed }
                     const updated = previous ? reconcileNativeReasoning(previous, incoming) : incoming
@@ -488,6 +553,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }).finally(() => {
                 if (controller.signal.aborted) return
                 setConnected(false)
+                if (browsingOlder.current) updateLiveTail(false)
                 retry = setTimeout(connect, 2000)
             })
         }
@@ -505,7 +571,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             clearTimeout(retry)
             clearTimeout(refreshTimer)
         }
-    }, [api, id, enabled, cacheKey, latest, refreshDetail, refreshActiveTurn])
+    }, [api, id, enabled, cacheKey, latest, refreshDetail, refreshActiveTurn, updateLiveTail])
 
-    return { detail, contextUsage, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
+    return { detail, contextUsage, items, cursor, newerCursor, loading, olderLoading, error, connected, historyResetRevision, requests, setRequests, hasNewer, includesLiveTail, older, newer, prefetch, seek, seekTurn, cancelOlder, browseHistory, latest, refreshDetail, applySettings, subscribeEvents }
 }
