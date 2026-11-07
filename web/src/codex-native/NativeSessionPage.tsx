@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { SessionChat } from '@/components/SessionChat'
 import { ApiError, type ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
@@ -8,7 +8,7 @@ import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import type { NormalizedMessage } from '@/chat/types'
 import { nativeAsyncReplyTurn, nativeQuestionReplies, nativeState, record } from './presentation'
-import { projectNativeItems } from './projectNativeItems'
+import { createNativeItemProjector, projectNativeItems } from './projectNativeItems'
 import { nativeReasoningMessageId, nativeReasoningParts } from './nativeReasoning'
 import { useNativeThread } from './useNativeThread'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
@@ -56,7 +56,7 @@ export function NativeSessionPage({
     )
     return (
         <NativeSessionChat
-            key={`${native.endpointId}:${native.threadId}`}
+            key={`${native.endpointId}:${native.threadId}:${session.id}`}
             api={endpointApi}
             session={session}
             onBack={onBack}
@@ -112,16 +112,17 @@ function NativeSessionChat({
     const activeTurnId = activeTurn.status === 'inProgress' && typeof activeTurn.id === 'string' ? activeTurn.id : undefined
     const [viewMode, setViewMode] = useState<'tail' | 'history'>(() => getConversationReadingPosition(session.id)?.atBottom === false ? 'history' : 'tail')
     const reasoningTurnId = thread.includesLiveTail ? activeTurnId : undefined
+    const projectLiveItems = useMemo(createNativeItemProjector, [])
     const projected = useMemo(
         () =>
-            projectNativeItems(
+            projectLiveItems(
                 thread.items,
                 thread.requests,
                 turnStateKnown,
                 observedReplies.current,
                 reasoningTurnId
             ),
-        [thread.items, thread.requests, turnStateKnown, reasoningTurnId]
+        [projectLiveItems, thread.items, thread.requests, turnStateKnown, reasoningTurnId]
     )
     const [sending, setSending] = useState(false)
     const historyLocators = useMemo(() => {
@@ -184,27 +185,18 @@ function NativeSessionChat({
     const refresh = useCallback(async () => {
         await Promise.all([thread.refreshDetail(), thread.latest(viewMode === 'tail')])
     }, [thread.refreshDetail, thread.latest, viewMode])
+    const adapterState = { model: liveSession.model, thread, projectedRequests: projected.requests }
+    const committedAdapterState = useRef(adapterState)
+    // Interactive operations read the requests from the latest committed view.
+    useLayoutEffect(() => { committedAdapterState.current = adapterState })
     const adapter = useMemo(
-        () =>
-            createNativeSessionApiAdapter(api, {
-                session,
-                liveSession,
-                thread,
-                projected,
-                setSettingsError,
-            }),
-        [
-            api,
-            native.threadId,
-            session.id,
-            projected.requests,
-            thread.requests,
-            thread.detail.activeTurn,
-            thread.refreshDetail,
-            thread.applySettings,
-            liveSession.model,
-            liveSession.modelReasoningEffort,
-        ]
+        () => createNativeSessionApiAdapter(api, {
+            sessionId: session.id,
+            threadId: native.threadId,
+            getState: () => committedAdapterState.current,
+            setSettingsError,
+        }),
+        [api, native.threadId, session.id]
     )
     return (
         <SessionChat

@@ -101,7 +101,7 @@ export const NativeReasoning = memo(function NativeReasoning({ block, className 
                             {active && <span aria-hidden="true" className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" />}
                         </button>
                         <DisclosureContent open={open} id={panelId}>
-                            {() => <MarkdownRenderer content={block.text} className="aui-reasoning-content px-3.5 pb-3" preserveSingleLineBreaks />}
+                            {() => <MarkdownRenderer content={block.text} className="aui-reasoning-content px-3.5 pb-3" preserveSingleLineBreaks defer />}
                         </DisclosureContent>
                     </div>
                 )}

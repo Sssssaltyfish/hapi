@@ -83,12 +83,15 @@ export function getToolTimingDetails(tool: ChatToolCall, now: number): {
     }
 }
 
+const compactToolTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+})
+
 export function formatCompactToolTimestamp(value: number): string {
-    return new Date(value).toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-    })
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? date.toString() : compactToolTimeFormatter.format(date)
 }
 
 export function ToolTimingSummary(props: {

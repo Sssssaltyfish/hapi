@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { NativeEvent, NativeItemEntry, NativePage, NativeRecord, NativeRequest, NativeTurnContextPage } from './types'
 import { mergeNativeItems, record } from './presentation'
@@ -38,12 +38,14 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
         return { items: cached.current?.items ?? [] }
     })
     const setItems = useCallback((update: (items: NativeItemEntry[]) => NativeItemEntry[]) => {
-        setWindow(current => {
-            const items = update(current.items)
-            if (items === current.items) return current
-            // Live updates and overlapping reads can share a commit with an
-            // accepted page. Only a source-window replacement clears its proof.
-            return { ...current, items }
+        startTransition(() => {
+            setWindow(current => {
+                const items = update(current.items)
+                if (items === current.items) return current
+                // Live updates and overlapping reads can share a commit with an
+                // accepted page. Only a source-window replacement clears its proof.
+                return { ...current, items }
+            })
         })
     }, [])
     const itemsRef = useRef(items)

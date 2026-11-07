@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
 import type { NormalizedMessage } from '@/chat/types'
-import { projectNativeItems } from './projectNativeItems'
+import { createNativeItemProjector, projectNativeItems } from './projectNativeItems'
 import type { NativeItemEntry } from './types'
 
 it('keeps daemon reasoning parts separate and marks only the latest visible part of the active turn', () => {
@@ -26,6 +26,28 @@ it('keeps daemon reasoning parts separate and marks only the latest visible part
     expect(project().at(-1)?.content).toMatchObject({ meta: { nativeReasoningActive: false } })
     const commentary = { turnId: 'active', item: { id: 'comment', type: 'agentMessage', text: 'Continuing', phase: 'commentary' } }
     expect(project([...entries, commentary], 'active').at(-1)?.content).toMatchObject({ meta: { nativeReasoningActive: false } })
+})
+
+it('reuses retained messages while active reasoning and async replies stay current', () => {
+    const project = createNativeItemProjector()
+    const tool = { item: { id: 'tool', type: 'commandExecution', status: 'completed' }, completedAtMs: 2 }
+    const question = { item: { id: 'question', type: 'agentMessage', questions: [{ title: 'Continue?' }] } }
+    const reasoning = { turnId: 'active', item: { id: 'r', type: 'reasoning', summary: ['Working'] } }
+    const initial = project([tool, question, reasoning], [], true, undefined, 'active')
+    const messages = new Map(initial.messages.map(message => [message.id, message]))
+    expect(initial.requests['native-async:question']).toBeDefined()
+
+    const nextReasoning = { turnId: 'active', item: { id: 'next', type: 'reasoning', summary: ['Checking'] } }
+    const updated = project([tool, question, reasoning, nextReasoning], [], true,
+        new Map([[JSON.stringify(['request_user_input_async', 'question', 0]), 'Yes']]), 'active')
+    const updatedMessages = new Map(updated.messages.map(message => [message.id, message]))
+    expect(updatedMessages.get('native:tool:call')).toBe(messages.get('native:tool:call'))
+    expect(updatedMessages.get('native:tool:result')).toBe(messages.get('native:tool:result'))
+    expect(updatedMessages.get('native:r')).not.toBe(messages.get('native:r'))
+    expect(updatedMessages.get('native:r')?.content).toMatchObject({ meta: { nativeReasoningActive: false } })
+    expect(updatedMessages.get('native:next')?.content).toMatchObject({ meta: { nativeReasoningActive: true } })
+    expect(updatedMessages.get('native-async:question:result')).toBeDefined()
+    expect(updated.requests['native-async:question']).toBeUndefined()
 })
 
 it('feeds native text, tools, timestamps and idle asynchronous questions through the existing chat pipeline', () => {

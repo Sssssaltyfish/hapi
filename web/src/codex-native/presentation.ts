@@ -42,6 +42,10 @@ export function mergeNativeItems(
     const seen = new Map<string, NativeItemEntry>()
     for (const entry of combined) {
         const previous = seen.get(entry.item.id)
+        if (!previous || previous === entry) {
+            seen.set(entry.item.id, entry)
+            continue
+        }
         const fields = Object.fromEntries(
             Object.entries(entry).filter(([, value]) => value !== undefined)
         )

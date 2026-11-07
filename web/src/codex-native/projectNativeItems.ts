@@ -12,7 +12,7 @@ function nativePatchChanges(value: unknown): NativeRecord {
     }))
 }
 
-function latestActiveReasoning(entries: NativeItemEntry[], activeTurnId?: string): string | undefined {
+function latestActiveReasoning(entries: NativeItemEntry[], activeTurnId?: string) {
     if (!activeTurnId) return
     for (let entryIndex = entries.length - 1; entryIndex >= 0; entryIndex--) {
         const { item, turnId } = entries[entryIndex]
@@ -23,10 +23,21 @@ function latestActiveReasoning(entries: NativeItemEntry[], activeTurnId?: string
         if (item.type !== 'reasoning') continue
         const parts = nativeReasoningParts(item.summary)
         for (let index = parts.length - 1; index >= 0; index--) {
-            if (parts[index]?.trim()) return nativeReasoningMessageId(item.id, index)
+            if (parts[index]?.trim()) return { entry: entries[entryIndex], id: nativeReasoningMessageId(item.id, index) }
         }
     }
     return undefined
+}
+
+type ProjectionCache = WeakMap<NativeItemEntry, { messages: DecryptedMessage[]; activeReasoningId?: string }>
+
+/** Reuse the projection of immutable entries retained by this native chat. */
+export function createNativeItemProjector() {
+    const cache: ProjectionCache = new WeakMap()
+    return (
+        entries: NativeItemEntry[], requests: NativeRequest[], canAnswerAsync?: boolean,
+        observedReplies?: ReadonlyMap<string, string>, activeTurnId?: string,
+    ) => projectNativeItems(entries, requests, canAnswerAsync, observedReplies, activeTurnId, cache)
 }
 
 /** Presentation only. No native record is imported into HAPI storage. */
@@ -35,12 +46,13 @@ export function projectNativeItems(
     requests: NativeRequest[],
     canAnswerAsync = true,
     observedReplies: ReadonlyMap<string, string> = new Map(),
-    activeTurnId?: string
+    activeTurnId?: string,
+    cache?: ProjectionCache,
 ) {
     const messages: DecryptedMessage[] = []
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
-    const replies = new Map([...observedReplies, ...nativeQuestionReplies(entries)])
-    const activeReasoningId = latestActiveReasoning(entries, activeTurnId)
+    let replies: Map<string, string> | undefined
+    const activeReasoning = latestActiveReasoning(entries, activeTurnId)
     const add = (id: string, timestamp: number, body: NativeRecord, user = false) => {
         messages.push({
             id,
@@ -96,6 +108,15 @@ export function projectNativeItems(
     }
     for (const entry of entries) {
         const { item } = entry
+        const activeReasoningId = activeReasoning?.entry === entry ? activeReasoning.id : undefined
+        // Question tools depend on replies and runtime state outside this entry.
+        const entryCache = item.type === 'agentMessage' && Array.isArray(item.questions) ? undefined : cache
+        const cached = entryCache?.get(entry)
+        if (cached && cached.activeReasoningId === activeReasoningId) {
+            for (const message of cached.messages) messages.push(message)
+            continue
+        }
+        const messageStart = messages.length
         const id = `native:${item.id}`
         const at = entry.startedAtMs ?? entry.completedAtMs ?? entry.observedAtMs ?? 0
         const completed =
@@ -128,6 +149,7 @@ export function projectNativeItems(
                 nativeMessagePhase: item.phase,
             })
             if (Array.isArray(item.questions)) {
+                const currentReplies = replies ??= new Map([...observedReplies, ...nativeQuestionReplies(entries)])
                 const questions = item.questions.map((value, index) => {
                     const question = record(value)
                     return {
@@ -144,14 +166,14 @@ export function projectNativeItems(
                 })
                 const answers = Object.fromEntries(
                     questions
-                        .filter((question) => replies.has(question.id))
-                        .map((question) => [question.id, { answers: [replies.get(question.id)!] }])
+                        .filter((question) => currentReplies.has(question.id))
+                        .map((question) => [question.id, { answers: [currentReplies.get(question.id)!] }])
                 )
-                const unanswered = questions.some((question) => !replies.has(question.id))
+                const unanswered = questions.some((question) => !currentReplies.has(question.id))
                 const requestId = `native-async:${item.id}`
                 const input = {
                     questions: unanswered
-                        ? questions.filter((question) => !replies.has(question.id))
+                        ? questions.filter((question) => !currentReplies.has(question.id))
                         : questions,
                 }
                 tool(
@@ -244,6 +266,7 @@ export function projectNativeItems(
                 entry.completedAtMs
             )
         }
+        entryCache?.set(entry, { messages: messages.slice(messageStart), activeReasoningId })
     }
     for (const request of requests) {
         const id = String(request.id)

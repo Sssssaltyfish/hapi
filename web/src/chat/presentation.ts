@@ -27,21 +27,33 @@ export function formatResetTime(value: number): string {
     return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+const messageTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+})
+const messageDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+})
+const messageYearDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+})
+
 export function formatMessageTimestamp(date: Date, now: Date = new Date()): string {
+    if (Number.isNaN(date.getTime())) return date.toString()
+
     const sameDay = date.getFullYear() === now.getFullYear()
         && date.getMonth() === now.getMonth()
         && date.getDate() === now.getDate()
 
     if (sameDay) {
-        return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        return messageTimeFormatter.format(date)
     }
 
     const sameYear = date.getFullYear() === now.getFullYear()
     if (sameYear) {
-        return date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        return messageDateTimeFormatter.format(date)
     }
 
-    return date.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    return messageYearDateTimeFormatter.format(date)
 }
 
 export function formatOutlineTimestamp(
@@ -77,15 +89,17 @@ export function formatOutlineTimestamp(
     return `${dateLabel} ${time}`
 }
 
+const messageTimestampTitleFormatter = new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit'
+})
+
 export function formatMessageTimestampTitle(date: Date): string {
-    return date.toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit'
-    })
+    return Number.isNaN(date.getTime()) ? date.toString() : messageTimestampTitleFormatter.format(date)
 }
 
 // Known types: five_hour → "5-hour", seven_day → "7-day".

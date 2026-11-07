@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Ref, type RefObject } from 'react'
-import { flushSync } from 'react-dom'
 import { ThreadPrimitive, unstable_useThreadMessageIds } from '@assistant-ui/react'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
@@ -141,8 +140,8 @@ export function VirtualThreadMessages(props: Props) {
         followOnAppend: props.followLatest.current,
         scrollEndThreshold: 1,
         rangeExtractor,
-        // Layout measurements run inside React's commit. React flushes those
-        // updates before paint; external observer deliveries are batched below.
+        // Resize notifications can let React batch renders. The layout effect
+        // below still measures newly committed rows before paint.
         useFlushSync: false,
     })
     const measureRow = useCallback((element: HTMLElement, entry?: ResizeObserverEntry) => {
@@ -207,10 +206,8 @@ export function VirtualThreadMessages(props: Props) {
     }, [])
     useLayoutEffect(() => {
         const observer = new ResizeObserver(entries => {
-            flushSync(() => {
-                for (const entry of entries) if (entry.target instanceof HTMLElement) measureRow(entry.target, entry)
-                alignNavigation()
-            })
+            for (const entry of entries) if (entry.target instanceof HTMLElement) measureRow(entry.target, entry)
+            alignNavigation()
         })
         rowObserver.current = observer
         for (const element of measuredRows.current.values()) observer.observe(element, { box: 'border-box' })

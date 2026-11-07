@@ -24,6 +24,7 @@ interface MarkdownRendererProps {
     components?: MarkdownTextPrimitiveProps['components']
     className?: string
     preserveSingleLineBreaks?: boolean
+    defer?: MarkdownTextPrimitiveProps['defer']
     /** Render outside assistant-ui thread context (file pane, fixtures). */
     standalone?: boolean
 }
@@ -102,6 +103,7 @@ function MarkdownContent(props: MarkdownRendererProps) {
         <UriConfirmProvider>
             <TextMessagePartProvider text={props.content}>
                 <MarkdownTextPrimitive
+                    defer={props.defer}
                     remarkPlugins={props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS : MARKDOWN_PLUGINS}
                     rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
                     components={mergedComponents}

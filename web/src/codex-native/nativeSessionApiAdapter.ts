@@ -28,14 +28,18 @@ export type NativeApprovalSettingsPatch = {
 export type NativeSessionApiAdapter = ApiClient & {
     setNativeApprovalSettings: (patch: NativeApprovalSettingsPatch) => Promise<void>
 }
-type AdapterOptions = {
-    session: Session
-    liveSession: Session
+type AdapterState = {
+    model: Session['model']
     thread: Pick<
         ReturnType<typeof useNativeThread>,
         'requests' | 'detail' | 'refreshDetail' | 'applySettings'
     >
-    projected: Pick<ReturnType<typeof projectNativeItems>, 'requests'>
+    projectedRequests: ReturnType<typeof projectNativeItems>['requests']
+}
+type AdapterOptions = {
+    sessionId: string
+    threadId: string
+    getState: () => AdapterState
     setSettingsError: (error: string | null) => void
 }
 
@@ -111,12 +115,11 @@ export function createNativeSessionApiAdapter(
     target: ApiClient,
     options: AdapterOptions
 ): NativeSessionApiAdapter {
-    const { session, liveSession, thread, projected, setSettingsError } = options
-    const native = session.metadata!.nativeCodex!
+    const { sessionId, threadId, getState, setSettingsError } = options
     const nativeAction = (
         action: 'settings' | 'interrupt' | `requests/${string}`,
         payload: Record<string, unknown>
-    ) => target.codexNativeAction(native.threadId, action, payload)
+    ) => target.codexNativeAction(threadId, action, payload)
     async function changeSettings(
         property: 'setModel' | 'setModelReasoningEffort',
         value: unknown
@@ -130,7 +133,7 @@ export function createNativeSessionApiAdapter(
                     ? typeof value === 'string'
                         ? value
                         : null
-                    : liveSession.model
+                    : getState().model
             )
             const patch: Record<string, string> = {}
             if (property === 'setModel') {
@@ -145,7 +148,7 @@ export function createNativeSessionApiAdapter(
                 patch.effort = effort
             }
             const result = await nativeAction('settings', patch)
-            thread.applySettings(record(result.applied))
+            getState().thread.applySettings(record(result.applied))
         } catch (error) {
             setSettingsError(error instanceof Error ? error.message : String(error))
             throw error
@@ -156,8 +159,9 @@ export function createNativeSessionApiAdapter(
         requestId: string,
         options?: unknown
     ) {
+        const { projectedRequests, thread } = getState()
         if (requestId.startsWith('native-async:')) {
-            const questions = record(projected.requests[requestId]?.arguments).questions
+            const questions = record(projectedRequests[requestId]?.arguments).questions
             if (!Array.isArray(questions)) throw new Error('Question is no longer pending')
             const answers = record(record(options).answers)
             const replies = questions.map(record).map((question) => {
@@ -169,12 +173,11 @@ export function createNativeSessionApiAdapter(
                     answer: Array.isArray(selected) ? selected.map(String).join('\n') : '',
                 }
             })
-            await target.codexNativeAction(native.threadId, 'messages', {
+            const expectedTurnId = nativeAsyncReplyTurn(thread.detail.activeTurn)
+            await target.codexNativeAction(threadId, 'messages', {
                 text: `<send_user_message_question_reply>\n${JSON.stringify(replies)}\n</send_user_message_question_reply>`,
                 clientId: crypto.randomUUID(),
-                ...(nativeAsyncReplyTurn(thread.detail.activeTurn)
-                    ? { expectedTurnId: nativeAsyncReplyTurn(thread.detail.activeTurn) }
-                    : {}),
+                ...(expectedTurnId ? { expectedTurnId } : {}),
             })
             return
         }
@@ -219,18 +222,18 @@ export function createNativeSessionApiAdapter(
     }
     const operations = {
         getCodexNativeTurnContext: async (_id, turnId, itemId, signal) =>
-            target.getCodexNativeTurnContext(native.threadId, turnId, itemId, signal),
+            target.getCodexNativeTurnContext(threadId, turnId, itemId, signal),
         getConversationOutline: async (_id, page, stopIds) => {
             if (page.kind !== 'native-turns') {
                 throw new Error('Native outlines require a turn-summary continuation')
             }
-            return target.getConversationOutline(native.threadId, page, stopIds)
+            return target.getConversationOutline(threadId, page, stopIds)
         },
         setNativeApprovalSettings: async (patch) => {
             setSettingsError(null)
             try {
                 const result = await nativeAction('settings', patch)
-                thread.applySettings(record(result.applied))
+                getState().thread.applySettings(record(result.applied))
             } catch (error) {
                 setSettingsError(error instanceof Error ? error.message : String(error))
                 throw error
@@ -240,15 +243,15 @@ export function createNativeSessionApiAdapter(
             success: true,
             models: nativeModelSummaries((await target.getCodexNativeModels()).data),
         }),
-        renameSession: async (_id, name) => target.renameSession(session.id, name),
-        archiveSession: async () => target.archiveSession(session.id),
+        renameSession: async (_id, name) => target.renameSession(sessionId, name),
+        archiveSession: async () => target.archiveSession(sessionId),
         uploadFile: async (_id, filename, content, mimeType) =>
-            target.uploadCodexNativeFile(native.threadId, filename, content, mimeType),
+            target.uploadCodexNativeFile(threadId, filename, content, mimeType),
         deleteUploadFile: async (_id, path) =>
-            target.deleteCodexNativeUpload(native.threadId, path),
+            target.deleteCodexNativeUpload(threadId, path),
         abortSession: async () => {
             await nativeAction('interrupt', {})
-            await thread.refreshDetail()
+            await getState().thread.refreshDetail()
         },
         setModel: async (_id, value) => changeSettings('setModel', value),
         setModelReasoningEffort: async (_id, value) =>
