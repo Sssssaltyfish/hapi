@@ -216,8 +216,8 @@ export function formatGroupedHeaderTitle(block: ToolGroupBlock, t: Translator): 
     return getIntentLabel(primaryIntent, t)
 }
 
-export function formatGroupedHeaderSubtitle(block: ToolGroupBlock, t: Translator): string | null {
-    if (block.presentationMode === 'codex-exploration') return null
+export function formatGroupedHeaderSummary(block: ToolGroupBlock, t: Translator): string[] {
+    if (block.presentationMode === 'codex-exploration') return []
     const parts: string[] = []
 
     if (block.summary.countsByKind.command > 0) {
@@ -239,7 +239,7 @@ export function formatGroupedHeaderSubtitle(block: ToolGroupBlock, t: Translator
         parts.push(t('toolGroup.summary.other', { n: block.summary.countsByKind.other }))
     }
 
-    return parts.length > 0 ? parts.join(' · ') : null
+    return parts
 }
 
 export function formatGroupedRowLabel(tool: ToolCallBlock, t: Translator): string {

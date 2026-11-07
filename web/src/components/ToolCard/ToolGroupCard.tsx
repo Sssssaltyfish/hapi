@@ -8,7 +8,7 @@ import { EventMessage } from '@/components/AssistantChat/messages/EventMessage'
 import { NativeReasoning, NativeReasoningPreview } from '@/components/AssistantChat/messages/NativeReasoning'
 import { CompactCodexAgentToolRow, getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
-import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
+import { formatGroupedHeaderSummary, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
@@ -45,9 +45,9 @@ export function getToolGroupTiming(tools: ToolCallBlock[], now: number): {
     return { startedAt, completedAt, durationMs, running }
 }
 
-function SummaryBadge(props: { className: string; text: string }) {
+function SummaryBadge(props: { className: string; text: string; title?: string }) {
     return (
-        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium', props.className)}>
+        <span title={props.title} className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium', props.className)}>
             {props.text}
         </span>
     )
@@ -65,32 +65,6 @@ function RowStatusBadge(props: { block: ToolCallBlock }) {
         return <SummaryBadge className="bg-amber-500/10 text-amber-700" text={t('toolGroup.rowStatus.pending')} />
     }
     return null
-}
-
-function formatActionSummary(block: ToolGroupBlock, t: (key: string, params?: Record<string, string | number>) => string): string | null {
-    const parts: string[] = []
-    const { countsByKind } = block.summary
-
-    if (countsByKind.mutation > 0) {
-        parts.push(t('toolGroup.summary.mutation', { n: countsByKind.mutation }))
-    }
-    if (countsByKind.read > 0) {
-        parts.push(t('toolGroup.summary.read', { n: countsByKind.read }))
-    }
-    if (countsByKind.command > 0) {
-        parts.push(t('toolGroup.summary.command', { n: countsByKind.command }))
-    }
-    if (countsByKind.search > 0) {
-        parts.push(t('toolGroup.summary.search', { n: countsByKind.search }))
-    }
-    if (countsByKind.web > 0) {
-        parts.push(t('toolGroup.summary.web', { n: countsByKind.web }))
-    }
-    if (countsByKind.other > 0 && parts.length > 0) {
-        parts.push(t('toolGroup.summary.other', { n: countsByKind.other }))
-    }
-
-    return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function RowLabel(props: { block: ToolCallBlock; metadata: SessionMetadataSummary | null; minimal?: boolean }) {
@@ -242,22 +216,28 @@ export function ToolGroupCard(props: {
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
         : props.block.summary.pendingCount > 0 ? 'pending'
             : running ? 'running' : 'completed'
-    const subtitle = props.block.presentationMode === 'codex-exploration'
-        ? null
-        : formatGroupedHeaderSubtitle(props.block, t) ?? formatActionSummary(props.block, t)
+    const summaryParts = formatGroupedHeaderSummary(props.block, t)
     const toolCountLabel = toolCount > 0 ? t('toolGroup.toolCount', { n: toolCount }) : null
     const activityCountLabel = activityCount > 0
         ? t(activityCount === 1 ? 'toolGroup.agentUpdate' : 'toolGroup.agentUpdates', { n: activityCount })
         : null
     const exploration = props.block.presentationMode === 'codex-exploration'
-    const summaryBadgeText = exploration
-        ? activityCountLabel
-        : [subtitle ?? toolCountLabel, activityCountLabel].filter(Boolean).join(' · ')
+    const toolSummaryParts = minimal || summaryParts.length === 0
+        ? toolCountLabel ? [toolCountLabel] : []
+        : summaryParts
+    const headerSummaryParts = [
+        ...(!minimal && exploration ? [] : toolSummaryParts),
+        ...(activityCountLabel ? [activityCountLabel] : []),
+    ]
     const fileCount = props.block.summary.fileTargets.length
+    const headerSummary = headerSummaryParts.join(' · ')
+    const headerState = minimal && (toolCount > 0 || running) ? minimalState : running ? 'running' : null
+    const hasStatusBadges = props.block.summary.runningCount > 0 || props.block.summary.pendingCount > 0
+        || props.block.summary.errorCount > 0 || fileCount > 0
 
     return (
         <Card data-hapi-scroll-anchors={JSON.stringify(entries.map(getToolGroupEntryAnchor))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
-            <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
+            <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && summaryParts.length > 0 ? 'pb-2' : null)}>
                 <button
                     type="button"
                     onClick={() => {
@@ -268,16 +248,24 @@ export function ToolGroupCard(props: {
                     aria-expanded={open}
                     aria-controls={panelId}
                 >
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex flex-1 flex-col gap-1">
-                            <div className="min-w-0 flex items-center gap-2">
-                                <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
+                    <div className={cn('flex min-w-0 justify-between gap-3', minimal ? 'items-center' : 'items-start')}>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                                {headerState && (
+                                    <span
+                                        className={cn('shrink-0', toolStatusColorClass(headerState))}
+                                        aria-label={headerState === 'running' ? t('toolGroup.rowStatus.running') : undefined}
+                                    >
+                                        <ToolStatusIcon state={headerState} />
+                                    </span>
+                                )}
+                                <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
                                     <DisclosureChevron open={open} />
                                 </div>
                                 <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight',
                                     reasoningPreview ? 'text-xs font-normal text-[var(--app-hint)]' : 'text-[var(--app-fg)]',
                                     !reasoningPreview && (minimal ? 'text-xs font-normal' : 'text-sm font-medium'))}
-                                    title={minimal && !reasoningPreview ? primaryTitle : undefined}>
+                                    title={!reasoningPreview ? primaryTitle : undefined}>
                                     {reasoningPreview ? <NativeReasoningPreview text={reasoningPreview} /> : primaryTitle}
                                 </CardTitle>
                             </div>
@@ -288,47 +276,39 @@ export function ToolGroupCard(props: {
                                 typography="group"
                             /> : null}
                         </div>
-
-                        {minimal ? <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-[var(--app-hint)]">
-                            <span>{[toolCountLabel, activityCountLabel].filter(Boolean).join(' · ')}</span>
-                            {toolCount > 0 || running ? <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span> : null}
-                        </div> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
-                            {running ? (
-                                <span className={toolStatusColorClass('running')} aria-label={t('toolGroup.rowStatus.running')}>
-                                    <ToolStatusIcon state="running" />
-                                </span>
-                            ) : null}
-                            {summaryBadgeText ? (
-                                <SummaryBadge
-                                    className="bg-[var(--app-subtle-bg)] text-xs font-normal text-[var(--app-hint)]"
-                                    text={summaryBadgeText}
-                                />
-                            ) : null}
-                            {props.block.summary.runningCount > 0 ? (
-                                <SummaryBadge
-                                    className="bg-sky-500/10 text-sky-600"
-                                    text={t('toolGroup.badge.running', { n: props.block.summary.runningCount })}
-                                />
-                            ) : null}
-                            {props.block.summary.pendingCount > 0 ? (
-                                <SummaryBadge
-                                    className="bg-amber-500/10 text-amber-700"
-                                    text={t('toolGroup.badge.pending', { n: props.block.summary.pendingCount })}
-                                />
-                            ) : null}
-                            {props.block.summary.errorCount > 0 ? (
-                                <SummaryBadge
-                                    className="bg-red-500/10 text-red-600"
-                                    text={t('toolGroup.badge.error', { n: props.block.summary.errorCount })}
-                                />
-                            ) : null}
-                            {fileCount > 0 ? (
-                                <SummaryBadge
-                                    className="bg-[var(--app-subtle-bg)] text-[var(--app-hint)]"
-                                    text={t('toolGroup.badge.fileTargets', { n: fileCount })}
-                                />
-                            ) : null}
-                        </div>}
+                        {headerSummary || (!minimal && hasStatusBadges) ? (
+                            <div className="ml-auto flex min-w-0 max-w-[45%] shrink-0 items-center text-xs text-[var(--app-hint)]">
+                                {minimal ? (
+                                    <span className="min-w-0 truncate" title={headerSummary}>{headerSummary}</span>
+                                ) : (
+                                    <span className="flex min-w-0 flex-wrap justify-end gap-1">
+                                        {headerSummaryParts.map(part => (
+                                            <SummaryBadge
+                                                key={part}
+                                                className="max-w-full whitespace-nowrap bg-[var(--app-subtle-bg)] text-xs font-normal text-[var(--app-hint)]"
+                                                text={part}
+                                            />
+                                        ))}
+                                        {props.block.summary.runningCount > 0 ? <SummaryBadge
+                                            className="bg-sky-500/10 text-sky-600"
+                                            text={t('toolGroup.badge.running', { n: props.block.summary.runningCount })}
+                                        /> : null}
+                                        {props.block.summary.pendingCount > 0 ? <SummaryBadge
+                                            className="bg-amber-500/10 text-amber-700"
+                                            text={t('toolGroup.badge.pending', { n: props.block.summary.pendingCount })}
+                                        /> : null}
+                                        {props.block.summary.errorCount > 0 ? <SummaryBadge
+                                            className="bg-red-500/10 text-red-600"
+                                            text={t('toolGroup.badge.error', { n: props.block.summary.errorCount })}
+                                        /> : null}
+                                        {fileCount > 0 ? <SummaryBadge
+                                            className="bg-[var(--app-subtle-bg)] text-[var(--app-hint)]"
+                                            text={t('toolGroup.badge.fileTargets', { n: fileCount })}
+                                        /> : null}
+                                    </span>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
                 </button>
             </CardHeader>

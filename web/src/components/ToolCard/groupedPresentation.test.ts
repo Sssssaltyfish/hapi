@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { en, zhCN } from '@/lib/locales'
 import type { ToolCallBlock } from '@/chat/types'
 import type { ToolGroupBlock } from '@/chat/toolGroups'
-import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, formatGroupedRowLabel, inferGroupedSummaryIntent } from '@/components/ToolCard/groupedPresentation'
+import { formatGroupedHeaderSummary, formatGroupedHeaderTitle, formatGroupedRowLabel, inferGroupedSummaryIntent } from '@/components/ToolCard/groupedPresentation'
 
 type Dict = Record<string, string>
 
@@ -221,15 +221,15 @@ describe('formatGroupedHeaderTitle', () => {
     })
 })
 
-describe('formatGroupedHeaderSubtitle', () => {
+describe('formatGroupedHeaderSummary', () => {
     it('keeps the aggregate counter line short and localized', () => {
         const group = makeGroup([
             makeTool('shell-1', 'shell_command', { command: 'bun run build:web' }),
             makeTool('shell-2', 'shell_command', { command: 'bun run test' }),
         ])
 
-        expect(formatGroupedHeaderSubtitle(group, tEn)).toBe('Run 2')
-        expect(formatGroupedHeaderSubtitle(group, tZh)).toBe('执行 2')
+        expect(formatGroupedHeaderSummary(group, tEn)).toEqual(['Run 2'])
+        expect(formatGroupedHeaderSummary(group, tZh)).toEqual(['执行 2'])
     })
 
     it('omits the aggregate counter line for all-generic tool groups', () => {
@@ -238,6 +238,6 @@ describe('formatGroupedHeaderSubtitle', () => {
             makeTool('tool-2', 'Tool', { name: 'Tool 2' }),
         ])
 
-        expect(formatGroupedHeaderSubtitle(group, tEn)).toBeNull()
+        expect(formatGroupedHeaderSummary(group, tEn)).toEqual([])
     })
 })
