@@ -1,4 +1,4 @@
-import type { ChatBlock, RoundSummary, ToolCallBlock } from '@/chat/types'
+import { isAgentActivityEvent, type AgentEventBlock, type ChatBlock, type RoundSummary, type ToolCallBlock } from '@/chat/types'
 import { isCodexExplorationTool } from '@/chat/codexCommandPresentation'
 import { isSubagentToolName } from '@/chat/subagentTool'
 import { isAskUserQuestionToolName } from '@/components/ToolCard/askUserQuestion'
@@ -20,14 +20,17 @@ export type ToolGroupSummary = {
     pendingCount: number
 }
 
+type ToolGroupEntry = ToolCallBlock | AgentEventBlock
+
 export type ToolGroupBlock = {
     kind: 'tool-group'
     id: string
     createdAt: number
     invokedAt?: number | null
-    firstToolId: string
-    lastToolId: string
+    firstToolId?: string
+    lastToolId?: string
     tools: ToolCallBlock[]
+    activities?: { beforeToolIndex: number; block: AgentEventBlock }[]
     defaultOpen: boolean
     historyState: 'complete' | 'needs-older-history'
     needsOlderHistory: boolean
@@ -230,27 +233,54 @@ export function isEligibleForToolGrouping(block: ToolCallBlock): boolean {
     return true
 }
 
-function getGroupingFamily(block: ToolCallBlock): 'default' | 'codex-exploration' | null {
-    if (!isEligibleForToolGrouping(block)) return null
+function codexTurnId(block: ChatBlock): string | undefined {
+    if (!block.meta || typeof block.meta !== 'object') return undefined
+    const turnId = (block.meta as Record<string, unknown>).codexTurnId
+    return typeof turnId === 'string' ? turnId : undefined
+}
+
+function getGroupingEntry(block: ChatBlock): ToolGroupEntry | null {
+    if (block.kind === 'tool-call' && isEligibleForToolGrouping(block)) return block
+    if (block.kind === 'agent-event' && isAgentActivityEvent(block.event)
+        && block.meta && typeof block.meta === 'object' && (block.meta as Record<string, unknown>).nativeCodexRecord === true) return block
+    return null
+}
+
+function getGroupingFamily(block: ToolGroupEntry): 'default' | 'codex-exploration' | undefined {
+    if (block.kind === 'agent-event') return undefined
     return isCodexExplorationTool(block) ? 'codex-exploration' : 'default'
 }
 
+export function getToolGroupEntries(group: ToolGroupBlock): readonly ToolGroupEntry[] {
+    if (!group.activities?.length) return group.tools
+    const entries: ToolGroupEntry[] = []
+    let cursor = 0
+    for (const activity of group.activities) {
+        entries.push(...group.tools.slice(cursor, activity.beforeToolIndex), activity.block)
+        cursor = activity.beforeToolIndex
+    }
+    entries.push(...group.tools.slice(cursor))
+    return entries
+}
+
 function createToolGroupId(
-    tools: ToolCallBlock[],
+    entries: readonly ToolGroupEntry[],
     needsOlderHistory: boolean,
     previousGroups: ToolGroupBlock[]
 ): string {
-    const firstToolId = tools[0]?.id ?? 'unknown'
-    const lastToolId = tools[tools.length - 1]?.id ?? firstToolId
-
-    const previous = previousGroups.find((group) => group.firstToolId === firstToolId || group.lastToolId === lastToolId)
+    const firstId = entries[0].id
+    const lastId = entries[entries.length - 1].id
+    const previous = previousGroups.find((group) => {
+        const previousEntries = getToolGroupEntries(group)
+        return previousEntries[0]?.id === firstId || previousEntries.at(-1)?.id === lastId
+    })
     if (previous) {
         return previous.id
     }
 
     return needsOlderHistory
-        ? `tool-group:${lastToolId}`
-        : `tool-group:${firstToolId}`
+        ? `tool-group:${lastId}`
+        : `tool-group:${firstId}`
 }
 
 export function isToolGroupBlock(block: VisibleChatBlock | ChatBlock): block is ToolGroupBlock {
@@ -266,34 +296,40 @@ export function buildVisibleChatBlocks(
 
     for (let index = 0; index < blocks.length; index += 1) {
         const block = blocks[index]
-        if (block.kind !== 'tool-call') {
-            visibleBlocks.push(block)
-            continue
-        }
-        const groupingFamily = getGroupingFamily(block)
-        if (!groupingFamily) {
+        const entry = getGroupingEntry(block)
+        if (!entry) {
             visibleBlocks.push(block)
             continue
         }
 
-        const tools: ToolCallBlock[] = [block]
+        let groupingFamily = getGroupingFamily(entry)
+        const turnId = codexTurnId(entry)
+        const entries = [entry]
         let cursor = index + 1
         while (cursor < blocks.length) {
-            const candidate = blocks[cursor]
-            const turnId = block.meta && typeof block.meta === 'object' ? (block.meta as Record<string, unknown>).codexTurnId : undefined
-            const candidateTurnId = candidate.meta && typeof candidate.meta === 'object' ? (candidate.meta as Record<string, unknown>).codexTurnId : undefined
-            if (candidate.kind !== 'tool-call' || getGroupingFamily(candidate) !== groupingFamily || turnId !== candidateTurnId) {
+            const candidate = getGroupingEntry(blocks[cursor])
+            if (!candidate || turnId !== codexTurnId(candidate)
+                || (turnId === undefined && (entry.kind === 'agent-event' || candidate.kind === 'agent-event'))) {
                 break
             }
-            tools.push(candidate)
+            const candidateFamily = getGroupingFamily(candidate)
+            if (groupingFamily && candidateFamily && candidateFamily !== groupingFamily) break
+            groupingFamily ??= candidateFamily
+            entries.push(candidate)
             cursor += 1
         }
 
-        if (tools.length < 2 && groupingFamily !== 'codex-exploration') {
+        if (entries.length < 2 && entry.kind === 'tool-call' && groupingFamily !== 'codex-exploration') {
             visibleBlocks.push(block)
             continue
         }
 
+        const tools: ToolCallBlock[] = []
+        const activities: NonNullable<ToolGroupBlock['activities']> = []
+        for (const member of entries) {
+            if (member.kind === 'tool-call') tools.push(member)
+            else activities.push({ beforeToolIndex: tools.length, block: member })
+        }
         const startsAtOldestVisibleBoundary = visibleBlocks.length === 0
         const needsOlderHistory = options.hasMoreMessages && startsAtOldestVisibleBoundary
         const previousBlock = visibleBlocks.at(-1)
@@ -303,18 +339,19 @@ export function buildVisibleChatBlocks(
             : null
         visibleBlocks.push({
             kind: 'tool-group',
-            id: createToolGroupId(tools, needsOlderHistory, previousGroups),
-            createdAt: tools[0].createdAt,
-            invokedAt: tools[0].invokedAt,
-            firstToolId: tools[0].id,
-            lastToolId: tools[tools.length - 1].id,
+            id: createToolGroupId(entries, needsOlderHistory, previousGroups),
+            createdAt: entry.createdAt,
+            invokedAt: entry.invokedAt,
+            firstToolId: tools[0]?.id,
+            lastToolId: tools.at(-1)?.id,
             tools,
+            ...(activities.length ? { activities } : {}),
             defaultOpen: options.toolGroupsCollapsed === false,
             historyState: needsOlderHistory ? 'needs-older-history' : 'complete',
             needsOlderHistory,
             activityTitle,
-            presentationMode: groupingFamily,
-            roundSummary: tools[0].roundSummary,
+            presentationMode: groupingFamily ?? 'default',
+            roundSummary: tools[0]?.roundSummary,
             summary: summarizeToolGroup(tools)
         })
         index = cursor - 1

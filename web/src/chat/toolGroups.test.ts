@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatBlock, ToolCallBlock } from '@/chat/types'
-import { buildVisibleChatBlocks, getToolGroupActionKind, isEligibleForToolGrouping, isToolGroupBlock } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, getToolGroupActionKind, getToolGroupEntries, isEligibleForToolGrouping, isToolGroupBlock } from '@/chat/toolGroups'
 
 function makeToolBlock(
     id: string,
@@ -143,6 +143,30 @@ describe('isEligibleForToolGrouping', () => {
 })
 
 describe('Codex activity headings', () => {
+    it('keeps Native agent notices in exploration order and preserves the next tool family', () => {
+        const meta = { codexTurnId: 'native-turn', nativeCodexRecord: true }
+        const activity = (id: string): ChatBlock => ({
+            kind: 'agent-event', id, createdAt: 1, meta,
+            event: { type: 'agent-activity', sourceItemId: id, agentId: 'child', summary: '/root/child', activityKind: 'interacted' },
+        })
+        const command = (id: string) => makeToolBlock(id, 'CodexBash', {
+            command: 'cat README.md',
+            command_actions: [{ type: 'read', command: 'cat README.md', name: 'README.md', path: '/repo/README.md' }],
+        }, { meta })
+        const visible = buildVisibleChatBlocks([
+            activity('before'), command('read-1'), activity('between'), command('read-2'),
+            makeToolBlock('wait', 'wait_agent', {}, { meta }),
+        ], { hasMoreMessages: false })
+
+        expect(visible).toMatchObject([
+            { kind: 'tool-group', presentationMode: 'codex-exploration', summary: { totalTools: 2 } },
+            { kind: 'tool-call', id: 'wait' },
+        ])
+        expect(isToolGroupBlock(visible[0]) && getToolGroupEntries(visible[0]).map(entry => entry.id)).toEqual([
+            'before', 'read-1', 'between', 'read-2',
+        ])
+    })
+
     it('associates only an immediately preceding reasoning heading', () => {
         const reasoning = makeToolBlock('reasoning-1', 'CodexReasoning', { title: 'Inspecting authentication' })
         const visible = buildVisibleChatBlocks([

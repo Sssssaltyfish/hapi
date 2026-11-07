@@ -1,5 +1,6 @@
 import type { ThreadMessageLike } from '@assistant-ui/react'
-import { buildVisibleChatBlocks, type VisibleChatBlock, type VisibleChatBlockRole } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, getToolGroupEntries, type VisibleChatBlock, type VisibleChatBlockRole } from '@/chat/toolGroups'
+import type { ChatBlock } from '@/chat/types'
 
 export type TimelineHistoryLocator =
     | { kind: 'runner'; beforeAt: number; beforeSeq: number | null; epoch?: number; targetMessageId: string }
@@ -57,9 +58,11 @@ type KnownRow = {
 }
 
 function atomicKeys(blocks: readonly VisibleChatBlock[]): string[] {
-    return blocks.flatMap(block => block.kind === 'tool-group'
-        ? block.tools.map(tool => `tool-call:${tool.id}`)
-        : [`${block.kind}:${block.id}`])
+    return flattenGroups(blocks).map(block => `${block.kind}:${block.id}`)
+}
+
+function flattenGroups(blocks: readonly VisibleChatBlock[]): ChatBlock[] {
+    return blocks.flatMap<ChatBlock>(block => block.kind === 'tool-group' ? getToolGroupEntries(block) : [block])
 }
 
 function mergeOrderedKeys(previous: readonly string[], incoming: readonly string[]): string[] {
@@ -83,14 +86,16 @@ function sameBlocks(a: readonly VisibleChatBlock[], b: readonly VisibleChatBlock
         // Tool grouping is rebuilt by the bounded reducer even when all tools
         // are unchanged. Compare its small presentation envelope explicitly.
         if (block.kind !== 'tool-group' || previous?.kind !== 'tool-group') return false
+        const entries = getToolGroupEntries(block)
+        const previousEntries = getToolGroupEntries(previous)
         return block.id === previous.id
             && block.defaultOpen === previous.defaultOpen
             && block.historyState === previous.historyState
             && block.activityTitle === previous.activityTitle
             && block.presentationMode === previous.presentationMode
             && block.roundSummary === previous.roundSummary
-            && block.tools.length === previous.tools.length
-            && block.tools.every((tool, toolIndex) => tool === previous.tools[toolIndex])
+            && entries.length === previousEntries.length
+            && entries.every((entry, entryIndex) => entry === previousEntries[entryIndex])
     })
 }
 
@@ -99,9 +104,8 @@ function mergeRowBlocks(previous: readonly VisibleChatBlock[], incoming: readonl
     if (previous.length === 0) return incoming
     if (incoming.length === 0) return previous
     if (sameBlocks(previous, incoming)) return previous
-    const flatten = (blocks: readonly VisibleChatBlock[]) => blocks.flatMap(block => block.kind === 'tool-group' ? block.tools : [block])
-    const old = flatten(previous)
-    const next = flatten(incoming)
+    const old = flattenGroups(previous)
+    const next = flattenGroups(incoming)
     const key = (block: VisibleChatBlock) => `${block.kind}:${block.id}`
     const byKey = new Map(old.map(block => [key(block), block]))
     for (const block of next) byKey.set(key(block), block)
@@ -259,7 +263,7 @@ export class StableChatTimeline {
             for (const [id, payload] of this.payloads) {
                 if (pinned.has(id) || this.known.get(id)?.role !== 'assistant') continue
                 const previousGroups = payload.blocks.filter(block => block.kind === 'tool-group')
-                const flat = payload.blocks.flatMap(block => block.kind === 'tool-group' ? block.tools : [block])
+                const flat = flattenGroups(payload.blocks)
                 const blocks = buildVisibleChatBlocks(flat, {
                     hasMoreMessages: previousGroups[0]?.needsOlderHistory ?? false,
                     previousGroups,

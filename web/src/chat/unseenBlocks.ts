@@ -1,4 +1,4 @@
-import { isToolGroupBlock, visibleBlockRole, type VisibleChatBlock } from '@/chat/toolGroups'
+import { getToolGroupEntries, isToolGroupBlock, visibleBlockRole, type VisibleChatBlock } from '@/chat/toolGroups'
 
 /**
  * Snapshot of the blocks the user had already seen when they scrolled away
@@ -41,12 +41,9 @@ function isKnownBlock(block: VisibleChatBlock, watermark: UnseenWatermark): bool
     if (localId && watermark.localIds.has(localId)) {
         return true
     }
-    // A lone tool-call renders under its own tool id until a second eligible
-    // tool arrives and absorbs it into a group, at which point the id becomes
-    // `tool-group:<firstToolId>` (see createToolGroupId in toolGroups.ts).
-    // Match on the member ids so that absorption doesn't look like new content.
+    // Absorbing a known block into a group does not make it new content.
     return isToolGroupBlock(block)
-        && (watermark.ids.has(block.firstToolId) || watermark.ids.has(block.lastToolId))
+        && getToolGroupEntries(block).some(entry => watermark.ids.has(entry.id))
 }
 
 /**

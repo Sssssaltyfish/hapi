@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import type { ToolGroupBlock } from '@/chat/toolGroups'
+import { getToolGroupEntries, type ToolGroupBlock } from '@/chat/toolGroups'
 import type { ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
 import type { SessionMetadataSummary } from '@/types/api'
 import { useHappyChatContext, useToolGroupExpansionState } from '@/components/AssistantChat/context'
+import { EventMessage } from '@/components/AssistantChat/messages/EventMessage'
 import { CompactCodexAgentToolRow, getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 import { cn } from '@/lib/utils'
 import { useTranslation } from '@/lib/use-translation'
-import { formatDuration } from '@/chat/presentation'
+import { formatDuration, formatMessageTimestamp, formatMessageTimestampTitle } from '@/chat/presentation'
 import { getMinimalToolPreview } from './toolPreview'
 import { getCompactCodexAgentTool } from './codexAgents'
 
@@ -157,34 +158,33 @@ function codexActionLabel(
 }
 
 function CodexExplorationRows(props: {
-    tools: ToolCallBlock[]
+    tool: ToolCallBlock
     onSelect: (toolId: string) => void
 }) {
     const { t } = useTranslation()
-    return props.tools.flatMap((tool) => (
-        getCodexCommandActions(tool).map((action, index) => {
-            const label = codexActionLabel(action, t)
-            return (
-                <button
-                    key={`${tool.id}:${index}`}
-                    data-hapi-scroll-anchor={`tool:${tool.id}`}
-                    type="button"
-                    className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-1 text-left hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
-                    onClick={() => props.onSelect(tool.id)}
-                >
-                    <span className="mt-1 text-xs text-[var(--app-hint)]">└</span>
-                    <span className="shrink-0 text-sm font-medium text-[var(--app-tool-card-accent)]">
-                        {label.title}
+    const { tool } = props
+    return getCodexCommandActions(tool).map((action, index) => {
+        const label = codexActionLabel(action, t)
+        return (
+            <button
+                key={`${tool.id}:${index}`}
+                data-hapi-scroll-anchor={`tool:${tool.id}`}
+                type="button"
+                className="flex min-w-0 items-start gap-2 rounded-lg px-2 py-1 text-left hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                onClick={() => props.onSelect(tool.id)}
+            >
+                <span className="mt-1 text-xs text-[var(--app-hint)]">└</span>
+                <span className="shrink-0 text-sm font-medium text-[var(--app-tool-card-accent)]">
+                    {label.title}
+                </span>
+                {label.detail ? (
+                    <span className="min-w-0 truncate text-sm text-[var(--app-fg)]">
+                        {label.detail}
                     </span>
-                    {label.detail ? (
-                        <span className="min-w-0 truncate text-sm text-[var(--app-fg)]">
-                            {label.detail}
-                        </span>
-                    ) : null}
-                </button>
-            )
-        })
-    ))
+                ) : null}
+            </button>
+        )
+    })
 }
 
 export function ToolGroupCard(props: {
@@ -197,8 +197,9 @@ export function ToolGroupCard(props: {
     const panelId = useId()
     const expansion = useToolGroupExpansionState()
     const [, setExpansionRevision] = useState(0)
-    const toolIds = props.block.tools.map(tool => tool.id)
-    const open = expansion.get(toolIds, props.block.defaultOpen)
+    const entries = getToolGroupEntries(props.block)
+    const memberIds = entries.map(entry => entry.id)
+    const open = expansion.get(memberIds, props.block.defaultOpen)
     const [selectedToolId, setSelectedToolId] = useState<string | null>(null)
     const [now, setNow] = useState(() => Date.now())
     const groupTiming = getToolGroupTiming(props.block.tools, now)
@@ -230,25 +231,32 @@ export function ToolGroupCard(props: {
         }, t)
     }, [selectedTool, props.metadata, t])
 
-    const primaryTitle = formatGroupedHeaderTitle(props.block, t)
+    const toolCount = props.block.tools.length
+    const activityCount = props.block.activities?.length ?? 0
+    const primaryTitle = toolCount === 0 ? t('toolGroup.agentActivity') : formatGroupedHeaderTitle(props.block, t)
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
         : props.block.summary.pendingCount > 0 ? 'pending'
             : groupTiming.running ? 'running' : 'completed'
     const subtitle = props.block.presentationMode === 'codex-exploration'
         ? null
         : formatGroupedHeaderSubtitle(props.block, t) ?? formatActionSummary(props.block, t)
-    const summaryBadgeText = props.block.presentationMode === 'codex-exploration'
-        ? null
-        : subtitle ?? t('toolGroup.toolCount', { n: props.block.tools.length })
+    const toolCountLabel = toolCount > 0 ? t('toolGroup.toolCount', { n: toolCount }) : null
+    const activityCountLabel = activityCount > 0
+        ? t(activityCount === 1 ? 'toolGroup.agentUpdate' : 'toolGroup.agentUpdates', { n: activityCount })
+        : null
+    const exploration = props.block.presentationMode === 'codex-exploration'
+    const summaryBadgeText = exploration
+        ? activityCountLabel
+        : [subtitle ?? toolCountLabel, activityCountLabel].filter(Boolean).join(' · ')
     const fileCount = props.block.summary.fileTargets.length
 
     return (
-        <Card data-hapi-scroll-anchors={JSON.stringify(props.block.tools.map(tool => `tool:${tool.id}`))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
+        <Card data-hapi-scroll-anchors={JSON.stringify(entries.map(entry => `${entry.kind === 'tool-call' ? 'tool' : 'agent-event'}:${entry.id}`))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
             <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
                 <button
                     type="button"
                     onClick={() => {
-                        expansion.set(toolIds, props.block.defaultOpen, !open)
+                        expansion.set(memberIds, props.block.defaultOpen, !open)
                         setExpansionRevision(value => value + 1)
                     }}
                     className="w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
@@ -274,8 +282,8 @@ export function ToolGroupCard(props: {
                         </div>
 
                         {minimal ? <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-[var(--app-hint)]">
-                            <span>{t('toolGroup.toolCount', { n: props.block.tools.length })}</span>
-                            <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span>
+                            <span>{[toolCountLabel, activityCountLabel].filter(Boolean).join(' · ')}</span>
+                            {toolCount > 0 ? <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span> : null}
                         </div> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
                             {groupTiming.running ? (
                                 <span className={toolStatusColorClass('running')} aria-label={t('toolGroup.rowStatus.running')}>
@@ -321,9 +329,23 @@ export function ToolGroupCard(props: {
                 {() => (
                     <CardContent className="px-3 pb-3 pt-1">
                         <div className="flex flex-col gap-2">
-                            {props.block.presentationMode === 'codex-exploration' && !minimal ? (
-                                <CodexExplorationRows tools={props.block.tools} onSelect={setSelectedToolId} />
-                            ) : props.block.tools.map((tool) => {
+                            {entries.map((entry) => {
+                                if (entry.kind === 'agent-event') {
+                                    const createdAt = new Date(entry.createdAt)
+                                    return (
+                                        <div key={entry.id} data-hapi-scroll-anchor={`agent-event:${entry.id}`}>
+                                            <EventMessage event={entry.event} timestamp={(
+                                                <time dateTime={createdAt.toISOString()} title={formatMessageTimestampTitle(createdAt)} className="tabular-nums text-[10px]">
+                                                    {formatMessageTimestamp(createdAt)}
+                                                </time>
+                                            )} />
+                                        </div>
+                                    )
+                                }
+                                const tool = entry
+                                if (exploration && !minimal) {
+                                    return <CodexExplorationRows key={tool.id} tool={tool} onSelect={setSelectedToolId} />
+                                }
                                 const compactAgent = getCompactCodexAgentTool(tool)
                                 if (compactAgent) {
                                     return <CompactCodexAgentToolRow key={tool.id} block={tool} metadata={props.metadata} detail={compactAgent.detail} />

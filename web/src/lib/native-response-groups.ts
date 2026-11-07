@@ -1,9 +1,9 @@
 import type { VisibleChatBlock } from '@/chat/toolGroups'
-import { visibleBlockRole } from '@/chat/toolGroups'
+import { getToolGroupEntries, visibleBlockRole } from '@/chat/toolGroups'
 
 function metadata(block: VisibleChatBlock): Record<string, unknown> {
-    if (block.kind === 'tool-group') return metadata(block.tools[0])
-    return block.meta && typeof block.meta === 'object' ? block.meta as Record<string, unknown> : {}
+    const entry = block.kind === 'tool-group' ? getToolGroupEntries(block)[0] : block
+    return entry?.meta && typeof entry.meta === 'object' ? entry.meta as Record<string, unknown> : {}
 }
 
 /** Keep provider response boundaries without making visibility depend on history coverage. */

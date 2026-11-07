@@ -13,7 +13,7 @@ import { renderEventLabel } from '@/chat/presentation'
 import type { ChatBlock, CliOutputBlock, CodexReview, RoundSummary, UsageData } from '@/chat/types'
 import type { AgentEvent, ToolCallBlock } from '@/chat/types'
 import type { ToolGroupBlock, VisibleChatBlock } from '@/chat/toolGroups'
-import { visibleBlockRole } from '@/chat/toolGroups'
+import { getToolGroupEntries, visibleBlockRole } from '@/chat/toolGroups'
 import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session } from '@/types/api'
 import { orderItemsById } from '@/lib/attachmentOrder'
 import { type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
@@ -106,8 +106,8 @@ export function getBlockPresentationTimestamp(block: VisibleChatBlock): number {
         return block.invokedAt ?? block.createdAt
     }
     if (block.kind === 'tool-group') {
-        return block.tools.reduce(
-            (latest, tool) => Math.max(latest, tool.tool.completedAt ?? tool.createdAt),
+        return getToolGroupEntries(block).reduce(
+            (latest, entry) => Math.max(latest, entry.kind === 'tool-call' ? entry.tool.completedAt ?? entry.createdAt : entry.createdAt),
             block.createdAt
         )
     }
@@ -467,7 +467,7 @@ export function getMessagePartScrollAnchors(part: ThreadMessage['content'][numbe
 export function getTimelineBlockSourceIds(block: VisibleChatBlock): string[] {
     const aliases = [`${block.kind}:${block.id}`, block.id]
     if (block.kind === 'tool-group') {
-        for (const tool of block.tools) aliases.push(`tool-call:${tool.id}`, tool.id)
+        for (const entry of getToolGroupEntries(block)) aliases.push(`${entry.kind}:${entry.id}`, entry.id)
     }
     if (block.kind === 'user-text' && block.localId) aliases.push(`user:local:${block.localId}`)
     return aliases
@@ -610,9 +610,9 @@ function getAssistantBlockSignatures(blocks: readonly VisibleChatBlock[]): strin
         .filter((block) => visibleBlockRole(block) === 'assistant')
         .map((block) => {
             const text = 'text' in block ? block.text : ''
-            const toolCount = block.kind === 'tool-group' ? block.tools.length : 0
+            const memberCount = block.kind === 'tool-group' ? block.tools.length + (block.activities?.length ?? 0) : 0
             const textMarker = text.length <= 64 ? text : `${text.length}:${text.slice(-32)}`
-            return `${block.id}:${getBlockPresentationTimestamp(block)}:${textMarker}:${toolCount}`
+            return `${block.id}:${getBlockPresentationTimestamp(block)}:${textMarker}:${memberCount}`
         })
 }
 

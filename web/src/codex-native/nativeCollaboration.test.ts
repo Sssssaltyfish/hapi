@@ -4,7 +4,7 @@ import { reduceChatBlocks } from '@/chat/reducer'
 import type { ChatBlock, NormalizedMessage, ToolCallBlock } from '@/chat/types'
 import { getEventPresentation } from '@/chat/presentation'
 import { getCompactCodexAgentTool } from '@/components/ToolCard/codexAgents'
-import { buildVisibleChatBlocks } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, getToolGroupEntries, isToolGroupBlock } from '@/chat/toolGroups'
 import { projectNativeItems } from './projectNativeItems'
 import type { NativeItemEntry } from './types'
 
@@ -133,4 +133,25 @@ it('groups short and detailed communication and waits while keeping short detail
             { id: 'native:rich-wait' },
         ] },
     ])
+})
+
+it('folds native activity and waits in recorded order without crossing turn or event boundaries', () => {
+    const wait: NativeItemEntry = {
+        turnId: 'native-turn', startedAtMs: 150, completedAtMs: 175,
+        item: { id: 'wait', type: 'collabAgentToolCall', tool: 'wait', status: 'completed', receiverThreadIds: [], agentsStates: {} },
+    }
+    const recorded = blocks([
+        activity('send', 'interacted', 100), wait, activity('done', 'completed', 200),
+        { ...activity('next', 'started', 250), turnId: 'next-turn' },
+        activity('after', 'completed', 350),
+    ])
+    const marker: ChatBlock = { kind: 'agent-event', id: 'unrelated', createdAt: 300, event: { type: 'message', message: 'Notice' } }
+    const visible = buildVisibleChatBlocks([...recorded.slice(0, 4), marker, recorded[4]], { hasMoreMessages: false })
+    expect(visible.map(block => isToolGroupBlock(block) ? getToolGroupEntries(block).map(entry => entry.id) : block.id)).toEqual([
+        ['native:send', 'native:wait', 'native:done'],
+        ['native:next'],
+        'unrelated',
+        ['native:after'],
+    ])
+    expect(visible[0]).toMatchObject({ defaultOpen: false, summary: { totalTools: 1 } })
 })

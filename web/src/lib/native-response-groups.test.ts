@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import { reduceChatBlocks } from '@/chat/reducer'
-import { buildVisibleChatBlocks } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, getToolGroupEntries, isToolGroupBlock } from '@/chat/toolGroups'
 import type { NormalizedMessage } from '@/chat/types'
 import { projectNativeItems } from '@/codex-native/projectNativeItems'
 import type { NativeItemEntry } from '@/codex-native/types'
@@ -23,17 +23,21 @@ function materialize(items = entries) {
     return buildMaterializedTimelineRows(buildVisibleChatBlocks(reduceChatBlocks(normalized, { requests: projected.requests }).blocks, { hasMoreMessages: false }))
 }
 
-it('keeps commentary, supplied summaries, typed activity and the explicit final response visible at their own sources', () => {
+it('keeps folded activity within commentary while preserving each source and the final response', () => {
     const rows = materialize()
-    expect(rows.map(row => row.role)).toEqual(['assistant', 'system', 'assistant', 'assistant'])
-    expect(rows[0].sourceIds).toEqual(expect.arrayContaining(['native:commentary', 'native:reasoning']))
+    expect(rows.map(row => row.role)).toEqual(['assistant', 'assistant'])
+    expect(rows[0].sourceIds).toEqual(expect.arrayContaining(['native:commentary', 'native:reasoning', 'native:activity', 'native:update']))
     expect(rows[0].sourceIds).not.toContain('native:opaque')
     expect(rows[0].project('commentary', rows[0].blocks).content).toEqual(expect.arrayContaining([
         expect.objectContaining({ type: 'text', text: 'Checking the change' }),
         expect.objectContaining({ type: 'reasoning', text: 'Reviewing the result' }),
     ]))
-    expect(rows[1].blocks[0]).toMatchObject({ kind: 'agent-event', id: 'native:activity', event: { type: 'agent-activity' } })
-    expect(rows[3].project('final', rows[3].blocks).content).toEqual([expect.objectContaining({ type: 'text', text: 'The change is ready' })])
+    const activityGroup = rows[0].blocks.find(isToolGroupBlock)!
+    expect(activityGroup).toMatchObject({ defaultOpen: false, summary: { totalTools: 0 } })
+    expect(getToolGroupEntries(activityGroup)).toMatchObject([
+        { kind: 'agent-event', id: 'native:activity', event: { type: 'agent-activity' } },
+    ])
+    expect(rows[1].project('final', rows[1].blocks).content).toEqual([expect.objectContaining({ type: 'text', text: 'The change is ready' })])
 })
 
 it('preserves retained response content and identities when pagination discovers the final answer', () => {
@@ -41,21 +45,23 @@ it('preserves retained response content and identities when pagination discovers
     const initial = timeline.update(materialize(entries.slice(0, 3)))
     const original = initial[0]
     const appended = timeline.update(materialize())
-    expect(appended[0]).toBe(original)
+    expect(appended[0].message.id).toBe(original.message.id)
     const ids = appended.map(row => row.message.id)
     expect(timeline.update(materialize(entries.slice(3))).map(row => row.message.id)).toEqual(ids)
     expect(timeline.update(materialize()).map(row => row.message.id)).toEqual(ids)
     expect(timeline.resolveRowId('native:commentary')).toBe(ids[0])
-    expect(timeline.resolveRowId('native:final')).toBe(ids[3])
+    expect(timeline.resolveRowId('native:activity')).toBe(ids[0])
+    expect(timeline.resolveRowId('native:final')).toBe(ids[1])
+    expect(JSON.stringify(appended[0].message.content).match(/"sourceItemId":"activity"/g)).toHaveLength(1)
 })
 
 it('keeps an unknown-phase response identity when the provider later classifies it as final', () => {
     const timeline = new StableChatTimeline()
     const unknownFinal = { ...entries[5], item: { ...entries[5].item, phase: null } }
     const initial = timeline.update(materialize([...entries.slice(0, 5), unknownFinal]))
-    const finalId = initial[3].message.id
+    const finalId = initial[1].message.id
     const complete = timeline.update(materialize())
-    expect(complete).toHaveLength(4)
-    expect(complete[3].message.id).toBe(finalId)
+    expect(complete).toHaveLength(2)
+    expect(complete[1].message.id).toBe(finalId)
     expect(complete.filter(row => JSON.stringify(row.message.content).includes('The change is ready'))).toHaveLength(1)
 })
