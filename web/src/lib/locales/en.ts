@@ -909,6 +909,8 @@ export default {
   'toolGroup.badge.fileTargets': '{n} files',
   'toolGroup.toolCount': '{n} actions',
   'toolGroup.agentActivity': 'Agent activity',
+  'toolGroup.workProcess': 'Work process',
+  'native.reasoning': 'Reasoning',
   'toolGroup.agentUpdate': '1 agent update',
   'toolGroup.agentUpdates': '{n} agent updates',
   'toolGroup.loadingOlderHistory': 'Loading earlier tool activity…',

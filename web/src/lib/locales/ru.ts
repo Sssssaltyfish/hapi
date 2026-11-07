@@ -889,6 +889,8 @@ export default {
   'toolGroup.badge.fileTargets': '{n} файлов',
   'toolGroup.toolCount': '{n} действий',
   'toolGroup.agentActivity': 'Активность агентов',
+  'toolGroup.workProcess': 'Ход работы',
+  'native.reasoning': 'Рассуждение',
   'toolGroup.agentUpdate': '1 обновление агента',
   'toolGroup.agentUpdates': 'Обновления агентов ({n})',
   'toolGroup.loadingOlderHistory': 'Загрузка более ранней активности инструментов…',

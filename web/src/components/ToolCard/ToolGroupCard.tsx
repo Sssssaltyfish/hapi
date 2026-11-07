@@ -1,10 +1,11 @@
 import { useEffect, useId, useMemo, useState } from 'react'
-import { getToolGroupEntries, type ToolGroupBlock } from '@/chat/toolGroups'
+import { getToolGroupEntries, getToolGroupEntryAnchor, isActiveNativeCodexReasoning, type ToolGroupBlock } from '@/chat/toolGroups'
 import type { ToolCallBlock } from '@/chat/types'
 import { getCodexCommandActions, type CodexCommandAction } from '@/chat/codexCommandPresentation'
 import type { SessionMetadataSummary } from '@/types/api'
 import { useHappyChatContext, useToolGroupExpansionState } from '@/components/AssistantChat/context'
 import { EventMessage } from '@/components/AssistantChat/messages/EventMessage'
+import { NativeReasoning, NativeReasoningPreview } from '@/components/AssistantChat/messages/NativeReasoning'
 import { CompactCodexAgentToolRow, getToolTimingDetails, ToolDetailDialogContent, ToolStatusIcon, ToolTimingSummary, toolStatusColorClass } from '@/components/ToolCard/ToolCard'
 import { getToolPresentation } from '@/components/ToolCard/knownTools'
 import { formatGroupedHeaderSubtitle, formatGroupedHeaderTitle, safeGroupedLabelValue } from '@/components/ToolCard/groupedPresentation'
@@ -232,11 +233,15 @@ export function ToolGroupCard(props: {
     }, [selectedTool, props.metadata, t])
 
     const toolCount = props.block.tools.length
-    const activityCount = props.block.activities?.length ?? 0
-    const primaryTitle = toolCount === 0 ? t('toolGroup.agentActivity') : formatGroupedHeaderTitle(props.block, t)
+    const activityCount = entries.filter(entry => entry.kind === 'agent-event').length
+    const latestReasoning = entries.findLast(entry => entry.kind === 'agent-reasoning')
+    const running = groupTiming.running || (latestReasoning !== undefined && isActiveNativeCodexReasoning(latestReasoning))
+    const reasoningPreview = !open && running ? latestReasoning?.text : undefined
+    const primaryTitle = toolCount > 0 ? formatGroupedHeaderTitle(props.block, t)
+        : t(latestReasoning ? 'toolGroup.workProcess' : 'toolGroup.agentActivity')
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
         : props.block.summary.pendingCount > 0 ? 'pending'
-            : groupTiming.running ? 'running' : 'completed'
+            : running ? 'running' : 'completed'
     const subtitle = props.block.presentationMode === 'codex-exploration'
         ? null
         : formatGroupedHeaderSubtitle(props.block, t) ?? formatActionSummary(props.block, t)
@@ -251,7 +256,7 @@ export function ToolGroupCard(props: {
     const fileCount = props.block.summary.fileTargets.length
 
     return (
-        <Card data-hapi-scroll-anchors={JSON.stringify(entries.map(entry => `${entry.kind === 'tool-call' ? 'tool' : 'agent-event'}:${entry.id}`))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
+        <Card data-hapi-scroll-anchors={JSON.stringify(entries.map(getToolGroupEntryAnchor))} className="overflow-hidden rounded-[20px] bg-[var(--app-tool-group-bg)] shadow-none">
             <CardHeader className={cn('space-y-0', minimal ? 'px-3 py-2' : 'p-3', !minimal && subtitle ? 'pb-2' : null)}>
                 <button
                     type="button"
@@ -269,8 +274,11 @@ export function ToolGroupCard(props: {
                                 <div className="shrink-0 flex h-3.5 w-3.5 items-center justify-center text-[var(--app-tool-card-accent)] leading-none">
                                     <DisclosureChevron open={open} />
                                 </div>
-                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight text-[var(--app-fg)]', minimal ? 'text-xs font-normal' : 'text-sm font-medium')} title={minimal ? primaryTitle : undefined}>
-                                    {primaryTitle}
+                                <CardTitle className={cn('min-w-0 truncate whitespace-nowrap leading-tight',
+                                    reasoningPreview ? 'text-xs font-normal text-[var(--app-hint)]' : 'text-[var(--app-fg)]',
+                                    !reasoningPreview && (minimal ? 'text-xs font-normal' : 'text-sm font-medium'))}
+                                    title={minimal && !reasoningPreview ? primaryTitle : undefined}>
+                                    {reasoningPreview ? <NativeReasoningPreview text={reasoningPreview} /> : primaryTitle}
                                 </CardTitle>
                             </div>
                             {!minimal ? <ToolTimingSummary
@@ -283,9 +291,9 @@ export function ToolGroupCard(props: {
 
                         {minimal ? <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-xs text-[var(--app-hint)]">
                             <span>{[toolCountLabel, activityCountLabel].filter(Boolean).join(' · ')}</span>
-                            {toolCount > 0 ? <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span> : null}
+                            {toolCount > 0 || running ? <span className={toolStatusColorClass(minimalState)}><ToolStatusIcon state={minimalState} /></span> : null}
                         </div> : <div className="flex shrink-0 items-center gap-2 self-center text-[var(--app-hint)]">
-                            {groupTiming.running ? (
+                            {running ? (
                                 <span className={toolStatusColorClass('running')} aria-label={t('toolGroup.rowStatus.running')}>
                                     <ToolStatusIcon state="running" />
                                 </span>
@@ -330,10 +338,13 @@ export function ToolGroupCard(props: {
                     <CardContent className="px-3 pb-3 pt-1">
                         <div className="flex flex-col gap-2">
                             {entries.map((entry) => {
+                                if (entry.kind === 'agent-reasoning') {
+                                    return <NativeReasoning key={entry.id} block={entry} className="px-1" />
+                                }
                                 if (entry.kind === 'agent-event') {
                                     const createdAt = new Date(entry.createdAt)
                                     return (
-                                        <div key={entry.id} data-hapi-scroll-anchor={`agent-event:${entry.id}`}>
+                                        <div key={entry.id} data-hapi-scroll-anchor={getToolGroupEntryAnchor(entry)}>
                                             <EventMessage event={entry.event} timestamp={(
                                                 <time dateTime={createdAt.toISOString()} title={formatMessageTimestampTitle(createdAt)} className="tabular-nums text-[10px]">
                                                     {formatMessageTimestamp(createdAt)}
@@ -354,7 +365,7 @@ export function ToolGroupCard(props: {
                                 return (
                                     <button
                                         key={tool.id}
-                                        data-hapi-scroll-anchor={`tool:${tool.id}`}
+                                        data-hapi-scroll-anchor={getToolGroupEntryAnchor(tool)}
                                         type="button"
                                         className="flex min-w-0 items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-left transition-colors hover:bg-[var(--app-subtle-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
                                         onClick={() => setSelectedToolId(tool.id)}

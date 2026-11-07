@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
-import type { ChatBlock } from '@/chat/types'
+import type { AgentReasoningBlock, ChatBlock } from '@/chat/types'
 import type { GeneratedImageBlock, ToolCallBlock } from '@/chat/types'
 import type { ToolGroupBlock } from '@/chat/toolGroups'
 import { isObject, safeStringify } from '@hapi/protocol'
 import { isSubagentToolName } from '@/chat/subagentTool'
 import { ToolGroupCard } from '@/components/ToolCard/ToolGroupCard'
 import { EventMessage } from '@/components/AssistantChat/messages/EventMessage'
+import { NativeReasoning } from '@/components/AssistantChat/messages/NativeReasoning'
 import { CodeBlock } from '@/components/CodeBlock'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { MessageStatusIndicator } from '@/components/AssistantChat/messages/MessageStatusIndicator'
@@ -40,6 +41,10 @@ function isToolGroupBlock(value: unknown): value is ToolGroupBlock {
     if (typeof value.id !== 'string') return false
     if (!Array.isArray(value.tools)) return false
     return true
+}
+
+function isAgentReasoningBlock(value: unknown): value is AgentReasoningBlock {
+    return isObject(value) && value.kind === 'agent-reasoning' && typeof value.id === 'string' && typeof value.text === 'string'
 }
 
 function isGeneratedImageBlock(value: unknown): value is GeneratedImageBlock {
@@ -335,6 +340,10 @@ function HappyNestedBlockList(props: {
 export function HappyToolMessage(props: ToolCallMessagePartProps) {
     const ctx = useHappyChatContext()
     const artifact = props.artifact
+
+    if (props.toolName === 'HapiNativeReasoning' && isAgentReasoningBlock(artifact)) {
+        return <NativeReasoning block={artifact} className="px-1 py-0.5" />
+    }
 
     if (isToolGroupBlock(artifact)) {
         return (

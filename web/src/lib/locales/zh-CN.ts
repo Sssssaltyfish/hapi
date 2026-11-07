@@ -907,6 +907,8 @@ export default {
   'toolGroup.badge.fileTargets': '{n} 文件',
   'toolGroup.toolCount': '{n} 次操作',
   'toolGroup.agentActivity': '子代理活动',
+  'toolGroup.workProcess': '工作过程',
+  'native.reasoning': '推理',
   'toolGroup.agentUpdate': '1 条子代理动态',
   'toolGroup.agentUpdates': '{n} 条子代理动态',
   'toolGroup.loadingOlderHistory': '正在补加载更早的工具活动…',

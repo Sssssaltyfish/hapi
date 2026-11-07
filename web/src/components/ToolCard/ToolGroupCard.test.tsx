@@ -124,6 +124,39 @@ describe('ToolGroupCard', () => {
         expect(view.container.innerHTML).toContain('bg-[var(--app-tool-group-bg)]')
     })
 
+    it('previews current Native reasoning and remembers an expanded reasoning card across group collapse', async () => {
+        const group = makeGroup({ steps: [
+            { beforeToolIndex: 0, block: {
+                kind: 'agent-reasoning', id: 'details', localId: null, createdAt: 1,
+                text: '**Detailed plan**\n\nCheck the earlier settings.', meta: { nativeCodexRecord: true },
+            } },
+            { beforeToolIndex: 1, block: {
+                kind: 'agent-reasoning', id: 'current', localId: null, createdAt: 1,
+                text: '**Reviewing results**', meta: { nativeCodexRecord: true, nativeReasoningActive: true },
+            } },
+        ] })
+        const view = renderCard(group, { displayMode: 'minimal' })
+        const header = screen.getByRole('button', { name: /Reviewing results/ })
+        expect(header).toHaveAttribute('aria-expanded', 'false')
+        expect(within(header).getByText('Reviewing results').tagName).toBe('STRONG')
+
+        fireEvent.click(header)
+        const detail = await screen.findByRole('button', { name: 'Reasoning' })
+        fireEvent.click(detail)
+        expect(await screen.findByText('Check the earlier settings.')).toBeVisible()
+        const inline = view.container.querySelector('[data-hapi-native-reasoning="inline"]')
+        expect(inline).toHaveTextContent('Reviewing results')
+        expect(inline?.parentElement?.parentElement).toHaveAttribute('data-hapi-scroll-anchor', 'agent-reasoning:current')
+
+        fireEvent.click(header)
+        const steps = group.steps?.map(step => ({ ...step, block: { ...step.block, meta: { nativeCodexRecord: true, nativeReasoningActive: false } } }))
+        view.rerenderGroup({ ...group, steps })
+        expect(header).toHaveTextContent('Inspect a.ts')
+        expect(header).not.toHaveTextContent('Reviewing results')
+        fireEvent.click(header)
+        expect(await screen.findByRole('button', { name: 'Reasoning' })).toHaveAttribute('aria-expanded', 'true')
+    })
+
     it('summarizes minimal groups while keeping actual single-line commands in expanded rows', () => {
         renderCard(makeGroup({ presentationMode: 'codex-exploration', tools: [
             makeToolBlock('read', 'CodexBash', { command: ['cat', 'README.md'], parsed_cmd: [{ type: 'read', path: 'README.md', name: 'README.md' }] }),

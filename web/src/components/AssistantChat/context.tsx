@@ -37,7 +37,7 @@ export type HappyChatContextValue = {
 
 const HappyChatContext = createContext<HappyChatContextValue | null>(null)
 
-const MAX_TOOL_GROUP_EXPANSION_ENTRIES = 2048
+const MAX_CARD_EXPANSION_ENTRIES = 2048
 
 function createToolGroupExpansionState() {
     let defaultOpen: boolean | undefined
@@ -53,7 +53,7 @@ function createToolGroupExpansionState() {
             entries.delete(id)
             entries.set(id, entry)
         }
-        while (entries.size > MAX_TOOL_GROUP_EXPANSION_ENTRIES) {
+        while (entries.size > MAX_CARD_EXPANSION_ENTRIES) {
             const oldest = entries.keys().next().value
             if (oldest === undefined) break
             entries.delete(oldest)
@@ -80,9 +80,29 @@ function createToolGroupExpansionState() {
 
 const ToolGroupExpansionContext = createContext<ReturnType<typeof createToolGroupExpansionState> | null>(null)
 
+type NativeReasoningExpansion = { open: boolean; manual: boolean }
+
+function createNativeReasoningExpansionState() {
+    const entries = new Map<string, NativeReasoningExpansion>()
+    return {
+        get: (id: string) => entries.get(id),
+        set(id: string, entry: NativeReasoningExpansion) {
+            entries.delete(id)
+            entries.set(id, entry)
+            if (entries.size > MAX_CARD_EXPANSION_ENTRIES) {
+                const oldest = entries.keys().next().value
+                if (oldest !== undefined) entries.delete(oldest)
+            }
+        },
+    }
+}
+
+const NativeReasoningExpansionContext = createContext<ReturnType<typeof createNativeReasoningExpansionState> | null>(null)
+
 export function HappyChatProvider(props: { value: HappyChatContextValue; children: ReactNode }) {
     // Cards can remount when history changes the surrounding assistant response.
     const toolGroupExpansion = useMemo(createToolGroupExpansionState, [props.value.sessionId])
+    const nativeReasoningExpansion = useMemo(createNativeReasoningExpansionState, [props.value.sessionId])
     // Keep dismissal outside virtualized cards so recycling cannot revive a menu.
     const [continued, setContinued] = useState<{ sessionId: string; ids: ReadonlySet<string> }>({
         sessionId: props.value.sessionId, ids: new Set()
@@ -100,7 +120,9 @@ export function HappyChatProvider(props: { value: HappyChatContextValue; childre
     return (
         <HappyChatContext.Provider value={value}>
             <ToolGroupExpansionContext.Provider value={toolGroupExpansion}>
-                {props.children}
+                <NativeReasoningExpansionContext.Provider value={nativeReasoningExpansion}>
+                    {props.children}
+                </NativeReasoningExpansionContext.Provider>
             </ToolGroupExpansionContext.Provider>
         </HappyChatContext.Provider>
     )
@@ -108,6 +130,12 @@ export function HappyChatProvider(props: { value: HappyChatContextValue; childre
 
 export function useToolGroupExpansionState() {
     const state = useContext(ToolGroupExpansionContext)
+    if (!state) throw new Error('HappyChatContext is missing')
+    return state
+}
+
+export function useNativeReasoningExpansionState() {
+    const state = useContext(NativeReasoningExpansionContext)
     if (!state) throw new Error('HappyChatContext is missing')
     return state
 }

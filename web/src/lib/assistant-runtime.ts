@@ -11,9 +11,9 @@ import {
 import { safeStringify } from '@hapi/protocol'
 import { renderEventLabel } from '@/chat/presentation'
 import type { ChatBlock, CliOutputBlock, CodexReview, RoundSummary, UsageData } from '@/chat/types'
-import type { AgentEvent, ToolCallBlock } from '@/chat/types'
+import type { AgentEvent, AgentReasoningBlock, ToolCallBlock } from '@/chat/types'
 import type { ToolGroupBlock, VisibleChatBlock } from '@/chat/toolGroups'
-import { getToolGroupEntries, visibleBlockRole } from '@/chat/toolGroups'
+import { getToolGroupEntries, isActiveNativeCodexReasoning, isNativeCodexReasoning, visibleBlockRole } from '@/chat/toolGroups'
 import type { AttachmentMetadata, MessageStatus as HappyMessageStatus, Session } from '@/types/api'
 import { orderItemsById } from '@/lib/attachmentOrder'
 import { type ResponseAnnotation, type ResponseAnnotationTarget } from '@/lib/responseAnnotations'
@@ -160,21 +160,11 @@ type TurnSource = {
     createdAt: number
 }
 
-// Return one turn source per claude-SDK message that the visible block
-// represents. `tool-group` is a derived view: `buildVisibleChatBlocks` merges
-// adjacent eligible tool-calls without checking that they share a turn, so
-// each underlying tool-call contributes its own source. Other assistant-role
-// kinds map to a single source.
+// Grouping is a derived view. Each underlying tool or reasoning source keeps
+// contributing its original turn metadata.
 function turnSourcesFromBlock(block: VisibleChatBlock): TurnSource[] {
     if (block.kind === 'tool-group') {
-        return block.tools.map((tool) => ({
-            localId: tool.localId,
-            invokedAt: tool.invokedAt ?? null,
-            durationMs: tool.durationMs,
-            model: tool.model ?? null,
-            usage: tool.usage,
-            createdAt: tool.createdAt
-        }))
+        return getToolGroupEntries(block).flatMap(turnSourcesFromBlock)
     }
     if (
         block.kind === 'agent-text'
@@ -182,8 +172,13 @@ function turnSourcesFromBlock(block: VisibleChatBlock): TurnSource[] {
         || block.kind === 'cli-output'
         || block.kind === 'tool-call'
     ) {
+        const meta = block.meta && typeof block.meta === 'object' ? block.meta as Record<string, unknown> : null
+        // Native local IDs identify items, including each individual reasoning summary.
+        const nativeTurnId = meta?.nativeCodexRecord === true && typeof meta.codexTurnId === 'string'
+            ? meta.codexTurnId
+            : null
         return [{
-            localId: block.localId,
+            localId: nativeTurnId || block.localId,
             invokedAt: block.invokedAt ?? null,
             durationMs: block.durationMs,
             model: block.model ?? null,
@@ -605,14 +600,21 @@ export function findLatestCompletedBoundaryId(
     return candidate
 }
 
+function nativeReasoningSignature(block: AgentReasoningBlock): string {
+    return `${block.id}:${isActiveNativeCodexReasoning(block)}:${block.text.length}:${block.text.slice(-32)}`
+}
+
 function getAssistantBlockSignatures(blocks: readonly VisibleChatBlock[]): string[] {
     return blocks
         .filter((block) => visibleBlockRole(block) === 'assistant')
         .map((block) => {
             const text = 'text' in block ? block.text : ''
-            const memberCount = block.kind === 'tool-group' ? block.tools.length + (block.activities?.length ?? 0) : 0
+            const memberCount = block.kind === 'tool-group' ? block.tools.length + (block.steps?.length ?? 0) : 0
+            const reasoning = block.kind === 'tool-group'
+                ? block.steps?.flatMap(({ block: step }) => step.kind === 'agent-reasoning' ? [nativeReasoningSignature(step)] : []).join('\n')
+                : block.kind === 'agent-reasoning' && isNativeCodexReasoning(block) ? nativeReasoningSignature(block) : undefined
             const textMarker = text.length <= 64 ? text : `${text.length}:${text.slice(-32)}`
-            return `${block.id}:${getBlockPresentationTimestamp(block)}:${textMarker}:${memberCount}`
+            return `${block.id}:${getBlockPresentationTimestamp(block)}:${textMarker}:${memberCount}:${reasoning ?? ''}`
         })
 }
 
@@ -714,7 +716,9 @@ export function toThreadMessageLike(
             role: 'assistant',
             id: threadMessageId,
             createdAt: new Date(timestamp),
-            content: [{ type: 'reasoning', text: block.text }],
+            content: isNativeCodexReasoning(block)
+                ? [{ type: 'tool-call', toolCallId: block.id, toolName: 'HapiNativeReasoning', argsText: '', artifact: block }]
+                : [{ type: 'reasoning', text: block.text }],
             metadata: {
                 custom: {
                     kind: 'assistant',

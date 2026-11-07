@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatBlock, ToolCallBlock } from '@/chat/types'
-import { buildVisibleChatBlocks, getToolGroupActionKind, getToolGroupEntries, isEligibleForToolGrouping, isToolGroupBlock } from '@/chat/toolGroups'
+import { buildVisibleChatBlocks, getToolGroupActionKind, getToolGroupEntries, getToolGroupEntryAnchor, isEligibleForToolGrouping, isToolGroupBlock } from '@/chat/toolGroups'
 
 function makeToolBlock(
     id: string,
@@ -143,6 +143,30 @@ describe('isEligibleForToolGrouping', () => {
 })
 
 describe('Codex activity headings', () => {
+    it('folds Native summaries with one another and with tools without crossing text, interactive calls or turns', () => {
+        const meta = { nativeCodexRecord: true, codexTurnId: 'turn' }
+        const reasoning = (id: string, codexTurnId = 'turn'): ChatBlock => ({
+            kind: 'agent-reasoning', id, localId: null, createdAt: 1, text: id, meta: { ...meta, codexTurnId },
+        })
+        const visible = buildVisibleChatBlocks([
+            reasoning('reason-a'), reasoning('reason-b'), makeTextBlock('commentary'),
+            reasoning('reason-c'), makeToolBlock('wait', 'wait_agent', {}, { meta }),
+            makeToolBlock('question', 'request_user_input', {}, { meta }),
+            reasoning('lone'), reasoning('next-turn', 'different-turn'),
+        ], { hasMoreMessages: false })
+
+        expect(visible.map(block => isToolGroupBlock(block) ? getToolGroupEntries(block).map(getToolGroupEntryAnchor) : block.id)).toEqual([
+            ['agent-reasoning:reason-a', 'agent-reasoning:reason-b'],
+            'commentary',
+            ['agent-reasoning:reason-c', 'tool:wait'],
+            'question',
+            'lone',
+            'next-turn',
+        ])
+        expect(visible[0]).toMatchObject({ kind: 'tool-group', summary: { totalTools: 0 } })
+        expect(visible[2]).toMatchObject({ kind: 'tool-group', summary: { totalTools: 1 } })
+    })
+
     it('keeps Native agent notices in exploration order and preserves the next tool family', () => {
         const meta = { codexTurnId: 'native-turn', nativeCodexRecord: true }
         const activity = (id: string): ChatBlock => ({
