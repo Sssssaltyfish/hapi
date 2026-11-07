@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { SessionChat } from '@/components/SessionChat'
 import { ApiError, type ApiClient } from '@/api/client'
 import type { Session } from '@/types/api'
@@ -19,7 +19,8 @@ import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 import type { NativeItemEntry } from './types'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query-keys'
 import { useSessions } from '@/hooks/queries/useSessions'
 import { nativeThreadReferenceMessage } from './nativeThreadReferences'
 import { NativeCommandInactiveError, NativeRecapCanceledError, useNativeThreadCommands } from './useNativeThreadCommands'
@@ -76,6 +77,12 @@ function NativeSessionChat({
 }) {
     const native = session.metadata!.nativeCodex!
     const thread = useNativeThread(api, native.threadId, native.available !== false, session.id, getConversationReadingPosition(session.id)?.atBottom === false)
+    const queryClient = useQueryClient()
+    const { subscribeEvents } = thread
+    useEffect(() => subscribeEvents(event => {
+        if (event.method === 'thread/name/updated' && event.params.threadId === native.threadId)
+            void queryClient.invalidateQueries({ queryKey: queryKeys.session(session.id), exact: true })
+    }), [native.threadId, queryClient, session.id, subscribeEvents])
     const { t } = useTranslation()
     const commands = useNativeThreadCommands(api, native.threadId, native.endpointId, native.available !== false, thread.subscribeEvents)
     const commandMenu = useMemo(() => [

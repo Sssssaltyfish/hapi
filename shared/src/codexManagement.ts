@@ -1,6 +1,8 @@
 import type { NativeCommandResult } from './codexThreadCommands'
 import { normalizeCodexUsage } from './codexUsage'
 export { codexRecap, type CodexRecapTransport, type CodexRecapOptions } from './codexRecap'
+export { codexTitle } from './codexTitle'
+export type { CodexStructuredRequestTransport } from './codexStructuredRequest'
 
 type RecordValue = Record<string, unknown>
 type Request = (method: string, params: RecordValue) => Promise<unknown>

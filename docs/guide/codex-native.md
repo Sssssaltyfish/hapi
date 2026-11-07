@@ -97,6 +97,22 @@ Uploaded-file pointers, Source Files IDs, Library/shared-thread metadata, browse
 
 Only recognized leading context sections are projected. Quoted examples, fenced examples, malformed sections and unknown members stay visible. Parsing stops at the actual request, so a user-authored `## My request:` heading or another context example in that request is retained. The presentation conversion does not alter queued input, daemon history or the context received by the model.
 
+## Tool details and conversation titles
+
+Native file changes show each file's path, diff and execution status. Optional
+stdout/stderr are displayed when the daemon includes them. Some daemon versions
+omit those streams and wait-for-agent arguments/results from paged history;
+HAPI does not read rollout files to reconstruct them. Short collaboration
+receipts remain compact and can join tool groups; calls with additional details
+use the existing tool detail view. There is no extra persistent output cache.
+
+New native conversations created in HAPI generate a title asynchronously after
+their first accepted text message. A separate ephemeral, tool-disabled daemon
+thread summarizes the request; HAPI then writes the title with `thread/name/set`
+only while the conversation is still unnamed. Explicit renames take precedence.
+The existing name event updates the list, open conversation and browser tab.
+The title request does not change the source conversation's model or effort.
+
 ## Conversation recap and the Codex CLI
 
 Native and managed Codex sessions use the CLI's ephemeral helper workflow for `/recap`. HAPI reads bounded recent history, selects visible user and assistant exchanges in order, and uses a separate helper thread with the same model, provider and working directory. The helper disables tools, MCP servers, hooks, plugins, memories and skills. It produces a structured summary and optional next action in the user's language; its ephemeral thread is detached after completion and is not adopted as a HAPI session.

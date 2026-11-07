@@ -2,7 +2,8 @@ import { readFile, stat } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
 import type { CodexThreadCommand, NativeCommandResult } from '@hapi/protocol/codexThreadCommands'
-import { CodexGuardianDenials, codexRecap } from '@hapi/protocol/codexManagement'
+import { splitCodexInputContext } from '@hapi/protocol/codexInputContext'
+import { CodexGuardianDenials, codexRecap, codexTitle, type CodexStructuredRequestTransport } from '@hapi/protocol/codexManagement'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
@@ -48,6 +49,8 @@ type Subscription = {
     empty?: boolean
     snapshot?: NativeRecord
     denials?: CodexGuardianDenials
+    autoTitle?: { run?: AbortController }
+    autoTitleWrite?: Promise<unknown>
 }
 type RecapResult = Extract<NativeCommandResult, { command: 'recap' }>
 type RecapRun = {
@@ -64,6 +67,18 @@ function settingsMatch(current: NativeRecord, patch: NativeRecord): boolean {
         && value !== null && typeof value === 'object' && !Array.isArray(value)
         ? nativeModeSettingsMatch(record(current[key]), record(value))
         : isDeepStrictEqual(current[key], value))
+}
+function structuredRequestTransport(client: NativeConnection): CodexStructuredRequestTransport {
+    return {
+        request: (method, params) => client.request(method, params),
+        subscribe: listener => {
+            client.listeners.add(listener)
+            return () => { client.listeners.delete(listener) }
+        },
+        rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
+            error: { code: -32601, message: 'Temporary helpers do not accept interaction requests' },
+        }),
+    }
 }
 export function fallbackThread(thread: NativeRecord): boolean {
     const source = thread.source
@@ -226,11 +241,13 @@ export class NativeService {
                 empty: true,
                 snapshot: settingsSnapshot(response),
                 denials: new CodexGuardianDenials(),
+                autoTitle: text(record(response.thread).name)?.trim() ? undefined : {},
             }
             this.subscriptions.set(threadId, entry)
             client.listeners.add((event) => {
                 const params = record(event.params)
                 entry.denials?.observe(threadId, event.method, params)
+                this.observeFirstPrompt(threadId, entry, event.method, params)
                 if (event.method === 'turn/started' && params.threadId === threadId)
                     entry.empty = false
                 if (event.method === 'thread/settings/updated' && params.threadId === threadId) {
@@ -271,6 +288,56 @@ export class NativeService {
             client.close()
             throw error
         }
+    }
+    private observeFirstPrompt(threadId: string, entry: Subscription, method: string, params: NativeRecord): void {
+        const candidate = entry.autoTitle
+        if (!candidate) return
+        if (method === 'hapi/disconnected' || (params.threadId === threadId &&
+            (method === 'thread/name/updated' || method === 'thread/archived' || method === 'thread/deleted'))) {
+            entry.autoTitle = undefined
+            candidate.run?.abort()
+            return
+        }
+        if (params.threadId !== threadId || candidate.run ||
+            (method !== 'item/started' && method !== 'item/completed')) return
+        const item = record(params.item)
+        if (item.type !== 'userMessage' || !Array.isArray(item.content)) return
+        const input = item.content.map(record).filter(part => part.type === 'text')
+            .map(part => text(part.text) ?? '').join('\n')
+        const { body, annotations } = splitCodexInputContext(input)
+        const prompt = [body, ...annotations.map(annotation => annotation.annotation)].filter(Boolean).join('\n').trim()
+        if (!prompt) {
+            entry.autoTitle = undefined
+            return
+        }
+
+        // Keep the creating connection alive while its title is pending, even
+        // if the browser leaves. It observes a competing rename or archive.
+        const run = candidate.run = new AbortController()
+        clearTimeout(entry.timer)
+        entry.users++
+        void this.withConnection(async client => {
+            const response = record(await entry.attached)
+            const source = record(response.thread)
+            const { model, modelProvider, cwd } = entry.snapshot ?? response
+            const name = await codexTitle(structuredRequestTransport(client), threadId, source, prompt, {
+                settings: { model, modelProvider, cwd }, signal: run.signal,
+            })
+            if (!name || run.signal.aborted) return
+            const current = record(record(await client.request('thread/read', { threadId, includeTurns: false })).thread)
+            // The installed name API has no compare-and-set option. Recheck
+            // the daemon's name immediately before writing, like Desktop.
+            if (current.id === threadId && !text(current.name)?.trim() && !run.signal.aborted) {
+                entry.autoTitleWrite = client.request('thread/name/set', { threadId, name })
+                await entry.autoTitleWrite
+            }
+        }).catch(() => {
+            // Title generation is optional and cannot fail or retry the user's send.
+        }).finally(() => {
+            entry.autoTitleWrite = undefined
+            if (entry.autoTitle === candidate) entry.autoTitle = undefined
+            if (this.subscriptions.get(threadId) === entry) this.release(threadId, entry)
+        })
     }
     async desktop(deadline?: number): Promise<{
         state?: NativeRecord
@@ -557,6 +624,16 @@ export class NativeService {
         entry.timer.unref()
     }
     async control(threadId: string, method: string, params: NativeRecord): Promise<unknown> {
+        if (method === 'thread/name/set') {
+            const entry = this.subscriptions.get(threadId)
+            if (entry?.autoTitle) {
+                entry.autoTitle.run?.abort()
+                entry.autoTitle = undefined
+            }
+            // A manual rename that arrives during an already-issued write
+            // must be the last one the daemon receives from this Hub.
+            if (entry?.autoTitleWrite) await entry.autoTitleWrite.catch(() => {})
+        }
         // Controls use a separate connection and never wait for the subscription or history page.
         return this.call(method, { ...params, threadId })
     }
@@ -602,16 +679,9 @@ export class NativeService {
             try {
                 const source = this.subscriptions.get(threadId)
                 const settings = source?.snapshot ?? (source ? record(await source.attached) : undefined)
-                const result = await this.withConnection(client => codexRecap({
-                    request: (method, params) => client.request(method, params),
-                    subscribe: listener => {
-                        client.listeners.add(listener)
-                        return () => { client.listeners.delete(listener) }
-                    },
-                    rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
-                        error: { code: -32601, message: 'Recap helpers do not accept interaction requests' },
-                    }),
-                }, threadId, { settings, signal: run.controller.signal }))
+                const result = await this.withConnection(client => codexRecap(
+                    structuredRequestTransport(client), threadId, { settings, signal: run.controller.signal }
+                ))
                 if (run.controller.signal.aborted) throw new NativeThreadCommandError(409, 'Recap was canceled.')
                 return clientId ? { ...result, clientId } : result
             } catch (error) {
