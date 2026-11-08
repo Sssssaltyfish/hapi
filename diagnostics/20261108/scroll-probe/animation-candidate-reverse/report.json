@@ -1,0 +1,3161 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "dist": "/home/igna/hapi-deployment/native-integrated-stage/web/dist",
+  "fontConfig": "/etc/fonts/fonts.conf",
+  "itemCount": 560,
+  "networkDelay": 340,
+  "invisibleGap": [
+    100,
+    490
+  ],
+  "unexpected": [],
+  "pageErrors": [],
+  "bundles": [
+    "/assets/index-DVGJvRGr.js"
+  ],
+  "initial": {
+    "frame": {
+      "at": 1794078691092,
+      "top": 6641,
+      "height": 7277,
+      "logical": 50,
+      "visibleFirst": "agent-text:native:row-554",
+      "visibleLast": "agent-text:native:row-560",
+      "visible": [
+        {
+          "id": "agent-text:native:row-554",
+          "y": -80
+        },
+        {
+          "id": "user-text:native:row-555",
+          "y": 12
+        },
+        {
+          "id": "agent-text:native:row-556",
+          "y": 124
+        },
+        {
+          "id": "user-text:native:row-557",
+          "y": 216
+        },
+        {
+          "id": "agent-text:native:row-558",
+          "y": 328
+        },
+        {
+          "id": "user-text:native:row-559",
+          "y": 420
+        },
+        {
+          "id": "agent-text:native:row-560",
+          "y": 532
+        }
+      ],
+      "mountedFirst": "agent-text:native:row-548",
+      "mountedLast": "agent-text:native:row-560",
+      "loading": false,
+      "commit": 1
+    },
+    "commit": {
+      "at": 1794078690599,
+      "native": {
+        "first": "row-511",
+        "last": "row-560",
+        "count": 50,
+        "cursor": "old:511",
+        "newerCursor": null,
+        "loading": false
+      },
+      "panel": {
+        "hasMore": true,
+        "hasNewer": false,
+        "historyVersion": 2
+      },
+      "virtual": {
+        "count": 50,
+        "first": {
+          "id": "user-text:native:row-511",
+          "current": true,
+          "resident": true,
+          "locator": "row-511"
+        },
+        "last": {
+          "id": "agent-text:native:row-560",
+          "current": true,
+          "resident": true,
+          "locator": "row-560"
+        }
+      }
+    }
+  },
+  "touch": {
+    "from": 99,
+    "to": 665,
+    "sweeps": 75,
+    "rest": 23,
+    "touchStep": 8,
+    "reverseAt": 0,
+    "reverseFor": 0,
+    "stagnantLimit": 40,
+    "checkReverse": true
+  },
+  "gestures": [
+    {
+      "start": 1794078691119,
+      "direction": "older",
+      "frame": {
+        "at": 1794078691369,
+        "top": 5710,
+        "height": 6897,
+        "logical": 50,
+        "visibleFirst": "user-text:native:row-549",
+        "visibleLast": "user-text:native:row-555",
+        "visible": [
+          {
+            "id": "user-text:native:row-549",
+            "y": -105
+          },
+          {
+            "id": "agent-text:native:row-550",
+            "y": 7
+          },
+          {
+            "id": "user-text:native:row-551",
+            "y": 99
+          },
+          {
+            "id": "agent-text:native:row-552",
+            "y": 211
+          },
+          {
+            "id": "user-text:native:row-553",
+            "y": 359
+          },
+          {
+            "id": "agent-text:native:row-554",
+            "y": 471
+          },
+          {
+            "id": "user-text:native:row-555",
+            "y": 563
+          }
+        ],
+        "mountedFirst": "user-text:native:row-543",
+        "mountedLast": "agent-text:native:row-560",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794078691370,
+      "direction": "older",
+      "frame": {
+        "at": 1794078691569,
+        "top": 4612,
+        "height": 6429,
+        "logical": 50,
+        "visibleFirst": "user-text:native:row-543",
+        "visibleLast": "user-text:native:row-549",
+        "visible": [
+          {
+            "id": "user-text:native:row-543",
+            "y": -87
+          },
+          {
+            "id": "agent-text:native:row-544",
+            "y": 25
+          },
+          {
+            "id": "user-text:native:row-545",
+            "y": 117
+          },
+          {
+            "id": "agent-text:native:row-546",
+            "y": 229
+          },
+          {
+            "id": "user-text:native:row-547",
+            "y": 321
+          },
+          {
+            "id": "agent-text:native:row-548",
+            "y": 433
+          },
+          {
+            "id": "user-text:native:row-549",
+            "y": 525
+          }
+        ],
+        "mountedFirst": "user-text:native:row-537",
+        "mountedLast": "user-text:native:row-555",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794078691570,
+      "direction": "older",
+      "frame": {
+        "at": 1794078691803,
+        "top": 3016,
+        "height": 5801,
+        "logical": 50,
+        "visibleFirst": "agent-text:native:row-534",
+        "visibleLast": "agent-text:native:row-540",
+        "visible": [
+          {
+            "id": "agent-text:native:row-534",
+            "y": -27
+          },
+          {
+            "id": "user-text:native:row-535",
+            "y": 65
+          },
+          {
+            "id": "agent-text:native:row-536",
+            "y": 177
+          },
+          {
+            "id": "user-text:native:row-537",
+            "y": 269
+          },
+          {
+            "id": "agent-text:native:row-538",
+            "y": 381
+          },
+          {
+            "id": "user-text:native:row-539",
+            "y": 473
+          },
+          {
+            "id": "agent-text:native:row-540",
+            "y": 585
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-528",
+        "mountedLast": "agent-text:native:row-546",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794078691805,
+      "direction": "older",
+      "frame": {
+        "at": 1794078692040,
+        "top": 1294,
+        "height": 5265,
+        "logical": 50,
+        "visibleFirst": "user-text:native:row-523",
+        "visibleLast": "user-text:native:row-529",
+        "visible": [
+          {
+            "id": "user-text:native:row-523",
+            "y": -57
+          },
+          {
+            "id": "agent-text:native:row-524",
+            "y": 55
+          },
+          {
+            "id": "user-text:native:row-525",
+            "y": 147
+          },
+          {
+            "id": "agent-text:native:row-526",
+            "y": 259
+          },
+          {
+            "id": "user-text:native:row-527",
+            "y": 351
+          },
+          {
+            "id": "agent-text:native:row-528",
+            "y": 463
+          },
+          {
+            "id": "user-text:native:row-529",
+            "y": 555
+          }
+        ],
+        "mountedFirst": "user-text:native:row-517",
+        "mountedLast": "user-text:native:row-535",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794078692041,
+      "direction": "older",
+      "frame": {
+        "at": 1794078692320,
+        "top": 3893,
+        "height": 8709,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-515",
+        "visibleLast": "user-text:native:row-521",
+        "visible": [
+          {
+            "id": "user-text:native:row-515",
+            "y": -28
+          },
+          {
+            "id": "agent-text:native:row-516",
+            "y": 84
+          },
+          {
+            "id": "user-text:native:row-517",
+            "y": 176
+          },
+          {
+            "id": "agent-text:native:row-518",
+            "y": 288
+          },
+          {
+            "id": "user-text:native:row-519",
+            "y": 380
+          },
+          {
+            "id": "agent-text:native:row-520",
+            "y": 492
+          },
+          {
+            "id": "user-text:native:row-521",
+            "y": 584
+          }
+        ],
+        "mountedFirst": "user-text:native:row-509",
+        "mountedLast": "user-text:native:row-527",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794078692322,
+      "direction": "older",
+      "frame": {
+        "at": 1794078692554,
+        "top": 2513,
+        "height": 8141,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-507",
+        "visibleLast": "user-text:native:row-513",
+        "visible": [
+          {
+            "id": "user-text:native:row-507",
+            "y": -32
+          },
+          {
+            "id": "agent-text:native:row-508",
+            "y": 80
+          },
+          {
+            "id": "user-text:native:row-509",
+            "y": 172
+          },
+          {
+            "id": "agent-text:native:row-510",
+            "y": 284
+          },
+          {
+            "id": "user-text:native:row-511",
+            "y": 376
+          },
+          {
+            "id": "agent-text:native:row-512",
+            "y": 488
+          },
+          {
+            "id": "user-text:native:row-513",
+            "y": 580
+          }
+        ],
+        "mountedFirst": "user-text:native:row-501",
+        "mountedLast": "user-text:native:row-519",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794078692555,
+      "direction": "older",
+      "frame": {
+        "at": 1794078692771,
+        "top": 1414,
+        "height": 7673,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-501",
+        "visibleLast": "user-text:native:row-507",
+        "visible": [
+          {
+            "id": "user-text:native:row-501",
+            "y": -69
+          },
+          {
+            "id": "agent-text:native:row-502",
+            "y": 43
+          },
+          {
+            "id": "user-text:native:row-503",
+            "y": 135
+          },
+          {
+            "id": "agent-text:native:row-504",
+            "y": 247
+          },
+          {
+            "id": "user-text:native:row-505",
+            "y": 339
+          },
+          {
+            "id": "agent-text:native:row-506",
+            "y": 451
+          },
+          {
+            "id": "user-text:native:row-507",
+            "y": 599
+          }
+        ],
+        "mountedFirst": "user-text:native:row-495",
+        "mountedLast": "user-text:native:row-513",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794078692772,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693169,
+        "top": 289,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-493",
+        "visibleLast": "user-text:native:row-499",
+        "visible": [
+          {
+            "id": "user-text:native:row-493",
+            "y": -72
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 40
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 132
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 244
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 336
+          },
+          {
+            "id": "agent-text:native:row-498",
+            "y": 448
+          },
+          {
+            "id": "user-text:native:row-499",
+            "y": 540
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-505",
+        "loading": true,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794078693170,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693388,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794078693389,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693581,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 13
+      }
+    },
+    {
+      "start": 1794078693582,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693698,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 13
+      }
+    },
+    {
+      "start": 1794078693698,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693872,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 16
+      }
+    },
+    {
+      "start": 1794078693873,
+      "direction": "older",
+      "frame": {
+        "at": 1794078693998,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 16
+      }
+    },
+    {
+      "start": 1794078693998,
+      "direction": "older",
+      "frame": {
+        "at": 1794078694176,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": false,
+        "commit": 17
+      }
+    },
+    {
+      "start": 1794078694177,
+      "direction": "older",
+      "frame": {
+        "at": 1794078694355,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 18
+      }
+    },
+    {
+      "start": 1794078694357,
+      "direction": "older",
+      "frame": {
+        "at": 1794078694480,
+        "top": 0,
+        "height": 7361,
+        "logical": 70,
+        "visibleFirst": "user-text:native:row-491",
+        "visibleLast": "user-text:native:row-497",
+        "visible": [
+          {
+            "id": "user-text:native:row-491",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-494",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-495",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-496",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-497",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-503",
+        "loading": true,
+        "commit": 18
+      }
+    },
+    {
+      "start": 1794078694482,
+      "direction": "older",
+      "frame": {
+        "at": 1794078694703,
+        "top": 5919,
+        "height": 13657,
+        "logical": 109,
+        "visibleFirst": "agent-text:native:row-96",
+        "visibleLast": "user-text:native:row-493",
+        "visible": [
+          {
+            "id": "agent-text:native:row-96",
+            "y": -18
+          },
+          {
+            "id": "user-text:native:row-97",
+            "y": 74
+          },
+          {
+            "id": "agent-text:native:row-98",
+            "y": 186
+          },
+          {
+            "id": "user-text:native:row-99",
+            "y": 278
+          },
+          {
+            "id": "user-text:native:row-491",
+            "y": 390
+          },
+          {
+            "id": "agent-text:native:row-492",
+            "y": 502
+          },
+          {
+            "id": "user-text:native:row-493",
+            "y": 594
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-90",
+        "mountedLast": "user-text:native:row-499",
+        "loading": false,
+        "commit": 20
+      }
+    },
+    {
+      "start": 1794078694704,
+      "direction": "older",
+      "frame": {
+        "at": 1794078694920,
+        "top": 4821,
+        "height": 13189,
+        "logical": 109,
+        "visibleFirst": "agent-text:native:row-90",
+        "visibleLast": "agent-text:native:row-96",
+        "visible": [
+          {
+            "id": "agent-text:native:row-90",
+            "y": -56
+          },
+          {
+            "id": "user-text:native:row-91",
+            "y": 36
+          },
+          {
+            "id": "agent-text:native:row-92",
+            "y": 148
+          },
+          {
+            "id": "user-text:native:row-93",
+            "y": 296
+          },
+          {
+            "id": "agent-text:native:row-94",
+            "y": 408
+          },
+          {
+            "id": "user-text:native:row-95",
+            "y": 500
+          },
+          {
+            "id": "agent-text:native:row-96",
+            "y": 612
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-84",
+        "mountedLast": "user-text:native:row-493",
+        "loading": false,
+        "commit": 20
+      }
+    },
+    {
+      "start": 1794078694921,
+      "direction": "older",
+      "frame": {
+        "at": 1794078695120,
+        "top": 3160,
+        "height": 12497,
+        "logical": 109,
+        "visibleFirst": "user-text:native:row-81",
+        "visibleLast": "user-text:native:row-87",
+        "visible": [
+          {
+            "id": "user-text:native:row-81",
+            "y": -15
+          },
+          {
+            "id": "agent-text:native:row-82",
+            "y": 97
+          },
+          {
+            "id": "user-text:native:row-83",
+            "y": 189
+          },
+          {
+            "id": "agent-text:native:row-84",
+            "y": 301
+          },
+          {
+            "id": "user-text:native:row-85",
+            "y": 393
+          },
+          {
+            "id": "agent-text:native:row-86",
+            "y": 505
+          },
+          {
+            "id": "user-text:native:row-87",
+            "y": 597
+          }
+        ],
+        "mountedFirst": "user-text:native:row-75",
+        "mountedLast": "user-text:native:row-93",
+        "loading": false,
+        "commit": 20
+      }
+    },
+    {
+      "start": 1794078695121,
+      "direction": "older",
+      "frame": {
+        "at": 1794078695377,
+        "top": 9880,
+        "height": 20645,
+        "logical": 159,
+        "visibleFirst": "user-text:native:row-67",
+        "visibleLast": "user-text:native:row-73",
+        "visible": [
+          {
+            "id": "user-text:native:row-67",
+            "y": -99
+          },
+          {
+            "id": "agent-text:native:row-68",
+            "y": 13
+          },
+          {
+            "id": "user-text:native:row-69",
+            "y": 105
+          },
+          {
+            "id": "agent-text:native:row-70",
+            "y": 301
+          },
+          {
+            "id": "user-text:native:row-71",
+            "y": 393
+          },
+          {
+            "id": "agent-text:native:row-72",
+            "y": 505
+          },
+          {
+            "id": "user-text:native:row-73",
+            "y": 597
+          }
+        ],
+        "mountedFirst": "user-text:native:row-63",
+        "mountedLast": "agent-text:native:row-80",
+        "loading": false,
+        "commit": 22
+      }
+    },
+    {
+      "start": 1794078695378,
+      "direction": "older",
+      "frame": {
+        "at": 1794078695604,
+        "top": 6860,
+        "height": 19297,
+        "logical": 159,
+        "visibleFirst": "user-text:native:row-51",
+        "visibleLast": "user-text:native:row-57",
+        "visible": [
+          {
+            "id": "user-text:native:row-51",
+            "y": -59
+          },
+          {
+            "id": "agent-text:native:row-52",
+            "y": 53
+          },
+          {
+            "id": "user-text:native:row-53",
+            "y": 145
+          },
+          {
+            "id": "agent-text:native:row-54",
+            "y": 257
+          },
+          {
+            "id": "user-text:native:row-55",
+            "y": 349
+          },
+          {
+            "id": "agent-text:native:row-56",
+            "y": 461
+          },
+          {
+            "id": "user-text:native:row-57",
+            "y": 553
+          }
+        ],
+        "mountedFirst": "user-text:native:row-45",
+        "mountedLast": "user-text:native:row-63",
+        "loading": false,
+        "commit": 22
+      }
+    },
+    {
+      "start": 1794078695605,
+      "direction": "older",
+      "frame": {
+        "at": 1794078695836,
+        "top": 5185,
+        "height": 18585,
+        "logical": 159,
+        "visibleFirst": "agent-text:native:row-42",
+        "visibleLast": "agent-text:native:row-48",
+        "visible": [
+          {
+            "id": "agent-text:native:row-42",
+            "y": -60
+          },
+          {
+            "id": "user-text:native:row-43",
+            "y": 32
+          },
+          {
+            "id": "agent-text:native:row-44",
+            "y": 144
+          },
+          {
+            "id": "user-text:native:row-45",
+            "y": 236
+          },
+          {
+            "id": "agent-text:native:row-46",
+            "y": 348
+          },
+          {
+            "id": "user-text:native:row-47",
+            "y": 496
+          },
+          {
+            "id": "agent-text:native:row-48",
+            "y": 608
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-36",
+        "mountedLast": "agent-text:native:row-54",
+        "loading": false,
+        "commit": 22
+      }
+    },
+    {
+      "start": 1794078695837,
+      "direction": "older",
+      "frame": {
+        "at": 1794078696069,
+        "top": 3195,
+        "height": 17737,
+        "logical": 159,
+        "visibleFirst": "user-text:native:row-31",
+        "visibleLast": "user-text:native:row-37",
+        "visible": [
+          {
+            "id": "user-text:native:row-31",
+            "y": -50
+          },
+          {
+            "id": "agent-text:native:row-32",
+            "y": 62
+          },
+          {
+            "id": "user-text:native:row-33",
+            "y": 154
+          },
+          {
+            "id": "agent-text:native:row-34",
+            "y": 266
+          },
+          {
+            "id": "user-text:native:row-35",
+            "y": 358
+          },
+          {
+            "id": "agent-text:native:row-36",
+            "y": 470
+          },
+          {
+            "id": "user-text:native:row-37",
+            "y": 562
+          }
+        ],
+        "mountedFirst": "user-text:native:row-25",
+        "mountedLast": "user-text:native:row-43",
+        "loading": false,
+        "commit": 22
+      }
+    },
+    {
+      "start": 1794078696071,
+      "direction": "older",
+      "frame": {
+        "at": 1794078696303,
+        "top": 1600,
+        "height": 17109,
+        "logical": 159,
+        "visibleFirst": "agent-text:native:row-22",
+        "visibleLast": "agent-text:native:row-28",
+        "visible": [
+          {
+            "id": "agent-text:native:row-22",
+            "y": -75
+          },
+          {
+            "id": "user-text:native:row-23",
+            "y": 17
+          },
+          {
+            "id": "agent-text:native:row-24",
+            "y": 213
+          },
+          {
+            "id": "user-text:native:row-25",
+            "y": 305
+          },
+          {
+            "id": "agent-text:native:row-26",
+            "y": 417
+          },
+          {
+            "id": "user-text:native:row-27",
+            "y": 509
+          },
+          {
+            "id": "agent-text:native:row-28",
+            "y": 621
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-16",
+        "mountedLast": "agent-text:native:row-34",
+        "loading": false,
+        "commit": 22
+      }
+    },
+    {
+      "start": 1794078696304,
+      "direction": "older",
+      "frame": {
+        "at": 1794078696570,
+        "top": 1412,
+        "height": 18061,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-11",
+        "visibleLast": "user-text:native:row-17",
+        "visible": [
+          {
+            "id": "user-text:native:row-11",
+            "y": -67
+          },
+          {
+            "id": "agent-text:native:row-12",
+            "y": 45
+          },
+          {
+            "id": "user-text:native:row-13",
+            "y": 137
+          },
+          {
+            "id": "agent-text:native:row-14",
+            "y": 249
+          },
+          {
+            "id": "user-text:native:row-15",
+            "y": 341
+          },
+          {
+            "id": "agent-text:native:row-16",
+            "y": 453
+          },
+          {
+            "id": "user-text:native:row-17",
+            "y": 545
+          }
+        ],
+        "mountedFirst": "user-text:native:row-5",
+        "mountedLast": "user-text:native:row-23",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078696571,
+      "direction": "older",
+      "frame": {
+        "at": 1794078696773,
+        "top": 55,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": -42
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 70
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 162
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 274
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 366
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 478
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 570
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "agent-text:native:row-14",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078696774,
+      "direction": "older",
+      "frame": {
+        "at": 1794078696897,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078696898,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697014,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697014,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697131,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697132,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697287,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697288,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697414,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697414,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697531,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697532,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697647,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078697648,
+      "direction": "older",
+      "frame": {
+        "at": 1794078697764,
+        "top": 0,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "visible": [
+          {
+            "id": "user-text:native:row-1",
+            "y": 13
+          },
+          {
+            "id": "agent-text:native:row-2",
+            "y": 125
+          },
+          {
+            "id": "user-text:native:row-3",
+            "y": 217
+          },
+          {
+            "id": "agent-text:native:row-4",
+            "y": 329
+          },
+          {
+            "id": "user-text:native:row-5",
+            "y": 421
+          },
+          {
+            "id": "agent-text:native:row-6",
+            "y": 533
+          },
+          {
+            "id": "user-text:native:row-7",
+            "y": 625
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078699810,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078700019,
+        "top": 632,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-7",
+        "visibleLast": "user-text:native:row-13",
+        "visible": [
+          {
+            "id": "user-text:native:row-7",
+            "y": -7
+          },
+          {
+            "id": "agent-text:native:row-8",
+            "y": 105
+          },
+          {
+            "id": "user-text:native:row-9",
+            "y": 197
+          },
+          {
+            "id": "agent-text:native:row-10",
+            "y": 309
+          },
+          {
+            "id": "user-text:native:row-11",
+            "y": 401
+          },
+          {
+            "id": "agent-text:native:row-12",
+            "y": 513
+          },
+          {
+            "id": "user-text:native:row-13",
+            "y": 605
+          }
+        ],
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-19",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078700020,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078700243,
+        "top": 1686,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-17",
+        "visibleLast": "user-text:native:row-23",
+        "visible": [
+          {
+            "id": "user-text:native:row-17",
+            "y": -41
+          },
+          {
+            "id": "agent-text:native:row-18",
+            "y": 71
+          },
+          {
+            "id": "user-text:native:row-19",
+            "y": 163
+          },
+          {
+            "id": "agent-text:native:row-20",
+            "y": 275
+          },
+          {
+            "id": "user-text:native:row-21",
+            "y": 367
+          },
+          {
+            "id": "agent-text:native:row-22",
+            "y": 479
+          },
+          {
+            "id": "user-text:native:row-23",
+            "y": 571
+          }
+        ],
+        "mountedFirst": "user-text:native:row-11",
+        "mountedLast": "user-text:native:row-29",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078700244,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078700469,
+        "top": 2908,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-28",
+        "visibleLast": "agent-text:native:row-34",
+        "visible": [
+          {
+            "id": "agent-text:native:row-28",
+            "y": -47
+          },
+          {
+            "id": "user-text:native:row-29",
+            "y": 45
+          },
+          {
+            "id": "agent-text:native:row-30",
+            "y": 157
+          },
+          {
+            "id": "user-text:native:row-31",
+            "y": 249
+          },
+          {
+            "id": "agent-text:native:row-32",
+            "y": 361
+          },
+          {
+            "id": "user-text:native:row-33",
+            "y": 453
+          },
+          {
+            "id": "agent-text:native:row-34",
+            "y": 565
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-22",
+        "mountedLast": "agent-text:native:row-40",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078700470,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078700703,
+        "top": 4314,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-42",
+        "visibleLast": "user-text:native:row-47",
+        "visible": [
+          {
+            "id": "agent-text:native:row-42",
+            "y": -25
+          },
+          {
+            "id": "user-text:native:row-43",
+            "y": 67
+          },
+          {
+            "id": "agent-text:native:row-44",
+            "y": 179
+          },
+          {
+            "id": "user-text:native:row-45",
+            "y": 271
+          },
+          {
+            "id": "agent-text:native:row-46",
+            "y": 383
+          },
+          {
+            "id": "user-text:native:row-47",
+            "y": 531
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-36",
+        "mountedLast": "user-text:native:row-53",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078700704,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078700936,
+        "top": 5201,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-50",
+        "visibleLast": "agent-text:native:row-56",
+        "visible": [
+          {
+            "id": "agent-text:native:row-50",
+            "y": -40
+          },
+          {
+            "id": "user-text:native:row-51",
+            "y": 52
+          },
+          {
+            "id": "agent-text:native:row-52",
+            "y": 164
+          },
+          {
+            "id": "user-text:native:row-53",
+            "y": 256
+          },
+          {
+            "id": "agent-text:native:row-54",
+            "y": 368
+          },
+          {
+            "id": "user-text:native:row-55",
+            "y": 460
+          },
+          {
+            "id": "agent-text:native:row-56",
+            "y": 572
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-44",
+        "mountedLast": "agent-text:native:row-62",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078700937,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078701169,
+        "top": 6166,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-59",
+        "visibleLast": "agent-text:native:row-66",
+        "visible": [
+          {
+            "id": "user-text:native:row-59",
+            "y": -97
+          },
+          {
+            "id": "agent-text:native:row-60",
+            "y": 15
+          },
+          {
+            "id": "user-text:native:row-61",
+            "y": 107
+          },
+          {
+            "id": "agent-text:native:row-62",
+            "y": 219
+          },
+          {
+            "id": "user-text:native:row-63",
+            "y": 311
+          },
+          {
+            "id": "agent-text:native:row-64",
+            "y": 423
+          },
+          {
+            "id": "user-text:native:row-65",
+            "y": 515
+          },
+          {
+            "id": "agent-text:native:row-66",
+            "y": 627
+          }
+        ],
+        "mountedFirst": "user-text:native:row-53",
+        "mountedLast": "agent-text:native:row-72",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078701170,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078701402,
+        "top": 7469,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-71",
+        "visibleLast": "agent-text:native:row-78",
+        "visible": [
+          {
+            "id": "user-text:native:row-71",
+            "y": -92
+          },
+          {
+            "id": "agent-text:native:row-72",
+            "y": 20
+          },
+          {
+            "id": "user-text:native:row-73",
+            "y": 112
+          },
+          {
+            "id": "agent-text:native:row-74",
+            "y": 224
+          },
+          {
+            "id": "user-text:native:row-75",
+            "y": 316
+          },
+          {
+            "id": "agent-text:native:row-76",
+            "y": 428
+          },
+          {
+            "id": "user-text:native:row-77",
+            "y": 520
+          },
+          {
+            "id": "agent-text:native:row-78",
+            "y": 632
+          }
+        ],
+        "mountedFirst": "user-text:native:row-65",
+        "mountedLast": "agent-text:native:row-84",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078701403,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078701603,
+        "top": 9121,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-88",
+        "visibleLast": "user-text:native:row-93",
+        "visible": [
+          {
+            "id": "agent-text:native:row-88",
+            "y": 0
+          },
+          {
+            "id": "user-text:native:row-89",
+            "y": 92
+          },
+          {
+            "id": "agent-text:native:row-90",
+            "y": 204
+          },
+          {
+            "id": "user-text:native:row-91",
+            "y": 296
+          },
+          {
+            "id": "agent-text:native:row-92",
+            "y": 408
+          },
+          {
+            "id": "user-text:native:row-93",
+            "y": 556
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-82",
+        "mountedLast": "user-text:native:row-99",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078701605,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078701836,
+        "top": 11090,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-497",
+        "visibleLast": "user-text:native:row-503",
+        "visible": [
+          {
+            "id": "user-text:native:row-497",
+            "y": -77
+          },
+          {
+            "id": "agent-text:native:row-498",
+            "y": 35
+          },
+          {
+            "id": "user-text:native:row-499",
+            "y": 127
+          },
+          {
+            "id": "agent-text:native:row-500",
+            "y": 239
+          },
+          {
+            "id": "user-text:native:row-501",
+            "y": 331
+          },
+          {
+            "id": "agent-text:native:row-502",
+            "y": 443
+          },
+          {
+            "id": "user-text:native:row-503",
+            "y": 535
+          }
+        ],
+        "mountedFirst": "user-text:native:row-491",
+        "mountedLast": "user-text:native:row-509",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078701837,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078702068,
+        "top": 13008,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "user-text:native:row-515",
+        "visibleLast": "agent-text:native:row-522",
+        "visible": [
+          {
+            "id": "user-text:native:row-515",
+            "y": -103
+          },
+          {
+            "id": "agent-text:native:row-516",
+            "y": 9
+          },
+          {
+            "id": "user-text:native:row-517",
+            "y": 101
+          },
+          {
+            "id": "agent-text:native:row-518",
+            "y": 213
+          },
+          {
+            "id": "user-text:native:row-519",
+            "y": 305
+          },
+          {
+            "id": "agent-text:native:row-520",
+            "y": 417
+          },
+          {
+            "id": "user-text:native:row-521",
+            "y": 509
+          },
+          {
+            "id": "agent-text:native:row-522",
+            "y": 621
+          }
+        ],
+        "mountedFirst": "user-text:native:row-509",
+        "mountedLast": "agent-text:native:row-528",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078702069,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078702287,
+        "top": 13911,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-524",
+        "visibleLast": "agent-text:native:row-530",
+        "visible": [
+          {
+            "id": "agent-text:native:row-524",
+            "y": -78
+          },
+          {
+            "id": "user-text:native:row-525",
+            "y": 14
+          },
+          {
+            "id": "agent-text:native:row-526",
+            "y": 126
+          },
+          {
+            "id": "user-text:native:row-527",
+            "y": 218
+          },
+          {
+            "id": "agent-text:native:row-528",
+            "y": 330
+          },
+          {
+            "id": "user-text:native:row-529",
+            "y": 422
+          },
+          {
+            "id": "agent-text:native:row-530",
+            "y": 618
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-518",
+        "mountedLast": "agent-text:native:row-536",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078702288,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078702503,
+        "top": 15216,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-536",
+        "visibleLast": "user-text:native:row-543",
+        "visible": [
+          {
+            "id": "agent-text:native:row-536",
+            "y": -75
+          },
+          {
+            "id": "user-text:native:row-537",
+            "y": 17
+          },
+          {
+            "id": "agent-text:native:row-538",
+            "y": 129
+          },
+          {
+            "id": "user-text:native:row-539",
+            "y": 221
+          },
+          {
+            "id": "agent-text:native:row-540",
+            "y": 333
+          },
+          {
+            "id": "user-text:native:row-541",
+            "y": 425
+          },
+          {
+            "id": "agent-text:native:row-542",
+            "y": 537
+          },
+          {
+            "id": "user-text:native:row-543",
+            "y": 629
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-530",
+        "mountedLast": "user-text:native:row-549",
+        "loading": false,
+        "commit": 24
+      }
+    },
+    {
+      "start": 1794078702504,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078702737,
+        "top": 16627,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-550",
+        "visibleLast": "agent-text:native:row-556",
+        "visible": [
+          {
+            "id": "agent-text:native:row-550",
+            "y": -58
+          },
+          {
+            "id": "user-text:native:row-551",
+            "y": 34
+          },
+          {
+            "id": "agent-text:native:row-552",
+            "y": 146
+          },
+          {
+            "id": "user-text:native:row-553",
+            "y": 294
+          },
+          {
+            "id": "agent-text:native:row-554",
+            "y": 406
+          },
+          {
+            "id": "user-text:native:row-555",
+            "y": 498
+          },
+          {
+            "id": "agent-text:native:row-556",
+            "y": 610
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-544",
+        "mountedLast": "agent-text:native:row-560",
+        "loading": true,
+        "commit": 25
+      }
+    },
+    {
+      "start": 1794078702738,
+      "direction": "newer",
+      "frame": {
+        "at": 1794078702978,
+        "top": 17113,
+        "height": 17749,
+        "logical": 169,
+        "visibleFirst": "agent-text:native:row-554",
+        "visibleLast": "agent-text:native:row-560",
+        "visible": [
+          {
+            "id": "agent-text:native:row-554",
+            "y": -80
+          },
+          {
+            "id": "user-text:native:row-555",
+            "y": 12
+          },
+          {
+            "id": "agent-text:native:row-556",
+            "y": 124
+          },
+          {
+            "id": "user-text:native:row-557",
+            "y": 216
+          },
+          {
+            "id": "agent-text:native:row-558",
+            "y": 328
+          },
+          {
+            "id": "user-text:native:row-559",
+            "y": 420
+          },
+          {
+            "id": "agent-text:native:row-560",
+            "y": 532
+          }
+        ],
+        "mountedFirst": "agent-text:native:row-548",
+        "mountedLast": "agent-text:native:row-560",
+        "loading": true,
+        "commit": 28
+      }
+    }
+  ],
+  "final": {
+    "frame": {
+      "at": 1794078699768,
+      "top": 0,
+      "height": 17749,
+      "logical": 169,
+      "visibleFirst": "user-text:native:row-1",
+      "visibleLast": "user-text:native:row-7",
+      "visible": [
+        {
+          "id": "user-text:native:row-1",
+          "y": 13
+        },
+        {
+          "id": "agent-text:native:row-2",
+          "y": 125
+        },
+        {
+          "id": "user-text:native:row-3",
+          "y": 217
+        },
+        {
+          "id": "agent-text:native:row-4",
+          "y": 329
+        },
+        {
+          "id": "user-text:native:row-5",
+          "y": 421
+        },
+        {
+          "id": "agent-text:native:row-6",
+          "y": 533
+        },
+        {
+          "id": "user-text:native:row-7",
+          "y": 625
+        }
+      ],
+      "mountedFirst": "user-text:native:row-1",
+      "mountedLast": "user-text:native:row-13",
+      "loading": false,
+      "commit": 24
+    },
+    "commit": {
+      "at": 1794078696383,
+      "native": {
+        "first": "row-1",
+        "last": "row-300",
+        "count": 300,
+        "cursor": null,
+        "newerCursor": "new:10",
+        "loading": false,
+        "direction": "older"
+      },
+      "panel": {
+        "hasMore": false,
+        "hasNewer": true,
+        "historyVersion": 14
+      },
+      "virtual": {
+        "count": 169,
+        "first": {
+          "id": "user-text:native:row-1",
+          "current": true,
+          "resident": true,
+          "locator": "row-1"
+        },
+        "last": {
+          "id": "agent-text:native:row-560",
+          "current": false,
+          "resident": true,
+          "locator": "row-560"
+        }
+      }
+    }
+  },
+  "retained": {
+    "count": 169,
+    "missing": []
+  },
+  "reverseFinal": {
+    "frame": {
+      "at": 1794078703961,
+      "top": 17113,
+      "height": 17749,
+      "logical": 169,
+      "visibleFirst": "agent-text:native:row-554",
+      "visibleLast": "agent-text:native:row-560",
+      "visible": [
+        {
+          "id": "agent-text:native:row-554",
+          "y": -80
+        },
+        {
+          "id": "user-text:native:row-555",
+          "y": 12
+        },
+        {
+          "id": "agent-text:native:row-556",
+          "y": 124
+        },
+        {
+          "id": "user-text:native:row-557",
+          "y": 216
+        },
+        {
+          "id": "agent-text:native:row-558",
+          "y": 328
+        },
+        {
+          "id": "user-text:native:row-559",
+          "y": 420
+        },
+        {
+          "id": "agent-text:native:row-560",
+          "y": 532
+        }
+      ],
+      "mountedFirst": "agent-text:native:row-548",
+      "mountedLast": "agent-text:native:row-560",
+      "loading": false,
+      "commit": 29
+    },
+    "commit": {
+      "at": 1794078703557,
+      "native": {
+        "first": "row-511",
+        "last": "row-560",
+        "count": 50,
+        "cursor": "old:511",
+        "newerCursor": "new:560",
+        "loading": false,
+        "direction": "newer"
+      },
+      "panel": {
+        "hasMore": true,
+        "hasNewer": false,
+        "historyVersion": 16
+      },
+      "virtual": {
+        "count": 169,
+        "first": {
+          "id": "user-text:native:row-1",
+          "current": false,
+          "resident": true,
+          "locator": "row-1"
+        },
+        "last": {
+          "id": "agent-text:native:row-560",
+          "current": true,
+          "resident": true,
+          "locator": "row-560"
+        }
+      }
+    }
+  },
+  "reverseRetained": {
+    "count": 169,
+    "missing": []
+  },
+  "summary": {
+    "longestPins": [
+      {
+        "first": "user-text:native:row-1",
+        "start": 1794078696788,
+        "end": 1794078699854,
+        "pulses": 0,
+        "frameCount": 185,
+        "firstCommit": 24,
+        "lastCommit": 24,
+        "ms": 3066
+      },
+      {
+        "first": "user-text:native:row-491",
+        "start": 1794078693288,
+        "end": 1794078694521,
+        "pulses": 4,
+        "frameCount": 73,
+        "firstCommit": 10,
+        "lastCommit": 18,
+        "ms": 1233
+      }
+    ],
+    "cursorSequence": [
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:511",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:461",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:411",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:361",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:311",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:261",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:211",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:510",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:460",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:161",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:410",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:111",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:360",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:61",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:11",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:310",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:10",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:60",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:110",
+        200,
+        null,
+        false
+      ],
+      [
+        "outline-context",
+        "row-560",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:160",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:511",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:560",
+        200,
+        null,
+        false
+      ]
+    ],
+    "repeated": [
+      [
+        "items:latest",
+        4
+      ],
+      [
+        "items:old:511",
+        2
+      ]
+    ],
+    "loadingPulses": 7,
+    "maxSourceItems": 300,
+    "hasMoreFalse": true,
+    "sourceRewinds": [
+      {
+        "before": {
+          "at": 1794078702574,
+          "native": {
+            "first": "row-1",
+            "last": "row-300",
+            "count": 300,
+            "cursor": null,
+            "newerCursor": "new:10",
+            "loading": true,
+            "direction": "older"
+          },
+          "panel": {
+            "hasMore": false,
+            "hasNewer": true,
+            "historyVersion": 14
+          },
+          "virtual": {
+            "count": 169,
+            "first": {
+              "id": "user-text:native:row-1",
+              "current": true,
+              "resident": true,
+              "locator": "row-1"
+            },
+            "last": {
+              "id": "agent-text:native:row-560",
+              "current": false,
+              "resident": true,
+              "locator": "row-560"
+            }
+          }
+        },
+        "after": {
+          "at": 1794078702920,
+          "native": {
+            "first": "row-511",
+            "last": "row-560",
+            "count": 50,
+            "cursor": "old:511",
+            "newerCursor": "new:560",
+            "loading": false
+          },
+          "panel": {
+            "hasMore": true,
+            "hasNewer": false,
+            "historyVersion": 15
+          },
+          "virtual": {
+            "count": 169,
+            "first": {
+              "id": "user-text:native:row-1",
+              "current": true,
+              "resident": true,
+              "locator": "row-1"
+            },
+            "last": {
+              "id": "agent-text:native:row-560",
+              "current": false,
+              "resident": true,
+              "locator": "row-560"
+            }
+          }
+        }
+      }
+    ],
+    "timelineShrinks": [],
+    "prependAnchors": [
+      {
+        "at": 1794078692121,
+        "before": 50,
+        "after": 70,
+        "topBefore": 1220,
+        "topAfter": 4748,
+        "id": "user-text:native:row-523",
+        "yBefore": 17,
+        "yAfter": 89,
+        "drift": 72,
+        "precedingMotion": 74
+      },
+      {
+        "at": 1794078694588,
+        "before": 70,
+        "after": 109,
+        "topBefore": 0,
+        "topAfter": 6484,
+        "id": "user-text:native:row-491",
+        "yBefore": 13,
+        "yAfter": 13,
+        "drift": 0,
+        "precedingMotion": 0
+      },
+      {
+        "at": 1794078695374,
+        "before": 109,
+        "after": 159,
+        "topBefore": 1073,
+        "topAfter": 9880,
+        "id": "agent-text:native:row-70",
+        "yBefore": 176,
+        "yAfter": 301,
+        "drift": 125,
+        "precedingMotion": 238
+      },
+      {
+        "at": 1794078696391,
+        "before": 159,
+        "after": 169,
+        "topBefore": 1070,
+        "topAfter": 2664,
+        "id": "agent-text:native:row-20",
+        "yBefore": 95,
+        "yAfter": 233,
+        "drift": 138,
+        "precedingMotion": 143
+      }
+    ]
+  },
+  "checks": {
+    "exhausted": true,
+    "reverse": true,
+    "noRewind": false,
+    "continuity": true,
+    "loop": false
+  },
+  "serverRequests": [
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 511,
+      "last": 560,
+      "nextCursor": "old:511",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794078690369,
+      "end": 1794078690369
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 511,
+      "last": 560,
+      "nextCursor": "old:511",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794078690398,
+      "end": 1794078690398
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 511,
+      "last": 560,
+      "nextCursor": "old:511",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794078690447,
+      "end": 1794078690447
+    },
+    {
+      "route": "items",
+      "cursor": "old:511",
+      "direction": "desc",
+      "first": 461,
+      "last": 510,
+      "nextCursor": "old:461",
+      "backwardsCursor": "new:510",
+      "hasMore": true,
+      "start": 1794078690452,
+      "end": 1794078690792
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 511,
+      "last": 560,
+      "nextCursor": "old:511",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794078691179,
+      "end": 1794078691179
+    },
+    {
+      "route": "items",
+      "cursor": "old:461",
+      "direction": "desc",
+      "first": 411,
+      "last": 460,
+      "nextCursor": "old:411",
+      "backwardsCursor": "new:460",
+      "hasMore": true,
+      "start": 1794078691691,
+      "end": 1794078692031
+    },
+    {
+      "route": "items",
+      "cursor": "old:411",
+      "direction": "desc",
+      "first": 361,
+      "last": 410,
+      "nextCursor": "old:361",
+      "backwardsCursor": "new:410",
+      "hasMore": true,
+      "start": 1794078692039,
+      "end": 1794078692379
+    },
+    {
+      "route": "items",
+      "cursor": "old:361",
+      "direction": "desc",
+      "first": 311,
+      "last": 360,
+      "nextCursor": "old:311",
+      "backwardsCursor": "new:360",
+      "hasMore": true,
+      "start": 1794078692386,
+      "end": 1794078692727
+    },
+    {
+      "route": "items",
+      "cursor": "old:311",
+      "direction": "desc",
+      "first": 261,
+      "last": 310,
+      "nextCursor": "old:261",
+      "backwardsCursor": "new:310",
+      "hasMore": true,
+      "start": 1794078692733,
+      "end": 1794078693074
+    },
+    {
+      "route": "items",
+      "cursor": "old:261",
+      "direction": "desc",
+      "first": 211,
+      "last": 260,
+      "nextCursor": "old:211",
+      "backwardsCursor": "new:260",
+      "hasMore": true,
+      "start": 1794078693083,
+      "end": 1794078693423
+    },
+    {
+      "route": "items",
+      "cursor": "old:211",
+      "direction": "desc",
+      "first": 161,
+      "last": 210,
+      "nextCursor": "old:161",
+      "backwardsCursor": "new:210",
+      "hasMore": true,
+      "start": 1794078693443,
+      "end": 1794078693783
+    },
+    {
+      "route": "items",
+      "cursor": "new:510",
+      "direction": "asc",
+      "first": 511,
+      "last": 560,
+      "nextCursor": null,
+      "backwardsCursor": "old:511",
+      "hasMore": false,
+      "start": 1794078693445,
+      "end": 1794078693785
+    },
+    {
+      "route": "items",
+      "cursor": "new:460",
+      "direction": "asc",
+      "first": 461,
+      "last": 510,
+      "nextCursor": "new:510",
+      "backwardsCursor": "old:461",
+      "hasMore": true,
+      "start": 1794078693792,
+      "end": 1794078694132
+    },
+    {
+      "route": "items",
+      "cursor": "old:161",
+      "direction": "desc",
+      "first": 111,
+      "last": 160,
+      "nextCursor": "old:111",
+      "backwardsCursor": "new:160",
+      "hasMore": true,
+      "start": 1794078693793,
+      "end": 1794078694133
+    },
+    {
+      "route": "items",
+      "cursor": "old:111",
+      "direction": "desc",
+      "first": 61,
+      "last": 110,
+      "nextCursor": "old:61",
+      "backwardsCursor": "new:110",
+      "hasMore": true,
+      "start": 1794078694143,
+      "end": 1794078694483
+    },
+    {
+      "route": "items",
+      "cursor": "new:410",
+      "direction": "asc",
+      "first": 411,
+      "last": 460,
+      "nextCursor": "new:460",
+      "backwardsCursor": "old:411",
+      "hasMore": true,
+      "start": 1794078694143,
+      "end": 1794078694483
+    },
+    {
+      "route": "items",
+      "cursor": "new:360",
+      "direction": "asc",
+      "first": 361,
+      "last": 410,
+      "nextCursor": "new:410",
+      "backwardsCursor": "old:361",
+      "hasMore": true,
+      "start": 1794078694526,
+      "end": 1794078694866
+    },
+    {
+      "route": "items",
+      "cursor": "old:61",
+      "direction": "desc",
+      "first": 11,
+      "last": 60,
+      "nextCursor": "old:11",
+      "backwardsCursor": "new:60",
+      "hasMore": true,
+      "start": 1794078694528,
+      "end": 1794078694868
+    },
+    {
+      "route": "items",
+      "cursor": "old:11",
+      "direction": "desc",
+      "first": 1,
+      "last": 10,
+      "nextCursor": null,
+      "backwardsCursor": "new:10",
+      "hasMore": false,
+      "start": 1794078695073,
+      "end": 1794078695413
+    },
+    {
+      "route": "items",
+      "cursor": "new:310",
+      "direction": "asc",
+      "first": 311,
+      "last": 360,
+      "nextCursor": "new:360",
+      "backwardsCursor": "old:311",
+      "hasMore": true,
+      "start": 1794078695325,
+      "end": 1794078695666
+    },
+    {
+      "route": "items",
+      "cursor": "new:10",
+      "direction": "asc",
+      "first": 11,
+      "last": 60,
+      "nextCursor": "new:60",
+      "backwardsCursor": "old:11",
+      "hasMore": true,
+      "start": 1794078696342,
+      "end": 1794078696682
+    },
+    {
+      "route": "items",
+      "cursor": "new:60",
+      "direction": "asc",
+      "first": 61,
+      "last": 110,
+      "nextCursor": "new:110",
+      "backwardsCursor": "old:61",
+      "hasMore": true,
+      "start": 1794078702140,
+      "end": 1794078702481
+    },
+    {
+      "route": "items",
+      "cursor": "new:110",
+      "direction": "asc",
+      "first": 111,
+      "last": 160,
+      "nextCursor": "new:160",
+      "backwardsCursor": "old:111",
+      "hasMore": true,
+      "start": 1794078702500,
+      "end": 1794078702840
+    },
+    {
+      "route": "context",
+      "itemId": "row-560",
+      "first": 511,
+      "last": 560,
+      "nextCursor": "old:511",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794078702559,
+      "end": 1794078702899
+    },
+    {
+      "route": "items",
+      "cursor": "new:160",
+      "direction": "asc",
+      "first": 161,
+      "last": 210,
+      "nextCursor": "new:210",
+      "backwardsCursor": "old:161",
+      "hasMore": true,
+      "start": 1794078702851,
+      "end": 1794078703192
+    },
+    {
+      "route": "items",
+      "cursor": "old:511",
+      "direction": "desc",
+      "first": 461,
+      "last": 510,
+      "nextCursor": "old:461",
+      "backwardsCursor": "new:510",
+      "hasMore": true,
+      "start": 1794078702923,
+      "end": 1794078703264
+    },
+    {
+      "route": "items",
+      "cursor": "new:560",
+      "direction": "asc",
+      "first": 561,
+      "last": 560,
+      "nextCursor": null,
+      "backwardsCursor": "old:561",
+      "hasMore": false,
+      "start": 1794078703199,
+      "end": 1794078703539
+    }
+  ]
+}

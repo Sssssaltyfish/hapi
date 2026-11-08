@@ -1,0 +1,703 @@
+{
+  "recordedAt": "2026-11-07T18:29:42.505Z",
+  "variant": "tools-only",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "dist": "/home/igna/hapi-deployment/source/web/dist",
+  "expectedBundle": "/assets/index-DIlTXYBC.js",
+  "requests": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "name": "large-running-group-open",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "checks": {
+    "formalBuildLoaded": true,
+    "latestRunningGroupStartsCollapsed": true,
+    "openedRealLargeGroup": true,
+    "expandedTimingKeepsTicking": true
+  },
+  "bundle": [
+    "/assets/index-DIlTXYBC.js"
+  ],
+  "fontResponses": [],
+  "cpuThrottle": 4,
+  "cssAblation": null,
+  "afterOpenText": "Run git diff --stat\nStarted\n2:29:33 AM\nDuration\n15.5s\nRun 23\n1 agent update\n1 running",
+  "domDiagnostics": {
+    "clickAt": 3541.4000000953674,
+    "openAt": 4359.100000023842,
+    "stats": {
+      "getBoundingClientRect:thread-viewport": {
+        "count": 45,
+        "duration": 0.7999999523162842,
+        "max": 0.6999999284744263
+      },
+      "scrollTop.get:thread-viewport": {
+        "count": 92,
+        "duration": 0.2999999523162842,
+        "max": 0.10000002384185791
+      },
+      "scrollHeight.get:thread-viewport": {
+        "count": 67,
+        "duration": 700.3000001907349,
+        "max": 685.5
+      },
+      "getBoundingClientRect:virtual-row": {
+        "count": 26,
+        "duration": 19.40000009536743,
+        "max": 6.799999952316284
+      },
+      "scrollTo:thread-viewport": {
+        "count": 5,
+        "duration": 0.7999999523162842,
+        "max": 0.7000000476837158
+      },
+      "ResizeObserver:virtual-row": {
+        "count": 5,
+        "duration": 73.70000004768372,
+        "max": 53.799999952316284
+      },
+      "ResizeObserver:div": {
+        "count": 10,
+        "duration": 2.6999999284744263,
+        "max": 1
+      },
+      "getBoundingClientRect:thread-content": {
+        "count": 58,
+        "duration": 0.7000000476837158,
+        "max": 0.3999999761581421
+      },
+      "ResizeObserver:thread-content": {
+        "count": 5,
+        "duration": 0.40000009536743164,
+        "max": 0.10000002384185791
+      },
+      "getBoundingClientRect:div": {
+        "count": 3,
+        "duration": 0,
+        "max": 0
+      },
+      "ResizeObserver:thread-viewport": {
+        "count": 6,
+        "duration": 0.10000002384185791,
+        "max": 0.10000002384185791
+      },
+      "getBoundingClientRect:tool-group": {
+        "count": 86,
+        "duration": 3.5999999046325684,
+        "max": 1.0999999046325684
+      }
+    },
+    "expensive": [
+      {
+        "type": "scrollHeight.get",
+        "target": "thread-viewport",
+        "start": 3632,
+        "duration": 685.5,
+        "stack": [
+          "    at HTMLDivElement.get [as scrollHeight] (<anonymous>:54:11)",
+          "    at Object.current (http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js:48:35869)",
+          "    at http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js:7:110816",
+          "    at MutationObserver.<anonymous> (http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js:48:34333)"
+        ]
+      },
+      {
+        "type": "ResizeObserver",
+        "target": "virtual-row",
+        "start": 4441.900000095367,
+        "duration": 53.799999952316284,
+        "stack": [
+          "    at window.ResizeObserver.<anonymous> (<anonymous>:82:11)"
+        ]
+      }
+    ],
+    "reasoningShapes": [
+      {
+        "at": 4319.400000095367,
+        "inline": 0,
+        "disclosure": 0,
+        "panelOpen": false
+      },
+      {
+        "at": 4360,
+        "inline": 0,
+        "disclosure": 0,
+        "panelOpen": true
+      }
+    ]
+  },
+  "chromeLayoutTrace": {
+    "clickTimestamp": 806673511778,
+    "panelOpenTimestamp": 806674329441,
+    "endTimestamp": 806677204853,
+    "totals": {
+      "EventDispatch": {
+        "count": 30,
+        "durationMs": 44.47499999999999,
+        "maxMs": 17.547
+      },
+      "FunctionCall": {
+        "count": 380,
+        "durationMs": 1112.2839999999987,
+        "maxMs": 686.38
+      },
+      "UpdateLayoutTree": {
+        "count": 179,
+        "durationMs": 176.08899999999994,
+        "maxMs": 9.067
+      },
+      "Layout": {
+        "count": 15,
+        "durationMs": 691.3900000000001,
+        "maxMs": 675.912
+      },
+      "FireAnimationFrame": {
+        "count": 177,
+        "durationMs": 70.04800000000002,
+        "maxMs": 2.758
+      },
+      "TimerFire": {
+        "count": 17,
+        "durationMs": 15.044999999999998,
+        "maxMs": 10.015
+      }
+    },
+    "phases": {
+      "beforeOpen": {
+        "count": 2,
+        "totalMs": 677.3290000000001,
+        "maxMs": 675.912
+      },
+      "first500MsAfterOpen": {
+        "count": 11,
+        "totalMs": 11.003,
+        "maxMs": 2.147
+      }
+    },
+    "firstLargeLayout": {
+      "relativeMs": 99.145,
+      "durationMs": 675.912,
+      "data": {
+        "dirtyObjects": 502,
+        "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+        "partialLayout": false,
+        "sampleTraceId": 121326975609884,
+        "stackTrace": [
+          {
+            "columnNumber": 70,
+            "functionName": "get",
+            "lineNumber": 53,
+            "scriptId": "5",
+            "url": ""
+          },
+          {
+            "columnNumber": 35869,
+            "functionName": "",
+            "lineNumber": 48,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+          },
+          {
+            "columnNumber": 110816,
+            "functionName": "",
+            "lineNumber": 7,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+          },
+          {
+            "columnNumber": 34333,
+            "functionName": "",
+            "lineNumber": 48,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+          }
+        ],
+        "totalObjects": 690
+      }
+    },
+    "longest": [
+      {
+        "name": "FunctionCall",
+        "relativeMs": 90.508,
+        "durationMs": 686.38,
+        "data": {
+          "columnNumber": 34317,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 48,
+          "sampleTraceId": 121326975609858,
+          "scriptId": "9",
+          "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+        }
+      },
+      {
+        "name": "Layout",
+        "relativeMs": 99.145,
+        "durationMs": 675.912,
+        "data": {
+          "dirtyObjects": 502,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "partialLayout": false,
+          "sampleTraceId": 121326975609884,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ],
+          "totalObjects": 690
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1061.361,
+        "durationMs": 100.885,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975609246,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 900.391,
+        "durationMs": 53.905,
+        "data": {
+          "columnNumber": 15,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 77,
+          "sampleTraceId": 121326975610528,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 998.361,
+        "durationMs": 44.393,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610450,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "EventDispatch",
+        "relativeMs": -0.683,
+        "durationMs": 17.547,
+        "data": {
+          "sampleTraceId": 121326975609999,
+          "type": "click"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1.452,
+        "durationMs": 15.318,
+        "data": {
+          "columnNumber": 125715,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 9,
+          "sampleTraceId": 121326975609991,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 798.231,
+        "durationMs": 10.069,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610850,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "TimerFire",
+        "relativeMs": 1175.393,
+        "durationMs": 10.015,
+        "data": {
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "timerId": 120
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1175.412,
+        "durationMs": 9.982,
+        "data": {
+          "columnNumber": 40506,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "Ct",
+          "isolate": "12626392768975273724",
+          "lineNumber": 995,
+          "sampleTraceId": 121326975609332,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 808.322,
+        "durationMs": 9.243,
+        "data": {
+          "columnNumber": 34317,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 48,
+          "sampleTraceId": 121326975610878,
+          "scriptId": "9",
+          "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+        }
+      },
+      {
+        "name": "EventDispatch",
+        "relativeMs": 887.516,
+        "durationMs": 9.101,
+        "data": {
+          "sampleTraceId": 121326975610524,
+          "type": "scroll"
+        }
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "relativeMs": 808.368,
+        "durationMs": 9.067,
+        "data": {
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "sampleTraceId": 121326975610879,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ]
+        }
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "relativeMs": 90.543,
+        "durationMs": 8.589,
+        "data": {
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "sampleTraceId": 121326975609859,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44526/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ]
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 44.59,
+        "durationMs": 7.622,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610094,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 83.06,
+        "durationMs": 7.43,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975609861,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 829.325,
+        "durationMs": 7.075,
+        "data": {
+          "columnNumber": 15,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 77,
+          "sampleTraceId": 121326975610648,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "EventDispatch",
+        "relativeMs": 986.253,
+        "durationMs": 6.589,
+        "data": {
+          "sampleTraceId": 121326975610404,
+          "type": "scroll"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 31.476,
+        "durationMs": 5.984,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610077,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 65.683,
+        "durationMs": 5.668,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610107,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 74.778,
+        "durationMs": 5.592,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975609864,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 59.14,
+        "durationMs": 5.584,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975610111,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 854.77,
+        "durationMs": 5.192,
+        "data": {
+          "columnNumber": 15,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "",
+          "isolate": "12626392768975273724",
+          "lineNumber": 77,
+          "sampleTraceId": 121326975610679,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1201.844,
+        "durationMs": 4.394,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "A44B7B33B5D6F0C713BA2660F99C6FE6",
+          "functionName": "B",
+          "isolate": "12626392768975273724",
+          "lineNumber": 2,
+          "sampleTraceId": 121326975609113,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44526/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "EventDispatch",
+        "relativeMs": 964.012,
+        "durationMs": 4.347,
+        "data": {
+          "sampleTraceId": 121326975610601,
+          "type": "scroll"
+        }
+      }
+    ]
+  },
+  "platformFonts": [],
+  "computedReasoningFont": "ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+  "afterTicksText": "Run git diff --stat\nStarted\n2:29:33 AM\nDuration\n18.5s\nRun 23\n1 agent update\n1 running",
+  "dom": {
+    "reasoning": 0,
+    "tools": 23
+  },
+  "metrics": {
+    "click": {
+      "LayoutCount": 13,
+      "RecalcStyleCount": 50,
+      "LayoutDuration": 0.6893739999999999,
+      "RecalcStyleDuration": 0.058677,
+      "ScriptDuration": 0.35561,
+      "TaskDuration": 1.308139
+    },
+    "steadyExpanded": {
+      "LayoutCount": 2,
+      "RecalcStyleCount": 136,
+      "LayoutDuration": 0.003090000000000037,
+      "RecalcStyleDuration": 0.116756,
+      "ScriptDuration": 0.04545500000000002,
+      "TaskDuration": 0.47543900000000017
+    }
+  },
+  "trace": {
+    "clickAt": 3541.4000000953674,
+    "openSampleEnd": 4966.900000095367,
+    "open": {
+      "maxFrameGapMs": 683.3999999999996,
+      "frames": 34,
+      "longTaskCount": 3,
+      "longestTaskMs": 695
+    },
+    "ticks": {
+      "maxFrameGapMs": 16.800000000000182,
+      "frames": 155,
+      "longTaskCount": 0,
+      "longestTaskMs": 0
+    },
+    "longtasks": [
+      {
+        "start": 3624.5,
+        "duration": 695
+      },
+      {
+        "start": 4428.900000095367,
+        "duration": 74
+      },
+      {
+        "start": 4602.800000071526,
+        "duration": 101
+      }
+    ]
+  },
+  "passed": true
+}

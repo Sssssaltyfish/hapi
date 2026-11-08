@@ -1,0 +1,5 @@
+[
+  ["test-web", ["bun", "run", "test:web", "src/codex-native/useNativeThread.test.ts", "src/components/AssistantChat/HappyThread.mobile-scroll.test.tsx", "src/components/AssistantChat/HappyThread.test.ts", "src/components/AssistantChat/VirtualThreadMessages.test.tsx", "src/lib/history-page-cache.test.ts", "src/lib/stable-chat-timeline.test.ts"]],
+  ["types-web", ["bun", "run", "typecheck:web"]],
+  ["build-web", ["bun", "run", "build:web"]]
+]

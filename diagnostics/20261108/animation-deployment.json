@@ -1,0 +1,9 @@
+{
+  "revision": "6a5341eef0130c1041bc8c3454cd336ce1611902",
+  "previous": "0ca395f171b9ca947dae19a4b8de10dfab7bbeba",
+  "backup": "/home/igna/hapi-deployment/backups/card-animation-1794081042",
+  "asset": "/assets/index-2yIGIb0j.js",
+  "files": 14,
+  "health": 200,
+  "restartedServices": []
+}

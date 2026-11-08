@@ -1,0 +1,695 @@
+{
+  "recordedAt": "2026-11-07T18:31:30.237Z",
+  "variant": "tiny-tools",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "dist": "/home/igna/hapi-deployment/source/web/dist",
+  "expectedBundle": "/assets/index-DIlTXYBC.js",
+  "requests": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "name": "large-running-group-open",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "checks": {
+    "formalBuildLoaded": true,
+    "latestRunningGroupStartsCollapsed": true,
+    "openedExpectedGroup": true,
+    "expandedTimingKeepsTicking": true
+  },
+  "bundle": [
+    "/assets/index-DIlTXYBC.js"
+  ],
+  "fontResponses": [],
+  "cpuThrottle": 4,
+  "cssAblation": null,
+  "afterOpenText": "Run git diff --stat\nStarted\n2:31:21 AM\nDuration\n15.4s\nRun 2\n1 agent update\n1 running",
+  "domDiagnostics": {
+    "clickAt": 3622.5,
+    "openAt": 4517.100000023842,
+    "stats": {
+      "getBoundingClientRect:thread-viewport": {
+        "count": 13,
+        "duration": 0.3999999761581421,
+        "max": 0.20000004768371582
+      },
+      "scrollTop.get:thread-viewport": {
+        "count": 40,
+        "duration": 0.5000001192092896,
+        "max": 0.30000007152557373
+      },
+      "scrollHeight.get:thread-viewport": {
+        "count": 55,
+        "duration": 780.1000000238419,
+        "max": 766.3999999761581
+      },
+      "getBoundingClientRect:virtual-row": {
+        "count": 20,
+        "duration": 5.400000095367432,
+        "max": 5.300000071525574
+      },
+      "scrollTo:thread-viewport": {
+        "count": 9,
+        "duration": 0.40000009536743164,
+        "max": 0.10000002384185791
+      },
+      "ResizeObserver:virtual-row": {
+        "count": 9,
+        "duration": 34.200000047683716,
+        "max": 6.100000023841858
+      },
+      "ResizeObserver:div": {
+        "count": 18,
+        "duration": 3.5999999046325684,
+        "max": 0.7000000476837158
+      },
+      "getBoundingClientRect:thread-content": {
+        "count": 18,
+        "duration": 0.7000000476837158,
+        "max": 0.5
+      },
+      "ResizeObserver:thread-content": {
+        "count": 9,
+        "duration": 4.300000071525574,
+        "max": 1
+      },
+      "getBoundingClientRect:div": {
+        "count": 2,
+        "duration": 0,
+        "max": 0
+      }
+    },
+    "expensive": [
+      {
+        "type": "scrollHeight.get",
+        "target": "thread-viewport",
+        "start": 3713.2000000476837,
+        "duration": 766.3999999761581,
+        "stack": [
+          "    at HTMLDivElement.get [as scrollHeight] (<anonymous>:54:11)",
+          "    at Object.current (http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js:48:35869)",
+          "    at http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js:7:110816",
+          "    at MutationObserver.<anonymous> (http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js:48:34333)"
+        ]
+      }
+    ],
+    "reasoningShapes": [
+      {
+        "at": 4481.700000047684,
+        "inline": 0,
+        "disclosure": 0,
+        "panelOpen": false
+      },
+      {
+        "at": 4517.100000023842,
+        "inline": 0,
+        "disclosure": 0,
+        "panelOpen": true
+      }
+    ]
+  },
+  "chromeLayoutTrace": {
+    "clickTimestamp": 806781181481,
+    "panelOpenTimestamp": 806782075933,
+    "endTimestamp": 806784952770,
+    "totals": {
+      "EventDispatch": {
+        "count": 24,
+        "durationMs": 23.169999999999995,
+        "maxMs": 17.508
+      },
+      "FunctionCall": {
+        "count": 368,
+        "durationMs": 976.9750000000004,
+        "maxMs": 767.317
+      },
+      "UpdateLayoutTree": {
+        "count": 184,
+        "durationMs": 158.09799999999996,
+        "maxMs": 5.695
+      },
+      "Layout": {
+        "count": 14,
+        "durationMs": 774.6379999999998,
+        "maxMs": 759.449
+      },
+      "FireAnimationFrame": {
+        "count": 192,
+        "durationMs": 87.15499999999997,
+        "maxMs": 2.678
+      },
+      "TimerFire": {
+        "count": 14,
+        "durationMs": 1.5230000000000001,
+        "maxMs": 0.748
+      }
+    },
+    "phases": {
+      "beforeOpen": {
+        "count": 3,
+        "totalMs": 762.4229999999999,
+        "maxMs": 759.449
+      },
+      "first500MsAfterOpen": {
+        "count": 9,
+        "totalMs": 7.717,
+        "maxMs": 1.235
+      }
+    },
+    "firstLargeLayout": {
+      "relativeMs": 96.755,
+      "durationMs": 759.449,
+      "data": {
+        "dirtyObjects": 82,
+        "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+        "partialLayout": false,
+        "sampleTraceId": 1804396545671923,
+        "stackTrace": [
+          {
+            "columnNumber": 70,
+            "functionName": "get",
+            "lineNumber": 53,
+            "scriptId": "5",
+            "url": ""
+          },
+          {
+            "columnNumber": 35869,
+            "functionName": "",
+            "lineNumber": 48,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+          },
+          {
+            "columnNumber": 110816,
+            "functionName": "",
+            "lineNumber": 7,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+          },
+          {
+            "columnNumber": 34333,
+            "functionName": "",
+            "lineNumber": 48,
+            "scriptId": "9",
+            "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+          }
+        ],
+        "totalObjects": 270
+      }
+    },
+    "longest": [
+      {
+        "name": "FunctionCall",
+        "relativeMs": 90.621,
+        "durationMs": 767.317,
+        "data": {
+          "columnNumber": 34317,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 48,
+          "sampleTraceId": 1804396545671927,
+          "scriptId": "9",
+          "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+        }
+      },
+      {
+        "name": "Layout",
+        "relativeMs": 96.755,
+        "durationMs": 759.449,
+        "data": {
+          "dirtyObjects": 82,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "partialLayout": false,
+          "sampleTraceId": 1804396545671923,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ],
+          "totalObjects": 270
+        }
+      },
+      {
+        "name": "EventDispatch",
+        "relativeMs": -0.553,
+        "durationMs": 17.508,
+        "data": {
+          "sampleTraceId": 1804396545671778,
+          "type": "click"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1.321,
+        "durationMs": 15.485,
+        "data": {
+          "columnNumber": 125715,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 9,
+          "sampleTraceId": 1804396545671802,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 879.162,
+        "durationMs": 8.218,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671650,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 887.398,
+        "durationMs": 6.987,
+        "data": {
+          "columnNumber": 34317,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 48,
+          "sampleTraceId": 1804396545671678,
+          "scriptId": "9",
+          "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 904.011,
+        "durationMs": 6.19,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671574,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "relativeMs": 90.666,
+        "durationMs": 5.695,
+        "data": {
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "sampleTraceId": 1804396545671926,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ]
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 36.56,
+        "durationMs": 5.534,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671732,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 68.847,
+        "durationMs": 5.327,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671917,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 74.469,
+        "durationMs": 5.271,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671913,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 57.543,
+        "durationMs": 5.236,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671902,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 45.9,
+        "durationMs": 5.09,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671885,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "UpdateLayoutTree",
+        "relativeMs": 887.43,
+        "durationMs": 4.989,
+        "data": {
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "sampleTraceId": 1804396545671677,
+          "stackTrace": [
+            {
+              "columnNumber": 70,
+              "functionName": "get",
+              "lineNumber": 53,
+              "scriptId": "5",
+              "url": ""
+            },
+            {
+              "columnNumber": 35869,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 110816,
+              "functionName": "",
+              "lineNumber": 7,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            },
+            {
+              "columnNumber": 34333,
+              "functionName": "",
+              "lineNumber": 48,
+              "scriptId": "9",
+              "url": "http://127.0.0.1:44512/assets/vendor-assistant-Ds9PM0Mr.js"
+            }
+          ]
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 921.18,
+        "durationMs": 4.501,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671608,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1017.678,
+        "durationMs": 4.161,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671301,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 939.323,
+        "durationMs": 4.083,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671251,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 86.788,
+        "durationMs": 3.809,
+        "data": {
+          "columnNumber": 2756,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "B",
+          "isolate": "8061856152705809177",
+          "lineNumber": 2,
+          "sampleTraceId": 1804396545671930,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1002.305,
+        "durationMs": 3.494,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671399,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 954.301,
+        "durationMs": 3.359,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671280,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 1033.424,
+        "durationMs": 3.005,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671329,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 983.198,
+        "durationMs": 2.819,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671368,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 968.522,
+        "durationMs": 2.729,
+        "data": {
+          "columnNumber": 15,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "",
+          "isolate": "8061856152705809177",
+          "lineNumber": 77,
+          "sampleTraceId": 1804396545671210,
+          "scriptId": "5",
+          "url": ""
+        }
+      },
+      {
+        "name": "FireAnimationFrame",
+        "relativeMs": 997.988,
+        "durationMs": 2.678,
+        "data": {
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "id": 56,
+          "sampleTraceId": 1804396545671403
+        }
+      },
+      {
+        "name": "FunctionCall",
+        "relativeMs": 997.993,
+        "durationMs": 2.669,
+        "data": {
+          "columnNumber": 31097,
+          "frame": "1106117F9052AA381F7F2C3C944C8EB4",
+          "functionName": "S",
+          "isolate": "8061856152705809177",
+          "lineNumber": 396,
+          "sampleTraceId": 1804396545671402,
+          "scriptId": "8",
+          "url": "http://127.0.0.1:44512/assets/index-DIlTXYBC.js"
+        }
+      }
+    ]
+  },
+  "platformFonts": [],
+  "computedReasoningFont": "ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\"",
+  "afterTicksText": "Run git diff --stat\nStarted\n2:31:21 AM\nDuration\n18.4s\nRun 2\n1 agent update\n1 running",
+  "dom": {
+    "reasoning": 0,
+    "tools": 2
+  },
+  "metrics": {
+    "click": {
+      "LayoutCount": 12,
+      "RecalcStyleCount": 57,
+      "LayoutDuration": 0.771006,
+      "RecalcStyleDuration": 0.055631,
+      "ScriptDuration": 0.148868,
+      "TaskDuration": 1.166625
+    },
+    "steadyExpanded": {
+      "LayoutCount": 2,
+      "RecalcStyleCount": 136,
+      "LayoutDuration": 0.0045319999999999805,
+      "RecalcStyleDuration": 0.10575499999999999,
+      "ScriptDuration": 0.043268,
+      "TaskDuration": 0.43063000000000007
+    }
+  },
+  "trace": {
+    "clickAt": 3622,
+    "openSampleEnd": 5128.600000023842,
+    "open": {
+      "maxFrameGapMs": 766.6999999999998,
+      "frames": 45,
+      "longTaskCount": 1,
+      "longestTaskMs": 772
+    },
+    "ticks": {
+      "maxFrameGapMs": 16.800000000000182,
+      "frames": 152,
+      "longTaskCount": 0,
+      "longestTaskMs": 0
+    },
+    "longtasks": [
+      {
+        "start": 3709.399999976158,
+        "duration": 772
+      }
+    ]
+  },
+  "passed": true
+}

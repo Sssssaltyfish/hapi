@@ -1,0 +1,1711 @@
+{
+  "recordedAt": "2026-11-07T19:19:49.642Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fontconfig": "/etc/fonts/fonts.conf",
+  "dist": "/home/igna/hapi-deployment/native-integrated-stage/web/dist",
+  "expectedBundle": "/assets/index-D1BCaZcP.js",
+  "requests": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "name": "warmed-comparison-after-close",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "checks": {
+    "formalBuildLoaded": true,
+    "completedAndRunningCardsExposeExpectedStates": true,
+    "actualStreamingUpdatesReachedCard": true,
+    "allOpenAndClosePhasesWereObserved": true
+  },
+  "trials": [
+    {
+      "kind": "completed",
+      "label": "first-completed-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "first-completed-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-2-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-2-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-2-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-2-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-open",
+      "open": true,
+      "streamed": true,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2670,
+        "height": 3306,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": true
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-close",
+      "open": false,
+      "streamed": true,
+      "before": {
+        "top": 132,
+        "height": 3306,
+        "distance": 2538
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    }
+  ],
+  "summaryOnly": true,
+  "apiTraffic": [
+    {
+      "at": 1794079190381,
+      "method": "GET",
+      "path": "/api/passkey/config"
+    },
+    {
+      "at": 1794079190382,
+      "method": "GET",
+      "path": "/api/app-icon/image"
+    },
+    {
+      "at": 1794079190390,
+      "method": "GET",
+      "path": "/api/passkey/session"
+    },
+    {
+      "at": 1794079190400,
+      "method": "GET",
+      "path": "/api/passkey/session"
+    },
+    {
+      "at": 1794079190420,
+      "method": "GET",
+      "path": "/api/machines"
+    },
+    {
+      "at": 1794079190424,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints"
+    },
+    {
+      "at": 1794079190425,
+      "method": "GET",
+      "path": "/api/sessions/codex-native%3Afixture%3Arunning-group-comparison-fixture"
+    },
+    {
+      "at": 1794079190431,
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "at": 1794079190431,
+      "method": "GET",
+      "path": "/api/app-icon"
+    },
+    {
+      "at": 1794079190445,
+      "method": "GET",
+      "path": "/api/events"
+    },
+    {
+      "at": 1794079190446,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints/fixture/catalog/events"
+    },
+    {
+      "at": 1794079190494,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079190499,
+      "method": "GET",
+      "path": "/api/hub-settings"
+    },
+    {
+      "at": 1794079190500,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079190505,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079190508,
+      "method": "GET",
+      "path": "/api/codex-native/models"
+    },
+    {
+      "at": 1794079190509,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794079190510,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794079190518,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/events"
+    },
+    {
+      "at": 1794079190519,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/commands"
+    },
+    {
+      "at": 1794079190519,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/queue"
+    },
+    {
+      "at": 1794079190519,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079190550,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints/fixture/catalog/events"
+    },
+    {
+      "at": 1794079190566,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079190566,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079190575,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079190575,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079190586,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/commands"
+    },
+    {
+      "at": 1794079190586,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/queue"
+    },
+    {
+      "at": 1794079190607,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079190608,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079190608,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079190695,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079190695,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079191306,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794079191306,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794079191306,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079191327,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079191327,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079193339,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079193459,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079193461,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079195224,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079195370,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079195379,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079195944,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079196115,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079196118,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079197194,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079197312,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079197316,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079199031,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079199159,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079199162,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079199732,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079199903,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079199906,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079201011,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079201148,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079201154,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079202900,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079203042,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079203046,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079203590,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079203749,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079203753,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079204731,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079204734,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079204912,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079204915,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079205037,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079205040,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206020,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206023,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206146,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206149,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206270,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206273,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206317,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794079206374,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206381,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206474,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206477,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794079206590,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794079206593,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    }
+  ],
+  "bundle": [
+    "/assets/index-D1BCaZcP.js"
+  ],
+  "fontResponses": [],
+  "cpuThrottle": 4,
+  "runtime": {
+    "renderers": 1,
+    "phases": [
+      {
+        "label": "first-completed-open",
+        "started": 2796.2000000476837,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3136.8000000715256,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3136.8000000715256,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 3277.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 75,
+          "virtualRowRect": 60,
+          "viewportScrollTo": 4,
+          "virtualRowObserver": 4,
+          "virtualRowSizeAttribute": 4
+        },
+        "times": {
+          "virtualRowRect": 17.600000023841858,
+          "viewportScrollHeight": 51.799999952316284,
+          "virtualRowObserver": 5.899999976158142
+        },
+        "click": 2896.2000000476837,
+        "clickWall": 1794079192929,
+        "toggle": 3135.399999976158,
+        "finished": 3572
+      },
+      {
+        "label": "first-completed-close",
+        "started": 3809.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3917.3000000715256,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3917.3000000715256,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 4043.8000000715256,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 30,
+          "viewportScrollHeight": 29,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 5,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 5.100000023841858,
+          "viewportScrollHeight": 0.8999999761581421,
+          "virtualRowObserver": 2.100000023841858
+        },
+        "click": 3888.7000000476837,
+        "clickWall": 1794079193921,
+        "toggle": 3913.7000000476837,
+        "finished": 4547.5
+      },
+      {
+        "label": "first-running-open",
+        "started": 4752.200000047684,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 4991,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 4992,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 5160.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 107,
+          "virtualRowRect": 60,
+          "viewportScrollTo": 6,
+          "virtualRowObserver": 6,
+          "virtualRowSizeAttribute": 6
+        },
+        "times": {
+          "virtualRowRect": 13.199999928474426,
+          "viewportScrollHeight": 39.5,
+          "virtualRowObserver": 4.6000001430511475
+        },
+        "click": 4814.899999976158,
+        "clickWall": 1794079194847,
+        "toggle": 4990,
+        "finished": 5442
+      },
+      {
+        "label": "first-running-close",
+        "started": 5673.100000023842,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 5814,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 5814.100000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 5996.5,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 55,
+          "viewportScrollHeight": 51,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 5,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 13.100000262260437,
+          "viewportScrollHeight": 1.1999998092651367,
+          "virtualRowObserver": 3.099999785423279
+        },
+        "click": 5773.700000047684,
+        "clickWall": 1794079195806,
+        "toggle": 5807.5,
+        "finished": 6589.899999976158
+      },
+      {
+        "label": "warm-completed-1-open",
+        "started": 6803.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 6991.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 6991.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7137.200000047684,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 95,
+          "virtualRowRect": 65,
+          "viewportScrollTo": 5,
+          "virtualRowObserver": 5,
+          "virtualRowSizeAttribute": 5
+        },
+        "times": {
+          "virtualRowRect": 13.199999928474426,
+          "viewportScrollHeight": 34.59999990463257,
+          "virtualRowObserver": 4
+        },
+        "click": 6864.700000047684,
+        "clickWall": 1794079196897,
+        "toggle": 6990.700000047684,
+        "finished": 7428.399999976158
+      },
+      {
+        "label": "warm-completed-1-close",
+        "started": 7647.899999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 7745.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 7745.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7879.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 35,
+          "viewportScrollHeight": 33,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 6,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 5.5000001192092896,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 2
+        },
+        "click": 7717.700000047684,
+        "clickWall": 1794079197750,
+        "toggle": 7741.399999976158,
+        "finished": 8363.700000047684
+      },
+      {
+        "label": "quiet-running-1-open",
+        "started": 8583.800000071526,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 8832.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 8832.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 8998.200000047684,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 126,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 8,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 8
+        },
+        "times": {
+          "virtualRowRect": 13.700000047683716,
+          "viewportScrollHeight": 34.300000071525574,
+          "virtualRowObserver": 4.099999904632568
+        },
+        "click": 8659.800000071526,
+        "clickWall": 1794079198692,
+        "toggle": 8831,
+        "finished": 9267.300000071526
+      },
+      {
+        "label": "quiet-running-1-close",
+        "started": 9476,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 9607.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 9607.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 9784.899999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 55,
+          "viewportScrollHeight": 50,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 5,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 14.100000023841858,
+          "viewportScrollHeight": 2.5999999046325684,
+          "virtualRowObserver": 2.8000000715255737
+        },
+        "click": 9569.800000071526,
+        "clickWall": 1794079199602,
+        "toggle": 9602.899999976158,
+        "finished": 10392.700000047684
+      },
+      {
+        "label": "warm-completed-2-open",
+        "started": 10582,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 10790.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 10790.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 10949.300000071526,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 107,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 6,
+          "virtualRowObserver": 6,
+          "virtualRowSizeAttribute": 6
+        },
+        "times": {
+          "virtualRowRect": 22.399999976158142,
+          "viewportScrollHeight": 29.399999976158142,
+          "virtualRowObserver": 3.399999976158142
+        },
+        "click": 10652.300000071526,
+        "clickWall": 1794079200685,
+        "toggle": 10789.600000023842,
+        "finished": 11228.5
+      },
+      {
+        "label": "warm-completed-2-close",
+        "started": 11464.800000071526,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 11581.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 11581.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 11743.700000047684,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 25,
+          "viewportScrollHeight": 26,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 4,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 2.5999999046325684,
+          "viewportScrollHeight": 3.899999976158142,
+          "virtualRowObserver": 3.6999999284744263
+        },
+        "click": 11544.800000071526,
+        "clickWall": 1794079201577,
+        "toggle": 11576.100000023842,
+        "finished": 12244.800000071526
+      },
+      {
+        "label": "quiet-running-2-open",
+        "started": 12476.300000071526,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 12698.700000047684,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 12698.700000047684,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 12838.200000047684,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 106,
+          "virtualRowRect": 65,
+          "viewportScrollTo": 6,
+          "virtualRowObserver": 6,
+          "virtualRowSizeAttribute": 6
+        },
+        "times": {
+          "virtualRowRect": 14.800000071525574,
+          "viewportScrollHeight": 33.60000002384186,
+          "virtualRowObserver": 6.3999998569488525
+        },
+        "click": 12550.100000023842,
+        "clickWall": 1794079202583,
+        "toggle": 12696.899999976158,
+        "finished": 13133.700000047684
+      },
+      {
+        "label": "quiet-running-2-close",
+        "started": 13342.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 13477.300000071526,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 13477.300000071526,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 13647.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 45,
+          "viewportScrollHeight": 46,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 3,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 8.299999952316284,
+          "viewportScrollHeight": 4.400000095367432,
+          "virtualRowObserver": 3.499999761581421
+        },
+        "click": 13440.399999976158,
+        "clickWall": 1794079203473,
+        "toggle": 13472.300000071526,
+        "finished": 14195.5
+      },
+      {
+        "label": "streaming-running-open",
+        "started": 14417.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 14938.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 14938.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 15098.800000071526,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 78,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 4,
+          "virtualRowObserver": 4,
+          "virtualRowSizeAttribute": 4
+        },
+        "times": {
+          "virtualRowRect": 34.200000047683716,
+          "viewportScrollHeight": 51.39999961853027,
+          "virtualRowObserver": 3.4000000953674316
+        },
+        "click": 14482.700000047684,
+        "clickWall": 1794079204515,
+        "toggle": 14935.399999976158,
+        "finished": 15572.600000023842
+      },
+      {
+        "label": "streaming-running-close",
+        "started": 15776.800000071526,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 15908.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 15908.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 16170.899999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 95,
+          "viewportScrollHeight": 35,
+          "virtualRowObserver": 4,
+          "virtualRowSizeAttribute": 3
+        },
+        "times": {
+          "virtualRowRect": 20.40000009536743,
+          "viewportScrollHeight": 5.9999998807907104,
+          "virtualRowObserver": 1.2999999523162842
+        },
+        "click": 15869.800000071526,
+        "clickWall": 1794079205902,
+        "toggle": 15904,
+        "finished": 17115.399999976158
+      }
+    ]
+  },
+  "chrome": [
+    {
+      "label": "first-completed-open",
+      "clickToToggleMs": 239.19999992847443,
+      "animationMs": 140.59999990463257,
+      "maxFrameGapMs": 100,
+      "maxAnimationFrameGapMs": 66.70000000000027,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 107,
+      "layouts": {
+        "count": 13,
+        "durationMs": 35.907999999999994,
+        "maxMs": 20.519
+      },
+      "animationLayouts": {
+        "count": 7,
+        "durationMs": 7.0089999999999995,
+        "maxMs": 1.503
+      }
+    },
+    {
+      "label": "first-completed-close",
+      "clickToToggleMs": 25,
+      "animationMs": 126.5,
+      "maxFrameGapMs": 33.30000000000018,
+      "maxAnimationFrameGapMs": 16.799999999999727,
+      "slowAnimationFrames": 0,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 14,
+        "durationMs": 13.571000000000002,
+        "maxMs": 2.147
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 11.028,
+        "maxMs": 2.147
+      }
+    },
+    {
+      "label": "first-running-open",
+      "clickToToggleMs": 175.10000002384186,
+      "animationMs": 168.39999997615814,
+      "maxFrameGapMs": 133.39999999999964,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 5,
+      "longestTaskMs": 143,
+      "layouts": {
+        "count": 16,
+        "durationMs": 28.067000000000004,
+        "maxMs": 6.283
+      },
+      "animationLayouts": {
+        "count": 10,
+        "durationMs": 9.817,
+        "maxMs": 1.594
+      }
+    },
+    {
+      "label": "first-running-close",
+      "clickToToggleMs": 33.799999952316284,
+      "animationMs": 182.39999997615814,
+      "maxFrameGapMs": 116.70000000000073,
+      "maxAnimationFrameGapMs": 49.899999999999636,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 95,
+      "layouts": {
+        "count": 17,
+        "durationMs": 17.665,
+        "maxMs": 2.243
+      },
+      "animationLayouts": {
+        "count": 13,
+        "durationMs": 11.321000000000002,
+        "maxMs": 1.568
+      }
+    },
+    {
+      "label": "warm-completed-1-open",
+      "clickToToggleMs": 126,
+      "animationMs": 145.30000007152557,
+      "maxFrameGapMs": 116.59999999999945,
+      "maxAnimationFrameGapMs": 66.59999999999945,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 118,
+      "layouts": {
+        "count": 15,
+        "durationMs": 25.928,
+        "maxMs": 5.529
+      },
+      "animationLayouts": {
+        "count": 9,
+        "durationMs": 9.308,
+        "maxMs": 1.437
+      }
+    },
+    {
+      "label": "warm-completed-1-close",
+      "clickToToggleMs": 23.699999928474426,
+      "animationMs": 133.89999997615814,
+      "maxFrameGapMs": 33.30000000000018,
+      "maxAnimationFrameGapMs": 33.30000000000018,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 14,
+        "durationMs": 11.787000000000003,
+        "maxMs": 1.694
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 8.770000000000001,
+        "maxMs": 1.459
+      }
+    },
+    {
+      "label": "quiet-running-1-open",
+      "clickToToggleMs": 171.19999992847443,
+      "animationMs": 165.70000004768372,
+      "maxFrameGapMs": 116.70000000000073,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 114,
+      "layouts": {
+        "count": 19,
+        "durationMs": 27.381000000000007,
+        "maxMs": 5.569
+      },
+      "animationLayouts": {
+        "count": 14,
+        "durationMs": 11.661000000000001,
+        "maxMs": 1.685
+      }
+    },
+    {
+      "label": "quiet-running-1-close",
+      "clickToToggleMs": 33.09999990463257,
+      "animationMs": 177.29999995231628,
+      "maxFrameGapMs": 116.60000000000036,
+      "maxAnimationFrameGapMs": 66.69999999999891,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 106,
+      "layouts": {
+        "count": 16,
+        "durationMs": 21.133,
+        "maxMs": 3.101
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 14.866000000000001,
+        "maxMs": 3.101
+      }
+    },
+    {
+      "label": "warm-completed-2-open",
+      "clickToToggleMs": 137.29999995231628,
+      "animationMs": 158.90000009536743,
+      "maxFrameGapMs": 116.69999999999891,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 116,
+      "layouts": {
+        "count": 17,
+        "durationMs": 27.427000000000003,
+        "maxMs": 4.943
+      },
+      "animationLayouts": {
+        "count": 11,
+        "durationMs": 11.122,
+        "maxMs": 1.702
+      }
+    },
+    {
+      "label": "warm-completed-2-close",
+      "clickToToggleMs": 31.299999952316284,
+      "animationMs": 162.10000002384186,
+      "maxFrameGapMs": 33.399999999999636,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 16,
+        "durationMs": 15.734999999999996,
+        "maxMs": 2.574
+      },
+      "animationLayouts": {
+        "count": 14,
+        "durationMs": 13.809999999999997,
+        "maxMs": 2.574
+      }
+    },
+    {
+      "label": "quiet-running-2-open",
+      "clickToToggleMs": 146.79999995231628,
+      "animationMs": 139.5,
+      "maxFrameGapMs": 116.70000000000073,
+      "maxAnimationFrameGapMs": 33.29999999999927,
+      "slowAnimationFrames": 4,
+      "longestTaskMs": 117,
+      "layouts": {
+        "count": 16,
+        "durationMs": 26.638,
+        "maxMs": 5.813
+      },
+      "animationLayouts": {
+        "count": 10,
+        "durationMs": 9.426,
+        "maxMs": 2.035
+      }
+    },
+    {
+      "label": "quiet-running-2-close",
+      "clickToToggleMs": 31.90000009536743,
+      "animationMs": 170.09999990463257,
+      "maxFrameGapMs": 100.10000000000036,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 84,
+      "layouts": {
+        "count": 16,
+        "durationMs": 18.212,
+        "maxMs": 1.984
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 12.818,
+        "maxMs": 1.984
+      }
+    },
+    {
+      "label": "streaming-running-open",
+      "clickToToggleMs": 452.6999999284744,
+      "animationMs": 160.30000007152557,
+      "maxFrameGapMs": 166.6999999999989,
+      "maxAnimationFrameGapMs": 133.39999999999964,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 145,
+      "layouts": {
+        "count": 22,
+        "durationMs": 48.774,
+        "maxMs": 6.817
+      },
+      "animationLayouts": {
+        "count": 3,
+        "durationMs": 3.615,
+        "maxMs": 1.287
+      }
+    },
+    {
+      "label": "streaming-running-close",
+      "clickToToggleMs": 34.199999928474426,
+      "animationMs": 262.2999999523163,
+      "maxFrameGapMs": 116.70000000000073,
+      "maxAnimationFrameGapMs": 116.70000000000073,
+      "slowAnimationFrames": 4,
+      "longestTaskMs": 106,
+      "layouts": {
+        "count": 16,
+        "durationMs": 23.557,
+        "maxMs": 2.794
+      },
+      "animationLayouts": {
+        "count": 8,
+        "durationMs": 10.910999999999998,
+        "maxMs": 2.794
+      }
+    }
+  ],
+  "transport": [
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204520,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204586,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204651,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204716,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204781,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204847,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204912,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794079204977,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079205904,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079205969,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206034,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206099,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206164,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206230,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206295,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794079206360,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    }
+  ],
+  "passed": true,
+  "archiveNote": {
+    "omittedRawArrays": [
+      "chrome[].largestLayouts",
+      "runtime.phases[].frames",
+      "runtime.phases[].mutationBatches",
+      "runtime.phases[].reactCommits",
+      "runtime.phases[].tasks"
+    ],
+    "retained": "aggregate metrics, checks, fixture parameters and phase results"
+  }
+}

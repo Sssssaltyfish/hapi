@@ -1,0 +1,2424 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "dist": "/home/igna/hapi-deployment/native-integrated-stage/web/dist",
+  "fontConfig": "/etc/fonts/fonts.conf",
+  "itemCount": 1100,
+  "networkDelay": 340,
+  "invisibleGap": [
+    340,
+    730
+  ],
+  "unexpected": [],
+  "pageErrors": [],
+  "bundles": [
+    "/assets/index-DbLWFM_z.js"
+  ],
+  "initial": {
+    "frame": {
+      "at": 1794077437424,
+      "top": 6641,
+      "height": 7277,
+      "logical": 50,
+      "visibleFirst": "agent-text:native:row-1094",
+      "visibleLast": "agent-text:native:row-1100",
+      "mountedFirst": "agent-text:native:row-1088",
+      "mountedLast": "agent-text:native:row-1100",
+      "loading": false,
+      "commit": 2
+    },
+    "commit": {
+      "at": 1794077437101,
+      "native": {
+        "first": "row-1051",
+        "last": "row-1100",
+        "count": 50,
+        "cursor": "old:1051",
+        "newerCursor": null,
+        "loading": false
+      },
+      "panel": {
+        "hasMore": true,
+        "hasNewer": false,
+        "historyVersion": 3
+      },
+      "virtual": {
+        "count": 50,
+        "first": {
+          "id": "user-text:native:row-1051",
+          "current": true,
+          "resident": true,
+          "locator": "row-1051"
+        },
+        "last": {
+          "id": "agent-text:native:row-1100",
+          "current": true,
+          "resident": true,
+          "locator": "row-1100"
+        }
+      }
+    }
+  },
+  "touch": {
+    "from": 99,
+    "to": 665,
+    "sweeps": 175,
+    "rest": 23,
+    "touchStep": 8,
+    "reverseAt": 0,
+    "reverseFor": 0,
+    "stagnantLimit": 40,
+    "checkReverse": false
+  },
+  "gestures": [
+    {
+      "start": 1794077437453,
+      "direction": "older",
+      "frame": {
+        "at": 1794077437653,
+        "top": 5710,
+        "height": 6897,
+        "logical": 50,
+        "visibleFirst": "user-text:native:row-1089",
+        "visibleLast": "user-text:native:row-1095",
+        "mountedFirst": "user-text:native:row-1083",
+        "mountedLast": "agent-text:native:row-1100",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794077437654,
+      "direction": "older",
+      "frame": {
+        "at": 1794077437866,
+        "top": 4652,
+        "height": 6513,
+        "logical": 50,
+        "visibleFirst": "agent-text:native:row-1082",
+        "visibleLast": "user-text:native:row-1089",
+        "mountedFirst": "user-text:native:row-1077",
+        "mountedLast": "user-text:native:row-1095",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794077437867,
+      "direction": "older",
+      "frame": {
+        "at": 1794077438088,
+        "top": 3326,
+        "height": 5957,
+        "logical": 50,
+        "visibleFirst": "agent-text:native:row-1076",
+        "visibleLast": "user-text:native:row-1081",
+        "mountedFirst": "agent-text:native:row-1070",
+        "mountedLast": "user-text:native:row-1087",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794077438089,
+      "direction": "older",
+      "frame": {
+        "at": 1794077438304,
+        "top": 2161,
+        "height": 5421,
+        "logical": 50,
+        "visibleFirst": "user-text:native:row-1069",
+        "visibleLast": "agent-text:native:row-1076",
+        "mountedFirst": "user-text:native:row-1063",
+        "mountedLast": "agent-text:native:row-1082",
+        "loading": false,
+        "commit": 2
+      }
+    },
+    {
+      "start": 1794077438305,
+      "direction": "older",
+      "frame": {
+        "at": 1794077438587,
+        "top": 10124,
+        "height": 14265,
+        "logical": 100,
+        "visibleFirst": "user-text:native:row-1061",
+        "visibleLast": "user-text:native:row-1067",
+        "mountedFirst": "user-text:native:row-1055",
+        "mountedLast": "user-text:native:row-1073",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077438587,
+      "direction": "older",
+      "frame": {
+        "at": 1794077438821,
+        "top": 8761,
+        "height": 13865,
+        "logical": 100,
+        "visibleFirst": "agent-text:native:row-1052",
+        "visibleLast": "agent-text:native:row-1058",
+        "mountedFirst": "agent-text:native:row-1046",
+        "mountedLast": "agent-text:native:row-1064",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077438822,
+      "direction": "older",
+      "frame": {
+        "at": 1794077439054,
+        "top": 6858,
+        "height": 13101,
+        "logical": 100,
+        "visibleFirst": "user-text:native:row-1041",
+        "visibleLast": "user-text:native:row-1047",
+        "mountedFirst": "user-text:native:row-1035",
+        "mountedLast": "user-text:native:row-1053",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077439055,
+      "direction": "older",
+      "frame": {
+        "at": 1794077439286,
+        "top": 5348,
+        "height": 12477,
+        "logical": 100,
+        "visibleFirst": "user-text:native:row-1033",
+        "visibleLast": "agent-text:native:row-1038",
+        "mountedFirst": "user-text:native:row-1027",
+        "mountedLast": "agent-text:native:row-1044",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077439287,
+      "direction": "older",
+      "frame": {
+        "at": 1794077439521,
+        "top": 3745,
+        "height": 11765,
+        "logical": 100,
+        "visibleFirst": "agent-text:native:row-1024",
+        "visibleLast": "agent-text:native:row-1030",
+        "mountedFirst": "agent-text:native:row-1018",
+        "mountedLast": "agent-text:native:row-1036",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077439522,
+      "direction": "older",
+      "frame": {
+        "at": 1794077439754,
+        "top": 2141,
+        "height": 11129,
+        "logical": 100,
+        "visibleFirst": "user-text:native:row-1015",
+        "visibleLast": "user-text:native:row-1021",
+        "mountedFirst": "user-text:native:row-1009",
+        "mountedLast": "user-text:native:row-1027",
+        "loading": false,
+        "commit": 4
+      }
+    },
+    {
+      "start": 1794077439755,
+      "direction": "older",
+      "frame": {
+        "at": 1794077440020,
+        "top": 9296,
+        "height": 19349,
+        "logical": 150,
+        "visibleFirst": "user-text:native:row-1005",
+        "visibleLast": "user-text:native:row-1011",
+        "mountedFirst": "user-text:native:row-999",
+        "mountedLast": "user-text:native:row-1017",
+        "loading": false,
+        "commit": 6
+      }
+    },
+    {
+      "start": 1794077440021,
+      "direction": "older",
+      "frame": {
+        "at": 1794077440237,
+        "top": 8200,
+        "height": 18881,
+        "logical": 150,
+        "visibleFirst": "user-text:native:row-999",
+        "visibleLast": "user-text:native:row-1005",
+        "mountedFirst": "user-text:native:row-993",
+        "mountedLast": "user-text:native:row-1011",
+        "loading": false,
+        "commit": 6
+      }
+    },
+    {
+      "start": 1794077440237,
+      "direction": "older",
+      "frame": {
+        "at": 1794077440470,
+        "top": 6545,
+        "height": 18185,
+        "logical": 150,
+        "visibleFirst": "user-text:native:row-989",
+        "visibleLast": "user-text:native:row-995",
+        "mountedFirst": "user-text:native:row-983",
+        "mountedLast": "user-text:native:row-1001",
+        "loading": false,
+        "commit": 6
+      }
+    },
+    {
+      "start": 1794077440471,
+      "direction": "older",
+      "frame": {
+        "at": 1794077440703,
+        "top": 4623,
+        "height": 17405,
+        "logical": 150,
+        "visibleFirst": "user-text:native:row-979",
+        "visibleLast": "user-text:native:row-985",
+        "mountedFirst": "user-text:native:row-973",
+        "mountedLast": "user-text:native:row-991",
+        "loading": false,
+        "commit": 6
+      }
+    },
+    {
+      "start": 1794077440705,
+      "direction": "older",
+      "frame": {
+        "at": 1794077440920,
+        "top": 2929,
+        "height": 16681,
+        "logical": 150,
+        "visibleFirst": "user-text:native:row-969",
+        "visibleLast": "user-text:native:row-975",
+        "mountedFirst": "user-text:native:row-963",
+        "mountedLast": "user-text:native:row-981",
+        "loading": false,
+        "commit": 6
+      }
+    },
+    {
+      "start": 1794077440921,
+      "direction": "older",
+      "frame": {
+        "at": 1794077441203,
+        "top": 9679,
+        "height": 24745,
+        "logical": 200,
+        "visibleFirst": "user-text:native:row-957",
+        "visibleLast": "user-text:native:row-963",
+        "mountedFirst": "user-text:native:row-951",
+        "mountedLast": "user-text:native:row-969",
+        "loading": false,
+        "commit": 8
+      }
+    },
+    {
+      "start": 1794077441204,
+      "direction": "older",
+      "frame": {
+        "at": 1794077441437,
+        "top": 6928,
+        "height": 23649,
+        "logical": 200,
+        "visibleFirst": "agent-text:native:row-942",
+        "visibleLast": "user-text:native:row-947",
+        "mountedFirst": "agent-text:native:row-936",
+        "mountedLast": "user-text:native:row-953",
+        "loading": false,
+        "commit": 8
+      }
+    },
+    {
+      "start": 1794077441438,
+      "direction": "older",
+      "frame": {
+        "at": 1794077441670,
+        "top": 3436,
+        "height": 22145,
+        "logical": 200,
+        "visibleFirst": "agent-text:native:row-922",
+        "visibleLast": "agent-text:native:row-928",
+        "mountedFirst": "agent-text:native:row-916",
+        "mountedLast": "agent-text:native:row-934",
+        "loading": false,
+        "commit": 8
+      }
+    },
+    {
+      "start": 1794077441671,
+      "direction": "older",
+      "frame": {
+        "at": 1794077441976,
+        "top": 9275,
+        "height": 29829,
+        "logical": 250,
+        "visibleFirst": "user-text:native:row-905",
+        "visibleLast": "user-text:native:row-911",
+        "mountedFirst": "user-text:native:row-899",
+        "mountedLast": "user-text:native:row-917",
+        "loading": false,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794077441977,
+      "direction": "older",
+      "frame": {
+        "at": 1794077442187,
+        "top": 8173,
+        "height": 29357,
+        "logical": 250,
+        "visibleFirst": "agent-text:native:row-898",
+        "visibleLast": "user-text:native:row-905",
+        "mountedFirst": "agent-text:native:row-892",
+        "mountedLast": "user-text:native:row-911",
+        "loading": false,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794077442188,
+      "direction": "older",
+      "frame": {
+        "at": 1794077442420,
+        "top": 6584,
+        "height": 28733,
+        "logical": 250,
+        "visibleFirst": "agent-text:native:row-890",
+        "visibleLast": "agent-text:native:row-896",
+        "mountedFirst": "agent-text:native:row-884",
+        "mountedLast": "agent-text:native:row-902",
+        "loading": false,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794077442421,
+      "direction": "older",
+      "frame": {
+        "at": 1794077442653,
+        "top": 4342,
+        "height": 27785,
+        "logical": 250,
+        "visibleFirst": "user-text:native:row-877",
+        "visibleLast": "user-text:native:row-883",
+        "mountedFirst": "user-text:native:row-871",
+        "mountedLast": "user-text:native:row-889",
+        "loading": false,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794077442654,
+      "direction": "older",
+      "frame": {
+        "at": 1794077442887,
+        "top": 1534,
+        "height": 26605,
+        "logical": 250,
+        "visibleFirst": "agent-text:native:row-862",
+        "visibleLast": "agent-text:native:row-868",
+        "mountedFirst": "agent-text:native:row-856",
+        "mountedLast": "agent-text:native:row-874",
+        "loading": false,
+        "commit": 10
+      }
+    },
+    {
+      "start": 1794077442888,
+      "direction": "older",
+      "frame": {
+        "at": 1794077443170,
+        "top": 7885,
+        "height": 34529,
+        "logical": 300,
+        "visibleFirst": "user-text:native:row-847",
+        "visibleLast": "agent-text:native:row-852",
+        "mountedFirst": "user-text:native:row-841",
+        "mountedLast": "agent-text:native:row-858",
+        "loading": false,
+        "commit": 12
+      }
+    },
+    {
+      "start": 1794077443171,
+      "direction": "older",
+      "frame": {
+        "at": 1794077443386,
+        "top": 6788,
+        "height": 34061,
+        "logical": 300,
+        "visibleFirst": "user-text:native:row-841",
+        "visibleLast": "user-text:native:row-847",
+        "mountedFirst": "user-text:native:row-835",
+        "mountedLast": "user-text:native:row-853",
+        "loading": false,
+        "commit": 12
+      }
+    },
+    {
+      "start": 1794077443387,
+      "direction": "older",
+      "frame": {
+        "at": 1794077443620,
+        "top": 5102,
+        "height": 33337,
+        "logical": 300,
+        "visibleFirst": "user-text:native:row-831",
+        "visibleLast": "agent-text:native:row-838",
+        "mountedFirst": "user-text:native:row-825",
+        "mountedLast": "agent-text:native:row-844",
+        "loading": false,
+        "commit": 12
+      }
+    },
+    {
+      "start": 1794077443621,
+      "direction": "older",
+      "frame": {
+        "at": 1794077443853,
+        "top": 3187,
+        "height": 32557,
+        "logical": 300,
+        "visibleFirst": "user-text:native:row-821",
+        "visibleLast": "user-text:native:row-827",
+        "mountedFirst": "user-text:native:row-815",
+        "mountedLast": "user-text:native:row-833",
+        "loading": false,
+        "commit": 12
+      }
+    },
+    {
+      "start": 1794077443854,
+      "direction": "older",
+      "frame": {
+        "at": 1794077444086,
+        "top": 1587,
+        "height": 31845,
+        "logical": 300,
+        "visibleFirst": "agent-text:native:row-812",
+        "visibleLast": "agent-text:native:row-818",
+        "mountedFirst": "agent-text:native:row-806",
+        "mountedLast": "agent-text:native:row-824",
+        "loading": false,
+        "commit": 12
+      }
+    },
+    {
+      "start": 1794077444087,
+      "direction": "older",
+      "frame": {
+        "at": 1794077444369,
+        "top": 9322,
+        "height": 40393,
+        "logical": 350,
+        "visibleFirst": "user-text:native:row-805",
+        "visibleLast": "agent-text:native:row-810",
+        "mountedFirst": "user-text:native:row-799",
+        "mountedLast": "agent-text:native:row-816",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077444370,
+      "direction": "older",
+      "frame": {
+        "at": 1794077444586,
+        "top": 8225,
+        "height": 39925,
+        "logical": 350,
+        "visibleFirst": "user-text:native:row-799",
+        "visibleLast": "user-text:native:row-805",
+        "mountedFirst": "user-text:native:row-793",
+        "mountedLast": "user-text:native:row-811",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077444587,
+      "direction": "older",
+      "frame": {
+        "at": 1794077444821,
+        "top": 6629,
+        "height": 39213,
+        "logical": 350,
+        "visibleFirst": "agent-text:native:row-790",
+        "visibleLast": "agent-text:native:row-796",
+        "mountedFirst": "agent-text:native:row-784",
+        "mountedLast": "agent-text:native:row-802",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077444822,
+      "direction": "older",
+      "frame": {
+        "at": 1794077445053,
+        "top": 5173,
+        "height": 38645,
+        "logical": 350,
+        "visibleFirst": "agent-text:native:row-782",
+        "visibleLast": "agent-text:native:row-788",
+        "mountedFirst": "agent-text:native:row-776",
+        "mountedLast": "agent-text:native:row-794",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077445054,
+      "direction": "older",
+      "frame": {
+        "at": 1794077445288,
+        "top": 3589,
+        "height": 37953,
+        "logical": 350,
+        "visibleFirst": "user-text:native:row-773",
+        "visibleLast": "user-text:native:row-779",
+        "mountedFirst": "user-text:native:row-767",
+        "mountedLast": "user-text:native:row-785",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077445289,
+      "direction": "older",
+      "frame": {
+        "at": 1794077445520,
+        "top": 1995,
+        "height": 37325,
+        "logical": 350,
+        "visibleFirst": "agent-text:native:row-764",
+        "visibleLast": "agent-text:native:row-770",
+        "mountedFirst": "agent-text:native:row-758",
+        "mountedLast": "agent-text:native:row-776",
+        "loading": false,
+        "commit": 14
+      }
+    },
+    {
+      "start": 1794077445521,
+      "direction": "older",
+      "frame": {
+        "at": 1794077445820,
+        "top": 3747,
+        "height": 40145,
+        "logical": 370,
+        "visibleFirst": "agent-text:native:row-754",
+        "visibleLast": "agent-text:native:row-760",
+        "mountedFirst": "agent-text:native:row-748",
+        "mountedLast": "agent-text:native:row-766",
+        "loading": false,
+        "commit": 16
+      }
+    },
+    {
+      "start": 1794077445820,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446036,
+        "top": 2649,
+        "height": 39677,
+        "logical": 370,
+        "visibleFirst": "agent-text:native:row-748",
+        "visibleLast": "agent-text:native:row-754",
+        "mountedFirst": "agent-text:native:row-742",
+        "mountedLast": "agent-text:native:row-760",
+        "loading": false,
+        "commit": 16
+      }
+    },
+    {
+      "start": 1794077446037,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446298,
+        "top": 1274,
+        "height": 39109,
+        "logical": 370,
+        "visibleFirst": "agent-text:native:row-740",
+        "visibleLast": "agent-text:native:row-746",
+        "mountedFirst": "agent-text:native:row-734",
+        "mountedLast": "agent-text:native:row-752",
+        "loading": false,
+        "commit": 17
+      }
+    },
+    {
+      "start": 1794077446299,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446580,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 21
+      }
+    },
+    {
+      "start": 1794077446580,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446698,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 21
+      }
+    },
+    {
+      "start": 1794077446699,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446814,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 21
+      }
+    },
+    {
+      "start": 1794077446815,
+      "direction": "older",
+      "frame": {
+        "at": 1794077446975,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 21
+      }
+    },
+    {
+      "start": 1794077446975,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447098,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 21
+      }
+    },
+    {
+      "start": 1794077447098,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447287,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 23
+      }
+    },
+    {
+      "start": 1794077447288,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447470,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 23
+      }
+    },
+    {
+      "start": 1794077447471,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447599,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 23
+      }
+    },
+    {
+      "start": 1794077447599,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447805,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 26
+      }
+    },
+    {
+      "start": 1794077447806,
+      "direction": "older",
+      "frame": {
+        "at": 1794077447931,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 26
+      }
+    },
+    {
+      "start": 1794077447931,
+      "direction": "older",
+      "frame": {
+        "at": 1794077448121,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 28
+      }
+    },
+    {
+      "start": 1794077448122,
+      "direction": "older",
+      "frame": {
+        "at": 1794077448287,
+        "top": 0,
+        "height": 38885,
+        "logical": 370,
+        "visibleFirst": "user-text:native:row-731",
+        "visibleLast": "agent-text:native:row-736",
+        "mountedFirst": "user-text:native:row-731",
+        "mountedLast": "agent-text:native:row-742",
+        "loading": true,
+        "commit": 28
+      }
+    },
+    {
+      "start": 1794077448288,
+      "direction": "older",
+      "frame": {
+        "at": 1794077448536,
+        "top": 5863,
+        "height": 45125,
+        "logical": 409,
+        "visibleFirst": "agent-text:native:row-336",
+        "visibleLast": "user-text:native:row-733",
+        "mountedFirst": "agent-text:native:row-330",
+        "mountedLast": "user-text:native:row-739",
+        "loading": false,
+        "commit": 30
+      }
+    },
+    {
+      "start": 1794077448537,
+      "direction": "older",
+      "frame": {
+        "at": 1794077448752,
+        "top": 4766,
+        "height": 44657,
+        "logical": 409,
+        "visibleFirst": "agent-text:native:row-330",
+        "visibleLast": "agent-text:native:row-336",
+        "mountedFirst": "agent-text:native:row-324",
+        "mountedLast": "user-text:native:row-733",
+        "loading": false,
+        "commit": 30
+      }
+    },
+    {
+      "start": 1794077448753,
+      "direction": "older",
+      "frame": {
+        "at": 1794077448986,
+        "top": 3247,
+        "height": 44021,
+        "logical": 409,
+        "visibleFirst": "user-text:native:row-321",
+        "visibleLast": "user-text:native:row-327",
+        "mountedFirst": "user-text:native:row-315",
+        "mountedLast": "user-text:native:row-333",
+        "loading": false,
+        "commit": 30
+      }
+    },
+    {
+      "start": 1794077448988,
+      "direction": "older",
+      "frame": {
+        "at": 1794077449219,
+        "top": 1573,
+        "height": 43309,
+        "logical": 409,
+        "visibleFirst": "agent-text:native:row-312",
+        "visibleLast": "agent-text:native:row-318",
+        "mountedFirst": "agent-text:native:row-306",
+        "mountedLast": "agent-text:native:row-324",
+        "loading": false,
+        "commit": 30
+      }
+    },
+    {
+      "start": 1794077449220,
+      "direction": "older",
+      "frame": {
+        "at": 1794077449504,
+        "top": 8668,
+        "height": 51545,
+        "logical": 459,
+        "visibleFirst": "user-text:native:row-301",
+        "visibleLast": "user-text:native:row-307",
+        "mountedFirst": "user-text:native:row-295",
+        "mountedLast": "user-text:native:row-313",
+        "loading": false,
+        "commit": 32
+      }
+    },
+    {
+      "start": 1794077449505,
+      "direction": "older",
+      "frame": {
+        "at": 1794077449736,
+        "top": 7157,
+        "height": 50921,
+        "logical": 459,
+        "visibleFirst": "user-text:native:row-293",
+        "visibleLast": "user-text:native:row-299",
+        "mountedFirst": "user-text:native:row-287",
+        "mountedLast": "user-text:native:row-305",
+        "loading": false,
+        "commit": 32
+      }
+    },
+    {
+      "start": 1794077449737,
+      "direction": "older",
+      "frame": {
+        "at": 1794077449958,
+        "top": 5330,
+        "height": 50141,
+        "logical": 459,
+        "visibleFirst": "user-text:native:row-283",
+        "visibleLast": "user-text:native:row-289",
+        "mountedFirst": "user-text:native:row-277",
+        "mountedLast": "user-text:native:row-295",
+        "loading": false,
+        "commit": 32
+      }
+    },
+    {
+      "start": 1794077449959,
+      "direction": "older",
+      "frame": {
+        "at": 1794077450187,
+        "top": 3229,
+        "height": 49261,
+        "logical": 459,
+        "visibleFirst": "user-text:native:row-271",
+        "visibleLast": "user-text:native:row-277",
+        "mountedFirst": "user-text:native:row-265",
+        "mountedLast": "user-text:native:row-283",
+        "loading": false,
+        "commit": 32
+      }
+    },
+    {
+      "start": 1794077450187,
+      "direction": "older",
+      "frame": {
+        "at": 1794077450469,
+        "top": 9968,
+        "height": 57321,
+        "logical": 509,
+        "visibleFirst": "agent-text:native:row-258",
+        "visibleLast": "user-text:native:row-265",
+        "mountedFirst": "agent-text:native:row-252",
+        "mountedLast": "user-text:native:row-271",
+        "loading": false,
+        "commit": 34
+      }
+    },
+    {
+      "start": 1794077450469,
+      "direction": "older",
+      "frame": {
+        "at": 1794077450652,
+        "top": 8959,
+        "height": 56941,
+        "logical": 509,
+        "visibleFirst": "user-text:native:row-253",
+        "visibleLast": "agent-text:native:row-258",
+        "mountedFirst": "user-text:native:row-247",
+        "mountedLast": "agent-text:native:row-264",
+        "loading": false,
+        "commit": 34
+      }
+    },
+    {
+      "start": 1794077450653,
+      "direction": "older",
+      "frame": {
+        "at": 1794077450886,
+        "top": 7286,
+        "height": 56229,
+        "logical": 509,
+        "visibleFirst": "agent-text:native:row-244",
+        "visibleLast": "agent-text:native:row-250",
+        "mountedFirst": "agent-text:native:row-238",
+        "mountedLast": "agent-text:native:row-256",
+        "loading": false,
+        "commit": 34
+      }
+    },
+    {
+      "start": 1794077450888,
+      "direction": "older",
+      "frame": {
+        "at": 1794077451120,
+        "top": 5043,
+        "height": 55281,
+        "logical": 509,
+        "visibleFirst": "user-text:native:row-231",
+        "visibleLast": "user-text:native:row-237",
+        "mountedFirst": "user-text:native:row-225",
+        "mountedLast": "user-text:native:row-243",
+        "loading": false,
+        "commit": 34
+      }
+    },
+    {
+      "start": 1794077451121,
+      "direction": "older",
+      "frame": {
+        "at": 1794077451353,
+        "top": 2163,
+        "height": 54033,
+        "logical": 509,
+        "visibleFirst": "user-text:native:row-215",
+        "visibleLast": "agent-text:native:row-222",
+        "mountedFirst": "user-text:native:row-209",
+        "mountedLast": "agent-text:native:row-228",
+        "loading": false,
+        "commit": 34
+      }
+    },
+    {
+      "start": 1794077451355,
+      "direction": "older",
+      "frame": {
+        "at": 1794077451670,
+        "top": 8412,
+        "height": 61937,
+        "logical": 559,
+        "visibleFirst": "agent-text:native:row-200",
+        "visibleLast": "agent-text:native:row-206",
+        "mountedFirst": "agent-text:native:row-194",
+        "mountedLast": "agent-text:native:row-212",
+        "loading": false,
+        "commit": 36
+      }
+    },
+    {
+      "start": 1794077451671,
+      "direction": "older",
+      "frame": {
+        "at": 1794077451870,
+        "top": 6758,
+        "height": 61245,
+        "logical": 559,
+        "visibleFirst": "user-text:native:row-191",
+        "visibleLast": "user-text:native:row-197",
+        "mountedFirst": "user-text:native:row-185",
+        "mountedLast": "user-text:native:row-203",
+        "loading": false,
+        "commit": 36
+      }
+    },
+    {
+      "start": 1794077451870,
+      "direction": "older",
+      "frame": {
+        "at": 1794077452103,
+        "top": 4484,
+        "height": 60277,
+        "logical": 559,
+        "visibleFirst": "agent-text:native:row-178",
+        "visibleLast": "agent-text:native:row-184",
+        "mountedFirst": "agent-text:native:row-172",
+        "mountedLast": "agent-text:native:row-190",
+        "loading": false,
+        "commit": 36
+      }
+    },
+    {
+      "start": 1794077452103,
+      "direction": "older",
+      "frame": {
+        "at": 1794077452336,
+        "top": 1660,
+        "height": 59113,
+        "logical": 559,
+        "visibleFirst": "agent-text:native:row-162",
+        "visibleLast": "agent-text:native:row-168",
+        "mountedFirst": "agent-text:native:row-156",
+        "mountedLast": "agent-text:native:row-174",
+        "loading": false,
+        "commit": 36
+      }
+    },
+    {
+      "start": 1794077452337,
+      "direction": "older",
+      "frame": {
+        "at": 1794077452636,
+        "top": 7732,
+        "height": 66865,
+        "logical": 609,
+        "visibleFirst": "agent-text:native:row-146",
+        "visibleLast": "user-text:native:row-153",
+        "mountedFirst": "agent-text:native:row-140",
+        "mountedLast": "user-text:native:row-159",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077452637,
+      "direction": "older",
+      "frame": {
+        "at": 1794077452870,
+        "top": 6443,
+        "height": 66385,
+        "logical": 609,
+        "visibleFirst": "user-text:native:row-139",
+        "visibleLast": "user-text:native:row-145",
+        "mountedFirst": "user-text:native:row-133",
+        "mountedLast": "user-text:native:row-151",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077452871,
+      "direction": "older",
+      "frame": {
+        "at": 1794077453087,
+        "top": 5492,
+        "height": 65985,
+        "logical": 609,
+        "visibleFirst": "agent-text:native:row-134",
+        "visibleLast": "user-text:native:row-139",
+        "mountedFirst": "agent-text:native:row-128",
+        "mountedLast": "user-text:native:row-145",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077453088,
+      "direction": "older",
+      "frame": {
+        "at": 1794077453286,
+        "top": 4326,
+        "height": 65449,
+        "logical": 609,
+        "visibleFirst": "user-text:native:row-127",
+        "visibleLast": "agent-text:native:row-134",
+        "mountedFirst": "user-text:native:row-121",
+        "mountedLast": "agent-text:native:row-140",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077453287,
+      "direction": "older",
+      "frame": {
+        "at": 1794077453520,
+        "top": 2899,
+        "height": 64909,
+        "logical": 609,
+        "visibleFirst": "user-text:native:row-119",
+        "visibleLast": "user-text:native:row-125",
+        "mountedFirst": "user-text:native:row-113",
+        "mountedLast": "user-text:native:row-131",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077453521,
+      "direction": "older",
+      "frame": {
+        "at": 1794077453752,
+        "top": 1393,
+        "height": 64285,
+        "logical": 609,
+        "visibleFirst": "user-text:native:row-111",
+        "visibleLast": "agent-text:native:row-116",
+        "mountedFirst": "user-text:native:row-105",
+        "mountedLast": "agent-text:native:row-122",
+        "loading": false,
+        "commit": 38
+      }
+    },
+    {
+      "start": 1794077453753,
+      "direction": "older",
+      "frame": {
+        "at": 1794077454070,
+        "top": 8960,
+        "height": 72661,
+        "logical": 659,
+        "visibleFirst": "user-text:native:row-103",
+        "visibleLast": "user-text:native:row-109",
+        "mountedFirst": "user-text:native:row-97",
+        "mountedLast": "user-text:native:row-115",
+        "loading": false,
+        "commit": 40
+      }
+    },
+    {
+      "start": 1794077454070,
+      "direction": "older",
+      "frame": {
+        "at": 1794077454270,
+        "top": 7918,
+        "height": 72249,
+        "logical": 659,
+        "visibleFirst": "user-text:native:row-97",
+        "visibleLast": "user-text:native:row-103",
+        "mountedFirst": "user-text:native:row-91",
+        "mountedLast": "user-text:native:row-109",
+        "loading": false,
+        "commit": 40
+      }
+    },
+    {
+      "start": 1794077454271,
+      "direction": "older",
+      "frame": {
+        "at": 1794077454486,
+        "top": 6241,
+        "height": 71537,
+        "logical": 659,
+        "visibleFirst": "agent-text:native:row-88",
+        "visibleLast": "agent-text:native:row-94",
+        "mountedFirst": "agent-text:native:row-82",
+        "mountedLast": "agent-text:native:row-100",
+        "loading": false,
+        "commit": 40
+      }
+    },
+    {
+      "start": 1794077454487,
+      "direction": "older",
+      "frame": {
+        "at": 1794077454720,
+        "top": 4245,
+        "height": 70689,
+        "logical": 659,
+        "visibleFirst": "user-text:native:row-77",
+        "visibleLast": "user-text:native:row-83",
+        "mountedFirst": "user-text:native:row-71",
+        "mountedLast": "user-text:native:row-89",
+        "loading": false,
+        "commit": 40
+      }
+    },
+    {
+      "start": 1794077454721,
+      "direction": "older",
+      "frame": {
+        "at": 1794077454960,
+        "top": 2500,
+        "height": 69993,
+        "logical": 659,
+        "visibleFirst": "user-text:native:row-67",
+        "visibleLast": "user-text:native:row-73",
+        "mountedFirst": "user-text:native:row-61",
+        "mountedLast": "user-text:native:row-79",
+        "loading": false,
+        "commit": 40
+      }
+    },
+    {
+      "start": 1794077454961,
+      "direction": "older",
+      "frame": {
+        "at": 1794077455270,
+        "top": 9806,
+        "height": 78281,
+        "logical": 709,
+        "visibleFirst": "agent-text:native:row-58",
+        "visibleLast": "agent-text:native:row-64",
+        "mountedFirst": "agent-text:native:row-52",
+        "mountedLast": "agent-text:native:row-70",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077455270,
+      "direction": "older",
+      "frame": {
+        "at": 1794077455486,
+        "top": 8843,
+        "height": 77869,
+        "logical": 709,
+        "visibleFirst": "agent-text:native:row-52",
+        "visibleLast": "agent-text:native:row-58",
+        "mountedFirst": "agent-text:native:row-46",
+        "mountedLast": "agent-text:native:row-64",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077455486,
+      "direction": "older",
+      "frame": {
+        "at": 1794077455687,
+        "top": 7743,
+        "height": 77401,
+        "logical": 709,
+        "visibleFirst": "agent-text:native:row-46",
+        "visibleLast": "agent-text:native:row-52",
+        "mountedFirst": "agent-text:native:row-40",
+        "mountedLast": "agent-text:native:row-58",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077455687,
+      "direction": "older",
+      "frame": {
+        "at": 1794077455901,
+        "top": 6077,
+        "height": 76709,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-37",
+        "visibleLast": "user-text:native:row-43",
+        "mountedFirst": "user-text:native:row-31",
+        "mountedLast": "user-text:native:row-49",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077455902,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456120,
+        "top": 4043,
+        "height": 75857,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-25",
+        "visibleLast": "agent-text:native:row-32",
+        "mountedFirst": "user-text:native:row-19",
+        "mountedLast": "agent-text:native:row-38",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456121,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456352,
+        "top": 1210,
+        "height": 74677,
+        "logical": 709,
+        "visibleFirst": "agent-text:native:row-10",
+        "visibleLast": "agent-text:native:row-16",
+        "mountedFirst": "agent-text:native:row-4",
+        "mountedLast": "agent-text:native:row-22",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456353,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456497,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456497,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456613,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456613,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456730,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456730,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456847,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456848,
+      "direction": "older",
+      "frame": {
+        "at": 1794077456968,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077456969,
+      "direction": "older",
+      "frame": {
+        "at": 1794077457097,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077457098,
+      "direction": "older",
+      "frame": {
+        "at": 1794077457213,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077457214,
+      "direction": "older",
+      "frame": {
+        "at": 1794077457369,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    },
+    {
+      "start": 1794077457370,
+      "direction": "older",
+      "frame": {
+        "at": 1794077457497,
+        "top": 0,
+        "height": 74453,
+        "logical": 709,
+        "visibleFirst": "user-text:native:row-1",
+        "visibleLast": "user-text:native:row-7",
+        "mountedFirst": "user-text:native:row-1",
+        "mountedLast": "user-text:native:row-13",
+        "loading": false,
+        "commit": 42
+      }
+    }
+  ],
+  "final": {
+    "frame": {
+      "at": 1794077459501,
+      "top": 0,
+      "height": 74453,
+      "logical": 709,
+      "visibleFirst": "user-text:native:row-1",
+      "visibleLast": "user-text:native:row-7",
+      "mountedFirst": "user-text:native:row-1",
+      "mountedLast": "user-text:native:row-13",
+      "loading": false,
+      "commit": 42
+    },
+    "commit": {
+      "at": 1794077455168,
+      "native": {
+        "first": "row-1",
+        "last": "row-300",
+        "count": 300,
+        "cursor": null,
+        "newerCursor": "new:300",
+        "loading": false,
+        "direction": "older"
+      },
+      "panel": {
+        "hasMore": false,
+        "hasNewer": true,
+        "historyVersion": 24
+      },
+      "virtual": {
+        "count": 709,
+        "first": {
+          "id": "user-text:native:row-1",
+          "current": true,
+          "resident": true,
+          "locator": "row-1"
+        },
+        "last": {
+          "id": "agent-text:native:row-1100",
+          "current": false,
+          "resident": true,
+          "locator": "row-1100"
+        }
+      }
+    }
+  },
+  "retained": {
+    "count": 709,
+    "missing": []
+  },
+  "summary": {
+    "longestPins": [
+      {
+        "first": "user-text:native:row-1",
+        "start": 1794077456404,
+        "end": 1794077459538,
+        "pulses": 0,
+        "frameCount": 189,
+        "firstCommit": 42,
+        "lastCommit": 42,
+        "ms": 3134
+      },
+      {
+        "first": "user-text:native:row-731",
+        "start": 1794077446426,
+        "end": 1794077448337,
+        "pulses": 4,
+        "frameCount": 111,
+        "firstCommit": 19,
+        "lastCommit": 28,
+        "ms": 1911
+      }
+    ],
+    "cursorSequence": [
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:1051",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        null,
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:1001",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:951",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:901",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:851",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:801",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:751",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:701",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:651",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:1050",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:601",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:1000",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:551",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:950",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:900",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:850",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:501",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:800",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:750",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:451",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:700",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:401",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:650",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:351",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:600",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:301",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:251",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:550",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:201",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:151",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:101",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:500",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "old:51",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:450",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:400",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:350",
+        200,
+        null,
+        false
+      ],
+      [
+        "items",
+        "new:300",
+        200,
+        null,
+        false
+      ]
+    ],
+    "repeated": [
+      [
+        "items:latest",
+        4
+      ]
+    ],
+    "loadingPulses": 5,
+    "maxSourceItems": 300,
+    "hasMoreFalse": true,
+    "sourceRewinds": [],
+    "timelineShrinks": []
+  },
+  "checks": {
+    "exhausted": true,
+    "reverse": false,
+    "noRewind": true,
+    "continuity": true,
+    "loop": false
+  },
+  "serverRequests": [
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 1051,
+      "last": 1100,
+      "nextCursor": "old:1051",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794077436235,
+      "end": 1794077436235
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 1051,
+      "last": 1100,
+      "nextCursor": "old:1051",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794077436271,
+      "end": 1794077436271
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 1051,
+      "last": 1100,
+      "nextCursor": "old:1051",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794077436338,
+      "end": 1794077436338
+    },
+    {
+      "route": "items",
+      "cursor": "old:1051",
+      "direction": "desc",
+      "first": 1001,
+      "last": 1050,
+      "nextCursor": "old:1001",
+      "backwardsCursor": "new:1050",
+      "hasMore": true,
+      "start": 1794077436347,
+      "end": 1794077436687
+    },
+    {
+      "route": "items",
+      "cursor": null,
+      "direction": "desc",
+      "first": 1051,
+      "last": 1100,
+      "nextCursor": "old:1051",
+      "backwardsCursor": null,
+      "hasMore": true,
+      "start": 1794077437053,
+      "end": 1794077437053
+    },
+    {
+      "route": "items",
+      "cursor": "old:1001",
+      "direction": "desc",
+      "first": 951,
+      "last": 1000,
+      "nextCursor": "old:951",
+      "backwardsCursor": "new:1000",
+      "hasMore": true,
+      "start": 1794077437974,
+      "end": 1794077438315
+    },
+    {
+      "route": "items",
+      "cursor": "old:951",
+      "direction": "desc",
+      "first": 901,
+      "last": 950,
+      "nextCursor": "old:901",
+      "backwardsCursor": "new:950",
+      "hasMore": true,
+      "start": 1794077438322,
+      "end": 1794077438662
+    },
+    {
+      "route": "items",
+      "cursor": "old:901",
+      "direction": "desc",
+      "first": 851,
+      "last": 900,
+      "nextCursor": "old:851",
+      "backwardsCursor": "new:900",
+      "hasMore": true,
+      "start": 1794077438671,
+      "end": 1794077439011
+    },
+    {
+      "route": "items",
+      "cursor": "old:851",
+      "direction": "desc",
+      "first": 801,
+      "last": 850,
+      "nextCursor": "old:801",
+      "backwardsCursor": "new:850",
+      "hasMore": true,
+      "start": 1794077439541,
+      "end": 1794077439882
+    },
+    {
+      "route": "items",
+      "cursor": "old:801",
+      "direction": "desc",
+      "first": 751,
+      "last": 800,
+      "nextCursor": "old:751",
+      "backwardsCursor": "new:800",
+      "hasMore": true,
+      "start": 1794077440824,
+      "end": 1794077441165
+    },
+    {
+      "route": "items",
+      "cursor": "old:751",
+      "direction": "desc",
+      "first": 701,
+      "last": 750,
+      "nextCursor": "old:701",
+      "backwardsCursor": "new:750",
+      "hasMore": true,
+      "start": 1794077441657,
+      "end": 1794077441997
+    },
+    {
+      "route": "items",
+      "cursor": "old:701",
+      "direction": "desc",
+      "first": 651,
+      "last": 700,
+      "nextCursor": "old:651",
+      "backwardsCursor": "new:700",
+      "hasMore": true,
+      "start": 1794077442740,
+      "end": 1794077443080
+    },
+    {
+      "route": "items",
+      "cursor": "old:651",
+      "direction": "desc",
+      "first": 601,
+      "last": 650,
+      "nextCursor": "old:601",
+      "backwardsCursor": "new:650",
+      "hasMore": true,
+      "start": 1794077443741,
+      "end": 1794077444081
+    },
+    {
+      "route": "items",
+      "cursor": "new:1050",
+      "direction": "asc",
+      "first": 1051,
+      "last": 1100,
+      "nextCursor": null,
+      "backwardsCursor": "old:1051",
+      "hasMore": false,
+      "start": 1794077444143,
+      "end": 1794077444483
+    },
+    {
+      "route": "items",
+      "cursor": "old:601",
+      "direction": "desc",
+      "first": 551,
+      "last": 600,
+      "nextCursor": "old:551",
+      "backwardsCursor": "new:600",
+      "hasMore": true,
+      "start": 1794077445407,
+      "end": 1794077445747
+    },
+    {
+      "route": "items",
+      "cursor": "new:1000",
+      "direction": "asc",
+      "first": 1001,
+      "last": 1050,
+      "nextCursor": "new:1050",
+      "backwardsCursor": "old:1001",
+      "hasMore": true,
+      "start": 1794077445576,
+      "end": 1794077445916
+    },
+    {
+      "route": "items",
+      "cursor": "old:551",
+      "direction": "desc",
+      "first": 501,
+      "last": 550,
+      "nextCursor": "old:501",
+      "backwardsCursor": "new:550",
+      "hasMore": true,
+      "start": 1794077445924,
+      "end": 1794077446265
+    },
+    {
+      "route": "items",
+      "cursor": "new:950",
+      "direction": "asc",
+      "first": 951,
+      "last": 1000,
+      "nextCursor": "new:1000",
+      "backwardsCursor": "old:951",
+      "hasMore": true,
+      "start": 1794077446231,
+      "end": 1794077446571
+    },
+    {
+      "route": "items",
+      "cursor": "new:900",
+      "direction": "asc",
+      "first": 901,
+      "last": 950,
+      "nextCursor": "new:950",
+      "backwardsCursor": "old:901",
+      "hasMore": true,
+      "start": 1794077446429,
+      "end": 1794077446770
+    },
+    {
+      "route": "items",
+      "cursor": "new:850",
+      "direction": "asc",
+      "first": 851,
+      "last": 900,
+      "nextCursor": "new:900",
+      "backwardsCursor": "old:851",
+      "hasMore": true,
+      "start": 1794077446577,
+      "end": 1794077446917
+    },
+    {
+      "route": "items",
+      "cursor": "old:501",
+      "direction": "desc",
+      "first": 451,
+      "last": 500,
+      "nextCursor": "old:451",
+      "backwardsCursor": "new:500",
+      "hasMore": true,
+      "start": 1794077446777,
+      "end": 1794077447117
+    },
+    {
+      "route": "items",
+      "cursor": "new:800",
+      "direction": "asc",
+      "first": 801,
+      "last": 850,
+      "nextCursor": "new:850",
+      "backwardsCursor": "old:801",
+      "hasMore": true,
+      "start": 1794077446925,
+      "end": 1794077447266
+    },
+    {
+      "route": "items",
+      "cursor": "new:750",
+      "direction": "asc",
+      "first": 751,
+      "last": 800,
+      "nextCursor": "new:800",
+      "backwardsCursor": "old:751",
+      "hasMore": true,
+      "start": 1794077447142,
+      "end": 1794077447482
+    },
+    {
+      "route": "items",
+      "cursor": "old:451",
+      "direction": "desc",
+      "first": 401,
+      "last": 450,
+      "nextCursor": "old:401",
+      "backwardsCursor": "new:450",
+      "hasMore": true,
+      "start": 1794077447274,
+      "end": 1794077447614
+    },
+    {
+      "route": "items",
+      "cursor": "old:401",
+      "direction": "desc",
+      "first": 351,
+      "last": 400,
+      "nextCursor": "old:351",
+      "backwardsCursor": "new:400",
+      "hasMore": true,
+      "start": 1794077447643,
+      "end": 1794077447983
+    },
+    {
+      "route": "items",
+      "cursor": "new:700",
+      "direction": "asc",
+      "first": 701,
+      "last": 750,
+      "nextCursor": "new:750",
+      "backwardsCursor": "old:701",
+      "hasMore": true,
+      "start": 1794077447643,
+      "end": 1794077447983
+    },
+    {
+      "route": "items",
+      "cursor": "new:650",
+      "direction": "asc",
+      "first": 651,
+      "last": 700,
+      "nextCursor": "new:700",
+      "backwardsCursor": "old:651",
+      "hasMore": true,
+      "start": 1794077447994,
+      "end": 1794077448335
+    },
+    {
+      "route": "items",
+      "cursor": "old:351",
+      "direction": "desc",
+      "first": 301,
+      "last": 350,
+      "nextCursor": "old:301",
+      "backwardsCursor": "new:350",
+      "hasMore": true,
+      "start": 1794077447994,
+      "end": 1794077448335
+    },
+    {
+      "route": "items",
+      "cursor": "new:600",
+      "direction": "asc",
+      "first": 601,
+      "last": 650,
+      "nextCursor": "new:650",
+      "backwardsCursor": "old:601",
+      "hasMore": true,
+      "start": 1794077448345,
+      "end": 1794077448686
+    },
+    {
+      "route": "items",
+      "cursor": "old:301",
+      "direction": "desc",
+      "first": 251,
+      "last": 300,
+      "nextCursor": "old:251",
+      "backwardsCursor": "new:300",
+      "hasMore": true,
+      "start": 1794077448346,
+      "end": 1794077448686
+    },
+    {
+      "route": "items",
+      "cursor": "old:251",
+      "direction": "desc",
+      "first": 201,
+      "last": 250,
+      "nextCursor": "old:201",
+      "backwardsCursor": "new:250",
+      "hasMore": true,
+      "start": 1794077448923,
+      "end": 1794077449264
+    },
+    {
+      "route": "items",
+      "cursor": "new:550",
+      "direction": "asc",
+      "first": 551,
+      "last": 600,
+      "nextCursor": "new:600",
+      "backwardsCursor": "old:551",
+      "hasMore": true,
+      "start": 1794077449242,
+      "end": 1794077449582
+    },
+    {
+      "route": "items",
+      "cursor": "old:201",
+      "direction": "desc",
+      "first": 151,
+      "last": 200,
+      "nextCursor": "old:151",
+      "backwardsCursor": "new:200",
+      "hasMore": true,
+      "start": 1794077449320,
+      "end": 1794077449660
+    },
+    {
+      "route": "items",
+      "cursor": "old:151",
+      "direction": "desc",
+      "first": 101,
+      "last": 150,
+      "nextCursor": "old:101",
+      "backwardsCursor": "new:150",
+      "hasMore": true,
+      "start": 1794077449669,
+      "end": 1794077450009
+    },
+    {
+      "route": "items",
+      "cursor": "old:101",
+      "direction": "desc",
+      "first": 51,
+      "last": 100,
+      "nextCursor": "old:51",
+      "backwardsCursor": "new:100",
+      "hasMore": true,
+      "start": 1794077450123,
+      "end": 1794077450463
+    },
+    {
+      "route": "items",
+      "cursor": "new:500",
+      "direction": "asc",
+      "first": 501,
+      "last": 550,
+      "nextCursor": "new:550",
+      "backwardsCursor": "old:501",
+      "hasMore": true,
+      "start": 1794077450314,
+      "end": 1794077450654
+    },
+    {
+      "route": "items",
+      "cursor": "old:51",
+      "direction": "desc",
+      "first": 1,
+      "last": 50,
+      "nextCursor": null,
+      "backwardsCursor": "new:50",
+      "hasMore": false,
+      "start": 1794077451207,
+      "end": 1794077451548
+    },
+    {
+      "route": "items",
+      "cursor": "new:450",
+      "direction": "asc",
+      "first": 451,
+      "last": 500,
+      "nextCursor": "new:500",
+      "backwardsCursor": "old:451",
+      "hasMore": true,
+      "start": 1794077451392,
+      "end": 1794077451732
+    },
+    {
+      "route": "items",
+      "cursor": "new:400",
+      "direction": "asc",
+      "first": 401,
+      "last": 450,
+      "nextCursor": "new:450",
+      "backwardsCursor": "old:401",
+      "hasMore": true,
+      "start": 1794077452357,
+      "end": 1794077452698
+    },
+    {
+      "route": "items",
+      "cursor": "new:350",
+      "direction": "asc",
+      "first": 351,
+      "last": 400,
+      "nextCursor": "new:400",
+      "backwardsCursor": "old:351",
+      "hasMore": true,
+      "start": 1794077453775,
+      "end": 1794077454115
+    },
+    {
+      "route": "items",
+      "cursor": "new:300",
+      "direction": "asc",
+      "first": 301,
+      "last": 350,
+      "nextCursor": "new:350",
+      "backwardsCursor": "old:301",
+      "hasMore": true,
+      "start": 1794077455075,
+      "end": 1794077455415
+    }
+  ]
+}

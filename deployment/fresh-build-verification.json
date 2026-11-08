@@ -1,0 +1,48 @@
+{
+  "at": "2026-11-08T15:50:57.156179+00:00",
+  "manifest": {
+    "commit": "6a5341eef0130c1041bc8c3454cd336ce1611902",
+    "targets": [
+      "source",
+      "web"
+    ],
+    "tools": {
+      "bun": "1.4.0",
+      "node": "v26.12.1"
+    },
+    "bunLockSha256": "85f2fe56f9e60c305c397f095d5573cda42143bd8ada73c4168b910fa92dc7f6",
+    "artifacts": {
+      "source.tar.gz": {
+        "bytes": 108811527,
+        "sha256": "575286fb6ad53a21e187c3efc86961b9bd3375a4bd1aa029eec5f243307b25c8"
+      },
+      "web-dist.tar.gz": {
+        "bytes": 9785595,
+        "sha256": "f7b5361f04edfb967719ee13d36ca6bb83df18466702e15c4531704079c2bfc5"
+      }
+    }
+  },
+  "webFiles": 227,
+  "applicationAssetsMatchCurrentLive": true,
+  "expectedDifferences": [
+    {
+      "path": "web/dist/404.html",
+      "reason": "one additional blank HTML line"
+    },
+    {
+      "path": "web/dist/fonts/Maple-Mono-OFL.txt",
+      "reason": "license line endings"
+    },
+    {
+      "path": "web/dist/index.html",
+      "reason": "one additional blank HTML line"
+    },
+    {
+      "path": "web/dist/sw.js",
+      "reason": "precache hashes reflect HTML and license bytes"
+    }
+  ],
+  "mainAsset": "/assets/index-2yIGIb0j.js",
+  "temporaryBuildTreesRemoved": true,
+  "tests": "Fresh source export, frozen dependency installation and production web build; no application source changes or service restart"
+}

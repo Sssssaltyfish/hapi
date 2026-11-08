@@ -1,0 +1,9 @@
+{
+  "revision": "0ca395f171b9ca947dae19a4b8de10dfab7bbeba",
+  "previous": "f67f2b01fa217028c4374c95dd6bc2b174ab723a",
+  "backup": "/home/igna/hapi-deployment/backups/history-cursor-1794077852",
+  "asset": "/assets/index-x2ntvbqy.js",
+  "files": 9,
+  "health": 200,
+  "restartedServices": []
+}

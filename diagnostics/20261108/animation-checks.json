@@ -1,0 +1,6 @@
+[
+  ["test-web", ["bun", "run", "test:web", "src/components/AssistantChat/VirtualThreadMessages.test.tsx", "src/components/AssistantChat/HappyThread.mobile-scroll.test.tsx", "src/components/ToolCard/ToolGroupCard.test.tsx", "src/components/ToolCard/toolTimingSummary.test.tsx", "src/chat/presentation.test.ts", "src/components/MarkdownRenderer.test.tsx", "src/components/assistant-ui/reasoning.test.tsx", "src/codex-native/nativeSessionApiAdapter.test.ts", "src/codex-native/NativeSessionPage.render.test.tsx", "src/codex-native/NativeApprovalSettings.test.tsx", "src/codex-native/presentation.test.ts", "src/codex-native/projectNativeItems.test.ts", "src/codex-native/useNativeThread.test.ts"]],
+  ["types-web", ["bun", "run", "typecheck:web"]],
+  ["fixtures", ["bun", "run", "gen:fixtures"]],
+  ["build-web", ["bun", "run", "build:web"]]
+]

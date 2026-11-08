@@ -1,0 +1,77 @@
+diff --git a/cli/src/codex/shared/runtime.ts b/cli/src/codex/shared/runtime.ts
+index 4c17833..9f9cc6a 100644
+--- a/cli/src/codex/shared/runtime.ts
++++ b/cli/src/codex/shared/runtime.ts
+@@ -50,8 +50,14 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+     // Unix sockaddr_un has a small path limit; don't nest sockets under CODEX_HOME.
+     const sockets = await mkdtemp(join(process.platform === 'win32' ? tmpdir() : '/tmp', 'hapi-cx-')); await chmod(sockets, 0o700);
+     const token = randomBytes(32).toString('hex');
+-    const upstream = process.platform === 'win32' ? `ws://127.0.0.1:${await freePort()}` : `unix://${join(sockets, 'engine.sock')}`;
+-    const upstreamToken = process.platform === 'win32' ? randomBytes(32).toString('hex') : undefined;
++    // A desktop-managed daemon has its own lifetime. This wrapper owns only
++    // its HAPI subscriptions and must never stop that daemon or drain its queue.
++    const externalEndpoint = process.env.HAPI_CODEX_EXTERNAL_ENDPOINT;
++    if (externalEndpoint && !/^unix:\/\/\//.test(externalEndpoint)) {
++        throw new Error('HAPI_CODEX_EXTERNAL_ENDPOINT must name an absolute local Unix socket');
++    }
++    const upstream = externalEndpoint ?? (process.platform === 'win32' ? `ws://127.0.0.1:${await freePort()}` : `unix://${join(sockets, 'engine.sock')}`);
++    const upstreamToken = !externalEndpoint && process.platform === 'win32' ? randomBytes(32).toString('hex') : undefined;
+     const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: home };
+     // Every thread injects its own identity. A launch from another agent must not inherit that root's identity.
+     delete env.HAPI_SESSION_ID;
+@@ -129,7 +135,7 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+             let timer: ReturnType<typeof setTimeout> | undefined;
+             try {
+                 await Promise.race([
+-                    Promise.allSettled([...prepared].filter(root => !ending.has(root)).map(root => root.suspend())),
++                    Promise.allSettled([...prepared].filter(root => !ending.has(root)).map(root => externalEndpoint ? Promise.resolve() : root.suspend())),
+                     new Promise<void>(resolve => { timer = setTimeout(resolve, 5_000); })
+                 ]);
+             } finally { clearTimeout(timer); }
+@@ -205,7 +211,7 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+         if (reserved && reserved.threadId !== threadId) throw new Error('Codex retargeted a reserved thread');
+         if (!reserved) await reserve(root, threadId);
+         // No fake user turn/name. Metadata write materializes an empty legacy rollout for native resume.
+-        await control.request('thread/metadata/update', { threadId, gitInfo: gitInfo(string(record(response.thread).cwd) ?? root.bootstrap.workingDirectory) });
++        if (!externalEndpoint) await control.request('thread/metadata/update', { threadId, gitInfo: gitInfo(string(record(response.thread).cwd) ?? root.bootstrap.workingDirectory) });
+         assertRunning();
+         roots.set(threadId, root);
+         await root.bind(threadId, response, subscribe);
+@@ -308,6 +314,7 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+     startup = (async () => {
+         if (abortSignal?.aborted) throw new Error('Codex startup canceled');
+         assertRunning();
++        if (!externalEndpoint) {
+         server = spawn(command.command, [...command.args, 'app-server', ...launch.serverArgs, '--listen', upstream,
+             ...(upstreamToken ? ['--ws-auth', 'capability-token', '--ws-token-sha256', createHash('sha256').update(upstreamToken).digest('hex')] : [])],
+             { cwd: launch.cwd, env, stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
+@@ -317,6 +324,7 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+         runtime.serverPid = server.pid;
+         runtime.serverMarker = server.pid ? getProcessStartMarker(server.pid) ?? undefined : undefined;
+         if (!runtime.serverPid || !runtime.serverMarker) throw new Error('Cannot verify app-server generation');
++        }
+         await persist();
+         const deadline = Date.now() + 20_000;
+         for (;;) {
+@@ -360,10 +368,10 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+             // row's hostPid/metadata. Hold the lock until the reservation is durable.
+             root = await withThreadOwnership(home, threadId, id, async () => {
+                 const existing = options.existingSessionId ?? await findColdBinding(home, threadId);
+-                const root = await prepare(launch.cwd, existing);
++                const root = await prepare(externalEndpoint ? string(thread.cwd) ?? launch.cwd : launch.cwd, existing);
+                 await reserveRecord(root, threadId); return root;
+             });
+-            const params = root.config({ ...launch.threadParams, threadId });
++            const params = externalEndpoint ? { threadId } : root.config({ ...launch.threadParams, threadId });
+             let response: Record<string, unknown>;
+             try {
+                 response = record(await root.client.request('thread/resume', params));
+@@ -376,7 +384,7 @@ export async function runSharedRuntime(options: SharedLaunchOptions, onReady?: (
+                 await root.client.request('thread/unarchive', { threadId });
+                 response = record(await root.client.request('thread/resume', params));
+             }
+-            await bind(root, response, false, options);
++            await bind(root, response, false, externalEndpoint ? {} : options);
+         } else root = await create('thread/start', { ...launch.threadParams, cwd: launch.cwd }, undefined, options);
+         assertRunning();
+         onReady?.({ sessionId: root.session.sessionId, runtime });

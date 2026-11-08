@@ -1,0 +1,1252 @@
+{
+  "recordedAt": "2026-11-07T19:37:19.656Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fontconfig": "/etc/fonts/fonts.conf",
+  "dist": "/home/igna/hapi-deployment/group-layout-cause-20261108/probe/stable-adapter-dist",
+  "expectedBundle": "/assets/index-BBxAUGLH.js",
+  "requests": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "name": "failure",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "checks": {
+    "formalBuildLoaded": true,
+    "completedAndRunningCardsExposeExpectedStates": true,
+    "actualStreamingUpdatesReachedCard": true,
+    "allOpenAndClosePhasesWereObserved": true
+  },
+  "trials": [
+    {
+      "kind": "completed",
+      "label": "first-completed-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "first-completed-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-open",
+      "open": true,
+      "streamed": true,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2669,
+        "height": 3306,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": true
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-close",
+      "open": false,
+      "streamed": true,
+      "before": {
+        "top": 132,
+        "height": 3306,
+        "distance": 2538
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    }
+  ],
+  "summaryOnly": false,
+  "lean": true,
+  "commandItems": true,
+  "apiTraffic": [
+    {
+      "at": 1794080240352,
+      "method": "GET",
+      "path": "/api/passkey/config"
+    },
+    {
+      "at": 1794080240356,
+      "method": "GET",
+      "path": "/api/app-icon/image"
+    },
+    {
+      "at": 1794080240360,
+      "method": "GET",
+      "path": "/api/passkey/session"
+    },
+    {
+      "at": 1794080240372,
+      "method": "GET",
+      "path": "/api/passkey/session"
+    },
+    {
+      "at": 1794080240390,
+      "method": "GET",
+      "path": "/api/machines"
+    },
+    {
+      "at": 1794080240391,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints"
+    },
+    {
+      "at": 1794080240404,
+      "method": "GET",
+      "path": "/api/sessions/codex-native%3Afixture%3Arunning-group-comparison-fixture"
+    },
+    {
+      "at": 1794080240404,
+      "method": "GET",
+      "path": "/api/sessions"
+    },
+    {
+      "at": 1794080240405,
+      "method": "GET",
+      "path": "/api/app-icon"
+    },
+    {
+      "at": 1794080240406,
+      "method": "GET",
+      "path": "/api/events"
+    },
+    {
+      "at": 1794080240419,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints/fixture/catalog/events"
+    },
+    {
+      "at": 1794080240478,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080240483,
+      "method": "GET",
+      "path": "/api/hub-settings"
+    },
+    {
+      "at": 1794080240488,
+      "method": "GET",
+      "path": "/api/voice/transcription/providers"
+    },
+    {
+      "at": 1794080240489,
+      "method": "GET",
+      "path": "/api/voice/backend"
+    },
+    {
+      "at": 1794080240489,
+      "method": "GET",
+      "path": "/api/codex-native/models"
+    },
+    {
+      "at": 1794080240491,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794080240500,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794080240500,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/events"
+    },
+    {
+      "at": 1794080240500,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/commands"
+    },
+    {
+      "at": 1794080240500,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/queue"
+    },
+    {
+      "at": 1794080240515,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080240516,
+      "method": "GET",
+      "path": "/api/codex-native/endpoints/fixture/catalog/events"
+    },
+    {
+      "at": 1794080240537,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/commands"
+    },
+    {
+      "at": 1794080240537,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/queue"
+    },
+    {
+      "at": 1794080240557,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080241270,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794080241270,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794080241270,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080243358,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080245216,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080245898,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080247079,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080248831,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080249497,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080250828,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080251130,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794080251130,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794080251133,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080251389,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080252130,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080252620,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture"
+    },
+    {
+      "at": 1794080252620,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/active-turn"
+    },
+    {
+      "at": 1794080252620,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    },
+    {
+      "at": 1794080253159,
+      "method": "GET",
+      "path": "/api/codex-native/threads/running-group-comparison-fixture/items"
+    }
+  ],
+  "bundle": [
+    "/assets/index-BBxAUGLH.js"
+  ],
+  "fontResponses": [
+    {
+      "path": "/assets/maple-code-base-nplYrwlI.woff2",
+      "status": 200
+    }
+  ],
+  "cpuThrottle": 4,
+  "runtime": {
+    "renderers": 0,
+    "phases": [
+      {
+        "label": "first-completed-open",
+        "started": 2771.899999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3162.7999999523163,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3163.5999999046326,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 3300.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 2871,
+        "clickWall": 1794080242906,
+        "toggle": 3161.6999999284744,
+        "finished": 3600.6999999284744
+      },
+      {
+        "label": "first-completed-close",
+        "started": 3848.0999999046326,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3946.2999999523163,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3946.2999999523163,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 4075.399999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 3921.399999976158,
+        "clickWall": 1794080243956,
+        "toggle": 3941.6999999284744,
+        "finished": 4570.699999928474
+      },
+      {
+        "label": "first-running-open",
+        "started": 4764.899999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 5018.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 5018.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 5157.5,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 4838.799999952316,
+        "clickWall": 1794080244874,
+        "toggle": 5015.899999976158,
+        "finished": 5462.099999904633
+      },
+      {
+        "label": "first-running-close",
+        "started": 5679.299999952316,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 5769.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 5770.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 5929.899999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 5738.5,
+        "clickWall": 1794080245773,
+        "toggle": 5765.199999928474,
+        "finished": 6500.399999976158
+      },
+      {
+        "label": "warm-completed-1-open",
+        "started": 6693.799999952316,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 6874.599999904633,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 6874.599999904633,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7027.099999904633,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 6752.5,
+        "clickWall": 1794080246787,
+        "toggle": 6872.599999904633,
+        "finished": 7310.199999928474
+      },
+      {
+        "label": "warm-completed-1-close",
+        "started": 7526.799999952316,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 7616.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 7616.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7757.199999928474,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 7594.899999976158,
+        "clickWall": 1794080247630,
+        "toggle": 7613,
+        "finished": 8231.599999904633
+      },
+      {
+        "label": "quiet-running-1-open",
+        "started": 8433.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 8645.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 8645.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 8777,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 8504.799999952316,
+        "clickWall": 1794080248540,
+        "toggle": 8644.599999904633,
+        "finished": 9080.399999976158
+      },
+      {
+        "label": "quiet-running-1-close",
+        "started": 9272.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 9364.099999904633,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 9364.099999904633,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 9521.599999904633,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 9337.099999904633,
+        "clickWall": 1794080249372,
+        "toggle": 9359.399999976158,
+        "finished": 10051.599999904633
+      },
+      {
+        "label": "streaming-running-open",
+        "started": 10239.099999904633,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 10504.299999952316,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 10504.299999952316,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 10684.599999904633,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 10300.5,
+        "clickWall": 1794080250335,
+        "toggle": 10500.099999904633,
+        "finished": 11140.799999952316
+      },
+      {
+        "label": "streaming-running-close",
+        "started": 11699.099999904633,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 11800.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 11800.299999952316,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 12007.599999904633,
+            "duration": 0.15
+          }
+        ],
+        "counts": {},
+        "times": {
+          "virtualRowRect": 0,
+          "viewportScrollHeight": 0,
+          "virtualRowObserver": 0
+        },
+        "click": 11770.799999952316,
+        "clickWall": 1794080251806,
+        "toggle": 11795.399999976158,
+        "finished": 12792.299999952316
+      }
+    ]
+  },
+  "chrome": [
+    {
+      "label": "first-completed-open",
+      "clickToToggleMs": 290.6999999284744,
+      "animationMs": 136.80000007152557,
+      "maxFrameGapMs": 83.39999999999964,
+      "maxAnimationFrameGapMs": 66.60000000000036,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 90
+    },
+    {
+      "label": "first-completed-close",
+      "clickToToggleMs": 20.299999952316284,
+      "animationMs": 129.10000002384186,
+      "maxFrameGapMs": 33.40000000000009,
+      "maxAnimationFrameGapMs": 33.40000000000009,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 0
+    },
+    {
+      "label": "first-running-open",
+      "clickToToggleMs": 177.10000002384186,
+      "animationMs": 139,
+      "maxFrameGapMs": 83.40000000000055,
+      "maxAnimationFrameGapMs": 33.400000000000546,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 91
+    },
+    {
+      "label": "first-running-close",
+      "clickToToggleMs": 26.699999928474426,
+      "animationMs": 159.70000004768372,
+      "maxFrameGapMs": 83.30000000000018,
+      "maxAnimationFrameGapMs": 33.30000000000018,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 89
+    },
+    {
+      "label": "warm-completed-1-open",
+      "clickToToggleMs": 120.09999990463257,
+      "animationMs": 152.5,
+      "maxFrameGapMs": 66.69999999999982,
+      "maxAnimationFrameGapMs": 33.30000000000018,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 78
+    },
+    {
+      "label": "warm-completed-1-close",
+      "clickToToggleMs": 18.100000023841858,
+      "animationMs": 140.29999995231628,
+      "maxFrameGapMs": 16.800000000000182,
+      "maxAnimationFrameGapMs": 16.699999999999818,
+      "slowAnimationFrames": 0,
+      "longestTaskMs": 0
+    },
+    {
+      "label": "quiet-running-1-open",
+      "clickToToggleMs": 139.79999995231628,
+      "animationMs": 131.5,
+      "maxFrameGapMs": 66.70000000000073,
+      "maxAnimationFrameGapMs": 16.700000000000728,
+      "slowAnimationFrames": 0,
+      "longestTaskMs": 73
+    },
+    {
+      "label": "quiet-running-1-close",
+      "clickToToggleMs": 22.300000071525574,
+      "animationMs": 157.5,
+      "maxFrameGapMs": 66.60000000000036,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 61
+    },
+    {
+      "label": "streaming-running-open",
+      "clickToToggleMs": 199.59999990463257,
+      "animationMs": 180.29999995231628,
+      "maxFrameGapMs": 133.39999999999964,
+      "maxAnimationFrameGapMs": 100,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 112
+    },
+    {
+      "label": "streaming-running-close",
+      "clickToToggleMs": 24.600000023841858,
+      "animationMs": 207.29999995231628,
+      "maxFrameGapMs": 83.39999999999964,
+      "maxAnimationFrameGapMs": 83.39999999999964,
+      "slowAnimationFrames": 4,
+      "longestTaskMs": 77
+    }
+  ],
+  "transport": [
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250339,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250339,
+      "method": "thread/status/changed",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250339,
+      "method": "item/updated",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250410,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250476,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250476,
+      "method": "item/updated",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250541,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250606,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250606,
+      "method": "item/updated",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250672,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250737,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250737,
+      "method": "item/updated",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250802,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794080250802,
+      "method": "thread/status/changed",
+      "index": 7
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251807,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251807,
+      "method": "thread/status/changed",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251807,
+      "method": "item/updated",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251872,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251937,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080251937,
+      "method": "item/updated",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252002,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252068,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252068,
+      "method": "item/updated",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252133,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252198,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252198,
+      "method": "item/updated",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252264,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794080252264,
+      "method": "thread/status/changed",
+      "index": 7
+    }
+  ],
+  "passed": false,
+  "failure": "TimeoutError: waitFor: Timeout 8000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('dialog').getByText(/Live command output streaming-running-close 6/) to be visible\u001b[22m\n",
+  "failureText": "Compare two equally sized work groups\nN\nCodex Native\nmachine: Fixture daemon\n\nReview the earlier work.\n\n03:36\nRun git diff --stat\nStarted\n3:36:49 AM\nFinished\n3:36:54 AM\nDuration\n4.3s\nRun 23\n1 agent update\n03:36\n\nThe earlier work completed.\n\n03:36\n\nReview the current work.\n\n03:37\nRun git diff --stat\nStarted\n3:37:09 AM\nDuration\n30.6s\nRun 23\n1 agent update\n1 running\n\u21b3\nStarted /root/fixture-reviewer\ngpt-6.1-sol\nmedium\n03:37\nReasoning\ngit diff\ngit diff -- src/file-0.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-1.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-2.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-3.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-4.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-5.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-6.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-7.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-8.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-9.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-10.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-11.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-12.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-13.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-14.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-15.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-16.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-17.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-18.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-19.ts\n0.1s\nReasoning\ngit diff\ngit diff -- src/file-20.ts\n0.1s\nReasoning\n\nFinal checks:\n\nCompare the latest result with the original command output.\nVerify the remaining work stays readable on a narrow screen. Stream marker streaming-running-open 0. Stream marker streaming-running-open 1. Stream marker streaming-running-open 2. Stream marker streaming-running-open 3. Stream marker streaming-running-open 4. Stream marker streaming-running-open 5. Stream marker streaming-running-open 6. Stream marker streaming-running-open 7. Stream marker streaming-running-close 0. Stream marker streaming-running-close 1. Stream marker streaming-running-close 2. Stream marker streaming-running-close 3. Stream marker streaming-running-close 4. Stream marker streaming-running-close 5. Stream marker streaming-running-close 6. Stream marker streaming-running-close 7.\ngit diff\ngit diff -- src/file-21.ts\n0.1s\ngit diff\ngit diff --stat\n26.3s\nRunning\n03:37\ndiscombobulating\u2026\ndefault\nType a message\u2026\nDefault\nDefault\ngit diff\nStarted\nNov 8, 2026, 3:37:13 AM\nFinished\nNov 8, 2026, 3:37:14 AM\nDuration\n0.1s\nInput\nCOMMAND\n1\ngit diff -- src/file-20.ts\nResult\nexit 0\nSTDOUT\n1\nfixture output",
+  "controls": [
+    {
+      "text": "",
+      "expanded": "false",
+      "controls": null
+    },
+    {
+      "text": "",
+      "expanded": "false",
+      "controls": null
+    },
+    {
+      "text": "Run git diff --statStarted3:36:49 AMFinished3:36:54 AMDuration4.3sRun 231 agent update",
+      "expanded": "false",
+      "controls": "_r_1a_"
+    },
+    {
+      "text": "Run git diff --statStarted3:37:09 AMDuration30.6sRun 231 agent update1 running",
+      "expanded": "true",
+      "controls": "_r_20_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5o_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5p_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5q_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5r_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5s_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5t_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5u_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_5v_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_60_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_61_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_62_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_63_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_64_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_65_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_66_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_67_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_68_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_69_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_6a_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_6b_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "false",
+      "controls": "_r_6c_"
+    },
+    {
+      "text": "Reasoning",
+      "expanded": "true",
+      "controls": "_r_6d_"
+    }
+  ],
+  "archiveNote": {
+    "omittedRawArrays": [
+      "runtime.phases[].frames",
+      "runtime.phases[].mutationBatches",
+      "runtime.phases[].reactCommits",
+      "runtime.phases[].tasks"
+    ],
+    "retained": "aggregate metrics, checks, fixture parameters and phase results"
+  }
+}

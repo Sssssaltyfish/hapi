@@ -1,0 +1,1363 @@
+{
+  "recordedAt": "2026-11-07T19:13:56.453Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "fontconfig": "/etc/fonts/fonts.conf",
+  "dist": "/home/igna/hapi-deployment/group-layout-cause-20261108/probe/row-observer-async-dist",
+  "expectedBundle": "/assets/index-DVGJvRGr.js",
+  "requests": [],
+  "pageErrors": [],
+  "screenshots": [
+    {
+      "name": "warmed-comparison-after-close",
+      "width": 390,
+      "scroll": 390
+    }
+  ],
+  "checks": {
+    "formalBuildLoaded": true,
+    "completedAndRunningCardsExposeExpectedStates": true,
+    "actualStreamingUpdatesReachedCard": true,
+    "allOpenAndClosePhasesWereObserved": true,
+    "reusedFormattersProduceIdenticalText": true
+  },
+  "trials": [
+    {
+      "kind": "completed",
+      "label": "first-completed-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "first-completed-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2502,
+        "height": 3138,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "first-running-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-1-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-2-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2355,
+        "height": 2991,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "completed",
+      "label": "warm-completed-2-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 2991,
+        "distance": 2355
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-2-open",
+      "open": true,
+      "streamed": false,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2501,
+        "height": 3138,
+        "distance": 1
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "quiet-running-2-close",
+      "open": false,
+      "streamed": false,
+      "before": {
+        "top": 132,
+        "height": 3138,
+        "distance": 2370
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-open",
+      "open": true,
+      "streamed": true,
+      "before": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "after": {
+        "top": 2670,
+        "height": 3306,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 23,
+        "reasoning": 22,
+        "openReasoning": 1,
+        "mountedReasoningMarkdown": 1,
+        "marker": true
+      },
+      "headerMarker": false
+    },
+    {
+      "kind": "running",
+      "label": "streaming-running-close",
+      "open": false,
+      "streamed": true,
+      "before": {
+        "top": 132,
+        "height": 3306,
+        "distance": 2538
+      },
+      "after": {
+        "top": 0,
+        "height": 636,
+        "distance": 0
+      },
+      "dom": {
+        "tools": 0,
+        "reasoning": 0,
+        "openReasoning": 0,
+        "mountedReasoningMarkdown": 0,
+        "marker": false
+      },
+      "headerMarker": false
+    }
+  ],
+  "reuseTimeFormat": true,
+  "bundle": [
+    "/assets/index-DVGJvRGr.js"
+  ],
+  "fontResponses": [],
+  "cpuThrottle": 4,
+  "runtime": {
+    "renderers": 1,
+    "phases": [
+      {
+        "label": "first-completed-open",
+        "started": 2773.1999999284744,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3137,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3137,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 3277.600000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 75,
+          "virtualRowRect": 60,
+          "viewportScrollTo": 4,
+          "virtualRowObserver": 4,
+          "virtualRowSizeAttribute": 4
+        },
+        "times": {
+          "virtualRowRect": 19.199999809265137,
+          "viewportScrollHeight": 54.200000047683716,
+          "virtualRowObserver": 4.299999952316284
+        },
+        "click": 2873.899999976158,
+        "clickWall": 1794078839712,
+        "toggle": 3135.1999999284744,
+        "finished": 3582.7999999523163
+      },
+      {
+        "label": "first-completed-close",
+        "started": 3881.7999999523163,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 3999.7999999523163,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 3999.7999999523163,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 4112.899999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 20,
+          "viewportScrollHeight": 23,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 3,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 5.700000047683716,
+          "viewportScrollHeight": 0.5,
+          "virtualRowObserver": 3.6000001430511475
+        },
+        "click": 3965,
+        "clickWall": 1794078840803,
+        "toggle": 3996.1999999284744,
+        "finished": 4598.699999928474
+      },
+      {
+        "label": "first-running-open",
+        "started": 4816.399999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 5064.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 5064.299999952316,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 5206.299999952316,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 118,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 7,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 7
+        },
+        "times": {
+          "virtualRowRect": 12.200000166893005,
+          "viewportScrollHeight": 36.99999988079071,
+          "virtualRowObserver": 6.1000001430511475
+        },
+        "click": 4891.199999928474,
+        "clickWall": 1794078841729,
+        "toggle": 5062.699999928474,
+        "finished": 5507.5
+      },
+      {
+        "label": "first-running-close",
+        "started": 5741,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 5871.100000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 5871.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 6035,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 50,
+          "viewportScrollHeight": 50,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 4,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 12.699999928474426,
+          "viewportScrollHeight": 1.7999998331069946,
+          "virtualRowObserver": 2.7999998331069946
+        },
+        "click": 5829.899999976158,
+        "clickWall": 1794078842668,
+        "toggle": 5866.100000023842,
+        "finished": 6521.799999952316
+      },
+      {
+        "label": "warm-completed-1-open",
+        "started": 6737.799999952316,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 6928.100000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 6928.100000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7071.699999928474,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 80,
+          "virtualRowRect": 65,
+          "viewportScrollTo": 5,
+          "virtualRowObserver": 5,
+          "virtualRowSizeAttribute": 5
+        },
+        "times": {
+          "virtualRowRect": 18,
+          "viewportScrollHeight": 28.199999928474426,
+          "virtualRowObserver": 2.900000214576721
+        },
+        "click": 6805.899999976158,
+        "clickWall": 1794078843644,
+        "toggle": 6927,
+        "finished": 7362.799999952316
+      },
+      {
+        "label": "warm-completed-1-close",
+        "started": 7562.699999928474,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 7667.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 7667.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 7799.100000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 30,
+          "virtualRowRect": 30,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 5,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 0.10000002384185791,
+          "viewportScrollHeight": 4.5000001192092896,
+          "virtualRowObserver": 1.9000002145767212
+        },
+        "click": 7639.5,
+        "clickWall": 1794078844478,
+        "toggle": 7664.299999952316,
+        "finished": 8266.899999976158
+      },
+      {
+        "label": "quiet-running-1-open",
+        "started": 8471.899999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 8734.799999952316,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 8735.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 8893.100000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 139,
+          "virtualRowRect": 75,
+          "viewportScrollTo": 8,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 8
+        },
+        "times": {
+          "virtualRowRect": 14.800000071525574,
+          "viewportScrollHeight": 38,
+          "virtualRowObserver": 2.3000001907348633
+        },
+        "click": 8540.299999952316,
+        "clickWall": 1794078845378,
+        "toggle": 8733.5,
+        "finished": 9172.799999952316
+      },
+      {
+        "label": "quiet-running-1-close",
+        "started": 9388.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 9524,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 9524,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 9687.5,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 45,
+          "viewportScrollHeight": 46,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 3,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 12.699999928474426,
+          "viewportScrollHeight": 2.299999952316284,
+          "virtualRowObserver": 2.700000047683716
+        },
+        "click": 9480.799999952316,
+        "clickWall": 1794078846319,
+        "toggle": 9518.899999976158,
+        "finished": 10285.600000023842
+      },
+      {
+        "label": "warm-completed-2-open",
+        "started": 10483.399999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 10699.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 10699.5,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 10873.899999976158,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 111,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 7,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 7
+        },
+        "times": {
+          "virtualRowRect": 13.700000047683716,
+          "viewportScrollHeight": 29.399999976158142,
+          "virtualRowObserver": 4.199999809265137
+        },
+        "click": 10561,
+        "clickWall": 1794078847399,
+        "toggle": 10698,
+        "finished": 11133.799999952316
+      },
+      {
+        "label": "warm-completed-2-close",
+        "started": 11330.299999952316,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 11438.600000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 11438.699999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 11564.199999928474,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 30,
+          "viewportScrollHeight": 30,
+          "virtualRowObserver": 8,
+          "virtualRowSizeAttribute": 5,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 4.399999976158142,
+          "viewportScrollHeight": 1.8000000715255737,
+          "virtualRowObserver": 3.0000001192092896
+        },
+        "click": 11409.899999976158,
+        "clickWall": 1794078848248,
+        "toggle": 11434.600000023842,
+        "finished": 12055.399999976158
+      },
+      {
+        "label": "quiet-running-2-open",
+        "started": 12239.699999928474,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 12515.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 12515.899999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 12680.799999952316,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 112,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 7,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 7
+        },
+        "times": {
+          "virtualRowRect": 18,
+          "viewportScrollHeight": 38.299999952316284,
+          "virtualRowObserver": 5.999999761581421
+        },
+        "click": 12308.5,
+        "clickWall": 1794078849147,
+        "toggle": 12514.100000023842,
+        "finished": 12951.100000023842
+      },
+      {
+        "label": "quiet-running-2-close",
+        "started": 13153.5,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 13281.100000023842,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 13281.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 13430.600000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 50,
+          "viewportScrollHeight": 50,
+          "virtualRowObserver": 7,
+          "virtualRowSizeAttribute": 4,
+          "viewportScrollTo": 2
+        },
+        "times": {
+          "virtualRowRect": 10.50000011920929,
+          "viewportScrollHeight": 3.9000000953674316,
+          "virtualRowObserver": 1.600000023841858
+        },
+        "click": 13243.799999952316,
+        "clickWall": 1794078850082,
+        "toggle": 13275.600000023842,
+        "finished": 13903.199999928474
+      },
+      {
+        "label": "streaming-running-open",
+        "started": 14090.399999976158,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 14414,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 14414.199999928474,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 14545.600000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "viewportScrollHeight": 91,
+          "virtualRowRect": 70,
+          "viewportScrollTo": 7,
+          "virtualRowObserver": 5,
+          "virtualRowSizeAttribute": 5
+        },
+        "times": {
+          "virtualRowRect": 33.60000014305115,
+          "viewportScrollHeight": 42.299999952316284,
+          "virtualRowObserver": 2
+        },
+        "click": 14153.699999928474,
+        "clickWall": 1794078850992,
+        "toggle": 14407.299999952316,
+        "finished": 15051.799999952316
+      },
+      {
+        "label": "streaming-running-close",
+        "started": 15433.699999928474,
+        "transition": [
+          {
+            "event": "transitionrun",
+            "at": 15562.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionstart",
+            "at": 15562.399999976158,
+            "duration": 0
+          },
+          {
+            "event": "transitionend",
+            "at": 15900.100000023842,
+            "duration": 0.15
+          }
+        ],
+        "counts": {
+          "virtualRowRect": 110,
+          "viewportScrollHeight": 36,
+          "virtualRowObserver": 4,
+          "virtualRowSizeAttribute": 3
+        },
+        "times": {
+          "virtualRowRect": 24.399999976158142,
+          "viewportScrollHeight": 7.800000071525574,
+          "virtualRowObserver": 2.399999976158142
+        },
+        "click": 15518.399999976158,
+        "clickWall": 1794078852357,
+        "toggle": 15556.299999952316,
+        "finished": 16806.899999976158
+      }
+    ]
+  },
+  "chrome": [
+    {
+      "label": "first-completed-open",
+      "clickToToggleMs": 261.2999999523163,
+      "animationMs": 140.60000002384186,
+      "maxFrameGapMs": 133.29999999999973,
+      "maxAnimationFrameGapMs": 83.30000000000018,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 143,
+      "layouts": {
+        "count": 13,
+        "durationMs": 37.635000000000005,
+        "maxMs": 22.776
+      },
+      "animationLayouts": {
+        "count": 7,
+        "durationMs": 5.627000000000001,
+        "maxMs": 1.34
+      }
+    },
+    {
+      "label": "first-completed-close",
+      "clickToToggleMs": 31.199999928474426,
+      "animationMs": 113.10000002384186,
+      "maxFrameGapMs": 50,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 12,
+        "durationMs": 12.187999999999999,
+        "maxMs": 1.9
+      },
+      "animationLayouts": {
+        "count": 10,
+        "durationMs": 9.471,
+        "maxMs": 1.9
+      }
+    },
+    {
+      "label": "first-running-open",
+      "clickToToggleMs": 171.5,
+      "animationMs": 142,
+      "maxFrameGapMs": 133.30000000000018,
+      "maxAnimationFrameGapMs": 33.30000000000018,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 130,
+      "layouts": {
+        "count": 18,
+        "durationMs": 27.284000000000002,
+        "maxMs": 6.237
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 10.475000000000001,
+        "maxMs": 1.679
+      }
+    },
+    {
+      "label": "first-running-close",
+      "clickToToggleMs": 36.200000047683716,
+      "animationMs": 163.80000007152557,
+      "maxFrameGapMs": 100,
+      "maxAnimationFrameGapMs": 66.69999999999982,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 97,
+      "layouts": {
+        "count": 15,
+        "durationMs": 20.436000000000007,
+        "maxMs": 2.128
+      },
+      "animationLayouts": {
+        "count": 11,
+        "durationMs": 13.307,
+        "maxMs": 2.094
+      }
+    },
+    {
+      "label": "warm-completed-1-open",
+      "clickToToggleMs": 121.10000002384186,
+      "animationMs": 143.59999990463257,
+      "maxFrameGapMs": 116.69999999999982,
+      "maxAnimationFrameGapMs": 83.39999999999964,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 116,
+      "layouts": {
+        "count": 15,
+        "durationMs": 22.342000000000006,
+        "maxMs": 4.374
+      },
+      "animationLayouts": {
+        "count": 9,
+        "durationMs": 8.936,
+        "maxMs": 1.56
+      }
+    },
+    {
+      "label": "warm-completed-1-close",
+      "clickToToggleMs": 24.799999952316284,
+      "animationMs": 131.5,
+      "maxFrameGapMs": 50,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 13,
+        "durationMs": 10.092,
+        "maxMs": 1.496
+      },
+      "animationLayouts": {
+        "count": 11,
+        "durationMs": 8.131,
+        "maxMs": 1.496
+      }
+    },
+    {
+      "label": "quiet-running-1-open",
+      "clickToToggleMs": 193.20000004768372,
+      "animationMs": 157.70000004768372,
+      "maxFrameGapMs": 116.70000000000073,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 124,
+      "layouts": {
+        "count": 20,
+        "durationMs": 29.451999999999998,
+        "maxMs": 6.092
+      },
+      "animationLayouts": {
+        "count": 14,
+        "durationMs": 10.853000000000002,
+        "maxMs": 1.937
+      }
+    },
+    {
+      "label": "quiet-running-1-close",
+      "clickToToggleMs": 38.10000002384186,
+      "animationMs": 163.5,
+      "maxFrameGapMs": 100,
+      "maxAnimationFrameGapMs": 66.69999999999891,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 102,
+      "layouts": {
+        "count": 15,
+        "durationMs": 17.556,
+        "maxMs": 2.217
+      },
+      "animationLayouts": {
+        "count": 11,
+        "durationMs": 11.224000000000002,
+        "maxMs": 1.993
+      }
+    },
+    {
+      "label": "warm-completed-2-open",
+      "clickToToggleMs": 137,
+      "animationMs": 174.39999997615814,
+      "maxFrameGapMs": 100,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 104,
+      "layouts": {
+        "count": 17,
+        "durationMs": 23.273999999999997,
+        "maxMs": 5.439
+      },
+      "animationLayouts": {
+        "count": 13,
+        "durationMs": 11.315999999999999,
+        "maxMs": 1.518
+      }
+    },
+    {
+      "label": "warm-completed-2-close",
+      "clickToToggleMs": 24.700000047683716,
+      "animationMs": 125.5,
+      "maxFrameGapMs": 33.399999999999636,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 1,
+      "longestTaskMs": 0,
+      "layouts": {
+        "count": 15,
+        "durationMs": 13.119,
+        "maxMs": 2.038
+      },
+      "animationLayouts": {
+        "count": 12,
+        "durationMs": 7.474,
+        "maxMs": 1.435
+      }
+    },
+    {
+      "label": "quiet-running-2-open",
+      "clickToToggleMs": 205.60000002384186,
+      "animationMs": 164.89999997615814,
+      "maxFrameGapMs": 100,
+      "maxAnimationFrameGapMs": 33.399999999999636,
+      "slowAnimationFrames": 4,
+      "longestTaskMs": 106,
+      "layouts": {
+        "count": 19,
+        "durationMs": 31.213,
+        "maxMs": 6.098
+      },
+      "animationLayouts": {
+        "count": 13,
+        "durationMs": 13.604000000000001,
+        "maxMs": 2.887
+      }
+    },
+    {
+      "label": "quiet-running-2-close",
+      "clickToToggleMs": 31.800000071525574,
+      "animationMs": 149.40000009536743,
+      "maxFrameGapMs": 83.39999999999964,
+      "maxAnimationFrameGapMs": 50,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 78,
+      "layouts": {
+        "count": 16,
+        "durationMs": 16.073,
+        "maxMs": 1.952
+      },
+      "animationLayouts": {
+        "count": 11,
+        "durationMs": 8.504999999999999,
+        "maxMs": 1.367
+      }
+    },
+    {
+      "label": "streaming-running-open",
+      "clickToToggleMs": 253.60000002384186,
+      "animationMs": 131.40000009536743,
+      "maxFrameGapMs": 150,
+      "maxAnimationFrameGapMs": 150,
+      "slowAnimationFrames": 2,
+      "longestTaskMs": 149,
+      "layouts": {
+        "count": 18,
+        "durationMs": 46.307,
+        "maxMs": 5.691
+      },
+      "animationLayouts": {
+        "count": 2,
+        "durationMs": 7.154,
+        "maxMs": 5.472
+      }
+    },
+    {
+      "label": "streaming-running-close",
+      "clickToToggleMs": 37.89999997615814,
+      "animationMs": 337.7000000476837,
+      "maxFrameGapMs": 166.6999999999989,
+      "maxAnimationFrameGapMs": 166.6999999999989,
+      "slowAnimationFrames": 3,
+      "longestTaskMs": 136,
+      "layouts": {
+        "count": 17,
+        "durationMs": 26.583000000000006,
+        "maxMs": 3.919
+      },
+      "animationLayouts": {
+        "count": 8,
+        "durationMs": 12.575000000000001,
+        "maxMs": 3.919
+      }
+    }
+  ],
+  "transport": [
+    {
+      "label": "streaming-running-open",
+      "at": 1794078850996,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078850996,
+      "method": "thread/status/changed",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078850996,
+      "method": "item/commandExecution/outputDelta",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851061,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851126,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851127,
+      "method": "item/commandExecution/outputDelta",
+      "index": 2
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851192,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851257,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851257,
+      "method": "item/commandExecution/outputDelta",
+      "index": 4
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851322,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851388,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851388,
+      "method": "item/commandExecution/outputDelta",
+      "index": 6
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851453,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-open",
+      "at": 1794078851453,
+      "method": "thread/status/changed",
+      "index": 7
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852358,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 0,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852358,
+      "method": "thread/status/changed",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852358,
+      "method": "item/commandExecution/outputDelta",
+      "index": 0
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852423,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 1,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852489,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 2,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852489,
+      "method": "item/commandExecution/outputDelta",
+      "index": 2
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852554,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 3,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852619,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 4,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852619,
+      "method": "item/commandExecution/outputDelta",
+      "index": 4
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852685,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 5,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852750,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 6,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852750,
+      "method": "item/commandExecution/outputDelta",
+      "index": 6
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852815,
+      "method": "item/reasoning/summaryTextDelta",
+      "index": 7,
+      "subscribers": 1
+    },
+    {
+      "label": "streaming-running-close",
+      "at": 1794078852815,
+      "method": "thread/status/changed",
+      "index": 7
+    }
+  ],
+  "timeFormat": {
+    "compact": 305,
+    "full": 530,
+    "checked": 8,
+    "mismatches": 0
+  },
+  "passed": true,
+  "archiveNote": {
+    "omittedRawArrays": [
+      "chrome[].largestLayouts",
+      "runtime.phases[].frames",
+      "runtime.phases[].mutationBatches",
+      "runtime.phases[].reactCommits",
+      "runtime.phases[].tasks"
+    ],
+    "retained": "aggregate metrics, checks, fixture parameters and phase results"
+  }
+}

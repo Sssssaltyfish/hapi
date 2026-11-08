@@ -1,0 +1,32 @@
+{
+  "commit": "6a5341eef0130c1041bc8c3454cd336ce1611902",
+  "trackedFiles": 3289,
+  "differences": [
+    {
+      "path": "docs/claude-composer-command-research.zh-CN.md",
+      "present": false,
+      "gitBytes": 13124,
+      "stageBytes": 0,
+      "binary": false
+    },
+    {
+      "path": "docs/guide/pwa.md",
+      "present": true,
+      "gitBytes": 8868,
+      "stageBytes": 8631,
+      "binary": false
+    },
+    {
+      "path": "docs/provider-deep-research-coverage.zh-CN.md",
+      "present": false,
+      "gitBytes": 13490,
+      "stageBytes": 0,
+      "binary": false
+    }
+  ],
+  "extraFiles": [
+    "cli/src/codex/shared/discoveryAudit.ts",
+    "cli/src/codex/shared/discoverySmoke.ts",
+    "cli/src/codex/shared/subagentAudit.ts"
+  ]
+}
