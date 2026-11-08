@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
     Outlet,
     RouterProvider,
@@ -11,6 +12,7 @@ import {
 import '../src/index.css'
 import type { ApiClient } from '../src/api/client'
 import { AppContextProvider } from '../src/lib/app-context'
+import { initializeThemeColors } from '../src/hooks/useThemeColors'
 import { I18nProvider } from '../src/lib/i18n-context'
 import SettingsLayout from '../src/routes/settings/layout'
 import SettingsHubPage from '../src/routes/settings'
@@ -55,13 +57,22 @@ declare module '@tanstack/react-router' {
 
 const root = document.getElementById('root')
 if (root) {
+    initializeThemeColors()
+    const api = {
+        getConversationCacheScope: () => ({ key: 'settings-fixture' }),
+        getAppIcon: async () => ({ canEdit: false }),
+        getAppIconUrl: () => '',
+    } as unknown as ApiClient
+    const queryClient = new QueryClient()
     ReactDOM.createRoot(root).render(
         <React.StrictMode>
-            <AppContextProvider value={{ api: {} as ApiClient, token: 'x.eyJucyI6ImRlZmF1bHQifQ.x', baseUrl: window.location.origin }}>
-                <I18nProvider>
-                    <RouterProvider router={router} />
-                </I18nProvider>
-            </AppContextProvider>
+            <QueryClientProvider client={queryClient}>
+                <AppContextProvider value={{ api, token: 'x.eyJucyI6ImRlZmF1bHQifQ.x', baseUrl: window.location.origin }}>
+                    <I18nProvider>
+                        <RouterProvider router={router} />
+                    </I18nProvider>
+                </AppContextProvider>
+            </QueryClientProvider>
         </React.StrictMode>
     )
 }

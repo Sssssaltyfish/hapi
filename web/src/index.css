@@ -321,6 +321,45 @@ body {
     height: 100%;
 }
 
+.app-canvas {
+    background-color: var(--app-bg);
+}
+
+html[data-custom-background] body {
+    isolation: isolate;
+}
+
+html[data-custom-background] body::before,
+.custom-background-preview::before {
+    content: '';
+    inset: calc(-2 * var(--hapi-background-blur));
+    pointer-events: none;
+    background: var(--hapi-background-image) center / cover no-repeat;
+    filter: brightness(var(--hapi-background-brightness)) blur(var(--hapi-background-blur));
+}
+
+html[data-custom-background] body::before {
+    position: fixed;
+    z-index: -1;
+}
+
+html[data-custom-background] #root {
+    background-color: color-mix(in srgb, var(--app-bg) 78%, transparent);
+}
+
+html[data-custom-background] .app-canvas {
+    background-color: transparent;
+}
+
+.custom-background-preview {
+    position: relative;
+    overflow: hidden;
+}
+
+.custom-background-preview::before {
+    position: absolute;
+}
+
 /* Chat viewports own vertical scrolling; keep transiently oversized messages
  * from creating a second document scrollbar without locking non-chat routes. */
 html:has(.chat-scroll-y),

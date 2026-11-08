@@ -222,7 +222,7 @@ function SessionsPage() {
                 // min-w-0: without it, shrink-0 toolbar icons inflate the flex
                 // item's min-content past --sidebar-w and the shed never sees a
                 // tight budget (#2039 desktop overflow past the split).
-                className={`${isSessionsIndex ? 'flex' : 'hidden split:flex'} min-w-0 w-full shrink-0 flex-col bg-[var(--app-bg)]`}
+                className={`${isSessionsIndex ? 'flex' : 'hidden split:flex'} app-canvas min-w-0 w-full shrink-0 flex-col`}
                 style={{ '--sidebar-w': `${sidebar.width}px` } as React.CSSProperties}
             >
                 <div className="flex min-h-0 flex-1 flex-col pt-[env(safe-area-inset-top)]">
@@ -293,7 +293,7 @@ function SessionsPage() {
                 onPointerDown={sidebar.onPointerDown}
             />
 
-            <div className={`${isSessionsIndex ? 'hidden split:flex' : 'flex'} min-w-0 flex-1 flex-col bg-[var(--app-bg)]`}>
+            <div className={`${isSessionsIndex ? 'hidden split:flex' : 'flex'} app-canvas min-w-0 flex-1 flex-col`}>
                 <div className="flex-1 min-h-0">
                     <Outlet />
                 </div>

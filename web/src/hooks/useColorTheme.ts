@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ThemeColorKeyId } from './useThemeColors'
+import { editActiveThemePalette, getActiveThemePalette } from './themeLibrary'
 
 export type ColorScheme = 'light' | 'dark' | 'oled'
 export type ColorThemePreset =
@@ -189,7 +190,7 @@ export function parseColorTheme(raw: string | null): ColorThemePreset {
 }
 
 export function getStoredColorTheme(): ColorThemePreset {
-    return parseColorTheme(safeGetItem(COLOR_THEME_KEY))
+    return getActiveThemePalette()?.preset ?? parseColorTheme(safeGetItem(COLOR_THEME_KEY))
 }
 
 export function getColorThemeOptions(): ReadonlyArray<ColorThemeOption> {
@@ -307,17 +308,23 @@ export function useColorTheme(): { colorTheme: ColorThemePreset; setColorTheme: 
     useEffect(() => {
         if (!isBrowser()) return
         const onStorage = (event: StorageEvent) => {
-            if (event.key !== COLOR_THEME_KEY) return
+            if (event.key !== COLOR_THEME_KEY || getActiveThemePalette()) return
             const nextTheme = parseColorTheme(event.newValue)
             setColorThemeState(nextTheme)
             applyColorTheme(nextTheme, getDocumentColorScheme())
             window.dispatchEvent(new CustomEvent('hapi-color-theme-change', { detail: nextTheme }))
         }
+        const refresh = () => setColorThemeState(getStoredColorTheme())
         window.addEventListener('storage', onStorage)
-        return () => window.removeEventListener('storage', onStorage)
+        window.addEventListener('hapi-color-theme-change', refresh)
+        return () => {
+            window.removeEventListener('storage', onStorage)
+            window.removeEventListener('hapi-color-theme-change', refresh)
+        }
     }, [])
 
     const setColorTheme = useCallback((theme: ColorThemePreset) => {
+        if (editActiveThemePalette(palette => ({ ...palette, preset: theme }))) return
         setColorThemeState(theme)
         applyColorTheme(theme, getDocumentColorScheme())
         if (theme === 'default') {

@@ -16,6 +16,7 @@ import { useAppBadgePreference } from '@/hooks/useAppBadgePreference'
 import { useOpenExternalLinksInNewTab } from '@/hooks/useOpenExternalLinksInNewTab'
 import { SettingsChoiceGroup, SettingsFieldLabel, SettingsPageContent, SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings/SettingsPrimitives'
 import { AppIconSettings } from '@/components/settings/AppIconSettings'
+import { CustomThemeSettings } from '@/components/settings/CustomThemeSettings'
 
 function MinusIcon() {
     return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4" aria-hidden="true"><path d="M5 12h14" /></svg>
@@ -173,6 +174,7 @@ export default function SettingsDisplayPage() {
                 />
                 <ColorThemePicker />
                 <ThemeColorControls />
+                <CustomThemeSettings />
                 <AppIconSettings />
             </SettingsSection>
 

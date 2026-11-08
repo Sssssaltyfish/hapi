@@ -92,6 +92,15 @@ Installed apps may update their icon later or require removal and reinstallation
 - Todo progress display.
 - Pending permission request count.
 - Agent name and model display.
+- A workspace's plus button carries its machine, directory, and provider into
+  New Session. Native daemon projects also retain their project assignment.
+
+### Browser appearance
+
+Display settings can save, rename, delete, import, and export custom color
+schemes. Each scheme includes its base preset, per-appearance color overrides,
+and an optional background image with brightness and blur. Images and saved
+schemes stay in this browser's IndexedDB; exported JSON includes the image.
 
 ### Chat interface (`src/components/SessionChat.tsx`)
 

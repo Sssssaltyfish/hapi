@@ -5,6 +5,7 @@ import { getTelegramWebApp, isTelegramApp } from '@/hooks/useTelegram'
 import { initializeChatSurfaceColors } from '@/hooks/useChatSurfaceColors'
 import { initializeTheme } from '@/hooks/useTheme'
 import { initializeThemeColors } from '@/hooks/useThemeColors'
+import { initializeThemeLibrary } from '@/hooks/themeLibrary'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthSource } from '@/hooks/useAuthSource'
 import { usePasskeyGate } from '@/hooks/usePasskeyGate'
@@ -123,6 +124,7 @@ function AppInner() {
         tg?.expand()
         initializeTheme()
         initializeThemeColors()
+        initializeThemeLibrary()
         initializeChatSurfaceColors()
     }, [])
 

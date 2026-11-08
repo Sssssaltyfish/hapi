@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { applyColorTheme, composerHintColors, getColorThemePickerValue, getColorThemeStorageKey, getStoredColorTheme, themeButtonTextColor, type ColorScheme } from './useColorTheme'
+import { editActiveThemePalette, getActiveThemePalette } from './themeLibrary'
 
 /**
  * Per-appearance "key color" customization.
@@ -118,7 +119,7 @@ const DEFAULT_HEX: Record<ThemeScheme, Record<ThemeColorKeyId, string>> = {
     },
 }
 
-type StoredThemeColors = Partial<Record<ThemeScheme, Partial<Record<ThemeColorKeyId, string>>>>
+export type StoredThemeColors = Partial<Record<ThemeScheme, Partial<Record<ThemeColorKeyId, string>>>>
 
 let initialized = false
 
@@ -202,7 +203,9 @@ export function getThemeScheme(): ThemeScheme {
     return 'light'
 }
 
-function getStoredThemeColors(): StoredThemeColors {
+export function getStoredThemeColors(): StoredThemeColors {
+    const active = getActiveThemePalette()
+    if (active) return active.colors
     const raw = safeGetItem(STORAGE_KEY)
     if (!raw) return {}
 
@@ -212,6 +215,10 @@ function getStoredThemeColors(): StoredThemeColors {
     } catch {
         return {}
     }
+    return sanitizeThemeColors(parsed)
+}
+
+export function sanitizeThemeColors(parsed: unknown): StoredThemeColors {
     if (typeof parsed !== 'object' || parsed === null) return {}
 
     const result: StoredThemeColors = {}
@@ -359,6 +366,10 @@ export function useThemeColors(): {
         if (!normalized) return
 
         const activeScheme = getThemeScheme()
+        if (editActiveThemePalette(palette => ({
+            ...palette,
+            colors: { ...palette.colors, [activeScheme]: { ...palette.colors[activeScheme], [id]: normalized } },
+        }))) return
         const all = getStoredThemeColors()
         all[activeScheme] = { ...(all[activeScheme] ?? {}), [id]: normalized }
         writeStoredThemeColors(all)
@@ -370,12 +381,16 @@ export function useThemeColors(): {
 
     const resetColor = useCallback((id: ThemeColorKeyId) => {
         const activeScheme = getThemeScheme()
-        const all = getStoredThemeColors()
-        const group = all[activeScheme]
-        if (group) {
+        const withoutColor = (colors: StoredThemeColors) => {
+            const all = { ...colors }
+            const group = { ...all[activeScheme] }
             delete group[id]
             if (Object.keys(group).length === 0) delete all[activeScheme]
+            else all[activeScheme] = group
+            return all
         }
+        if (editActiveThemePalette(palette => ({ ...palette, colors: withoutColor(palette.colors) }))) return
+        const all = withoutColor(getStoredThemeColors())
         writeStoredThemeColors(all)
         applyThemeColors()
 
@@ -385,8 +400,13 @@ export function useThemeColors(): {
 
     const resetAll = useCallback(() => {
         const activeScheme = getThemeScheme()
-        const all = getStoredThemeColors()
-        delete all[activeScheme]
+        const withoutScheme = (colors: StoredThemeColors) => {
+            const all = { ...colors }
+            delete all[activeScheme]
+            return all
+        }
+        if (editActiveThemePalette(palette => ({ ...palette, colors: withoutScheme(palette.colors) }))) return
+        const all = withoutScheme(getStoredThemeColors())
         writeStoredThemeColors(all)
         applyThemeColors()
 
