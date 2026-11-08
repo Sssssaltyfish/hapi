@@ -2305,7 +2305,7 @@ export function HappyComposer(props: {
 
     const shellClassName = isExpanded
         ? `z-[60] flex min-h-0 flex-col bg-[var(--app-bg)] px-3 ${bottomPaddingClass} max-sm:fixed max-sm:inset-x-0 max-sm:top-0 max-sm:h-[var(--tg-viewport-stable-height,var(--app-viewport-height,100dvh))] max-sm:pt-[calc(0.5rem+env(safe-area-inset-top))] sm:absolute sm:inset-0 sm:pt-2`
-        : `bg-[var(--app-bg)] px-3 ${bottomPaddingClass} pt-2`
+        : `bg-[var(--app-bg)] px-3 ${bottomPaddingClass} pt-2 max-sm:relative max-sm:z-10`
     const innerClassName = isExpanded
         ? 'mx-auto flex min-h-0 w-full max-w-content flex-1 flex-col'
         : 'mx-auto w-full max-w-content'

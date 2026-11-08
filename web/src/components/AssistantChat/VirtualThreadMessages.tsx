@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type Ref, type RefObject } from 'react'
 import { ThreadPrimitive, unstable_useThreadMessageIds } from '@assistant-ui/react'
-import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, observeElementRect, useVirtualizer } from '@tanstack/react-virtual'
 import type { TimelineHistoryLocator, TimelineRow } from '@/lib/stable-chat-timeline'
 import { captureConversationScrollAnchor, getConversationScrollAnchorPosition, type ConversationScrollAnchor } from '@/lib/conversation-scroll-anchor'
 
@@ -128,10 +128,26 @@ export function VirtualThreadMessages(props: Props) {
         rows.forEach((row, index) => { if (retained.has(row.id)) indices.add(index) })
         return [...indices].sort((a, b) => a - b)
     }, [pinned, selectionRows, rows, navigationAlias, currentRow])
+    const observeViewportRect = useCallback<typeof observeElementRect<HTMLDivElement>>((instance, onRect) => {
+        const viewport = instance.scrollElement
+        let previousHeight = 0
+        return observeElementRect(instance, rect => {
+            const height = viewport?.clientHeight ?? 0
+            // Keyboard opening can shrink the viewport without changing any
+            // row sizes. Keep following only if we were already at the end.
+            const stayAtEnd = viewport && height > 0 && height < previousHeight
+                && current.current.props.followLatest.current && !pendingNavigation.current
+                && viewport.scrollHeight - viewport.scrollTop - previousHeight <= instance.options.scrollEndThreshold
+            previousHeight = height
+            onRect(rect)
+            if (stayAtEnd) instance.scrollToEnd({ behavior: 'instant' })
+        })
+    }, [])
     const virtualizer = useVirtualizer({
         count: rows.length,
         enabled: mounted,
         getScrollElement,
+        observeElementRect: observeViewportRect,
         estimateSize: index => measurements.current.get(rows[index]!.id) ?? 180,
         getItemKey: index => rows[index]!.id,
         overscan: 6,

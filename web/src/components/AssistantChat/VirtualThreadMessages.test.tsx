@@ -17,9 +17,9 @@ const rows: TimelineRow[] = Array.from({ length: 100 }, (_, index) => ({
     locator: { kind: 'native', turnId: `turn-${index}`, itemId: `item-${index}` },
 }))
 
-function Harness(props: { rows: readonly TimelineRow[]; hydrate?: (locator: TimelineHistoryLocator) => Promise<boolean>; compoundViewportRef?: boolean; listRef?: RefObject<VirtualThreadHandle | null> }) {
+function Harness(props: { rows: readonly TimelineRow[]; hydrate?: (locator: TimelineHistoryLocator) => Promise<boolean>; compoundViewportRef?: boolean; listRef?: RefObject<VirtualThreadHandle | null>; followLatest?: boolean }) {
     const viewport = useRef<HTMLDivElement>(null)
-    const follow = useRef(false)
+    const follow = useRef(props.followLatest ?? false)
     const ref = useRef(null)
     const messages: ThreadMessageLike[] = props.rows.filter(row => row.resident).map(row => ({ id: row.id, role: row.role, content: [{ type: 'text', text: row.id }] }))
     const runtime = useExternalStoreRuntime({ messages, convertMessage: message => message, isRunning: false, onNew: async () => {} })
@@ -54,6 +54,46 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('measured conversation virtualization', () => {
+    it('follows a shrinking viewport only from the previous bottom', async () => {
+        let notifyResize: (() => void) | undefined
+        vi.stubGlobal('ResizeObserver', class {
+            constructor(private readonly callback: ResizeObserverCallback) {}
+            observe(target: Element) {
+                if (target.getAttribute('data-testid') === 'viewport') {
+                    notifyResize = () => this.callback([], this)
+                }
+            }
+            unobserve() {}
+            disconnect() {}
+        })
+        const { getByTestId } = render(<Harness rows={rows} followLatest />)
+        const viewport = getByTestId('viewport')
+        await waitFor(() => expect(viewport.scrollTop).toBe(29_400))
+        let height = 600
+        Object.defineProperties(viewport, {
+            clientHeight: { get: () => height },
+            offsetHeight: { get: () => height },
+        })
+        const shrinkViewport = async (nextHeight: number) => {
+            await act(async () => {
+                height = nextHeight
+                notifyResize!()
+            })
+        }
+
+        await shrinkViewport(480)
+        expect(viewport.scrollTop).toBe(29_520)
+        await shrinkViewport(360)
+        expect(viewport.scrollTop).toBe(29_640)
+
+        act(() => {
+            viewport.scrollTop = 700
+            viewport.dispatchEvent(new Event('scroll'))
+        })
+        await shrinkViewport(300)
+        expect(viewport.scrollTop).toBe(700)
+    })
+
     it('applies a row resize without reading the geometry of other mounted rows', async () => {
         let resizeRow: ((height: number) => void) | undefined
         vi.stubGlobal('ResizeObserver', class {
