@@ -1,0 +1,105 @@
+﻿{
+    "samples":  [
+                    {
+                        "at":  "2026-11-08T19:19:11.0870106Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:19:21.2758733Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:19:31.3188102Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:19:41.3574457Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:19:51.3895589Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:20:01.4368822Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:20:11.5066562Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    },
+                    {
+                        "at":  "2026-11-08T19:20:21.5315498Z",
+                        "status":  {
+                                       "http://127.0.0.1:18082/health":  200,
+                                       "http://127.0.0.1:18080/editor/":  401,
+                                       "https://seia.tailc9c975.ts.net/":  200,
+                                       "https://seia.tailc9c975.ts.net:8444/health":  200,
+                                       "http://127.0.0.1:18080/shell/":  200,
+                                       "http://127.0.0.1:3000/":  401
+                                   }
+                    }
+                ],
+    "windowsWslClients":  [
+                              {
+                                  "ProcessId":  3064,
+                                  "ParentProcessId":  28624,
+                                  "CreationDate":  "\/Date(1794165498415)\/"
+                              },
+                              {
+                                  "ProcessId":  7100,
+                                  "ParentProcessId":  3064,
+                                  "CreationDate":  "\/Date(1794165498430)\/"
+                              }
+                          ],
+    "keeper":  "Running"
+}

@@ -166,6 +166,10 @@ function Get-RecordedRuntimeProcesses([string]$Root) {
     $runner = if ([int]$runnerState.pid -gt 0) { Get-CimInstance Win32_Process -Filter "ProcessId=$([int]$runnerState.pid)" }
     if ($runner.ExecutablePath -ne (Join-Path $Root 'package\bin\hapi.exe') -or
         $runner.CommandLine -notmatch ' runner start-sync(?: |$)' -or !(Test-Owner $runner)) { $runner = $null }
+    $runnerShell = if ($runner) { Get-CimInstance Win32_Process -Filter "ProcessId=$($runner.ParentProcessId)" }
+    if ($runnerShell -and ($runnerShell.ExecutablePath -ne $powershell -or
+        $runnerShell.CreationDate -gt $runner.CreationDate -or !(Test-Owner $runnerShell) -or
+        !$runnerShell.CommandLine.Contains((Join-Path $Root 'start-windows-runner.ps1')))) { throw 'UNEXPECTED_RUNNER_PARENT' }
     $state = Read-State (Join-Path $Root 'windows-native\state\managed.json')
     $supervisor = Get-ManagedProcess $state.supervisor
     $entry = [regex]::Escape((Join-Path $Root 'windows-native\supervisor.mjs'))
@@ -175,7 +179,7 @@ function Get-RecordedRuntimeProcesses([string]$Root) {
             $_ -and $_.ParentProcessId -eq $supervisor.ProcessId -and $_.CreationDate -ge $supervisor.CreationDate
         }
     }
-    return @{ runner = @{worker = $runner}; native = @{worker = $supervisor; children = $children} }
+    return @{ runner = @{worker = $runner; shell = $runnerShell}; native = @{worker = $supervisor; children = $children} }
 }
 
 function Get-ReadinessFailure([string]$Root, [datetime]$After, $Recorded) {
@@ -365,6 +369,8 @@ try {
     if ($failure) { throw "OLD_RUNTIME_CHANGED_DURING_COPY_$failure" }
     $tasksChanged = $true
     $oldStopAttempted = $true
+    # Stop the retry loop before stopping its current runner process.
+    Stop-OwnedProcess $oldProcesses.runner.shell
     Stop-Tasks
     Stop-Runner $oldProcesses.runner $OldRoot
     Stop-Native $oldProcesses.native $OldRoot
@@ -392,6 +398,7 @@ try {
             if ($newStartAttempted) {
                 $newRunnerTree = Get-OwnedTaskProcesses $runnerSpec $NewRoot
                 $newNativeTree = Get-OwnedTaskProcesses $nativeSpec $NewRoot
+                Stop-OwnedProcess $newRunnerTree.shell
             }
             Stop-Tasks
             if ($newStartAttempted) {

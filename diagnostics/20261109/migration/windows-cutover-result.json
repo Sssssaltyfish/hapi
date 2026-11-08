@@ -1,0 +1,24 @@
+﻿{
+    "status":  "complete",
+    "activeRoot":  "C:\\Users\\Igna\\AppData\\Local\\HAPI",
+    "stoppedOldProcesses":  [
+                                8108,
+                                17644
+                            ],
+    "removedOldRuntime":  [
+                              "package",
+                              "windows-state",
+                              "windows-native",
+                              "hidden-task-launcher",
+                              "start-windows-runner.ps1",
+                              "windows-runner.log"
+                          ],
+    "native":  {
+                   "supervisorPid":  23264,
+                   "daemonPid":  8136,
+                   "daemonReady":  true,
+                   "toolsPipeReady":  true,
+                   "desktopBackendConnected":  true
+               },
+    "finishedUtc":  "2026-11-08T19:16:03.3873847Z"
+}
