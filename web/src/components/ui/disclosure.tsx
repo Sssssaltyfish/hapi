@@ -74,7 +74,7 @@ export function DisclosureContent(props: {
         aria-busy={props.open && !expanded || undefined}
         inert={!expanded}
     >
-        <div className="min-h-0 overflow-hidden">
+        <div className="collapsible-inner min-h-0 overflow-hidden">
             {present ? typeof props.children === 'function' ? props.children() : props.children : null}
         </div>
     </div>

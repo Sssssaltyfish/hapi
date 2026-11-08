@@ -505,13 +505,15 @@ html:has(.chat-scroll-y) #root {
 }
 
 .hapi-disclosure-chevron,
-.hapi-disclosure-content {
+.hapi-disclosure-content,
+.hapi-disclosure-content > .collapsible-inner {
     transition-duration: var(--app-disclosure-duration);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .hapi-disclosure-chevron,
-    .hapi-disclosure-content {
+    .hapi-disclosure-content,
+    .hapi-disclosure-content > .collapsible-inner {
         transition: none;
     }
 }
