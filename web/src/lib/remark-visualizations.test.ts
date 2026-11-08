@@ -39,4 +39,32 @@ describe('assistant visualization references', () => {
             expect(render(marker({ path }))).not.toContain('<hapi-visualization')
         }
     })
+
+    it('renders standalone references emitted without Codex delimiters', () => {
+        const claude = 'visualize{"path":"/home/igna/codex-work/visualize/harmonograph.html","title":"Harmonograph"}'
+        const agy = 'visualize{"path":"/home/igna/codex-work/fourier-epicycles.html","title":"Fourier"}'
+        const windows = `visualize${JSON.stringify({ path: 'C:\\work\\a_b_[1].html', title: '*Title* `label`', mode: 'wide' })}`
+        const html = render(`Before\n\n${claude}\n\n${agy}\n\n${windows}\n\nAfter`)
+        const nodes = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('hapi-visualization')
+        expect([...nodes].map(node => node.getAttribute('data-path'))).toEqual([
+            '/home/igna/codex-work/visualize/harmonograph.html',
+            '/home/igna/codex-work/fourier-epicycles.html',
+            'C:\\work\\a_b_[1].html',
+        ])
+        expect(nodes[2].getAttribute('title')).toBe('*Title* `label`')
+        expect(nodes[2].getAttribute('data-mode')).toBe('wide')
+    })
+
+    it('leaves portable examples and incomplete references as ordinary Markdown', () => {
+        const reference = 'visualize{"path":"/work/example.html"}'
+        for (const markdown of [
+            `Before ${reference}`, `${reference}\nAfter`, `\`${reference}\``,
+            `\`\`\`text\n${reference}\n\`\`\``, `> ${reference}`, `- ${reference}`,
+            `[${reference}](https://example.test)`, reference.slice(0, -1),
+            'visualize{"path":"https://example.test/widget.html"}',
+        ]) {
+            expect(render(markdown)).not.toContain('<hapi-visualization')
+        }
+        expect(render(reference, MARKDOWN_PLUGINS)).not.toContain('<hapi-visualization')
+    })
 })

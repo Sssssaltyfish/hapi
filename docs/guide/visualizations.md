@@ -1,16 +1,16 @@
 # Inline Visualizations
 
-HAPI renders interactive HTML fragments in chat. Any agent can produce one by writing the file and emitting the Codex Desktop Visualize reference in an assistant response.
+HAPI renders interactive HTML fragments in chat. Any agent can produce one by writing the file and emitting a visualization reference in an assistant response. HAPI also accepts Codex Desktop's Visualize references.
 
 ## Use a visualization
 
 Ask for an inline visualization when you want to manipulate data, compare scenarios, or inspect a process. The agent writes an HTML fragment and returns a reference like this on its own line.
 
 ```text
-visualize{"path":"/absolute/workspace/forecast.html","title":"Forecast"}
+visualize{"path":"/absolute/workspace/forecast.html","title":"Forecast"}
 ```
 
-Use the absolute path on the machine running the agent. JSON strings with Windows backslashes need escaping, for example `"C:\\work\\forecast.html"`. Keep the reference in plain response text so HAPI can turn it into a widget. Add `"mode":"wide"` when the layout needs more room. Use the widget's expand control to open a larger view.
+Use the absolute path on the machine running the agent. JSON strings with Windows backslashes need escaping, for example `"C:\\work\\forecast.html"`. Put the reference on its own line with a blank line before and after it, outside code, quotes, and lists. This ASCII spelling works across providers without needing to reproduce Codex's private-use Unicode delimiters. Add `"mode":"wide"` when the layout needs more room. Use the widget's expand control to open a larger view.
 
 Write a regular `.html` file of at most 1 MiB inside the current session workspace. The runner needs read access when HAPI resolves the reference. A path elsewhere on the runner, including an absolute path printed by a different machine, can be unavailable. If the agent works on a remote runner, write the file there rather than on the device displaying the chat.
 
@@ -63,9 +63,10 @@ window.openai.sendFollowUpMessage({ prompt: `Explain the value ${value}.`,
 title: 'Ask about this value' }).
 Write a self-contained HTML fragment named hapi-widget-smoke.html inside this
 session's workspace, with inline CSS and JavaScript and no network requests.
-End your response with the literal marker below on its own line outside code.
+End your response with the literal marker below on its own line outside code,
+with a blank line before it.
 Replace ABSOLUTE_PATH with the JSON-escaped path to the file.
-visualize{"path":"ABSOLUTE_PATH","title":"Slider check","mode":"wide"}
+visualize{"path":"ABSOLUTE_PATH","title":"Slider check","mode":"wide"}
 ```
 
 For a Codex Desktop conversation with Visualize enabled, use this shorter prompt.

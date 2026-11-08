@@ -29,11 +29,29 @@ type Code = number | null
 type State = (code: Code) => State | undefined
 type Token = { type: string }
 type Effects = { enter(type: string): void; consume(code: Code): void; exit(type: string): Token }
-type MarkdownNode = { type: string; value?: string; children?: MarkdownNode[]; data?: unknown }
+type MarkdownNode = {
+    type: string
+    value?: string
+    children?: MarkdownNode[]
+    data?: unknown
+    position?: { start: { offset?: number }; end: { offset?: number } }
+}
 type CompileContext = {
     enter(node: MarkdownNode, token: Token): void
     exit(token: Token): void
     sliceSerialize(token: Token): string
+}
+
+function visualizationNode(value: string, reference: VisualizationReference): MarkdownNode {
+    return {
+        type: TOKEN,
+        value,
+        data: {
+            hName: 'hapi-visualization',
+            hProperties: { dataPath: reference.path, dataMode: reference.mode, title: reference.title },
+            hChildren: [{ type: 'text', value }],
+        },
+    }
 }
 
 // Recognize the reference as Markdown text syntax so raw JSON escapes and
@@ -85,21 +103,26 @@ export function remarkVisualizations(this: Processor) {
             [TOKEN](this: CompileContext, token: Token) {
                 const value = this.sliceSerialize(token)
                 const reference = parseVisualizationReference(value.slice(PREFIX.length, -1))!
-                this.enter({
-                    type: TOKEN,
-                    value,
-                    data: {
-                        hName: 'hapi-visualization',
-                        hProperties: { dataPath: reference.path, dataMode: reference.mode, title: reference.title },
-                        hChildren: [{ type: 'text', value }],
-                    },
-                }, token)
+                this.enter(visualizationNode(value, reference), token)
             },
         },
         exit: { [TOKEN](this: CompileContext, token: Token) { this.exit(token) } },
     })
 
-    return (tree: MarkdownNode) => {
+    return (tree: MarkdownNode, file: { toString(): string }) => {
+        const source = file.toString()
+        // Other providers may omit Codex's private-use delimiters. Recognize
+        // the portable spelling only as a standalone top-level paragraph.
+        // Read its source span so Markdown never changes JSON escaping.
+        for (const node of tree.children ?? []) {
+            const start = node.position?.start.offset
+            const end = node.position?.end.offset
+            if (node.type !== 'paragraph' || start === undefined || end === undefined || end - start > MAX_MARKER_LENGTH) continue
+            const value = source.slice(start, end)
+            const payload = /^visualize(\{[^\r\n]*\})[ \t]*$/.exec(value)?.[1]
+            const reference = payload ? parseVisualizationReference(payload) : null
+            if (reference) node.children = [visualizationNode(value, reference)]
+        }
         function visit(node: MarkdownNode, literal: boolean) {
             if (!node.children) return
             const childrenAreLiteral = literal || node.type === 'link' || node.type === 'linkReference'
