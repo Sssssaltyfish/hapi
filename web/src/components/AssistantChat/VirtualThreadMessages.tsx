@@ -62,6 +62,7 @@ export function VirtualThreadMessages(props: Props) {
     const connectedViewport = getScrollElement()
     const measurements = useRef(new Map<string, number>())
     const measuredRows = useRef(new Map<string, HTMLElement>())
+    const pendingRowMeasurements = useRef(new Set<HTMLElement>())
     const rowObserver = useRef<ResizeObserver | null>(null)
     const hydrating = useRef(new Map<string, Promise<boolean>>())
     const hydrationTail = useRef<Promise<void>>(Promise.resolve())
@@ -103,7 +104,6 @@ export function VirtualThreadMessages(props: Props) {
     const current = useRef({ rows, props })
     current.current = { rows, props }
     const committed = useRef({ rows, revision: 0 })
-    useLayoutEffect(() => { committed.current = { rows, revision: committed.current.revision + 1 } })
 
     const currentRow = useCallback((alias: string) => {
         const { rows, props } = current.current
@@ -187,21 +187,21 @@ export function VirtualThreadMessages(props: Props) {
         virtualizer.resizeItem(index, height)
     }, [virtualizer])
     const attachMeasuredRow = useCallback((element: HTMLElement | null) => {
-        if (element) {
-            const id = element.dataset.hapiVirtualRow
-            if (id) {
-                const previous = measuredRows.current.get(id)
-                if (previous && previous !== element) rowObserver.current?.unobserve(previous)
-                measuredRows.current.set(id, element)
-            }
-            rowObserver.current?.observe(element, { box: 'border-box' })
-        } else {
-            for (const [id, previous] of measuredRows.current) {
-                if (!previous.isConnected) {
-                    rowObserver.current?.unobserve(previous)
-                    measuredRows.current.delete(id)
-                }
-            }
+        if (!element) return
+        const id = element.dataset.hapiVirtualRow
+        if (!id) return
+        const previous = measuredRows.current.get(id)
+        if (previous && previous !== element) {
+            pendingRowMeasurements.current.delete(previous)
+            rowObserver.current?.unobserve(previous)
+        }
+        measuredRows.current.set(id, element)
+        pendingRowMeasurements.current.add(element)
+        rowObserver.current?.observe(element, { box: 'border-box' })
+        return () => {
+            pendingRowMeasurements.current.delete(element)
+            rowObserver.current?.unobserve(element)
+            if (measuredRows.current.get(id) === element) measuredRows.current.delete(id)
         }
     }, [])
     useLayoutEffect(() => {
@@ -213,15 +213,13 @@ export function VirtualThreadMessages(props: Props) {
         for (const element of measuredRows.current.values()) observer.observe(element, { box: 'border-box' })
         return () => { observer.disconnect(); rowObserver.current = null }
     }, [measureRow, alignNavigation])
-    // Measure committed DOM even while native touch inertia is active. AUI can
-    // also change an existing row on a later commit without replacing its ref.
+    // Measure new rows and timeline changes before paint, including during touch
+    // inertia. Size-only updates to retained rows are handled by ResizeObserver.
     useLayoutEffect(() => {
-        for (const [id, element] of measuredRows.current) {
-            if (!element.isConnected || element.dataset.hapiRowResident !== 'true') {
-                rowObserver.current?.unobserve(element)
-                measuredRows.current.delete(id)
-            } else measureRow(element)
-        }
+        const rowsToMeasure = committed.current.rows !== rows ? measuredRows.current.values() : pendingRowMeasurements.current
+        committed.current = { rows, revision: committed.current.revision + 1 }
+        for (const element of rowsToMeasure) measureRow(element)
+        pendingRowMeasurements.current.clear()
         // The retained target is measured in normal flow before its semantic
         // destination is aligned. No row-start scroll is needed to mount it.
         alignNavigation()
@@ -515,6 +513,7 @@ export function VirtualThreadMessages(props: Props) {
             const nextWidth = container.getBoundingClientRect().width
             if (Math.abs(width - nextWidth) > 1) {
                 width = nextWidth
+                for (const element of measuredRows.current.values()) pendingRowMeasurements.current.add(element)
                 measurements.current.clear()
                 virtualizer.measure()
             }

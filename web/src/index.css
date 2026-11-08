@@ -508,10 +508,7 @@ html:has(.chat-scroll-y) #root {
 .hapi-disclosure-content,
 .hapi-disclosure-content > .collapsible-inner {
     transition-duration: var(--app-disclosure-duration);
-}
-
-.hapi-disclosure-content > .collapsible-inner {
-    transition-timing-function: linear;
+    transition-timing-function: cubic-bezier(0.33, 0, 0.67, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

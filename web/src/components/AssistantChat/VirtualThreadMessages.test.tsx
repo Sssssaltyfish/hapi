@@ -54,6 +54,32 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('measured conversation virtualization', () => {
+    it('applies a row resize without reading the geometry of other mounted rows', async () => {
+        let resizeRow: ((height: number) => void) | undefined
+        vi.stubGlobal('ResizeObserver', class {
+            constructor(private readonly callback: ResizeObserverCallback) {}
+            observe(target: Element) {
+                if (target.getAttribute('data-hapi-virtual-row') !== 'row-1') return
+                resizeRow = height => this.callback([{
+                    target,
+                    borderBoxSize: [{ inlineSize: 800, blockSize: height }],
+                } as ResizeObserverEntry], this)
+            }
+            unobserve() {}
+            disconnect() {}
+        })
+        const view = render(<Harness rows={rows.slice(0, 3)} />)
+        const resized = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-1"]')!
+        await waitFor(() => expect(resized.dataset.hapiRowSize).toBe('120'))
+        const retained = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-0"]')!
+        const readRetainedBounds = vi.spyOn(retained, 'getBoundingClientRect')
+
+        act(() => resizeRow!(164.5))
+
+        expect(resized.dataset.hapiRowSize).toBe('164.5')
+        expect(readRetainedBounds).not.toHaveBeenCalled()
+    })
+
     it('preserves the actual content anchor when a partially visible predecessor expands during history loading', async () => {
         const listRef = createRef<VirtualThreadHandle>()
         const view = render(<Harness rows={rows} listRef={listRef} />)
