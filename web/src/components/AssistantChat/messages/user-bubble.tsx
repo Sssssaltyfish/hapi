@@ -1,12 +1,15 @@
 import type { MessageStatus } from '@/types/api'
 import { LazyRainbowText } from '@/components/LazyRainbowText'
-import { SparklesIcon } from '@/components/ToolCard/icons'
 import { cn } from '@/lib/utils'
 import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
 import { splitCodexInputContext } from '@/lib/codexInputContext'
 import { parseScheduledMessage } from '@/lib/scheduledMessage'
 import { ScheduledMessageCard } from './ScheduledMessageCard'
 import { UserInputContext } from './UserInputContext'
+import { DirectiveChip } from './DirectiveChip'
+import { nativeSkillReferenceAtStart } from '@/codex-native/skillReferences'
+
+export { formatDirectiveLabel } from './DirectiveChip'
 
 const LEADING_DIRECTIVE_REGEX = /^([$\/][a-z0-9][\w-]*)(?=\s|$)/i
 
@@ -21,11 +24,17 @@ export function shouldShowMessageStatus(status?: MessageStatus): boolean {
     return status === 'queued' || status === 'sending' || status === 'failed'
 }
 
-export function extractLeadingDirectives(text: string): { directives: string[]; body: string } {
+export function extractLeadingDirectives(text: string, nativeSkillLinks = false): { directives: string[]; body: string } {
     let rest = text.trimStart()
     const directives: string[] = []
 
     while (rest.length > 0) {
+        const reference = nativeSkillLinks ? nativeSkillReferenceAtStart(rest) : null
+        if (reference && (reference.length === rest.length || /\s/.test(rest.charAt(reference.length)))) {
+            directives.push(reference.value)
+            rest = rest.slice(reference.length).trimStart()
+            continue
+        }
         const match = rest.match(LEADING_DIRECTIVE_REGEX)
         if (!match) break
 
@@ -39,31 +48,7 @@ export function extractLeadingDirectives(text: string): { directives: string[]; 
     }
 }
 
-export function formatDirectiveLabel(value: string): string {
-    return value
-        .replace(/^[$/]/, '')
-        .replace(/[_-]+/g, ' ')
-        .trim()
-}
-
-export function DirectiveChip(props: { value: string }) {
-    const label = formatDirectiveLabel(props.value)
-
-    return (
-        <span
-            className={cn(
-                'inline-flex items-center justify-center gap-[0.2rem] whitespace-nowrap rounded-full border-0 bg-[var(--app-chat-user-chip-bg)] px-2 py-px align-middle text-[length:var(--app-chat-font-size)] font-normal leading-[1.4] text-[var(--app-chat-user-chip-fg)] shadow-none'
-            )}
-            title={props.value}
-            aria-label={props.value}
-        >
-            <SparklesIcon className="h-[0.92em] w-[0.92em] shrink-0 [stroke-width:1.6]" />
-            <span>{label}</span>
-        </span>
-    )
-}
-
-export function UserBubbleContent(props: { text: string }) {
+export function UserBubbleContent(props: { text: string; nativeSkillLinks?: boolean }) {
     const scheduled = parseScheduledMessage(props.text)
     if (scheduled) return <ScheduledMessageCard message={scheduled} />
     const replies = parseNativeQuestionReply(props.text)
@@ -76,13 +61,13 @@ export function UserBubbleContent(props: { text: string }) {
     const annotated = splitCodexInputContext(props.text)
     if (annotated.sections.length > 0 || annotated.references.length > 0) return <div className="flex min-w-0 flex-col gap-2">
         <UserInputContext sections={annotated.sections} />
-        {annotated.body.trim() ? <UserBubbleText text={annotated.body} /> : null}
+        {annotated.body.trim() ? <UserBubbleText {...props} text={annotated.body} /> : null}
     </div>
-    return <UserBubbleText text={props.text} />
+    return <UserBubbleText {...props} />
 }
 
-function UserBubbleText(props: { text: string }) {
-    const { directives, body } = extractLeadingDirectives(props.text)
+function UserBubbleText(props: { text: string; nativeSkillLinks?: boolean }) {
+    const { directives, body } = extractLeadingDirectives(props.text, props.nativeSkillLinks)
     const hasBody = body.trim().length > 0
     const shouldRenderInline = directives.length > 0 && hasBody && !/[\r\n]/.test(body)
 
@@ -90,8 +75,8 @@ function UserBubbleText(props: { text: string }) {
         return (
             <div className="happy-chat-text min-w-0">
                 <div className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5 align-top">
-                    {directives.map((directive) => <DirectiveChip key={directive} value={directive} />)}
-                    <LazyRainbowText text={body} inline preserveSingleLineBreaks />
+                    {directives.map((directive, index) => <DirectiveChip key={index} value={directive} />)}
+                    <LazyRainbowText text={body} inline preserveSingleLineBreaks nativeSkillLinks={props.nativeSkillLinks} />
                 </div>
             </div>
         )
@@ -101,10 +86,10 @@ function UserBubbleText(props: { text: string }) {
         <div className="flex min-w-0 flex-col gap-2">
             {directives.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
-                    {directives.map((directive) => <DirectiveChip key={directive} value={directive} />)}
+                    {directives.map((directive, index) => <DirectiveChip key={index} value={directive} />)}
                 </div>
             ) : null}
-            {hasBody ? <LazyRainbowText text={body} preserveSingleLineBreaks /> : null}
+            {hasBody ? <LazyRainbowText text={body} preserveSingleLineBreaks nativeSkillLinks={props.nativeSkillLinks} /> : null}
         </div>
     )
 }

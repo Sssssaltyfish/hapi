@@ -107,7 +107,7 @@ export function HappyUserMessage() {
             <div className={getUserBubbleClassName(status)}>
                 <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                        {hasText ? <UserBubbleContent text={text} /> : null}
+                        {hasText ? <UserBubbleContent text={text} nativeSkillLinks={Boolean(ctx.metadata?.nativeCodex)} /> : null}
                         {hasAttachments ? <MessageAttachments attachments={attachments} /> : null}
                     </div>
                     {showStatus && (

@@ -20,6 +20,7 @@ afterEach(() => {
 
 it('renders native content after the native model catalogue reaches the existing chat controls', async () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    vi.stubGlobal('IntersectionObserver', class { observe() {} unobserve() {} disconnect() {} })
     // jsdom has no layout. Give the real virtualizer a visible viewport so this
     // integration test exercises message rendering alongside native controls.
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600)
@@ -42,10 +43,22 @@ it('renders native content after the native model catalogue reaches the existing
         uploadCodexNativeFile,
         deleteCodexNativeUpload: vi.fn(async () => ({ success: true })),
         withCodexNativeEndpoint: () => api,
+        getConversationCacheScope: () => ({ key: 'native-render', persistent: false }),
         getCodexNativeThread: async () => ({ thread: { id: 'native-thread', name: 'Native chat', status: { type: 'idle' } } }),
         getCodexNativeActiveTurn: async () => ({ activeTurn: null }),
         getCodexNativeQueue: async () => ({ data: [], nextCursor: null }),
-        getCodexNativeItems: async () => ({ data: [{ turnId: 'turn', item: { id: 'response', type: 'agentMessage', text: 'Native message renders here' }, startedAtMs: 2000, completedAtMs: 2001 }], nextCursor: null }),
+        getCodexNativeItems: async () => ({ data: [
+            { turnId: 'turn', item: { id: 'desktop-skill', type: 'userMessage', content: [
+                { type: 'text', text: '[$native-leading](/workspace/skill folder/SKILL.md) Read this.' },
+                { type: 'skill', name: 'native-leading', path: '/workspace/skill folder/SKILL.md' },
+            ] }, startedAtMs: 1998 },
+            { turnId: 'turn', item: { id: 'legacy-skill', type: 'userMessage', content: [
+                { type: 'text', text: 'Use **the selected skill ' },
+                { type: 'skill', name: 'native-inline', path: 'C:\\skill folder\\with (parens)\\SKILL.md' },
+                { type: 'text', text: ' now** to inspect $variable.' },
+            ] }, startedAtMs: 1999 },
+            { turnId: 'turn', item: { id: 'response', type: 'agentMessage', text: 'Native message renders here' }, startedAtMs: 2000, completedAtMs: 2001 },
+        ], nextCursor: null }),
         getCodexNativeModels: async () => ({ data: [{ id: 'gpt-6-astra', model: 'gpt-6-astra', displayName: 'Astra', isDefault: true, defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium', description: 'Medium' }, { reasoningEffort: 'ultra', description: 'Ultra' }] }] }),
         streamCodexNativeEvents: (_id: string, _signal: AbortSignal, onEvent: (event: unknown) => void) => {
             onEvent({ method: 'hapi/ready', params: { thread: { id: 'native-thread', name: 'Native chat', status: { type: 'idle' } }, threadSettings: nativeSettings } })
@@ -58,6 +71,9 @@ it('renders native content after the native model catalogue reaches the existing
         <NativeSessionPage api={api as unknown as ApiClient} session={session} onBack={() => {}} />
     </ToastProvider></QueryClientProvider></I18nProvider>)
     expect(await screen.findByText('Native message renders here')).toBeInTheDocument()
+    expect(screen.getByTitle('$native-leading')).toHaveClass('rounded-full')
+    expect(screen.getByTitle('$native-inline')).toHaveClass('rounded-full')
+    expect(screen.getByText(/to inspect \$variable/)).toBeInTheDocument()
     expect((await screen.findAllByText('Astra')).length).toBeGreaterThan(0)
     fireEvent.click(await screen.findByRole('button', { name: 'Reasoning Effort: Ultra' }))
     fireEvent.click(screen.getByRole('button', { name: 'Default' }))

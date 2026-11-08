@@ -36,15 +36,13 @@ export function threadReferenceCapability(service: NativeService, threadId: stri
     return loading
 }
 
-/** Reuse the CLI's quoted-reference and leading-skill grammar, retaining local
- * references as text because this daemon only resolves typed app/plugin mentions.
- * Kept pure to avoid importing CLI runtime/configuration into the hub. */
+/** Keep local file references in text and resolve app/plugin mentions separately. */
 export function nativeMessageInput(message: string, skills: readonly Skill[] = []): NativeRecord[] {
     const annotated = codexAnnotatedRequest(message)
     if (annotated) {
         // Desktop reads the annotation and its request from one text input.
-        const entities = nativeMessageParts(annotated.body, skills).filter(item => item.type !== 'text')
-        return [{ type: 'text', text: annotated.text, text_elements: [] }, ...entities]
+        const prefix = annotated.text.slice(0, annotated.text.length - annotated.body.length)
+        return nativeMessageParts(annotated.body, skills, prefix)
     }
     const body = splitCodexInputContext(message).body
     if (body !== message && message.endsWith(body)) {
@@ -54,37 +52,50 @@ export function nativeMessageInput(message: string, skills: readonly Skill[] = [
     return nativeMessageParts(message, skills)
 }
 
-function nativeMessageParts(message: string, skills: readonly Skill[]): NativeRecord[] {
+function nativeMessageParts(message: string, skills: readonly Skill[], annotationPrefix?: string): NativeRecord[] {
     const input: NativeRecord[] = []
-    const leading = /^\s*\$([^\s]+)(?=\s|$)/.exec(message)
-    const skill = leading
-        ? skills.find((skill) => skill.enabled && skill.name === leading[1])
-        : undefined
-    const content = skill && leading ? message.slice(leading[0].length) : message
-    if (skill) input.push({ type: 'skill', name: skill.name, path: skill.path })
+    const selectedSkills = new Map<string, NativeRecord>()
     const mentions = /(^|\s)(?:@"((?:\\.|[^"\\])*)"|\$([^\s]+)(?=\s|$))/g
+    let pendingText = annotationPrefix ?? ''
     let end = 0
-    for (const match of content.matchAll(mentions)) {
-        const selectedSkill = match[3] ? skills.find(skill => skill.enabled && skill.name === match[3]) : undefined
+    for (const match of message.matchAll(mentions)) {
+        const start = match.index + match[1].length
+        const skill = match[3] ? skills.find(skill => skill.enabled && skill.name === match[3]) : undefined
+        if (skill) {
+            // Desktop renders the link from history text. The daemon resolves
+            // the typed selection and deduplicates it against the same linked path.
+            const label = `$${skill.name}`
+                .replaceAll('\\', '\\\\')
+                .replaceAll('[', '\\[')
+                .replaceAll('](', ']\\(')
+                .replaceAll(']', '\\]')
+            const destination = skill.path.replace(/[\\)]/g, '\\$&')
+            pendingText += message.slice(end, start) + `[${label}](${destination})`
+            selectedSkills.set(skill.path, { type: 'skill', name: skill.name, path: skill.path })
+            end = match.index + match[0].length
+            continue
+        }
         const path = match[2]?.replace(/\\(["\\])/g, '$1')
-        if (!selectedSkill && !path) continue
         // Current daemon mention resolution handles app/plugin URIs. Local paths
         // must remain in the text or the model never receives the file reference.
-        if (!selectedSkill && !/^(app|plugin):\/\//.test(path!)) continue
-        const start = match.index + match[1].length
-        if (start > end)
-            input.push({ type: 'text', text: content.slice(end, start), text_elements: [] })
-        if (selectedSkill) input.push({ type: 'skill', name: selectedSkill.name, path: selectedSkill.path })
-        else input.push({
+        if (!path || !/^(app|plugin):\/\//.test(path)) continue
+        if (annotationPrefix === undefined) {
+            pendingText += message.slice(end, start)
+            if (pendingText) input.push({ type: 'text', text: pendingText, text_elements: [] })
+            pendingText = ''
+            end = match.index + match[0].length
+        }
+        input.push({
             type: 'mention',
-            name: path!.split(/[\\/]/).filter(Boolean).at(-1) ?? path,
+            name: path.split(/[\\/]/).filter(Boolean).at(-1) ?? path,
             path,
         })
-        end = match.index + match[0].length
     }
-    if (end < content.length || !input.length)
-        input.push({ type: 'text', text: content.slice(end), text_elements: [] })
-    return input
+    pendingText += message.slice(end)
+    const textInput = { type: 'text', text: pendingText, text_elements: [] }
+    if (annotationPrefix !== undefined) return [textInput, ...input, ...selectedSkills.values()]
+    if (pendingText || !input.length) input.push(textInput)
+    return [...input, ...selectedSkills.values()]
 }
 
 async function skillsFor(service: NativeService, cwd: string): Promise<Skill[]> {

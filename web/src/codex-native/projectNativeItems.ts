@@ -4,6 +4,7 @@ import type { NativeItemEntry, NativeRecord, NativeRequest } from './types'
 import { nativeCollaborationTool, nativeSubagentEvent } from './nativeCollaboration'
 import { nativeReasoningMessageId, nativeReasoningParts } from './nativeReasoning'
 import { getInlineMediaMimeType } from '@/lib/generatedInlineMedia'
+import { projectNativeUserText } from './skillReferences'
 
 function nativePatchChanges(value: unknown): NativeRecord {
     if (!Array.isArray(value)) return record(value)
@@ -127,23 +128,7 @@ export function projectNativeItems(
         const collaboration = item.type === 'collabAgentToolCall' ? nativeCollaborationTool(item) : null
         if (item.type === 'userMessage' || item.type === 'steeringUserMessage') {
             if (item.type === 'steeringUserMessage' && item.status !== 'accepted') continue
-            const content = item.content ?? item.input
-            const text = Array.isArray(content)
-                ? content
-                      .map((value) => {
-                          const part = record(value)
-                          if (typeof part.text === 'string') return part.text
-                          if (part.type === 'image') return '[Image]'
-                          if (part.type === 'localImage')
-                              return `[Image: ${String(part.path ?? '')}]`
-                          if (part.type === 'mention') return ''
-                          return part.type
-                              ? `[${String(part.type)}: ${String(part.path ?? part.name ?? '')}]`
-                              : ''
-                      })
-                      .filter(Boolean)
-                      .join('\n')
-                : nativeText(content)
+            const text = projectNativeUserText(item.content ?? item.input)
             if (text) add(id, at, { text }, true)
         } else if (item.type === 'agentMessage') {
             const text = nativeText(item.text)

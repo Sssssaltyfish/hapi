@@ -34,7 +34,7 @@ test('the current query receives a plugin that finishes discovery after file sea
     expect((await current).map((item) => item.key)).toEqual(['plugin://late@market'])
 })
 
-test('native message conversion preserves file references and uses typed inputs only for known entity URIs', () => {
+test('native message conversion preserves file references and sends links and typed inputs for known skills', () => {
     expect(nativeMessageInput('hello @ordinary 世界')).toEqual([
         { type: 'text', text: 'hello @ordinary 世界', text_elements: [] },
     ])
@@ -43,12 +43,12 @@ test('native message conversion preserves file references and uses typed inputs 
             { name: 'tool', path: '/skills/tool/SKILL.md', enabled: true },
         ])
     ).toEqual([
-        { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
         {
             type: 'text',
-            text: ' read @"C:\\\\用户\\\\with space\\\\a\\\"b.ts" next',
+            text: '[$tool](/skills/tool/SKILL.md) read @"C:\\\\用户\\\\with space\\\\a\\\"b.ts" next',
             text_elements: [],
         },
+        { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
     ])
     expect(
         nativeMessageInput(
@@ -68,17 +68,26 @@ test('native message conversion preserves file references and uses typed inputs 
     ).toBe('$disabled plain')
 })
 
-test('inline selected skills become typed inputs while injected quote context remains verbatim text', () => {
+test('inline skills remain visible while quoted context stays verbatim in one text input', () => {
     const skills = [{ name: 'tool', path: '/skills/tool/SKILL.md', enabled: true }]
     expect(nativeMessageInput('Please use $tool next', skills)).toEqual([
-        { type: 'text', text: 'Please use ', text_elements: [] },
+        { type: 'text', text: 'Please use [$tool](/skills/tool/SKILL.md) next', text_elements: [] },
         { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
-        { type: 'text', text: ' next', text_elements: [] },
     ])
-    const message = serializeResponseAnnotations('Ask @"app://connector" about this quote', [{ text: 'The example mentions $tool in its text' }])
+    const message = serializeResponseAnnotations('Ask @"app://connector" to use $tool on this quote', [{ text: 'The example mentions $tool in its text' }])
     expect(nativeMessageInput(message.trim(), skills)).toEqual([
-        { type: 'text', text: message, text_elements: [] },
+        { type: 'text', text: message.replace('use $tool on', 'use [$tool](/skills/tool/SKILL.md) on'), text_elements: [] },
         { type: 'mention', name: 'connector', path: 'app://connector' },
+        { type: 'skill', name: 'tool', path: '/skills/tool/SKILL.md' },
+    ])
+})
+
+test('repeated skill links use Desktop path escaping and carry one typed selection', () => {
+    const path = 'C:\\Program Files (x86)\\tool\\SKILL.md'
+    const link = '[$tool](C:\\\\Program Files (x86\\)\\\\tool\\\\SKILL.md)'
+    expect(nativeMessageInput('$tool then $tool', [{ name: 'tool', path, enabled: true }])).toEqual([
+        { type: 'text', text: `${link} then ${link}`, text_elements: [] },
+        { type: 'skill', name: 'tool', path },
     ])
 })
 

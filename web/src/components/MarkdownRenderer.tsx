@@ -22,6 +22,8 @@ import {
 import { SyntaxHighlighter } from '@/components/assistant-ui/shiki-highlighter'
 import type { CodeHeaderProps, SyntaxHighlighterProps } from '@assistant-ui/react-markdown'
 import { cn } from '@/lib/utils'
+import { DirectiveChip } from '@/components/AssistantChat/messages/DirectiveChip'
+import { remarkNativeSkillLinks } from '@/lib/remark-native-skill-links'
 
 interface MarkdownRendererProps {
     content: string
@@ -31,8 +33,13 @@ interface MarkdownRendererProps {
     defer?: MarkdownTextPrimitiveProps['defer']
     inlineMedia?: boolean
     inlineVisualizations?: boolean
+    nativeSkillLinks?: boolean
     /** Render outside assistant-ui thread context (file pane, fixtures). */
     standalone?: boolean
+}
+
+const nativeSkillComponents = {
+    'hapi-native-skill': ({ title }: { title?: string }) => title ? <DirectiveChip value={title} /> : null,
 }
 
 function StandaloneCode(props: ComponentPropsWithoutRef<'code'>) {
@@ -102,12 +109,18 @@ function StandaloneMarkdownContent(props: MarkdownRendererProps) {
 
 function MarkdownContent(props: MarkdownRendererProps) {
     const baseComponents = props.inlineMedia ? assistantMediaComponents : defaultComponents
-    const mergedComponents = props.components || props.inlineVisualizations
-        ? { ...baseComponents, ...(props.inlineVisualizations ? visualizationComponents : {}), ...props.components }
+    const mergedComponents = props.components || props.inlineVisualizations || props.nativeSkillLinks
+        ? { ...baseComponents,
+            ...(props.inlineVisualizations ? visualizationComponents : {}),
+            ...(props.nativeSkillLinks ? nativeSkillComponents : {}),
+            ...props.components,
+        }
         : baseComponents
-    const remarkPlugins = props.inlineVisualizations
+    const basePlugins = props.inlineVisualizations
         ? props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS_AND_VISUALIZATIONS : MARKDOWN_PLUGINS_WITH_VISUALIZATIONS
         : props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS : MARKDOWN_PLUGINS
+    const remarkPlugins = useMemo(() => props.nativeSkillLinks ? [...basePlugins, remarkNativeSkillLinks] : basePlugins,
+        [basePlugins, props.nativeSkillLinks])
 
     return (
         <UriConfirmProvider>
