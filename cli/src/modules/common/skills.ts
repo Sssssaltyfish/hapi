@@ -2,6 +2,7 @@ import { access, open, readdir, readFile, stat } from 'fs/promises';
 import { basename, dirname, join, resolve } from 'path';
 import { homedir } from 'os';
 import { parse as parseYaml } from 'yaml';
+import { ensureBundledSkills } from '@/runtime/bundledSkills';
 
 export interface SkillSummary {
     name: string;
@@ -62,8 +63,18 @@ function getAgentConfigDir(flavor?: string): string {
 
 function getUserSkillsRoots(flavor?: string): string[] {
     const home = getHomeDirectory();
+    const agent = normalizeFlavor(flavor);
+    if (agent === 'dsh') {
+        return [
+            join(process.env.DSH_HOME || join(home, '.dsh'), 'skills'),
+            join(process.env.DSH_AGENTS_HOME || join(home, '.agents'), 'skills'),
+        ];
+    }
     const roots = [join(home, '.agents', 'skills')];
-    switch (normalizeFlavor(flavor)) {
+    switch (agent) {
+        case 'agy':
+            roots.push(join(home, '.gemini', 'config', 'skills'));
+            break;
         case 'claude':
             roots.push(join(getAgentConfigDir(flavor), 'skills'));
             break;
@@ -87,6 +98,9 @@ function getAdminSkillsRoot(): string {
 function getProjectSkillsRoots(directory: string, flavor?: string): string[] {
     const roots = [join(directory, '.agents', 'skills')];
     switch (normalizeFlavor(flavor)) {
+        case 'agy':
+            roots.push(join(directory, '.agent', 'skills'), join(directory, '_agents', 'skills'), join(directory, '_agent', 'skills'));
+            break;
         case 'claude':
             roots.push(join(directory, '.claude', 'skills'));
             break;
@@ -126,19 +140,22 @@ async function listProjectSkillsRoots(workingDirectory?: string, flavor?: string
     const directories = [resolvedWorkingDirectory];
     let currentDirectory = resolvedWorkingDirectory;
 
-    while (true) {
-        if (await pathExists(join(currentDirectory, '.git'))) {
-            return directories.flatMap((directory) => getProjectSkillsRoots(directory, flavor));
-        }
-
+    while (!await pathExists(join(currentDirectory, '.git'))) {
         const parentDirectory = dirname(currentDirectory);
         if (parentDirectory === currentDirectory) {
-            return getProjectSkillsRoots(resolvedWorkingDirectory, flavor);
+            directories.length = 1;
+            break;
         }
 
         currentDirectory = parentDirectory;
         directories.push(currentDirectory);
     }
+
+    const roots = directories.flatMap((directory) => getProjectSkillsRoots(directory, flavor));
+    if (normalizeFlavor(flavor) === 'dsh') {
+        roots.unshift(join(directories[directories.length - 1], '.dsh', 'skills'));
+    }
+    return roots;
 }
 
 function parseFrontmatter(fileContent: string): { frontmatter?: Record<string, unknown>; body: string } {
@@ -293,18 +310,20 @@ async function discoverSkills(workingDirectory?: string, options: { flavor?: str
     const pluginRoots = await listPluginCacheSkillsRoots(flavor);
     const adminRoot = getAdminSkillsRoot();
     const includeAdminRoots = flavor === 'codex';
-    const [projectSkillDirs, userSkillDirs, pluginSkillDirs, adminSkillDirs] = await Promise.all([
+    const [projectSkillDirs, userSkillDirs, pluginSkillDirs, adminSkillDirs, bundledSkillDirs] = await Promise.all([
         Promise.all(projectRoots.map(async (root) => await listTopLevelSkillDirs(root, { includeCodexSystem: shouldIncludeCodexSystem(root, flavor) }))).then((dirs) => dirs.flat()),
         Promise.all(userRoots.map(async (root) => await listTopLevelSkillDirs(root, { includeCodexSystem: shouldIncludeCodexSystem(root, flavor) }))).then((dirs) => dirs.flat()),
         Promise.all(pluginRoots.map(async (root) => await listTopLevelSkillDirs(root, { includeCodexSystem: false }))).then((dirs) => dirs.flat()),
         includeAdminRoots ? listTopLevelSkillDirs(adminRoot, { includeCodexSystem: true }) : [],
+        ensureBundledSkills().then((root) => listTopLevelSkillDirs(root)),
     ]);
 
-    const [projectSkills, userSkills, pluginSkills, adminSkills] = await Promise.all([
+    const [projectSkills, userSkills, pluginSkills, adminSkills, bundledSkills] = await Promise.all([
         readSkillsFromDirs(projectSkillDirs),
         readSkillsFromDirs(userSkillDirs),
         readSkillsFromDirs(pluginSkillDirs),
         readSkillsFromDirs(adminSkillDirs),
+        readSkillsFromDirs(bundledSkillDirs),
     ]);
 
     const dedupedSkills = new Map<string, DiscoveredSkill>();
@@ -313,6 +332,7 @@ async function discoverSkills(workingDirectory?: string, options: { flavor?: str
         ...userSkills,
         ...pluginSkills,
         ...adminSkills,
+        ...bundledSkills,
     ]) {
         if (!dedupedSkills.has(skill.name)) {
             dedupedSkills.set(skill.name, skill);

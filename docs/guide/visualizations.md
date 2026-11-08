@@ -16,9 +16,11 @@ Write a regular `.html` file of at most 1 MiB inside the current session workspa
 
 Widgets follow the HAPI theme. Widgets that use the state API can restore a snapshot in the same browser when you reopen the conversation. A widget's follow-up button can ask for confirmation and append text to the composer. Review or edit that draft and send it yourself.
 
-## Make the authoring skill available
+## Share the authoring skill
 
-The repository includes a reusable Agent Skill at `skills/hapi-visualize/SKILL.md`. Copy the entire `hapi-visualize` folder into one of the directories below **on the machine and under the account running the agent**. A project install applies to that workspace. A user install makes the skill available in other workspaces for that provider.
+HAPI bundles `skills/hapi-visualize/SKILL.md` with the CLI. Compiled CLIs maintain one copy at `$HAPI_HOME/bundled-skills/hapi-visualize/SKILL.md` (`~/.hapi/bundled-skills/hapi-visualize/SKILL.md` by default). The common HAPI skill catalog includes it after project and user skills. CLI startup refreshes the bundled copy when its contents change, including upgrades that keep the same package version.
+
+Native agents also need to discover that file through their own skill system. Link their `hapi-visualize` skill directory to the shared HAPI directory **on the machine and under the account running the agent**. This includes Claude's native command catalog and Codex Native, which reads skills directly from its daemon. Use a directory symlink on Linux/macOS or a directory junction on Windows. Start HAPI once to create the shared target. A project link applies to that workspace; a user link is available in other workspaces for that provider.
 
 | Agent | Project skill directory | User skill directory |
 | --- | --- | --- |
@@ -27,7 +29,22 @@ The repository includes a reusable Agent Skill at `skills/hapi-visualize/SKILL.m
 | Antigravity (`agy`) | `.agents/skills/` | `~/.gemini/config/skills/` |
 | DeepSeek Harness (`dsh`) | `.agents/skills/` or `.dsh/skills/` | `$DSH_HOME/skills/`, usually `~/.dsh/skills/` |
 
-HAPI does not install this skill automatically. Start a fresh agent session after copying it and ask for the `hapi-visualize` skill by name. Codex, Antigravity, and DeepSeek Harness can share a project copy at `.agents/skills/hapi-visualize/SKILL.md`. A custom ACP server uses its own skill discovery. If a provider cannot find the skill, include the authoring instructions directly in the request.
+HAPI does not change provider configuration automatically. Codex and DeepSeek Harness can share one user link at `~/.agents/skills/hapi-visualize`; Claude uses its own skills directory. Antigravity can reference the same shared directory explicitly in `~/.gemini/config/skills.json`:
+
+```json
+{
+  "entries": [
+    {
+      "path": "/absolute/path/to/hapi-home/bundled-skills",
+      "include_only": ["hapi-visualize"]
+    }
+  ]
+}
+```
+
+Merge this entry with an existing configuration. HAPI's directory fallback does not interpret Antigravity's custom manifest rules; Antigravity itself resolves them. In source checkouts, HAPI reads the repository's `skills` directory directly, so use that as the link target instead of the compiled path.
+
+Ask for `hapi-visualize` by name after installation. Runner sessions with a catalog captured at startup need a fresh agent session to expose newly installed skills. A custom ACP server uses its own skill discovery. If a provider cannot find the skill, include the authoring instructions directly in the request.
 
 Codex Desktop users who already have the Visualize skill enabled can use it directly. HAPI reads Native fragments through the connected daemon. Files outside its workspace must be permitted by that endpoint's `allowedRoots` or `fileAccess` configuration. For ordinary runner sessions, save the fragment inside the session workspace.
 

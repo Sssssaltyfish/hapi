@@ -5,6 +5,7 @@ import * as tar from 'tar';
 import packageJson from '../../package.json';
 import type { EmbeddedAsset } from '#embedded-assets';
 import { isBunCompiled, runtimePath } from '@/projectPath';
+import { ensureBundledSkills } from './bundledSkills';
 
 const RUNTIME_MARKER = '.runtime-version';
 
@@ -140,6 +141,7 @@ export async function ensureRuntimeAssets(): Promise<void> {
         return;
     }
 
+    await ensureBundledSkills();
     const { loadEmbeddedAssets } = await import('#embedded-assets');
     const runtimeRoot = runtimePath();
     const markerPath = join(runtimeRoot, RUNTIME_MARKER);

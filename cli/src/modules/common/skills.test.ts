@@ -1,8 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ensureBundledSkills } from '@/runtime/bundledSkills'
 import { listSkills, MAX_SKILL_FILE_BYTES, resolveSkill } from './skills'
+
+vi.mock('@/runtime/bundledSkills', () => ({ ensureBundledSkills: vi.fn() }))
 
 async function writeSkill(skillDir: string, name: string, description: string): Promise<void> {
     await mkdir(skillDir, { recursive: true })
@@ -29,6 +32,7 @@ describe('listSkills', () => {
         process.env.HOME = homeDir
         delete process.env.CLAUDE_CONFIG_DIR
         delete process.env.CODEX_HOME
+        vi.mocked(ensureBundledSkills).mockResolvedValue(join(sandboxDir, 'bundled-skills'))
         await mkdir(homeDir, { recursive: true })
     })
 
@@ -51,11 +55,31 @@ describe('listSkills', () => {
             process.env.CODEX_HOME = originalCodexHome
         }
 
+        vi.unstubAllEnvs()
         await rm(sandboxDir, { recursive: true, force: true })
     })
 
     it('returns empty list when skills directories are missing', async () => {
         await expect(listSkills()).resolves.toEqual([])
+    })
+
+    it('lists the same bundled skill across providers and lets user and project skills override it', async () => {
+        const bundled = await vi.importActual<typeof import('@/runtime/bundledSkills')>('@/runtime/bundledSkills')
+        vi.mocked(ensureBundledSkills).mockImplementation(bundled.ensureBundledSkills)
+        const work = join(sandboxDir, 'project')
+        const name = 'hapi-visualize'
+        await mkdir(work)
+
+        for (const flavor of ['agy', 'claude', 'codex', 'copilot', 'cursor', 'dsh', 'grok', 'kimi', 'opencode', 'pi']) {
+            expect((await listSkills(work, { flavor })).map((skill) => skill.name)).toContain(name)
+        }
+        expect((await resolveSkill(name, work))?.body).toContain('# HAPI Visualize')
+
+        await writeSkill(join(homeDir, '.agents', 'skills', name), name, 'User skill')
+        expect((await resolveSkill(name, work))?.description).toBe('User skill')
+        await writeSkill(join(work, '.claude', 'skills', name), name, 'Project skill')
+        expect((await resolveSkill(name, work))?.description).toBe('Project skill')
+        expect((await listSkills(work)).filter((skill) => skill.name === name)).toHaveLength(1)
     })
 
     it('lists user skills from ~/.agents only', async () => {
@@ -132,6 +156,39 @@ describe('listSkills', () => {
         const skills = await listSkills(repoRoot, { flavor: 'copilot' })
 
         expect(skills.map((skill) => skill.name)).toEqual(['copilot-user', 'github-skill', 'shared'])
+    })
+
+    it('finds AGY global skills and legacy project directories only for AGY', async () => {
+        const repoRoot = join(sandboxDir, 'agy-repo')
+        await mkdir(join(repoRoot, '.git'), { recursive: true })
+        await writeSkill(join(repoRoot, '_agent', 'skills', 'project'), 'project', 'Legacy AGY project skill')
+        await writeSkill(join(homeDir, '.gemini', 'config', 'skills', 'user'), 'user', 'AGY user skill')
+
+        expect((await listSkills(repoRoot, { flavor: 'agy' })).map((skill) => skill.name)).toEqual(['project', 'user'])
+        expect(await listSkills(repoRoot, { flavor: 'claude' })).toEqual([])
+    })
+
+    it('uses DSH native project priority and honors both DSH user home overrides', async () => {
+        const repoRoot = join(sandboxDir, 'dsh-repo')
+        const work = join(repoRoot, 'nested')
+        const dshHome = join(sandboxDir, 'dsh-home')
+        const agentsHome = join(sandboxDir, 'dsh-agents-home')
+        vi.stubEnv('DSH_HOME', dshHome)
+        vi.stubEnv('DSH_AGENTS_HOME', agentsHome)
+        await mkdir(join(repoRoot, '.git'), { recursive: true })
+        await writeSkill(join(work, '.dsh', 'skills', 'nested'), 'nested', 'Outside DSH project root')
+        await writeSkill(join(repoRoot, '.dsh', 'skills', 'project'), 'project', 'DSH project skill')
+        await writeSkill(join(repoRoot, '.agents', 'skills', 'project'), 'project', 'Shared project skill')
+        await writeSkill(join(dshHome, 'skills', 'user'), 'user', 'DSH user skill')
+        await writeSkill(join(agentsHome, 'skills', 'user'), 'user', 'Shared user skill')
+        await writeSkill(join(agentsHome, 'skills', 'agents'), 'agents', 'Skill from DSH_AGENTS_HOME')
+        await writeSkill(join(homeDir, '.agents', 'skills', 'ignored'), 'ignored', 'Outside DSH_AGENTS_HOME')
+
+        expect(await listSkills(work, { flavor: 'dsh' })).toEqual([
+            { name: 'agents', description: 'Skill from DSH_AGENTS_HOME' },
+            { name: 'project', description: 'DSH project skill' },
+            { name: 'user', description: 'DSH user skill' },
+        ])
     })
 
     it('scopes user skills to the requested flavor', async () => {
