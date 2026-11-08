@@ -63,7 +63,10 @@ describe('measured conversation virtualization', () => {
                 resizeRow = height => this.callback([{
                     target,
                     borderBoxSize: [{ inlineSize: 800, blockSize: height }],
-                } as ResizeObserverEntry], this)
+                    contentBoxSize: [{ inlineSize: 800, blockSize: height }],
+                    devicePixelContentBoxSize: [{ inlineSize: 800, blockSize: height }],
+                    contentRect: new DOMRect(0, 0, 800, height),
+                }], this)
             }
             unobserve() {}
             disconnect() {}
@@ -72,7 +75,8 @@ describe('measured conversation virtualization', () => {
         const resized = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-1"]')!
         await waitFor(() => expect(resized.dataset.hapiRowSize).toBe('120'))
         const retained = view.container.querySelector<HTMLElement>('[data-hapi-virtual-row="row-0"]')!
-        const readRetainedBounds = vi.spyOn(retained, 'getBoundingClientRect')
+        const readRetainedBounds = vi.fn(retained.getBoundingClientRect.bind(retained))
+        Object.defineProperty(retained, 'getBoundingClientRect', { configurable: true, value: readRetainedBounds })
 
         act(() => resizeRow!(164.5))
 
