@@ -827,6 +827,15 @@ export default {
   'media.displayed.unavailable': '{label}不可用：{error}',
   'media.preview.loading': '正在加载 {name}…',
   'media.preview.open': '预览 {name}',
+  'visualization.name': '可视化',
+  'visualization.reload': '刷新可视化',
+  'visualization.error.tooLarge': '此可视化超出 1 MiB 的预览大小限制。',
+  'visualization.error.invalidText': '无法将此可视化读取为 UTF-8 HTML。',
+  'visualization.followup.title': '将后续问题加入草稿',
+  'visualization.followup.description': '将这段文字添加到当前草稿，发送前可以查看和编辑。',
+  'visualization.followup.confirm': '加入草稿',
+  'visualization.link.title': '打开外部链接',
+  'visualization.link.description': '此可视化请求在新标签页打开以下地址。',
 
   // Tool card
   'tool.askQuestion': '其他',

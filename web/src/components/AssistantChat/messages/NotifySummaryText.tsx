@@ -134,14 +134,14 @@ export const NotifySummaryText: TextMessagePartComponent = ({ text, status }) =>
     if (!showInChat) {
         const stripped = stripNotifySummaryFooter(text)
         if (!stripped) return null
-        if (stripped === text) return <MarkdownText smooth={smooth} inlineMedia />
-        return <MarkdownRenderer content={stripped} inlineMedia />
+        if (stripped === text) return <MarkdownText smooth={smooth} inlineMedia inlineVisualizations />
+        return <MarkdownRenderer content={stripped} inlineMedia inlineVisualizations />
     }
 
-    if (status.type !== 'complete') return <MarkdownText smooth={smooth} inlineMedia />
+    if (status.type !== 'complete') return <MarkdownText smooth={smooth} inlineMedia inlineVisualizations />
 
     const display = splitNotifySummary(text)
-    if (!display) return <MarkdownText smooth={smooth} inlineMedia />
+    if (!display) return <MarkdownText smooth={smooth} inlineMedia inlineVisualizations />
 
     const hasDisplayableSummary = Boolean(
         display.summary.summary?.trim()
@@ -150,12 +150,12 @@ export const NotifySummaryText: TextMessagePartComponent = ({ text, status }) =>
     )
     if (!hasDisplayableSummary) {
         if (!display.visibleText) return null
-        return <MarkdownRenderer content={display.visibleText} inlineMedia />
+        return <MarkdownRenderer content={display.visibleText} inlineMedia inlineVisualizations />
     }
 
     return (
         <>
-            {display.visibleText ? <MarkdownRenderer content={display.visibleText} inlineMedia /> : null}
+            {display.visibleText ? <MarkdownRenderer content={display.visibleText} inlineMedia inlineVisualizations /> : null}
             <NotifySummaryFooter summary={display.summary} />
         </>
     )

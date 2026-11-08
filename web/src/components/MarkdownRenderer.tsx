@@ -8,11 +8,14 @@ import {
     MARKDOWN_PLUGINS_STANDALONE,
     MARKDOWN_PLUGINS_STANDALONE_WITH_BREAKS,
     MARKDOWN_PLUGINS_WITH_BREAKS,
+    MARKDOWN_PLUGINS_WITH_VISUALIZATIONS,
+    MARKDOWN_PLUGINS_WITH_BREAKS_AND_VISUALIZATIONS,
     MARKDOWN_REHYPE_PLUGINS,
     MARKDOWN_COMPONENTS_BY_LANGUAGE,
     MARKDOWN_CLASSNAME,
     defaultComponents,
     assistantMediaComponents,
+    visualizationComponents,
     denyOnlyTransform,
     UriConfirmProvider,
 } from '@/components/assistant-ui/markdown-text'
@@ -27,6 +30,7 @@ interface MarkdownRendererProps {
     preserveSingleLineBreaks?: boolean
     defer?: MarkdownTextPrimitiveProps['defer']
     inlineMedia?: boolean
+    inlineVisualizations?: boolean
     /** Render outside assistant-ui thread context (file pane, fixtures). */
     standalone?: boolean
 }
@@ -98,16 +102,19 @@ function StandaloneMarkdownContent(props: MarkdownRendererProps) {
 
 function MarkdownContent(props: MarkdownRendererProps) {
     const baseComponents = props.inlineMedia ? assistantMediaComponents : defaultComponents
-    const mergedComponents = props.components
-        ? { ...baseComponents, ...props.components }
+    const mergedComponents = props.components || props.inlineVisualizations
+        ? { ...baseComponents, ...(props.inlineVisualizations ? visualizationComponents : {}), ...props.components }
         : baseComponents
+    const remarkPlugins = props.inlineVisualizations
+        ? props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS_AND_VISUALIZATIONS : MARKDOWN_PLUGINS_WITH_VISUALIZATIONS
+        : props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS : MARKDOWN_PLUGINS
 
     return (
         <UriConfirmProvider>
             <TextMessagePartProvider text={props.content}>
                 <MarkdownTextPrimitive
                     defer={props.defer}
-                    remarkPlugins={props.preserveSingleLineBreaks ? MARKDOWN_PLUGINS_WITH_BREAKS : MARKDOWN_PLUGINS}
+                    remarkPlugins={remarkPlugins}
                     rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
                     components={mergedComponents}
                     componentsByLanguage={MARKDOWN_COMPONENTS_BY_LANGUAGE}

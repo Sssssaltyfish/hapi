@@ -1,0 +1,31 @@
+<section id="widget-example" aria-label="Interactive counter">
+  <label class="form-label" for="widget-count">Count</label>
+  <input class="form-range" id="widget-count" type="range" min="0" max="10" value="2">
+  <output id="widget-value" aria-live="polite">2</output>
+  <div class="viz-row">
+    <button class="btn" id="widget-followup" type="button">Ask about count</button>
+    <span class="text-muted" id="widget-theme"></span>
+  </div>
+</section>
+<script>
+(() => {
+  const root = document.getElementById('widget-example');
+  const slider = root.querySelector('input');
+  const value = root.querySelector('output');
+  const apply = () => {
+    const saved = window.openai.widgetState?.modelContent?.count;
+    if (typeof saved === 'number') slider.value = String(saved);
+    value.textContent = slider.value;
+    root.querySelector('#widget-theme').textContent = window.openai.theme;
+  };
+  apply();
+  window.addEventListener('openai:set_globals', apply);
+  slider.addEventListener('input', () => {
+    value.textContent = slider.value;
+    window.openai.setWidgetState({ modelContent: { count: Number(slider.value) } }).catch(() => {});
+  });
+  root.querySelector('button').addEventListener('click', () => {
+    window.openai.sendFollowUpMessage({ prompt: 'Explain count ' + slider.value, title: 'Ask about count' }).catch(() => {});
+  });
+})();
+</script>

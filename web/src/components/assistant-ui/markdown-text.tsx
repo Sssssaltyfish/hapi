@@ -40,6 +40,8 @@ import { ResponseAnnotationReference } from '@/components/AssistantChat/Response
 import { parseNativeThreadHref } from '@hapi/protocol/sessionCitation'
 import { useQuery } from '@tanstack/react-query'
 import { MarkdownMediaPreview, useMarkdownMediaSource } from './markdown-inline-media'
+import { InlineVisualization } from '@/components/InlineVisualization'
+import { remarkVisualizations } from '@/lib/remark-visualizations'
 
 import type { MarkdownTextPrimitiveProps } from '@assistant-ui/react-markdown'
 
@@ -114,6 +116,9 @@ export const MARKDOWN_PLUGINS_WITH_BREAKS = [
     remarkBreaks,
     ...MARKDOWN_PLUGIN_TAIL,
 ] satisfies NonNullable<MarkdownTextPrimitiveProps['remarkPlugins']>
+
+export const MARKDOWN_PLUGINS_WITH_VISUALIZATIONS = [...MARKDOWN_PLUGINS, remarkVisualizations]
+export const MARKDOWN_PLUGINS_WITH_BREAKS_AND_VISUALIZATIONS = [...MARKDOWN_PLUGINS_WITH_BREAKS, remarkVisualizations]
 
 export const MARKDOWN_PLUGINS_STANDALONE_WITH_BREAKS = [
     REMARK_GFM_PLUGIN,
@@ -1064,14 +1069,26 @@ export const assistantMediaComponents = memoizeMarkdownComponents({
     a: AssistantMediaAnchor,
 }) as unknown as DefaultComponentsMap
 
-export function MarkdownText({ smooth, inlineMedia }: { smooth?: boolean; inlineMedia?: boolean } = {}) {
+function VisualizationReference(props: { 'data-path'?: string; 'data-mode'?: string; title?: string; children?: ReactNode }) {
+    const path = props['data-path']
+    return path ? <InlineVisualization reference={{ path, mode: props['data-mode'] === 'wide' ? 'wide' : undefined, title: props.title }}>
+        {props.children}
+    </InlineVisualization> : <>{props.children}</>
+}
+
+export const visualizationComponents = { 'hapi-visualization': VisualizationReference }
+
+export function MarkdownText({ smooth, inlineMedia, inlineVisualizations }: {
+    smooth?: boolean; inlineMedia?: boolean; inlineVisualizations?: boolean
+} = {}) {
+    const baseComponents = inlineMedia ? assistantMediaComponents : defaultComponents
     return (
         <UriConfirmProvider>
             <MarkdownTextPrimitive
                 smooth={smooth}
-                remarkPlugins={MARKDOWN_PLUGINS}
+                remarkPlugins={inlineVisualizations ? MARKDOWN_PLUGINS_WITH_VISUALIZATIONS : MARKDOWN_PLUGINS}
                 rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
-                components={inlineMedia ? assistantMediaComponents : defaultComponents}
+                components={inlineVisualizations ? { ...baseComponents, ...visualizationComponents } : baseComponents}
                 componentsByLanguage={MARKDOWN_COMPONENTS_BY_LANGUAGE}
                 urlTransform={denyOnlyTransform}
                 className={cn(MARKDOWN_CLASSNAME)}

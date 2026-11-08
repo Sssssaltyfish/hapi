@@ -6,6 +6,9 @@ React Mini App / PWA for monitoring and controlling hapi sessions.
 
 - Session list with status, pending approvals, todos, and summaries.
 - Chat view with streaming updates and message sending.
+- Interactive HTML widgets using Codex Desktop Visualize references across
+  providers. See [Inline Visualizations](../docs/guide/visualizations.md) for
+  the file contract, authoring skill, and manual checks.
 - Permission approval and denial workflows.
 - Codex `request_user_input` choices honor `isOther`: **None of the above**
   focuses optional notes, supports empty notes, and preserves the canonical

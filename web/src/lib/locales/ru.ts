@@ -798,6 +798,15 @@ export default {
   'media.displayed.unavailable': '{label} недоступно. {error}',
   'media.preview.loading': 'Загрузка {name}…',
   'media.preview.open': 'Предпросмотр {name}',
+  'visualization.name': 'Визуализация',
+  'visualization.reload': 'Обновить визуализацию',
+  'visualization.error.tooLarge': 'Размер визуализации превышает предел в 1 МиБ.',
+  'visualization.error.invalidText': 'Не удалось прочитать визуализацию как HTML в кодировке UTF-8.',
+  'visualization.followup.title': 'Добавить уточнение в черновик',
+  'visualization.followup.description': 'Добавьте этот текст в текущий черновик, чтобы проверить его перед отправкой.',
+  'visualization.followup.confirm': 'Добавить в черновик',
+  'visualization.link.title': 'Открыть внешнюю ссылку',
+  'visualization.link.description': 'Визуализация запрашивает открытие этого адреса в новой вкладке.',
 
   // Карточка инструмента
   'tool.askQuestion': 'Другое',

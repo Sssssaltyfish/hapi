@@ -32,6 +32,7 @@ export default defineConfig({
         items: [
           { text: 'How it Works', link: '/guide/how-it-works' },
           { text: 'Voice Assistant', link: '/guide/voice-assistant' },
+          { text: 'Inline Visualizations', link: '/guide/visualizations' },
           { text: 'Why HAPI', link: '/guide/why-hapi' },
           { text: 'FAQ', link: '/guide/faq' }
         ]

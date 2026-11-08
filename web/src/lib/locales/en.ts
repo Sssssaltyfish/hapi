@@ -829,6 +829,15 @@ export default {
   'media.displayed.unavailable': '{label} is unavailable. {error}',
   'media.preview.loading': 'Loading {name}…',
   'media.preview.open': 'Preview {name}',
+  'visualization.name': 'Visualization',
+  'visualization.reload': 'Refresh visualization',
+  'visualization.error.tooLarge': 'This visualization exceeds the 1 MiB preview limit.',
+  'visualization.error.invalidText': 'This visualization could not be read as UTF-8 HTML.',
+  'visualization.followup.title': 'Add a follow-up to your draft',
+  'visualization.followup.description': 'Add this text to your current draft so you can review it before sending.',
+  'visualization.followup.confirm': 'Add to draft',
+  'visualization.link.title': 'Open an external link',
+  'visualization.link.description': 'This visualization is requesting to open the following address in a new tab.',
 
   // Tool card
   'tool.askQuestion': 'Other',
