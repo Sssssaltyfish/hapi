@@ -18,7 +18,8 @@ function renderCard(options: {
     }
 
     const getGeneratedImageBlob = options.getGeneratedImageBlob ?? vi.fn(async () => new Blob(['x'], { type: options.mimeType ?? 'image/png' }))
-    const api = { getGeneratedImageBlob } as unknown as ApiClient
+    const createSessionMediaUrl = vi.fn(async () => ({ url: '/api/media/stream-ticket', expiresAt: Date.now() + 60_000 }))
+    const api = { getGeneratedImageBlob, createSessionMediaUrl } as unknown as ApiClient
     const value: HappyChatContextValue = {
         api,
         sessionId: 'session-1',
@@ -51,7 +52,7 @@ function renderCard(options: {
         </I18nProvider>
     )
 
-    return { getGeneratedImageBlob }
+    return { getGeneratedImageBlob, createSessionMediaUrl }
 }
 
 describe('GeneratedImageCard video fetch', () => {
@@ -69,22 +70,13 @@ describe('GeneratedImageCard video fetch', () => {
         expect(screen.queryByText(/Generated image/)).not.toBeInTheDocument()
     })
 
-    it('does not call the API for an untouched video card', async () => {
-        const { getGeneratedImageBlob } = renderCard({ mimeType: 'video/mp4' })
+    it('prepares a stream for video without requesting its full blob', async () => {
+        const { getGeneratedImageBlob, createSessionMediaUrl } = renderCard({ mimeType: 'video/mp4' })
 
-        expect(screen.getByRole('button', { name: 'Load video' })).toBeInTheDocument()
-        await new Promise((resolve) => setTimeout(resolve, 20))
+        await waitFor(() => expect(document.querySelector('video[controls][playsinline][preload="none"]'))
+            .toHaveAttribute('src', '/api/media/stream-ticket'))
+        expect(createSessionMediaUrl).toHaveBeenCalledWith('session-1', { generatedImageId: 'img-1' }, expect.any(AbortSignal))
         expect(getGeneratedImageBlob).not.toHaveBeenCalled()
-    })
-
-    it('fetches the blob after the user clicks Load video', async () => {
-        const { getGeneratedImageBlob } = renderCard({ mimeType: 'video/mp4' })
-
-        fireEvent.click(screen.getByRole('button', { name: 'Load video' }))
-
-        await waitFor(() => {
-            expect(getGeneratedImageBlob).toHaveBeenCalledWith('session-1', 'img-1')
-        })
     })
 
     it('still fetches images on mount', async () => {
@@ -95,14 +87,13 @@ describe('GeneratedImageCard video fetch', () => {
         })
     })
 
-    it('loads audio on demand and renders controls', async () => {
-        renderCard({ mimeType: 'audio/wav' })
-
-        fireEvent.click(screen.getByRole('button', { name: 'Load audio' }))
+    it('renders audio with browser playback controls and a stream source', async () => {
+        const { getGeneratedImageBlob } = renderCard({ mimeType: 'audio/wav' })
 
         await waitFor(() => {
-            expect(document.querySelector('audio[controls]')).toBeInTheDocument()
+            expect(document.querySelector('audio[controls]')).toHaveAttribute('src', '/api/media/stream-ticket')
         })
+        expect(getGeneratedImageBlob).not.toHaveBeenCalled()
     })
 
     it('loads unknown files on demand and renders a download link', async () => {

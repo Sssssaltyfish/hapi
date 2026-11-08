@@ -827,6 +827,7 @@ export default {
   'media.displayed.file': 'Displayed file',
   'media.displayed.header': '{label}: {fileName}',
   'media.displayed.unavailable': '{label} is unavailable. {error}',
+  'media.preview.loading': 'Loading {name}…',
 
   // Tool card
   'tool.askQuestion': 'Other',

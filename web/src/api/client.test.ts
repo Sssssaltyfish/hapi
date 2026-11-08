@@ -49,6 +49,22 @@ describe('ApiClient error mapping', () => {
         expect(fetchMock.mock.calls.every(call => !call[1]?.method || call[1]?.method === 'GET')).toBe(true)
     })
 
+    it('uses the connected hub for media and keeps the API bearer out of the player URL', async () => {
+        const expiresAt = Date.now() + 60_000
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ticket: 'short-lease', expiresAt })))
+        const api = new ApiClient('test-token', { baseUrl: 'https://hub.example' })
+        const signal = new AbortController().signal
+
+        const address = await api.createSessionMediaUrl('session-1', { path: 'music/song.wav', mimeType: 'audio/wav' }, signal)
+
+        expect(address).toEqual({ url: 'https://hub.example/api/media/short-lease', expiresAt })
+        const [[requestUrl, init]] = fetchMock.mock.calls
+        expect(requestUrl).toBe('https://hub.example/api/media/tickets')
+        expect(init).toMatchObject({ method: 'POST', signal })
+        expect(new Headers(init.headers).get('authorization')).toBe('Bearer test-token')
+        expect(JSON.parse(init.body)).toEqual({ sessionId: 'session-1', path: 'music/song.wav', mimeType: 'audio/wav' })
+    })
+
     it('prefers the stable `code` field over the human-readable `error` message in ApiError.code', async () => {
         // Match the shape /sessions/:id/reopen actually returns on a 503.
         fetchMock.mockResolvedValueOnce(

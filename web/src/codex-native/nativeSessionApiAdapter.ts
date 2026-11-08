@@ -98,6 +98,7 @@ const GLOBAL_OPERATIONS = [
     'getCodexNativeReferenceCapabilities',
     'createCodexNativeThread',
     'readCodexNativeFile',
+    'createSessionMediaUrl',
     'readCodexNativeDirectory',
     'getCodexNativeThreads',
     'getCodexNativeThread',

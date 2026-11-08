@@ -12,6 +12,7 @@ import {
     MARKDOWN_COMPONENTS_BY_LANGUAGE,
     MARKDOWN_CLASSNAME,
     defaultComponents,
+    assistantMediaComponents,
     denyOnlyTransform,
     UriConfirmProvider,
 } from '@/components/assistant-ui/markdown-text'
@@ -25,6 +26,7 @@ interface MarkdownRendererProps {
     className?: string
     preserveSingleLineBreaks?: boolean
     defer?: MarkdownTextPrimitiveProps['defer']
+    inlineMedia?: boolean
     /** Render outside assistant-ui thread context (file pane, fixtures). */
     standalone?: boolean
 }
@@ -95,9 +97,10 @@ function StandaloneMarkdownContent(props: MarkdownRendererProps) {
 }
 
 function MarkdownContent(props: MarkdownRendererProps) {
+    const baseComponents = props.inlineMedia ? assistantMediaComponents : defaultComponents
     const mergedComponents = props.components
-        ? { ...defaultComponents, ...props.components }
-        : defaultComponents
+        ? { ...baseComponents, ...props.components }
+        : baseComponents
 
     return (
         <UriConfirmProvider>

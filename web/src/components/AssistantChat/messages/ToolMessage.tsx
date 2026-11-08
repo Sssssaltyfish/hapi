@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import type { AgentReasoningBlock, ChatBlock } from '@/chat/types'
 import type { GeneratedImageBlock, ToolCallBlock } from '@/chat/types'
@@ -19,6 +19,9 @@ import { ImagePreview } from '@/components/ImagePreview'
 import { FileIcon } from '@/components/FileIcon'
 import { useTranslation } from '@/lib/use-translation'
 import { inlineMediaLabelKey, isInlineAudioMimeType, isInlineImageMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
+import { InlineMediaPlayer } from './InlineMediaPlayer'
+import { useMediaSource } from '@/hooks/useMediaSource'
+import { getMediaNativeIdentity, readSessionMediaBlob } from '@/lib/sessionMediaFile'
 
 function isToolCallBlock(value: unknown): value is ToolCallBlock {
     if (!isObject(value)) return false
@@ -52,6 +55,7 @@ function isGeneratedImageBlock(value: unknown): value is GeneratedImageBlock {
     if (value.kind !== 'generated-image') return false
     if (typeof value.id !== 'string') return false
     if (typeof value.imageId !== 'string') return false
+    if (value.nativeFilePath !== undefined && typeof value.nativeFilePath !== 'string') return false
     if (typeof value.fileName !== 'string') return false
     if (value.mimeType !== null && typeof value.mimeType !== 'string') return false
     return true
@@ -70,101 +74,57 @@ export function computeTinyImageScale(width: number, height: number): number {
 
 /** Exported for generated-media fetch and renderer tests. */
 export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
-    const ctx = useHappyChatContext()
+    const { api, sessionId, metadata } = useHappyChatContext()
+    const { imageId, nativeFilePath, fileName, mimeType } = props.block
+    const { endpointId, threadId } = getMediaNativeIdentity(sessionId, metadata?.nativeCodex) ?? {}
     const { t } = useTranslation()
-    const [objectUrl, setObjectUrl] = useState<string | null>(null)
-    const [error, setError] = useState<string | null>(null)
-    const [imageStyle, setImageStyle] = useState<CSSProperties | undefined>(undefined)
+    const [sizing, setSizing] = useState<{ url: string; style: CSSProperties }>()
     const [loadMedia, setLoadMedia] = useState(false)
-    const objectUrlRef = useRef<string | null>(null)
-    const isVideo = isInlineVideoMimeType(props.block.mimeType)
-    const isAudio = isInlineAudioMimeType(props.block.mimeType)
-    const isImage = isInlineImageMimeType(props.block.mimeType)
+    const isVideo = isInlineVideoMimeType(mimeType)
+    const isAudio = isInlineAudioMimeType(mimeType)
+    const isImage = isInlineImageMimeType(mimeType)
     const isFile = !isVideo && !isAudio && !isImage
-    const mediaLabel = t(inlineMediaLabelKey(props.block.mimeType))
-    const mediaHeader = t('media.displayed.header', { label: mediaLabel, fileName: props.block.fileName })
-    // Non-image media can be tens of MB; wait for explicit user intent before downloading.
-    const shouldFetch = isImage || loadMedia
+    const mediaLabel = t(inlineMediaLabelKey(mimeType))
+    const mediaHeader = t('media.displayed.header', { label: mediaLabel, fileName })
+    const load = useCallback((signal: AbortSignal) => {
+        if (mimeType && (isVideo || isAudio)) {
+            return api.createSessionMediaUrl(sessionId, nativeFilePath
+                ? { path: nativeFilePath, mimeType }
+                : { generatedImageId: imageId }, signal)
+        }
+        if (nativeFilePath && endpointId && threadId) {
+            return readSessionMediaBlob(api, sessionId, endpointId, threadId, nativeFilePath, mimeType, signal)
+        }
+        return api.getGeneratedImageBlob(sessionId, imageId)
+    }, [api, sessionId, endpointId, threadId, imageId, nativeFilePath, mimeType, isVideo, isAudio])
+    const { url: mediaUrl, error, onPlaybackError } = useMediaSource(isFile && !loadMedia ? null : load)
 
     useEffect(() => {
-        return () => {
-            if (objectUrlRef.current) {
-                URL.revokeObjectURL(objectUrlRef.current)
-                objectUrlRef.current = null
-            }
+        if (!mediaUrl || !isImage) return
+        const probe = new Image()
+        probe.onload = () => {
+            const scale = computeTinyImageScale(probe.naturalWidth, probe.naturalHeight)
+            if (scale !== 1) setSizing({ url: mediaUrl, style: { transform: `scale(${scale})` } })
         }
-    }, [])
-
-    useEffect(() => {
-        if (!shouldFetch) {
-            return
-        }
-
-        let disposed = false
-
-        if (objectUrlRef.current) {
-            URL.revokeObjectURL(objectUrlRef.current)
-            objectUrlRef.current = null
-        }
-        setObjectUrl(null)
-        setImageStyle(undefined)
-        setError(null)
-
-        void ctx.api.getGeneratedImageBlob(ctx.sessionId, props.block.imageId)
-            .then((blob) => {
-                if (disposed) return
-                const nextObjectUrl = URL.createObjectURL(blob)
-                if (objectUrlRef.current) {
-                    URL.revokeObjectURL(objectUrlRef.current)
-                }
-                objectUrlRef.current = nextObjectUrl
-                setObjectUrl(nextObjectUrl)
-                if (isImage) {
-                    setImageStyle(undefined)
-                    const probe = new Image()
-                    probe.onload = () => {
-                        if (disposed) return
-                        const scale = computeTinyImageScale(probe.naturalWidth, probe.naturalHeight)
-                        setImageStyle(scale === 1 ? undefined : { transform: `scale(${scale})` })
-                    }
-                    probe.src = nextObjectUrl
-                }
-            })
-            .catch((err: unknown) => {
-                if (disposed) return
-                setError(err instanceof Error ? err.message : 'Failed to load inline media')
-            })
-
-        return () => {
-            disposed = true
-        }
-    }, [ctx.api, ctx.sessionId, props.block.imageId, isImage, shouldFetch])
+        probe.src = mediaUrl
+        return () => { probe.onload = null }
+    }, [mediaUrl, isImage])
 
     return (
         <div className="max-w-[92%] rounded-2xl border border-[var(--app-border)] bg-[var(--app-tool-card-bg)] p-3">
             <div className="mb-2 min-w-0 truncate text-xs font-medium text-[var(--app-hint)]">
                 {mediaHeader}
             </div>
-            {objectUrl ? (
+            {mediaUrl ? (
                 isVideo ? (
-                    <div className="flex min-h-32 min-w-[12rem] items-center justify-center rounded-xl bg-[var(--app-subtle-bg)]">
-                        <video
-                            src={objectUrl}
-                            controls
-                            playsInline
-                            className="max-h-[min(28rem,60vh)] max-w-full rounded-xl"
-                        />
+                    <div className="flex min-h-32 items-center justify-center rounded-xl bg-[var(--app-subtle-bg)]">
+                        <InlineMediaPlayer src={mediaUrl} label={fileName} video onError={onPlaybackError} />
                     </div>
                 ) : isAudio ? (
-                    <audio
-                        src={objectUrl}
-                        controls
-                        preload="metadata"
-                        className="w-full min-w-[12rem]"
-                    />
+                    <InlineMediaPlayer src={mediaUrl} label={fileName} video={false} onError={onPlaybackError} />
                 ) : isFile ? (
                     <a
-                        href={objectUrl}
+                        href={mediaUrl}
                         download={props.block.fileName}
                         className="flex items-center gap-3 rounded-xl border border-[var(--app-border)] bg-[var(--app-subtle-bg)] px-4 py-3 text-sm font-medium text-[var(--app-fg)]"
                     >
@@ -174,12 +134,12 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                 ) : (
                     <div className="flex min-h-32 min-w-[12rem] items-center justify-center rounded-xl bg-[var(--app-subtle-bg)]">
                         <ImagePreview
-                            src={objectUrl}
+                            src={mediaUrl}
                             fileName={props.block.fileName}
                             label={props.block.fileName}
                             buttonClassName="block max-h-[min(28rem,60vh)] max-w-full cursor-zoom-in rounded-xl text-left"
                             imageClassName="max-h-[min(28rem,60vh)] max-w-full rounded-xl object-contain"
-                            imageStyle={imageStyle}
+                            imageStyle={sizing?.url === mediaUrl ? sizing.style : undefined}
                         />
                     </div>
                 )
@@ -187,13 +147,13 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                 <div className="text-sm text-[var(--app-hint)]">
                     {t('media.displayed.unavailable', { label: mediaLabel, error })}
                 </div>
-            ) : !isImage && !loadMedia ? (
+            ) : isFile && !loadMedia ? (
                 <button
                     type="button"
                     onClick={() => setLoadMedia(true)}
                     className="flex h-48 w-72 max-w-full items-center justify-center rounded-xl border border-[var(--app-border)] bg-[var(--app-subtle-bg)] text-sm font-medium text-[var(--app-fg)]"
                 >
-                    {isVideo ? 'Load video' : isAudio ? 'Load audio' : 'Prepare download'}
+                    Prepare download
                 </button>
             ) : (
                 <div className="h-48 w-72 max-w-full animate-pulse rounded-xl bg-[var(--app-subtle-bg)]" />

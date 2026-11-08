@@ -15,6 +15,7 @@ import { decodeBase64 } from '@/lib/utils'
 import { ImagePreview } from '@/components/ImagePreview'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
 import { formatFileMetadata } from '@/lib/file-metadata'
+import { getInlineMediaMimeType } from '@/lib/generatedInlineMedia'
 import {
     getInitialMarkdownPreviewMode,
     isMarkdownFile,
@@ -32,21 +33,6 @@ const FILE_SCROLL_KEY_PREFIX = 'hapi-file-scroll-'
 function getFileScrollStorageKey(sessionId: string, filePath: string, staged: boolean | undefined): string {
     return `${FILE_SCROLL_KEY_PREFIX}${sessionId}:${encodeURIComponent(filePath)}:${staged === true ? 'staged' : 'unstaged'}`
 }
-const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
-    apng: 'image/apng',
-    avif: 'image/avif',
-    bmp: 'image/bmp',
-    gif: 'image/gif',
-    ico: 'image/x-icon',
-    jpeg: 'image/jpeg',
-    jpg: 'image/jpeg',
-    png: 'image/png',
-    svg: 'image/svg+xml',
-    tif: 'image/tiff',
-    tiff: 'image/tiff',
-    webp: 'image/webp'
-}
-
 function decodePath(value: string): string {
     if (!value) return ''
     const decoded = decodeBase64(value)
@@ -207,11 +193,8 @@ function resolveLanguage(path: string): string | undefined {
 }
 
 function resolveImageMimeType(path: string): string | null {
-    const parts = path.split('.')
-    if (parts.length <= 1) return null
-    const ext = parts[parts.length - 1]?.toLowerCase()
-    if (!ext) return null
-    return IMAGE_MIME_BY_EXTENSION[ext] ?? null
+    const mimeType = getInlineMediaMimeType(path)
+    return mimeType?.startsWith('image/') ? mimeType : null
 }
 
 function getUtf8ByteLength(value: string): number {

@@ -183,6 +183,7 @@ function areGeneratedImageBlocksEqual(left: GeneratedImageBlock, right: Generate
     return left.localId === right.localId
         && left.createdAt === right.createdAt
         && left.imageId === right.imageId
+        && left.nativeFilePath === right.nativeFilePath
         && left.fileName === right.fileName
         && left.mimeType === right.mimeType
         && areInlineMediaSourcesEqual(left.source, right.source)

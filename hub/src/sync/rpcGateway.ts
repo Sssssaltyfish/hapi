@@ -22,6 +22,8 @@ import type {
     DshModelsResponse,
     FileReadResponse,
     GeneratedImageResponse,
+    ReadMediaRequest,
+    ReadMediaResponse,
     ImplementCodexPlanResult,
     CopilotModelsResponse,
     GrokModelsResponse,
@@ -409,6 +411,10 @@ export class RpcGateway {
 
     async readGeneratedImage(sessionId: string, imageId: string): Promise<RpcGeneratedImageResponse> {
         return await this.sessionRpc(sessionId, RPC_METHODS.ReadGeneratedImage, { id: imageId }) as RpcGeneratedImageResponse
+    }
+
+    async readMedia(sessionId: string, request: ReadMediaRequest): Promise<ReadMediaResponse> {
+        return await this.sessionRpc(sessionId, RPC_METHODS.ReadMedia, request) as ReadMediaResponse
     }
 
     async listDirectory(sessionId: string, path: string): Promise<RpcListDirectoryResponse> {

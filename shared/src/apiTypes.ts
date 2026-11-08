@@ -727,6 +727,18 @@ export type GeneratedImageResponse = {
     error?: string
 }
 
+export const MEDIA_CHUNK_BYTES = 256 * 1024
+
+export type MediaSource = { path: string } | { generatedImageId: string }
+
+export type ReadMediaRequest = MediaSource & {
+    range?: { offset: number; length: number; version: string }
+}
+
+export type ReadMediaResponse =
+    | { success: true; size: number; version: string; mimeType?: string; content?: string }
+    | { success: false; error: string }
+
 export type UploadFileResponse = {
     success: boolean
     path?: string

@@ -796,6 +796,7 @@ export default {
   'media.displayed.file': 'Показан файл',
   'media.displayed.header': '{label}: {fileName}',
   'media.displayed.unavailable': '{label} недоступно. {error}',
+  'media.preview.loading': 'Загрузка {name}…',
 
   // Карточка инструмента
   'tool.askQuestion': 'Другое',

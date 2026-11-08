@@ -110,6 +110,7 @@ export type ToolResult = {
 export type GeneratedImageContent = {
     type: 'generated-image'
     imageId: string
+    nativeFilePath?: string
     fileName: string
     mimeType: string | null
     uuid: string
@@ -318,6 +319,7 @@ export type GeneratedImageBlock = {
     createdAt: number
     invokedAt?: number | null
     imageId: string
+    nativeFilePath?: string
     fileName: string
     mimeType: string | null
     source?: InlineMediaSource

@@ -1,3 +1,5 @@
+import { getInlineMediaMimeType, INLINE_MEDIA_FILE_EXTENSIONS } from './generatedInlineMedia'
+
 const FILE_PATH_HREF_PREFIX = 'hapi-file:'
 // Encoded Windows abs handoff: raw `C:\…` is URI-normalized to `%5C` before <A>,
 // which breaks drive detection. Candidate scheme preserves the path through hast.
@@ -14,11 +16,12 @@ const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?'])
 // and common languages not already covered. TLD-lookalikes (org/com/io/dev/co)
 // are deliberately excluded so URLs like "example.org" don't autolink.
 export const COMMON_FILE_EXTENSIONS = new Set([
-    'adoc', 'astro', 'avif', 'bat', 'bmp', 'c', 'cfg', 'cjs', 'conf', 'cpp', 'css', 'csv',
-    'env', 'gif', 'go', 'gql', 'gradle', 'graphql', 'h', 'hpp', 'html', 'ico', 'ini', 'java',
-    'jpeg', 'jpg', 'js', 'json', 'jsx', 'kt', 'lock', 'md', 'mdx', 'mjs', 'mmd', 'php', 'png',
+    ...INLINE_MEDIA_FILE_EXTENSIONS,
+    'adoc', 'astro', 'bat', 'c', 'cfg', 'cjs', 'conf', 'cpp', 'css', 'csv',
+    'env', 'go', 'gql', 'gradle', 'graphql', 'h', 'hpp', 'html', 'ini', 'java',
+    'js', 'json', 'jsx', 'kt', 'lock', 'md', 'mdx', 'mjs', 'mmd', 'php',
     'prisma', 'properties', 'proto', 'ps1', 'puml', 'py', 'rb', 'rs', 'rst', 'scss', 'sh',
-    'sql', 'svelte', 'svg', 'swift', 'tex', 'toml', 'ts', 'tsv', 'tsx', 'txt', 'vue', 'webp',
+    'sql', 'svelte', 'swift', 'tex', 'toml', 'ts', 'tsv', 'tsx', 'txt', 'vue',
     'xml', 'yaml', 'yml', 'zsh'
 ])
 
@@ -247,6 +250,10 @@ function rewriteFileLinkNode(node: MarkdownNode): void {
     if (target.includes(':')) return
 
     if (!shouldLinkPath(target)) return
+
+    // Keep the original URL for media links so spaces, fragments and other
+    // escapes reach the shared file and media renderers intact.
+    if (target === withoutMeta && getInlineMediaMimeType(target)) return
 
     node.url = createFileHref(target)
 }

@@ -15,6 +15,7 @@ import {
 import type { CursorChatStoreStatus, CursorMigrateOutcome, CursorMigrateToAcpRequest, MessageDeliveryMode, MessagesResponse, QueuedStateResponse, RewindConversationErrorCode, SlashCommandsResponse } from '@hapi/protocol/apiTypes'
 import type { SteerQueuedMessageResponse } from '@hapi/protocol/schemas'
 import type { ImplementCodexPlanResult } from '@hapi/protocol/apiTypes'
+import type { ReadMediaRequest, ReadMediaResponse } from '@hapi/protocol/apiTypes'
 import { SideQuestionConflict, type SideQuestionRequest } from '@hapi/protocol/sideQuestion'
 import type { AgentFlavor, CodexCollaborationMode, CopilotAgentMode, DecryptedMessage, PermissionMode, Session, SyncEvent } from '@hapi/protocol/types'
 import { hasConversationMessageContent, unwrapRoleWrappedRecordEnvelope } from '@hapi/protocol/messages'
@@ -4346,6 +4347,10 @@ export class SyncEngine {
 
     async readGeneratedImage(sessionId: string, imageId: string): Promise<RpcGeneratedImageResponse> {
         return await this.rpcGateway.readGeneratedImage(sessionId, imageId)
+    }
+
+    async readMedia(sessionId: string, request: ReadMediaRequest): Promise<ReadMediaResponse> {
+        return await this.rpcGateway.readMedia(sessionId, request)
     }
 
     async listDirectory(sessionId: string, path: string): Promise<RpcListDirectoryResponse> {

@@ -1056,6 +1056,8 @@ export function normalizeAgentRecord(
                 content: [{
                     type: 'generated-image',
                     imageId,
+                    ...(isObject(meta) && meta.nativeCodexRecord === true && typeof data.nativeFilePath === 'string'
+                        ? { nativeFilePath: data.nativeFilePath } : {}),
                     fileName: asString(data.fileName ?? data.file_name) ?? 'generated-image',
                     mimeType: asString(data.mimeType ?? data.mime_type),
                     uuid,

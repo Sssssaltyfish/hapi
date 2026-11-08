@@ -1,7 +1,7 @@
 import '@assistant-ui/react-markdown/styles/dot.css'
 
 import type { ComponentPropsWithoutRef, ComponentType, MouseEvent, ReactNode } from 'react'
-import { useState, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
+import { useState, useCallback, useEffect, useMemo, createContext, useContext, Children, isValidElement } from 'react'
 import {
     MarkdownTextPrimitive,
     unstable_memoizeMarkdownComponents as memoizeMarkdownComponents,
@@ -39,6 +39,7 @@ import { remarkResponseAnnotations, responseAnnotationIndex } from '@/lib/remark
 import { ResponseAnnotationReference } from '@/components/AssistantChat/ResponseAnnotationReference'
 import { parseNativeThreadHref } from '@hapi/protocol/sessionCitation'
 import { useQuery } from '@tanstack/react-query'
+import { MarkdownMediaPreview, useMarkdownMediaSource } from './markdown-inline-media'
 
 import type { MarkdownTextPrimitiveProps } from '@assistant-ui/react-markdown'
 
@@ -990,6 +991,35 @@ function Image(props: ComponentPropsWithoutRef<'img'>) {
     return <img {...props} className={cn('aui-md-img my-3 max-w-full rounded-xl', props.className)} />
 }
 
+const AssistantMediaLinkContext = createContext(false)
+
+function AssistantMediaImage(props: ComponentPropsWithoutRef<'img'>) {
+    const linked = useContext(AssistantMediaLinkContext)
+    const source = useMarkdownMediaSource(typeof props.src === 'string' ? props.src : undefined, true)
+    if (linked && source && !source.mimeType.startsWith('image/')) return <>{props.alt}</>
+    return source
+        ? <MarkdownMediaPreview source={source} label={props.alt ?? ''} imageProps={props} />
+        : <Image {...props} />
+}
+
+function hasAssistantMediaImage(children: ReactNode): boolean {
+    return Children.toArray(children).some(child => isValidElement<{ children?: ReactNode }>(child)
+        && (child.type === assistantMediaComponents.img || hasAssistantMediaImage(child.props.children)))
+}
+
+function AssistantMediaAnchor(props: ComponentPropsWithoutRef<'a'>) {
+    const source = useMarkdownMediaSource(props.href, false)
+    const linkedImage = hasAssistantMediaImage(props.children)
+    const anchor = linkedImage
+        ? <AssistantMediaLinkContext.Provider value={true}><A {...props} /></AssistantMediaLinkContext.Provider>
+        : <A {...props} />
+    if (!source || (linkedImage && source.mimeType.startsWith('image/'))) return anchor
+
+    const fileName = source.src.split(/[\\/]/).pop() ?? source.src
+    const label = typeof props.children === 'string' ? props.children : props.title ?? fileName
+    return <>{anchor}<MarkdownMediaPreview source={source} label={label} /></>
+}
+
 type DefaultComponentsMap = {
     [key: string]: ComponentType<any>
     code: ComponentType<any>
@@ -998,7 +1028,7 @@ type DefaultComponentsMap = {
     SyntaxHighlighter: ComponentType<any>
 }
 
-export const defaultComponents: DefaultComponentsMap = memoizeMarkdownComponents({
+const markdownComponents = {
     SyntaxHighlighter,
     CodeHeader,
     pre: Pre,
@@ -1025,16 +1055,23 @@ export const defaultComponents: DefaultComponentsMap = memoizeMarkdownComponents
     th: Th,
     td: Td,
     img: Image,
-} as const) as unknown as DefaultComponentsMap
+} as const
 
-export function MarkdownText({ smooth }: { smooth?: boolean } = {}) {
+export const defaultComponents = memoizeMarkdownComponents(markdownComponents) as unknown as DefaultComponentsMap
+export const assistantMediaComponents = memoizeMarkdownComponents({
+    ...markdownComponents,
+    img: AssistantMediaImage,
+    a: AssistantMediaAnchor,
+}) as unknown as DefaultComponentsMap
+
+export function MarkdownText({ smooth, inlineMedia }: { smooth?: boolean; inlineMedia?: boolean } = {}) {
     return (
         <UriConfirmProvider>
             <MarkdownTextPrimitive
                 smooth={smooth}
                 remarkPlugins={MARKDOWN_PLUGINS}
                 rehypePlugins={MARKDOWN_REHYPE_PLUGINS}
-                components={defaultComponents}
+                components={inlineMedia ? assistantMediaComponents : defaultComponents}
                 componentsByLanguage={MARKDOWN_COMPONENTS_BY_LANGUAGE}
                 urlTransform={denyOnlyTransform}
                 className={cn(MARKDOWN_CLASSNAME)}

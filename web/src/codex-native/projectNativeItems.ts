@@ -3,6 +3,7 @@ import { nativeQuestionReplies, nativeText, record } from './presentation'
 import type { NativeItemEntry, NativeRecord, NativeRequest } from './types'
 import { nativeCollaborationTool, nativeSubagentEvent } from './nativeCollaboration'
 import { nativeReasoningMessageId, nativeReasoningParts } from './nativeReasoning'
+import { getInlineMediaMimeType } from '@/lib/generatedInlineMedia'
 
 function nativePatchChanges(value: unknown): NativeRecord {
     if (!Array.isArray(value)) return record(value)
@@ -121,6 +122,8 @@ export function projectNativeItems(
         const at = entry.startedAtMs ?? entry.completedAtMs ?? entry.observedAtMs ?? 0
         const completed =
             entry.completedAtMs != null || item.status === 'completed' || item.status === 'failed'
+        const savedPath = item.type === 'imageGeneration' && completed && item.status !== 'failed'
+            && typeof item.savedPath === 'string' && item.savedPath.trim() ? item.savedPath : undefined
         const collaboration = item.type === 'collabAgentToolCall' ? nativeCollaborationTool(item) : null
         if (item.type === 'userMessage' || item.type === 'steeringUserMessage') {
             if (item.type === 'steeringUserMessage' && item.status !== 'accepted') continue
@@ -194,6 +197,13 @@ export function projectNativeItems(
                         createdAt: at,
                     }
             }
+        } else if (savedPath) {
+            const fileName = savedPath.split(/[\\/]/).pop() || 'generated-image'
+            add(id, at, {
+                type: 'generated-image', imageId: item.id, nativeFilePath: savedPath, fileName,
+                mimeType: getInlineMediaMimeType(fileName) ?? 'image/png',
+                turn_id: entry.turnId,
+            })
         } else if (item.type === 'reasoning') {
             nativeReasoningParts(item.summary).forEach((text, index) => {
                 if (!text.trim()) return

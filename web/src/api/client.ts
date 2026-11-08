@@ -420,8 +420,8 @@ export class ApiClient {
         return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads`, { method: 'POST', body: JSON.stringify(payload) })
     }
 
-    async readCodexNativeFile(endpointId: string, threadId: string, path: string): Promise<FileReadResponse> {
-        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads/${encodeURIComponent(threadId)}/file?${new URLSearchParams({ path })}`)
+    async readCodexNativeFile(endpointId: string, threadId: string, path: string, signal?: AbortSignal): Promise<FileReadResponse> {
+        return await this.request(`/api/codex-native/endpoints/${encodeURIComponent(endpointId)}/threads/${encodeURIComponent(threadId)}/file?${new URLSearchParams({ path })}`, { signal })
     }
 
     async readCodexNativeDirectory(endpointId: string, threadId: string, path: string): Promise<{ entries: { fileName: string; isDirectory: boolean; isFile: boolean }[] }> {
@@ -814,10 +814,23 @@ export class ApiClient {
         return await res.blob()
     }
 
-    async readSessionFile(sessionId: string, path: string): Promise<FileReadResponse> {
+    async readSessionFile(sessionId: string, path: string, signal?: AbortSignal): Promise<FileReadResponse> {
         const params = new URLSearchParams()
         params.set('path', path)
-        return await this.request<FileReadResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/file?${params.toString()}`)
+        return await this.request<FileReadResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/file?${params.toString()}`, { signal })
+    }
+
+    async createSessionMediaUrl(
+        sessionId: string,
+        media: { path: string; mimeType: string } | { generatedImageId: string },
+        signal?: AbortSignal,
+    ): Promise<{ url: string; expiresAt: number }> {
+        const { ticket, expiresAt } = await this.request<{ ticket: string; expiresAt: number }>('/api/media/tickets', {
+            method: 'POST',
+            body: JSON.stringify({ sessionId, ...media }),
+            signal,
+        })
+        return { url: this.buildUrl(`/api/media/${encodeURIComponent(ticket)}`), expiresAt }
     }
 
     async listSessionDirectory(sessionId: string, path?: string): Promise<ListDirectoryResponse> {

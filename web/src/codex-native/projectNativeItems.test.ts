@@ -82,3 +82,17 @@ it('keeps native patch paths, diffs and failure output through the chat pipeline
         },
     }])
 })
+
+it('projects a completed image generation as a media block backed by its native file', () => {
+    const savedPath = String.raw`C:\exports\generated image.webp`
+    const projected = projectNativeItems([
+        { item: { id: 'image', type: 'imageGeneration', status: 'completed', savedPath, result: 'large-image-result' } },
+    ], [])
+    const normalized = projected.messages.map(normalizeDecryptedMessage).filter((message): message is NormalizedMessage => message !== null)
+    const reduced = reduceChatBlocks(normalized, { requests: projected.requests })
+    expect(reduced.blocks).toMatchObject([{
+        kind: 'generated-image', imageId: 'image', nativeFilePath: savedPath,
+        fileName: 'generated image.webp', mimeType: 'image/webp',
+    }])
+    expect(JSON.stringify(projected.messages)).not.toContain('large-image-result')
+})

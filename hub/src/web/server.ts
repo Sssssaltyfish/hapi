@@ -27,6 +27,7 @@ import { createMachinesRoutes } from './routes/machines'
 import { createStorageRoutes } from './routes/storage'
 import { createUsageRoutes } from './routes/usage'
 import { createGitRoutes } from './routes/git'
+import { createMediaRoutes } from './routes/media'
 import { createCliRoutes } from './routes/cli'
 import { createCodexDesktopRoutes } from './routes/codexDesktop'
 import { createCodexNativeRoutes } from './routes/codexNative'
@@ -238,19 +239,24 @@ function createWebApp(options: {
 }): Hono<WebAppEnv> {
     const app = new Hono<WebAppEnv>()
 
-    app.use('*', logger())
+    const log = logger()
+    app.use('*', (c, next) => c.req.path.startsWith('/api/media/') && c.req.path !== '/api/media/tickets'
+        ? next() // The URL is a capability. Keep it out of the request log.
+        : log(c, next))
 
     const configuration = getConfiguration()
     const appIconStore = new AppIconStore(configuration.dataDir)
     const nativeRegistry = new NativeRegistry(undefined, undefined, { dataDir: configuration.dataDir })
+    const media = createMediaRoutes(options.getSyncEngine, nativeRegistry)
     const corsOrigins = options.corsOrigins ?? configuration.corsOrigins
     const corsOriginOption = corsOrigins.includes('*') ? '*' : corsOrigins
     const corsMiddleware = cors({
         origin: corsOriginOption,
-        allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         // last-event-id: browsers attach it to EventSource reconnects for
         // SSE replay; allow it in case a browser preflights the request.
-        allowHeaders: ['authorization', 'content-type', 'last-event-id']
+        allowHeaders: ['authorization', 'content-type', 'last-event-id', 'range'],
+        exposeHeaders: ['Accept-Ranges', 'Content-Range']
     })
     app.use('/health', corsMiddleware)
     app.use('/api/*', corsMiddleware)
@@ -266,6 +272,10 @@ function createWebApp(options: {
             titleSuggestion: readTitleProviderConfig() !== null
         }
     }))
+
+    // The player redeems a media-only ticket without an Authorization header.
+    // Mount before JSON gzip so byte positions and Content-Length remain exact.
+    app.route('/api', media.publicRoutes)
 
     // Gzip JSON API responses. Over the relay tunnel every byte is metered
     // twice (the SNI proxy copies in both directions), and API payloads are
@@ -309,6 +319,7 @@ function createWebApp(options: {
         return c.body(JSON.stringify(withAppIcon(manifest, icon?.revision ?? null, icon?.type)))
     })
     app.use('/api/*', createAuthMiddleware(options.jwtSecret))
+    app.route('/api', media.authenticatedRoutes)
     app.use('/api/sessions/*', nativeSessionMiddleware(nativeRegistry, options.getSyncEngine))
     app.route('/api', createEventsRoutes(options.getSseManager, options.getSyncEngine, options.getVisibilityTracker))
     app.route('/api', createSessionsRoutes(options.getSyncEngine, nativeRegistry))

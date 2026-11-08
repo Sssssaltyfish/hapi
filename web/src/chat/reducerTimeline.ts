@@ -926,6 +926,7 @@ export function reduceTimeline(
                         createdAt: msg.createdAt,
                         invokedAt: msg.invokedAt,
                         imageId: c.imageId,
+                        ...(c.nativeFilePath === undefined ? {} : { nativeFilePath: c.nativeFilePath }),
                         fileName: c.fileName,
                         mimeType: c.mimeType,
                         source: c.source,

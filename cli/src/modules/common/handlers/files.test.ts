@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import { RpcHandlerManager } from '../../../api/rpc/RpcHandlerManager'
 import { registerFileHandlers } from './files'
+import { MEDIA_CHUNK_BYTES, type ReadMediaRequest, type ReadMediaResponse } from '@hapi/protocol/apiTypes'
 
 async function createTempDir(prefix: string): Promise<string> {
     const path = join(tmpdir(), `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`)
@@ -45,5 +46,26 @@ describe('file RPC handlers', () => {
         expect(parsed.content).toBe(Buffer.from('# test').toString('base64'))
         expect(parsed.size).toBe(expectedStats.size)
         expect(parsed.modified).toBe(expectedStats.mtime.getTime())
+    })
+
+    it('reads only the requested media range and rejects a stale file version', async () => {
+        const file = join(rootDir, 'recording.wav')
+        await writeFile(file, '0123456789')
+        const read = async (data: ReadMediaRequest) => JSON.parse(await rpc.handleRequest({
+            method: 'session-test:readMedia', params: JSON.stringify(data)
+        })) as ReadMediaResponse
+        const metadata = await read({ path: 'recording.wav' })
+        expect(metadata).toMatchObject({ success: true, size: 10 })
+        if (!metadata.success) throw new Error(metadata.error)
+        expect(metadata.content).toBeUndefined()
+        const range = { offset: 4, length: 3, version: metadata.version }
+        expect(await read({ path: file, range })).toMatchObject({
+            success: true, content: Buffer.from('456').toString('base64')
+        })
+        expect(await read({ path: file, range: { ...range, length: MEDIA_CHUNK_BYTES + 1 } }))
+            .toMatchObject({ success: false })
+        expect(await read({ path: '../recording.wav' })).toMatchObject({ success: false })
+        await writeFile(file, 'replacement bytes')
+        expect(await read({ path: file, range })).toMatchObject({ success: false })
     })
 })

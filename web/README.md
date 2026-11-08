@@ -102,6 +102,19 @@ schemes. Each scheme includes its base preset, per-appearance color overrides,
 and an optional background image with brightness and blur. Images and saved
 schemes stay in this browser's IndexedDB; exported JSON includes the image.
 
+### Inline media
+
+Assistant Markdown and generated media use inline image, audio, and video
+players. Remote audio/video URLs use the browser's media loader. Local audio
+and video use short-lived, file-scoped media tickets and HTTP byte ranges;
+runner files are read in bounded chunks and stop reading when playback requests
+are canceled.
+
+Codex Native currently exposes only whole-file `fs/readFile`. Its first media
+request imports the file into an expiring disk cache; later seeks read byte
+ranges from that snapshot. The cache bounds idle storage and concurrent imports,
+but a single large file can exceed its storage target while it is in use.
+
 ### Side questions
 
 `/btw` opens a compact side-question panel; `/btw <question>` starts the question
