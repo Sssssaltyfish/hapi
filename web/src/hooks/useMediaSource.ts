@@ -33,10 +33,12 @@ export function useMediaSource(load: LoadMedia | null) {
     }, [load, revision])
 
     // Keep the player mounted during ticket renewal so it can restore playback.
-    const result = state?.load === load ? state?.result : undefined
+    const current = state?.load === load ? state : undefined
+    const result = current?.result
     return {
         url: result?.address?.url,
         error: result?.error,
+        sourceRevision: current?.revision,
         onPlaybackError() {
             const expiresAt = result?.address?.expiresAt
             if (state?.revision !== revision || expiresAt === undefined || Date.now() < expiresAt) return false

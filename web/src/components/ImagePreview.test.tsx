@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { ImagePreview } from './ImagePreview'
 
@@ -80,10 +80,10 @@ describe('ImagePreview gallery navigation', () => {
         renderGallery()
 
         fireEvent.click(screen.getByRole('button', { name: /first image/i }))
-        fireEvent.keyDown(window, { key: 'ArrowRight' })
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'ArrowRight' })
         expect(screen.getByRole('dialog', { name: 'Second image' })).toBeInTheDocument()
 
-        fireEvent.keyDown(window, { key: 'ArrowLeft' })
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'ArrowLeft' })
         expect(screen.getByRole('dialog', { name: 'First image' })).toBeInTheDocument()
     })
 
@@ -130,5 +130,34 @@ describe('ImagePreview gallery navigation', () => {
         expect(onTriggerContextMenu).toHaveBeenCalledTimes(1)
         expect(onTriggerClick).toHaveBeenCalledTimes(1)
         expect(screen.getByRole('dialog', { name: 'Drag image' })).toBeInTheDocument()
+    })
+
+    it('consumes the backdrop click and restores focus after closing the portaled preview', async () => {
+        const ancestorClick = vi.fn()
+        const { container } = render(<div onClick={ancestorClick}>
+            <ImagePreview src="/photo.png" fileName="photo.png" label="Photo" />
+        </div>)
+        const trigger = screen.getByTitle('Click to zoom')
+        fireEvent.click(trigger)
+        const dialog = screen.getByRole('dialog', { name: 'Photo' })
+        expect(container).not.toContainElement(dialog)
+        const backdrop = within(dialog).getByRole('img').parentElement!
+        Object.defineProperty(backdrop, 'setPointerCapture', { value: vi.fn() })
+        const press = (type: string) => {
+            const event = new Event(type, { bubbles: true, cancelable: true })
+            Object.defineProperties(event, {
+                pointerId: { value: 1 }, button: { value: 0 },
+                clientX: { value: 10 }, clientY: { value: 10 },
+            })
+            fireEvent(backdrop, event)
+        }
+
+        press('pointerdown')
+        press('pointerup')
+        expect(dialog).toBeInTheDocument()
+        fireEvent.click(backdrop)
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(ancestorClick).not.toHaveBeenCalled()
+        await waitFor(() => expect(trigger).toHaveFocus())
     })
 })

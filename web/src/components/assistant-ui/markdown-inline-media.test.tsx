@@ -1,5 +1,5 @@
-import { afterEach, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ApiClient } from '@/api/client'
 import { HappyChatProvider, type HappyChatContextValue } from '@/components/AssistantChat/context'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
@@ -11,15 +11,13 @@ vi.mock('@tanstack/react-router', async importOriginal => ({
     useNavigate: () => vi.fn(),
 }))
 
-afterEach(() => vi.unstubAllGlobals())
-
 function renderMedia(content: string, options?: { sessionId?: string; firstTicketExpired?: boolean }) {
     const file = { success: true, content: 'YQ==' }
     const readSessionFile = vi.fn(async () => file)
     const readCodexNativeFile = vi.fn(async () => file)
     const createSessionMediaUrl = vi.fn(async () => ({ url: '/api/media/stream-ticket', expiresAt: Date.now() + 60_000 }))
     if (options?.firstTicketExpired) {
-        createSessionMediaUrl.mockResolvedValueOnce({ url: '/api/media/expired-ticket', expiresAt: Date.now() - 1 })
+        createSessionMediaUrl.mockResolvedValueOnce({ url: '/api/media/stream-ticket', expiresAt: Date.now() - 1 })
     }
     const value: HappyChatContextValue = {
         api: { readSessionFile, readCodexNativeFile, createSessionMediaUrl } as unknown as ApiClient,
@@ -40,16 +38,6 @@ function renderMedia(content: string, options?: { sessionId?: string; firstTicke
         </HappyChatProvider></I18nProvider>),
         readSessionFile, readCodexNativeFile, createSessionMediaUrl,
     }
-}
-
-function stubObjectUrls() {
-    const create = vi.fn((_blob: Blob) => 'blob:preview')
-    const revoke = vi.fn()
-    vi.stubGlobal('URL', class extends URL {
-        static createObjectURL = create
-        static revokeObjectURL = revoke
-    })
-    return { create, revoke }
 }
 
 it('renders remote images and native players while preserving ordinary file links', () => {
@@ -78,14 +66,15 @@ it('gives runner audio to the browser by stream URL and preserves the file link'
     expect(readSessionFile).not.toHaveBeenCalled()
 })
 
-it('restores the playback position when an expired stream is renewed', async () => {
+it('restores the playback position when an expired stream is renewed under the same URL', async () => {
     const { container, createSessionMediaUrl } = renderMedia('[Voice](voice.wav)', { firstTicketExpired: true })
-    await waitFor(() => expect(container.querySelector('audio')).toHaveAttribute('src', '/api/media/expired-ticket'))
+    await waitFor(() => expect(container.querySelector('audio')).toHaveAttribute('src', '/api/media/stream-ticket'))
     const audio = container.querySelector('audio')!
     const play = vi.spyOn(audio, 'play').mockResolvedValue(undefined)
+    const load = vi.spyOn(audio, 'load').mockImplementation(() => {})
     audio.currentTime = 12
     fireEvent.error(audio)
-    await waitFor(() => expect(audio).toHaveAttribute('src', '/api/media/stream-ticket'))
+    await waitFor(() => expect(load).toHaveBeenCalledOnce())
     expect(audio.preload).toBe('metadata')
     audio.currentTime = 0
     fireEvent.loadedMetadata(audio)
@@ -94,18 +83,29 @@ it('restores the playback position when an expired stream is renewed', async () 
     expect(createSessionMediaUrl).toHaveBeenCalledTimes(2)
 })
 
-it('reads a Windows native image on its own endpoint and keeps linked images to one preview', async () => {
-    const { create, revoke } = stubObjectUrls()
-    const { readSessionFile, readCodexNativeFile, unmount } = renderMedia(
+it('uses the Native media URL for linked images and preserves their link', async () => {
+    const { readSessionFile, readCodexNativeFile, createSessionMediaUrl } = renderMedia(
         '[![Generated](<C:/exports/generated%20image.png>)](https://example.test/other.png)',
         { sessionId: 'codex-native:host-1:thread-1' },
     )
     const image = await screen.findByRole('img', { name: 'Generated' })
-    expect(image).toHaveAttribute('src', 'blob:preview')
+    expect(image).toHaveAttribute('src', '/api/media/stream-ticket')
     expect(screen.getAllByRole('img')).toHaveLength(1)
-    expect(readCodexNativeFile).toHaveBeenCalledWith('host-1', 'thread-1', 'C:/exports/generated image.png', expect.any(AbortSignal))
-    expect(create.mock.calls[0][0]).toMatchObject({ type: 'image/png' })
+    expect(image.closest('a')).toHaveAttribute('href', 'https://example.test/other.png')
+    expect(createSessionMediaUrl).toHaveBeenCalledWith('codex-native:host-1:thread-1',
+        { path: 'C:/exports/generated image.png', mimeType: 'image/png' }, expect.any(AbortSignal))
+    expect(readCodexNativeFile).not.toHaveBeenCalled()
     expect(readSessionFile).not.toHaveBeenCalled()
-    unmount()
-    expect(revoke).toHaveBeenCalledWith('blob:preview')
+})
+
+it('opens an audio preview in a portaled dialog and restores focus on close', async () => {
+    const { container } = renderMedia('![Voice](https://example.test/voice.ogg)')
+    const trigger = screen.getByRole('button', { name: 'Preview Voice' })
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Voice' })
+    expect(container).not.toContainElement(dialog)
+    expect(dialog.querySelector('audio[controls]')).toHaveAttribute('src', 'https://example.test/voice.ogg')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(trigger).toHaveFocus())
 })

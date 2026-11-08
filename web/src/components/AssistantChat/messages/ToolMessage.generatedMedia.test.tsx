@@ -79,12 +79,12 @@ describe('GeneratedImageCard video fetch', () => {
         expect(getGeneratedImageBlob).not.toHaveBeenCalled()
     })
 
-    it('still fetches images on mount', async () => {
-        const { getGeneratedImageBlob } = renderCard({ mimeType: 'image/png' })
+    it('uses the browser-cacheable ticket for images', async () => {
+        const { getGeneratedImageBlob, createSessionMediaUrl } = renderCard({ mimeType: 'image/png' })
 
-        await waitFor(() => {
-            expect(getGeneratedImageBlob).toHaveBeenCalledWith('session-1', 'img-1')
-        })
+        expect(await screen.findByRole('img')).toHaveAttribute('src', '/api/media/stream-ticket')
+        expect(createSessionMediaUrl).toHaveBeenCalledWith('session-1', { generatedImageId: 'img-1' }, expect.any(AbortSignal))
+        expect(getGeneratedImageBlob).not.toHaveBeenCalled()
     })
 
     it('renders audio with browser playback controls and a stream source', async () => {

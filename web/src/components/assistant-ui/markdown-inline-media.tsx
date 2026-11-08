@@ -1,12 +1,13 @@
 import { useCallback, type ComponentPropsWithoutRef } from 'react'
 import { useHappyChatContext, useOptionalHappyChatContext } from '@/components/AssistantChat/context'
 import { InlineMediaPlayer } from '@/components/AssistantChat/messages/InlineMediaPlayer'
+import { ImagePreview } from '@/components/ImagePreview'
+import { parseCodexNativeSessionId } from '@/codex-native/session-key'
 import { useMediaSource } from '@/hooks/useMediaSource'
 import { formatReadFileError } from '@/lib/files-i18n'
 import { getInlineMediaMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
 import { classifyNoSchemeHref } from '@/lib/markdown-href-policy'
 import { decodeFilePathCandidateHref, decodeFilePathHref } from '@/lib/remark-file-path-links'
-import { getMediaNativeIdentity, readSessionMediaBlob } from '@/lib/sessionMediaFile'
 import { useTranslation } from '@/lib/use-translation'
 import { cn } from '@/lib/utils'
 
@@ -42,44 +43,66 @@ export function useMarkdownMediaSource(href: string | undefined, isImage: boolea
     if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(fileHref) && !/^[A-Za-z]:(?:[\\/]|%5[cC])/.test(fileHref)) return null
     const path = classifyNoSchemeHref(fileHref, {
         workspacePath: chat.metadata?.path,
-        nativeFiles: Boolean(getMediaNativeIdentity(chat.sessionId, chat.metadata?.nativeCodex)),
+        nativeFiles: Boolean(parseCodexNativeSessionId(chat.sessionId) ?? chat.metadata?.nativeCodex),
     })
     if (path.action !== 'file') return null
     const mimeType = getInlineMediaMimeType(path.path)
     return mimeType ? { src: path.path, mimeType, local: true } : null
 }
 
-type PreviewProps = { source: MarkdownMediaSource; label: string; imageProps?: ComponentPropsWithoutRef<'img'> }
-
-function MediaPreview({ src, mimeType, label, imageProps, onError }: Omit<PreviewProps, 'source'> & {
-    src: string; mimeType: string; onError?: () => boolean
-}) {
-    if (mimeType.startsWith('image/')) {
-        return <img {...imageProps} src={src} alt={label} loading="lazy" referrerPolicy="no-referrer"
-            className={cn('aui-md-img my-3 max-w-full rounded-xl', imageProps?.className)} />
-    }
-    return <InlineMediaPlayer src={src} label={label} video={isInlineVideoMimeType(mimeType)} className="my-3 block" onError={onError} />
+type PreviewProps = {
+    source: MarkdownMediaSource
+    label: string
+    imageProps?: ComponentPropsWithoutRef<'img'>
+    linkedImage?: boolean
+    galleryId?: string
 }
 
-function LocalMediaPreview({ source, label, imageProps }: PreviewProps) {
-    const { api, sessionId, metadata } = useHappyChatContext()
+function MediaPreview({ src, mimeType, label, imageProps, linkedImage, galleryId, onError, sourceRevision }: Omit<PreviewProps, 'source'> & {
+    src: string; mimeType: string; onError?: () => boolean; sourceRevision?: number
+}) {
+    const { t } = useTranslation()
+    if (mimeType.startsWith('image/')) {
+        if (linkedImage) {
+            return <img key={sourceRevision} {...imageProps} src={src} alt={label} loading="lazy" referrerPolicy="no-referrer"
+                onError={onError} className={cn('aui-md-img my-3 max-w-full rounded-xl', imageProps?.className)} />
+        }
+        const name = label || t('media.displayed.image')
+        return <ImagePreview
+            src={src}
+            fileName={name}
+            label={name}
+            galleryId={galleryId}
+            sourceRevision={sourceRevision}
+            imageLoading="lazy"
+            referrerPolicy="no-referrer"
+            onError={onError}
+            buttonClassName="my-3 block max-w-full cursor-zoom-in rounded-xl text-left"
+            imageClassName={cn('aui-md-img max-w-full rounded-xl', imageProps?.className)}
+        />
+    }
+    return <InlineMediaPlayer src={src} label={label} video={isInlineVideoMimeType(mimeType)} className="my-3"
+        onError={onError} sourceRevision={sourceRevision} />
+}
+
+function LocalMediaPreview({ source, ...preview }: PreviewProps) {
+    const { api, sessionId } = useHappyChatContext()
     const { t } = useTranslation()
     const { src, mimeType } = source
-    const { endpointId, threadId } = getMediaNativeIdentity(sessionId, metadata?.nativeCodex) ?? {}
-    const load = useCallback((signal: AbortSignal) => mimeType.startsWith('image/')
-        ? readSessionMediaBlob(api, sessionId, endpointId, threadId, src, mimeType, signal)
-        : api.createSessionMediaUrl(sessionId, { path: src, mimeType }, signal),
-    [api, sessionId, endpointId, threadId, src, mimeType])
-    const { url, error, onPlaybackError } = useMediaSource(load)
+    const load = useCallback((signal: AbortSignal) => api.createSessionMediaUrl(sessionId, { path: src, mimeType }, signal),
+        [api, sessionId, src, mimeType])
+    const { url, error, onPlaybackError, sourceRevision } = useMediaSource(load)
 
-    if (url) return <MediaPreview src={url} mimeType={mimeType} label={label} imageProps={imageProps} onError={onPlaybackError} />
+    if (url) return <MediaPreview {...preview} src={url} mimeType={mimeType} onError={onPlaybackError} sourceRevision={sourceRevision} />
     if (error !== undefined) return <span className="my-2 block text-sm text-[var(--app-hint)]" role="status">
-        {label ? `${label} · ` : null}{formatReadFileError(error, t)}
+        {preview.label ? `${preview.label} · ` : null}{formatReadFileError(error, t)}
     </span>
-    return <span className="my-2 block text-sm text-[var(--app-hint)]" role="status">{t('media.preview.loading', { name: label })}</span>
+    return <span className="my-2 block text-sm text-[var(--app-hint)]" role="status">{t('media.preview.loading', { name: preview.label })}</span>
 }
 
-export function MarkdownMediaPreview(props: PreviewProps) {
-    if (props.source.local) return <LocalMediaPreview key={props.source.src} {...props} />
-    return <MediaPreview src={props.source.src} mimeType={props.source.mimeType} label={props.label} imageProps={props.imageProps} />
+export function MarkdownMediaPreview({ source, ...preview }: Omit<PreviewProps, 'galleryId'>) {
+    const chat = useOptionalHappyChatContext()
+    const galleryId = chat ? `chat-media:${chat.sessionId}` : undefined
+    if (source.local) return <LocalMediaPreview key={source.src} {...preview} source={source} galleryId={galleryId} />
+    return <MediaPreview {...preview} src={source.src} mimeType={source.mimeType} galleryId={galleryId} />
 }

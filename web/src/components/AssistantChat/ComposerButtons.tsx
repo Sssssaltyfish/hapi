@@ -1,7 +1,7 @@
 import { ComposerPrimitive } from '@assistant-ui/react'
 import type { ConversationStatus } from '@/realtime/types'
 import { useTranslation } from '@/lib/use-translation'
-import { ScheduleIcon } from '@/components/icons'
+import { ExpandIcon, ScheduleIcon } from '@/components/icons'
 import { ScheduleTimePicker } from './ScheduleTimePicker'
 import type { PendingSchedule } from './ScheduleTimePicker'
 import { useFue } from '@/lib/use-fue'
@@ -227,28 +227,7 @@ function ComposerExpandIcon(props: { expanded: boolean }) {
             <path d="M16 21v-5h5" />
             <path d="m21 21-5-5" />
         </svg>
-    ) : (
-        <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-        >
-            <path d="M8 3H3v5" />
-            <path d="m3 3 5 5" />
-            <path d="M16 3h5v5" />
-            <path d="m21 3-5 5" />
-            <path d="M8 21H3v-5" />
-            <path d="m3 21 5-5" />
-            <path d="M16 21h5v-5" />
-            <path d="m21 21-5-5" />
-        </svg>
-    )
+    ) : <ExpandIcon className="h-[18px] w-[18px]" />
 }
 
 export function ComposerExpandButton(props: {

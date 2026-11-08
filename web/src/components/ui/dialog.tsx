@@ -9,16 +9,17 @@ export const DialogTrigger = DialogPrimitive.Trigger
 
 type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeButtonClassName?: string
+    overlayProps?: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 }
 
 export const DialogContent = React.forwardRef<
     HTMLDivElement,
     DialogContentProps
->(({ className, closeButtonClassName, children, ...props }, ref) => {
+>(({ className, closeButtonClassName, overlayProps, children, ...props }, ref) => {
     const { t } = useTranslation()
     return (
         <DialogPrimitive.Portal>
-            <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50" />
+            <DialogPrimitive.Overlay {...overlayProps} className={cn('fixed inset-0 z-50 bg-black/50', overlayProps?.className)} />
             <DialogPrimitive.Content
                 ref={ref}
                 className={cn(

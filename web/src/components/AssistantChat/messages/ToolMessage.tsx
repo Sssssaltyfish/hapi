@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type CSSProperties } from 'react'
+import { useCallback, useState, type CSSProperties } from 'react'
 import type { ToolCallMessagePartProps } from '@assistant-ui/react'
 import type { AgentReasoningBlock, ChatBlock } from '@/chat/types'
 import type { GeneratedImageBlock, ToolCallBlock } from '@/chat/types'
@@ -21,7 +21,6 @@ import { useTranslation } from '@/lib/use-translation'
 import { inlineMediaLabelKey, isInlineAudioMimeType, isInlineImageMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
 import { InlineMediaPlayer } from './InlineMediaPlayer'
 import { useMediaSource } from '@/hooks/useMediaSource'
-import { getMediaNativeIdentity, readSessionMediaBlob } from '@/lib/sessionMediaFile'
 
 function isToolCallBlock(value: unknown): value is ToolCallBlock {
     if (!isObject(value)) return false
@@ -74,9 +73,8 @@ export function computeTinyImageScale(width: number, height: number): number {
 
 /** Exported for generated-media fetch and renderer tests. */
 export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
-    const { api, sessionId, metadata } = useHappyChatContext()
+    const { api, sessionId } = useHappyChatContext()
     const { imageId, nativeFilePath, fileName, mimeType } = props.block
-    const { endpointId, threadId } = getMediaNativeIdentity(sessionId, metadata?.nativeCodex) ?? {}
     const { t } = useTranslation()
     const [sizing, setSizing] = useState<{ url: string; style: CSSProperties }>()
     const [loadMedia, setLoadMedia] = useState(false)
@@ -87,28 +85,13 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
     const mediaLabel = t(inlineMediaLabelKey(mimeType))
     const mediaHeader = t('media.displayed.header', { label: mediaLabel, fileName })
     const load = useCallback((signal: AbortSignal) => {
-        if (mimeType && (isVideo || isAudio)) {
-            return api.createSessionMediaUrl(sessionId, nativeFilePath
-                ? { path: nativeFilePath, mimeType }
+        return isFile
+            ? api.getGeneratedImageBlob(sessionId, imageId)
+            : api.createSessionMediaUrl(sessionId, nativeFilePath
+                ? { path: nativeFilePath, mimeType: mimeType ?? 'image/png' }
                 : { generatedImageId: imageId }, signal)
-        }
-        if (nativeFilePath && endpointId && threadId) {
-            return readSessionMediaBlob(api, sessionId, endpointId, threadId, nativeFilePath, mimeType, signal)
-        }
-        return api.getGeneratedImageBlob(sessionId, imageId)
-    }, [api, sessionId, endpointId, threadId, imageId, nativeFilePath, mimeType, isVideo, isAudio])
-    const { url: mediaUrl, error, onPlaybackError } = useMediaSource(isFile && !loadMedia ? null : load)
-
-    useEffect(() => {
-        if (!mediaUrl || !isImage) return
-        const probe = new Image()
-        probe.onload = () => {
-            const scale = computeTinyImageScale(probe.naturalWidth, probe.naturalHeight)
-            if (scale !== 1) setSizing({ url: mediaUrl, style: { transform: `scale(${scale})` } })
-        }
-        probe.src = mediaUrl
-        return () => { probe.onload = null }
-    }, [mediaUrl, isImage])
+    }, [api, sessionId, imageId, nativeFilePath, mimeType, isFile])
+    const { url: mediaUrl, error, onPlaybackError, sourceRevision } = useMediaSource(isFile && !loadMedia ? null : load)
 
     return (
         <div className="max-w-[92%] rounded-2xl border border-[var(--app-border)] bg-[var(--app-tool-card-bg)] p-3">
@@ -118,10 +101,10 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
             {mediaUrl ? (
                 isVideo ? (
                     <div className="flex min-h-32 items-center justify-center rounded-xl bg-[var(--app-subtle-bg)]">
-                        <InlineMediaPlayer src={mediaUrl} label={fileName} video onError={onPlaybackError} />
+                        <InlineMediaPlayer src={mediaUrl} label={fileName} video onError={onPlaybackError} sourceRevision={sourceRevision} />
                     </div>
                 ) : isAudio ? (
-                    <InlineMediaPlayer src={mediaUrl} label={fileName} video={false} onError={onPlaybackError} />
+                    <InlineMediaPlayer src={mediaUrl} label={fileName} video={false} onError={onPlaybackError} sourceRevision={sourceRevision} />
                 ) : isFile ? (
                     <a
                         href={mediaUrl}
@@ -137,6 +120,15 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                             src={mediaUrl}
                             fileName={props.block.fileName}
                             label={props.block.fileName}
+                            galleryId={`chat-media:${sessionId}`}
+                            sourceRevision={sourceRevision}
+                            imageLoading="lazy"
+                            referrerPolicy="no-referrer"
+                            onError={onPlaybackError}
+                            onLoad={({ currentTarget }) => {
+                                const scale = computeTinyImageScale(currentTarget.naturalWidth, currentTarget.naturalHeight)
+                                if (scale !== 1) setSizing({ url: mediaUrl, style: { transform: `scale(${scale})` } })
+                            }}
                             buttonClassName="block max-h-[min(28rem,60vh)] max-w-full cursor-zoom-in rounded-xl text-left"
                             imageClassName="max-h-[min(28rem,60vh)] max-w-full rounded-xl object-contain"
                             imageStyle={sizing?.url === mediaUrl ? sizing.style : undefined}

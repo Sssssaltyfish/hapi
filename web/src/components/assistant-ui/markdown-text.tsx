@@ -998,7 +998,7 @@ function AssistantMediaImage(props: ComponentPropsWithoutRef<'img'>) {
     const source = useMarkdownMediaSource(typeof props.src === 'string' ? props.src : undefined, true)
     if (linked && source && !source.mimeType.startsWith('image/')) return <>{props.alt}</>
     return source
-        ? <MarkdownMediaPreview source={source} label={props.alt ?? ''} imageProps={props} />
+        ? <MarkdownMediaPreview source={source} label={props.alt ?? ''} imageProps={props} linkedImage={linked} />
         : <Image {...props} />
 }
 

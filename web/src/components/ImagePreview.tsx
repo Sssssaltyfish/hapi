@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, type SyntheticEvent, type WheelEvent } from 'react'
+import { useCallback, useRef, useState, type ComponentPropsWithoutRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode, type SyntheticEvent, type WheelEvent } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { CloseIcon } from '@/components/icons'
 
 const MIN_IMAGE_SCALE = 0.25
@@ -13,6 +14,7 @@ function clampImageScale(value: number): number {
 type ImagePoint = { x: number; y: number }
 
 type PreviewImage = {
+    trigger: HTMLButtonElement
     src: string
     fileName: string
     label: string
@@ -36,8 +38,12 @@ export function ImagePreview(props: {
     buttonClassName?: string
     imageClassName?: string
     imageStyle?: CSSProperties
+    sourceRevision?: number
+    imageLoading?: ComponentPropsWithoutRef<'img'>['loading']
+    referrerPolicy?: ComponentPropsWithoutRef<'img'>['referrerPolicy']
     caption?: ReactNode
     onError?: () => void
+    onLoad?: (event: SyntheticEvent<HTMLImageElement>) => void
     galleryId?: string
     onTriggerPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void
     onTriggerContextMenu?: (event: MouseEvent<HTMLButtonElement>) => void
@@ -48,12 +54,14 @@ export function ImagePreview(props: {
     const [previewIndex, setPreviewIndex] = useState(0)
     const [scale, setScale] = useState(1)
     const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const triggerRef = useRef<HTMLButtonElement>(null)
     const scaleRef = useRef(scale)
     const offsetRef = useRef(offset)
     const activePointersRef = useRef(new Map<number, ImagePoint>())
     const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null)
     const pinchRef = useRef<{ startDistance: number; startScale: number; startCenter: ImagePoint; origin: ImagePoint } | null>(null)
     const backdropPressRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
+    const backdropClickRef = useRef(false)
 
     const stopEvent = useCallback((event: SyntheticEvent) => {
         event.stopPropagation()
@@ -69,6 +77,7 @@ export function ImagePreview(props: {
             const image = trigger.querySelector('img')
             if (!image) return []
             return [{
+                trigger,
                 src: image.getAttribute('src') ?? image.src,
                 fileName: trigger.dataset.imagePreviewFileName ?? image.alt,
                 label: trigger.dataset.imagePreviewLabel ?? image.alt
@@ -115,6 +124,7 @@ export function ImagePreview(props: {
         dragRef.current = null
         pinchRef.current = null
         backdropPressRef.current = null
+        backdropClickRef.current = false
         resetView()
     }, [resetView])
 
@@ -149,6 +159,7 @@ export function ImagePreview(props: {
 
     const handlePointerDown = useCallback((event: PointerEvent<HTMLDivElement>) => {
         if (event.button !== 0) return
+        backdropClickRef.current = false
         event.currentTarget.setPointerCapture(event.pointerId)
         activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
         backdropPressRef.current = event.target === event.currentTarget
@@ -205,7 +216,7 @@ export function ImagePreview(props: {
         const moved = backdropPress
             ? Math.hypot(event.clientX - backdropPress.x, event.clientY - backdropPress.y)
             : Number.POSITIVE_INFINITY
-        const shouldCloseFromBackdrop = event.type === 'pointerup'
+        backdropClickRef.current = event.type === 'pointerup'
             && backdropPress?.pointerId === event.pointerId
             && event.target === event.currentTarget
             && activePointersRef.current.size === 1
@@ -230,86 +241,92 @@ export function ImagePreview(props: {
                 originY: offsetRef.current.y
             }
         }
-        if (shouldCloseFromBackdrop) {
+    }, [])
+
+    const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+        // Dismiss after the click is targeted, so the same gesture cannot land
+        // on the chat underneath after pointerup removes the preview.
+        if (backdropClickRef.current && event.target === event.currentTarget) {
+            event.preventDefault()
             closeViewer()
         }
-    }, [closeViewer])
+        backdropClickRef.current = false
+    }
 
-    useEffect(() => {
-        if (!viewerOpen) return
+    const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === '0') resetView()
+        else if (event.key === '+' || event.key === '=') zoomBy(IMAGE_SCALE_STEP)
+        else if (event.key === '-') zoomBy(-IMAGE_SCALE_STEP)
+        else if (event.key === 'ArrowLeft' && previewIndex > 0) showPreview(previewIndex - 1)
+        else if (event.key === 'ArrowRight' && previewIndex < previewImages.length - 1) showPreview(previewIndex + 1)
+        else return
+        event.preventDefault()
+        event.stopPropagation()
+    }
 
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                closeViewer()
-            }
-            if (event.key === '0') {
-                resetView()
-            }
-            if (event.key === '+' || event.key === '=') {
-                zoomBy(IMAGE_SCALE_STEP)
-            }
-            if (event.key === '-') {
-                zoomBy(-IMAGE_SCALE_STEP)
-            }
-            if (event.key === 'ArrowLeft' && previewIndex > 0) {
-                showPreview(previewIndex - 1)
-            }
-            if (event.key === 'ArrowRight' && previewIndex < previewImages.length - 1) {
-                showPreview(previewIndex + 1)
-            }
-        }
-
-        window.addEventListener('keydown', handleKeyDown)
-        return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [closeViewer, previewImages.length, previewIndex, resetView, showPreview, viewerOpen, zoomBy])
-
-    const activePreview = previewImages[previewIndex] ?? {
+    const selected = previewImages[previewIndex]
+    const showingOwnImage = !selected || selected.trigger === triggerRef.current
+    const activePreview = showingOwnImage ? {
         src: props.src,
         fileName: props.fileName,
         label: props.label
-    }
+    } : selected
     const hasMultiplePreviews = previewImages.length > 1
 
     return (
-        <>
-            <button
-                type="button"
-                onPointerDown={handleTriggerPointerDown}
-                onMouseDown={stopEvent}
-                onTouchStart={stopEvent}
-                onContextMenu={props.onTriggerContextMenu}
-                onClick={handleTriggerClick}
-                data-image-preview-trigger=""
-                data-image-preview-file-name={props.fileName}
-                data-image-preview-label={props.label}
-                data-image-preview-gallery={props.galleryId ?? ''}
-                // Contain the absolute sr-only filename inside this trigger.
-                // Otherwise it can escape the chat viewport and make the app
-                // root scroll when history navigation calls scrollIntoView.
-                className={`relative ${props.buttonClassName ?? 'group flex min-h-[18rem] w-full items-center justify-center overflow-auto rounded-md border border-[var(--app-border)] bg-[var(--app-code-bg)] p-3 text-left'}`}
-                title="Click to zoom"
-            >
-                <img
-                    src={props.src}
-                    onError={props.onError}
-                    alt={props.label}
-                    className={props.imageClassName ?? 'max-h-[calc(100vh-14rem)] max-w-full object-contain transition-transform group-hover:scale-[1.01]'}
-                    style={props.imageStyle}
-                    draggable={false}
-                />
-                {props.caption}
-                <span className="sr-only">{props.fileName}</span>
-            </button>
+        <DialogPrimitive.Root open={viewerOpen} onOpenChange={open => { if (!open) closeViewer() }}>
+            <DialogPrimitive.Trigger asChild>
+                <button
+                    ref={triggerRef}
+                    type="button"
+                    onPointerDown={handleTriggerPointerDown}
+                    onMouseDown={stopEvent}
+                    onTouchStart={stopEvent}
+                    onContextMenu={props.onTriggerContextMenu}
+                    onClick={handleTriggerClick}
+                    data-image-preview-trigger=""
+                    data-image-preview-file-name={props.fileName}
+                    data-image-preview-label={props.label}
+                    data-image-preview-gallery={props.galleryId ?? ''}
+                    // Keep the hidden filename from escaping into the chat viewport.
+                    className={`relative ${props.buttonClassName ?? 'group flex min-h-[18rem] w-full items-center justify-center overflow-auto rounded-md border border-[var(--app-border)] bg-[var(--app-code-bg)] p-3 text-left'}`}
+                    title="Click to zoom"
+                >
+                    <img
+                        key={props.sourceRevision}
+                        src={props.src}
+                        onError={props.onError}
+                        onLoad={props.onLoad}
+                        alt={props.label}
+                        loading={props.imageLoading}
+                        referrerPolicy={props.referrerPolicy}
+                        className={props.imageClassName ?? 'max-h-[calc(100vh-14rem)] max-w-full object-contain transition-transform group-hover:scale-[1.01]'}
+                        style={props.imageStyle}
+                        draggable={false}
+                    />
+                    {props.caption}
+                    <span className="sr-only">{props.fileName}</span>
+                </button>
+            </DialogPrimitive.Trigger>
 
-            {viewerOpen ? (
-                <div
-                    className="fixed inset-0 z-50 flex flex-col bg-black/90 text-white"
-                    role="dialog"
+            <DialogPrimitive.Portal>
+                <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/90" onPointerDown={stopEvent} onClick={stopEvent} />
+                <DialogPrimitive.Content
+                    className="fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden overscroll-none text-white"
                     aria-modal="true"
-                    aria-label={activePreview.label}
+                    aria-describedby={undefined}
                     // Keep preview gestures from starting an ancestor's attachment drag.
                     onPointerDown={stopEvent}
+                    onMouseDown={stopEvent}
+                    onTouchStart={stopEvent}
+                    onClick={stopEvent}
+                    onKeyDown={handleKeyDown}
+                    onCloseAutoFocus={event => {
+                        event.preventDefault()
+                        triggerRef.current?.focus({ preventScroll: true })
+                    }}
                 >
+                    <DialogPrimitive.Title className="sr-only">{activePreview.label}</DialogPrimitive.Title>
                     <div className="flex items-center gap-2 border-b border-white/10 bg-black/50 px-3 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
                         <div className="min-w-0 flex-1 truncate text-sm font-medium">{activePreview.fileName}</div>
                         {hasMultiplePreviews ? (
@@ -365,14 +382,13 @@ export function ImagePreview(props: {
                         >
                             +
                         </button>
-                        <button
+                        <DialogPrimitive.Close
                             type="button"
-                            onClick={closeViewer}
                             className="flex h-8 w-8 items-center justify-center rounded bg-white/10 hover:bg-white/20"
                             title="Close"
                         >
                             <CloseIcon className="h-4 w-4" />
-                        </button>
+                        </DialogPrimitive.Close>
                     </div>
                     <div
                         className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
@@ -381,11 +397,15 @@ export function ImagePreview(props: {
                         onPointerMove={handlePointerMove}
                         onPointerUp={handlePointerUp}
                         onPointerCancel={handlePointerUp}
+                        onClick={handleBackdropClick}
                         onDoubleClick={resetView}
                     >
                         <img
+                            key={showingOwnImage ? props.sourceRevision : undefined}
                             src={activePreview.src}
                             alt={activePreview.label}
+                            onError={showingOwnImage ? props.onError : undefined}
+                            referrerPolicy={props.referrerPolicy}
                             draggable={false}
                             className="absolute left-1/2 top-1/2 max-h-[90vh] max-w-[90vw] select-none object-contain"
                             style={{
@@ -394,8 +414,8 @@ export function ImagePreview(props: {
                             }}
                         />
                     </div>
-                </div>
-            ) : null}
-        </>
+                </DialogPrimitive.Content>
+            </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
     )
 }

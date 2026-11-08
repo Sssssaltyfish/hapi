@@ -826,6 +826,7 @@ export default {
   'media.displayed.header': '{label}：{fileName}',
   'media.displayed.unavailable': '{label}不可用：{error}',
   'media.preview.loading': '正在加载 {name}…',
+  'media.preview.open': '预览 {name}',
 
   // Tool card
   'tool.askQuestion': '其他',
