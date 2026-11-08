@@ -6,7 +6,7 @@ From PowerShell, set `$commit` to the full commit ID you intend to release. This
 
 ```powershell
 $helper = '/mnt/c/Users/Igna/codex-temp/hapi-deployment/ops/deployment/build_release.py'
-$release = "/home/igna/hapi-deployment/releases/$commit"
+$release = "/home/igna/.cache/hapi/artifacts/$commit"
 wsl -d Ubuntu-26.04 -u igna -- python3 $helper source web --commit $commit --output-dir $release
 ```
 
@@ -34,8 +34,10 @@ The publisher uses explicit paths and can run from any checkout location. Update
 
 ```sh
 python3 /mnt/c/Users/Igna/codex-temp/hapi-deployment/ops/deployment/finalize-handoff.py \
-  --source /mnt/c/Users/Igna/codex-temp/dsh-web-shell-kit-20261027 \
+  --source /mnt/c/Users/Igna/codex-temp/service-deployment-handoff \
   --output-dir /mnt/c/Users/Igna/codex-temp
 ```
 
 It publishes `service-deployment-handoff.7z` and its checksum sidecar, with `PACKAGED_AT.txt` inside. It compares maximum-compression PPMd and LZMA2 archives and keeps the smaller one. Temporary archives are removed after publication.
+
+The Windows source directory is the only persistent packaging workspace. There is no WSL handoff mirror. Keep only the latest fixed-name distribution archive.

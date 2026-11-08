@@ -1,0 +1,53 @@
+{
+  "phase": "ready",
+  "commit": "6a5341eef0130c1041bc8c3454cd336ce1611902",
+  "target": "/home/igna/.local/share/hapi",
+  "at": "2026-11-08T18:31:36.396598+00:00",
+  "moved": [
+    {
+      "from": "/home/igna/hapi-deployment/build-tools",
+      "to": "/home/igna/.local/share/hapi/build-tools"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/cli-releases",
+      "to": "/home/igna/.local/share/hapi/cli-releases"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/web/dist",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/web/dist"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/hub/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/hub/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/shared/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/shared/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/cli/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/cli/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/web/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/web/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/website/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/website/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/docs/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/docs/node_modules"
+    },
+    {
+      "from": "/home/igna/hapi-deployment/source/relay/node_modules",
+      "to": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013/relay/node_modules"
+    }
+  ],
+  "services": "Id=hapi-hub.service\nActiveState=active\nMainPID=23307\nExecStart={ path=/home/igna/.local/share/hapi/bin/start-passkey-hub.sh ; argv[]=/home/igna/.local/share/hapi/bin/start-passkey-hub.sh ; ignore_errors=no ; start_time=[Mon 2026-11-09 02:31:35 CST] ; stop_time=[n/a] ; pid=23307 ; code=(null) ; status=0/0 }\n\nId=hapi-runner.service\nActiveState=active\nMainPID=23308\nExecStart={ path=/home/igna/.local/share/hapi/bin/start-agy-runner.sh ; argv[]=/home/igna/.local/share/hapi/bin/start-agy-runner.sh runner start-sync --workspace-root /home/igna ; ignore_errors=no ; start_time=[Mon 2026-11-09 02:31:35 CST] ; stop_time=[n/a] ; pid=23308 ; code=(null) ; status=0/0 }\n\nId=seia-auth.service\nActiveState=active\nMainPID=23306\nExecStart={ path=/home/igna/.local/share/hapi/build-tools/bun/bin/bun ; argv[]=/home/igna/.local/share/hapi/build-tools/bun/bin/bun run /home/igna/seia-auth/server.ts ; ignore_errors=no ; start_time=[Mon 2026-11-09 02:31:35 CST] ; stop_time=[n/a] ; pid=23306 ; code=(null) ; status=0/0 }\n"
+}

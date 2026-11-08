@@ -1,0 +1,1416 @@
+name,allocated_bytes,apparent_bytes,package_versions,origin,usage,instance_count
+"lucide-react",203968512,155535242,"0.453.0 0.469.0 0.542.0 0.562.0 1.8.0","upstream_lock","web:dependencies website:dependencies",5
+"mermaid",146690048,141817983,"11.12.2 11.14.0","upstream_lock","web:dependencies website:dependencies",2
+"antd",62771200,50390661,"6.3.5","upstream_lock","web:dependencies",1
+"typescript",46813184,46193450,"5.6.3 5.9.3","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies hub:devDependencies relay:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"es-toolkit",41410560,9563732,"1.43.0 1.45.1 1.49.0","upstream_lock","cli:dependencies web:dependencies",3
+"date-fns",40869888,23584116,"4.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@shikijs/langs",30482432,23968098,"2.5.0 3.20.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",3
+"@emoji-mart/data",28192768,27998656,"1.2.1","upstream_lock","web:dependencies",1
+"@lobehub/icons",26157056,11765090,"5.14.0","upstream_lock","web:dependencies",1
+"playwright-core",25899008,25359489,"1.60.0 1.61.0","upstream_lock","root:devDependencies web:devDependencies",2
+"@ant-design/icons",21684224,9947186,"6.1.1","upstream_lock","web:dependencies",1
+"pnpm",21442560,18487348,"10.27.0","upstream_lock","website:devDependencies",1
+"@ant-design/icons-svg",21221376,3845978,"4.4.2","upstream_lock","web:dependencies",1
+"@esbuild/linux-x64",20832256,20812986,"0.21.5 0.27.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",2
+"zod-to-json-schema",19795968,12432175,"3.25.0","upstream_lock","cli:dependencies",1
+"date-fns-jalali",16293888,6276507,"4.1.0-0","upstream_lock","website:dependencies",1
+"react-devtools-core",15917056,15885245,"7.0.1","upstream_lock","cli:dependencies root:devDependencies",1
+"zod",14827520,10598074,"4.2.1 4.6.5","upstream_lock","cli:dependencies hub:dependencies shared:dependencies web:dependencies website:dependencies",2
+"@base-ui/react",14573568,6476255,"1.0.0","upstream_lock","web:dependencies",1
+"@mermaid-js/parser",13602816,12614567,"0.6.3 1.1.0","upstream_lock","web:dependencies website:dependencies",2
+"rxjs",12005376,4890889,"7.8.2","upstream_lock","web:dependencies",1
+"shiki",11665408,1972172,"2.5.0 3.20.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",3
+"@lobehub/ui",11403264,4799855,"5.6.5","upstream_lock","web:dependencies",1
+"langium",11370496,7867488,"3.3.1 4.2.2","upstream_lock","web:dependencies website:dependencies",2
+"es-abstract",11145216,3028042,"1.24.1","upstream_lock","root:devDependencies",1
+"@assistant-ui/core",10862592,6652739,"0.3.20","upstream_lock","web:dependencies",1
+"playwright",10182656,9893797,"1.60.0 1.61.0","upstream_lock","root:devDependencies web:devDependencies",2
+"lightningcss-linux-x64-gnu",9498624,9489324,"1.30.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"lightningcss-linux-x64-musl",9490432,9480935,"1.30.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"framer-motion",9474048,7608468,"12.23.26 12.38.0","upstream_lock","web:dependencies website:dependencies",2
+"rollup",9383936,9268757,"2.79.2 4.53.4","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",2
+"katex",9142272,8227645,"0.16.27 0.16.45","upstream_lock","web:dependencies website:dependencies",2
+"cytoscape-fcose",8781824,8706385,"2.2.0","upstream_lock","web:dependencies website:dependencies",1
+"prettier",8736768,8592266,"3.7.4","upstream_lock","website:devDependencies",1
+"livekit-client",8732672,7746641,"2.17.0","upstream_lock","web:dependencies",1
+"lodash-es",8237056,2002869,"4.17.21 4.17.22 4.18.1","upstream_lock","web:dependencies website:dependencies",3
+"vite",8159232,7886719,"5.4.21 7.3.0","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",4
+"react-dom",7446528,7327605,"19.2.3","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"@pierre/diffs",6688768,4874543,"1.1.12","upstream_lock","web:dependencies",1
+"@xterm/xterm",6406144,6048575,"6.0.0","upstream_lock","web:dependencies",1
+"@assistant-ui/react",6336512,2856573,"0.15.21","upstream_lock","web:dependencies",1
+"cytoscape",6262784,5786266,"3.33.1","upstream_lock","web:dependencies website:dependencies",1
+"@splinetool/runtime",6139904,6120291,"0.9.526","upstream_lock","web:dependencies",1
+"@modelcontextprotocol/sdk",6131712,4296713,"1.25.1","upstream_lock","cli:dependencies",1
+"motion-dom",6074368,4308574,"12.23.23 12.38.0","upstream_lock","web:dependencies website:dependencies",2
+"recharts",5582848,4817994,"2.15.4","upstream_lock","website:dependencies",1
+"@types/node",5529600,5157757,"24.10.4 26.3.0","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies hub:devDependencies relay:devDependencies root:devDependencies web:devDependencies website:devDependencies",2
+"lodash",5148672,1461567,"4.17.21","upstream_lock","root:devDependencies web:dependencies website:dependencies",1
+"@shikijs/themes",5111808,4052657,"2.5.0 3.20.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",3
+"react-day-picker",4952064,1385391,"9.13.0","upstream_lock","website:dependencies",1
+"@iconify-json/simple-icons",4747264,4714781,"1.2.64","upstream_lock","docs:devDependencies",1
+"html2canvas-pro",4743168,3754600,"2.2.4","upstream_lock","web:dependencies",1
+"jsdom",4624384,3339467,"26.1.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"dayjs",4374528,1711295,"1.11.19 1.11.20","upstream_lock","web:dependencies website:dependencies",2
+"caniuse-lite",4325376,2352668,"1.0.30001760","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@primer/octicons",4005888,1431172,"19.23.1","upstream_lock","web:dependencies",1
+"bun-types",3977216,3055448,"1.4.0","upstream_lock","cli:devDependencies hub:devDependencies relay:devDependencies",1
+"polished",3895296,2902108,"4.3.1","upstream_lock","web:dependencies",1
+"vitest",3805184,3186776,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"@tanstack/router-core",3645440,2636100,"1.171.6","upstream_lock","web:dependencies",1
+"fastify",3645440,2798012,"5.6.2","upstream_lock","cli:dependencies",1
+"hono",3600384,2106614,"4.11.2","upstream_lock","cli:dependencies hub:dependencies",1
+"chevrotain",3514368,2818167,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@tanstack/react-router",3473408,2488804,"1.170.8","upstream_lock","web:dependencies",1
+"@algolia/client-search",3383296,3307696,"5.46.2","upstream_lock","docs:devDependencies",1
+"@babel/types",3354624,2862318,"7.28.5","upstream_lock","docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"vitepress",3309568,2836316,"1.6.4","upstream_lock","docs:devDependencies",1
+"@livekit/protocol",3215360,3122228,"1.42.2","upstream_lock","web:dependencies",1
+"@rc-component/picker",3178496,1562218,"1.9.1","upstream_lock","web:dependencies",1
+"tldts",3100672,3034655,"6.1.86","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"ahooks",3055616,1329929,"3.9.7","upstream_lock","web:dependencies",1
+"@tailwindcss/oxide-linux-x64-gnu",3043328,3029408,"4.1.18","upstream_lock","web:devDependencies website:devDependencies",1
+"@tailwindcss/oxide-linux-x64-musl",3039232,3025101,"4.1.18","upstream_lock","web:devDependencies website:devDependencies",1
+"@tanstack/query-core",2916352,2175721,"5.90.12","upstream_lock","web:dependencies",1
+"mark.js",2875392,2152065,"8.11.1","upstream_lock","docs:devDependencies",1
+"lit-html",2703360,1740856,"3.3.2","upstream_lock","web:dependencies",1
+"@tanstack/query-devtools",2609152,2536812,"5.91.1","upstream_lock","web:dependencies",1
+"ajv",2605056,1215208,"8.17.1","upstream_lock","cli:dependencies root:devDependencies",1
+"vue",2584576,2465568,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"@vue/compiler-sfc",2576384,2558974,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"@testing-library/dom",2568192,2446824,"10.4.1","upstream_lock","web:devDependencies",1
+"@hookform/resolvers",2539520,1464962,"5.2.2","upstream_lock","website:dependencies",1
+"assistant-stream",2494464,1523803,"0.3.44","upstream_lock","web:dependencies",1
+"@algolia/ingestion",2453504,2376323,"1.46.2","upstream_lock","docs:devDependencies",1
+"terser",2383872,2290668,"5.44.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"regenerate-unicode-properties",2318336,678824,"10.2.2","upstream_lock","root:devDependencies",1
+"axios",2301952,2061167,"1.20.0","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"oniguruma-to-es",2265088,2106017,"3.1.1 4.3.4","upstream_lock","docs:devDependencies web:dependencies website:dependencies",2
+"@asamuzakjp/css-color",2260992,2130585,"3.2.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@simplewebauthn/server",2236416,862784,"14.0.0","local_direct_new","cli:dependencies hub:dependencies",1
+"source-map",2166784,1994944,"0.5.7 0.6.1 0.7.6 0.8.0-beta.0","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",4
+"@rollup/rollup-linux-x64-musl",2138112,2128803,"4.53.4","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"@bufbuild/protobuf",2109440,1500974,"1.10.1","upstream_lock","web:dependencies",1
+"@rollup/rollup-linux-x64-gnu",2105344,2096855,"4.53.4","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"@babel/parser",2035712,2010744,"7.28.5","upstream_lock","docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@shikijs/engine-oniguruma",2027520,1956641,"2.5.0 3.20.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",3
+"yaml",2015232,1206763,"1.10.3 2.8.2","upstream_lock","cli:dependencies cli:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",2
+"react-hook-form",1990656,1238008,"7.69.0","upstream_lock","website:dependencies",1
+"preact",1970176,1640701,"10.28.1","upstream_lock","docs:devDependencies",1
+"tar",1933312,1260764,"7.5.2","upstream_lock","cli:dependencies",1
+"lru-cache",1781760,1694739,"10.4.3 11.2.4 5.1.1","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",3
+"jiti",1757184,1713042,"2.6.1","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"react-reconciler",1732608,1691022,"0.33.0","upstream_lock","cli:dependencies",1
+"virtua",1732608,1519617,"0.49.0","upstream_lock","web:dependencies",1
+"@dnd-kit/core",1703936,1201316,"6.3.1","upstream_lock","web:dependencies",1
+"@tanstack/react-query",1695744,839233,"5.90.12","upstream_lock","web:dependencies",1
+"algoliasearch",1695744,1611712,"5.46.2","upstream_lock","docs:devDependencies",1
+"@babel/helpers",1662976,903217,"7.28.4","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"emoji-mart",1658880,1638894,"5.6.0","upstream_lock","web:dependencies",1
+"socket.io-client",1609728,1454679,"4.8.3","upstream_lock","cli:dependencies web:dependencies",1
+"@vueuse/core",1576960,1535476,"12.8.2","upstream_lock","docs:devDependencies",1
+"entities",1572864,1031109,"6.0.1 7.0.0","upstream_lock","cli:devDependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"@algolia/client-analytics",1568768,1513931,"5.46.2","upstream_lock","docs:devDependencies",1
+"@assistant-ui/tap",1556480,762047,"0.9.18","upstream_lock","web:dependencies",1
+"leva",1507328,869529,"0.10.1","upstream_lock","web:dependencies",1
+"socket.io",1486848,1429287,"4.8.3","upstream_lock","cli:dependencies hub:dependencies",1
+"victory-vendor",1486848,553820,"36.9.2","upstream_lock","website:dependencies",1
+"aria-query",1458176,441989,"5.3.0 5.3.2","upstream_lock","web:devDependencies",2
+"seroval",1458176,1154704,"1.5.4","upstream_lock","web:dependencies",1
+"dom-helpers",1404928,364152,"5.2.1","upstream_lock","website:dependencies",1
+"dagre-d3-es",1380352,504309,"7.0.13 7.0.14","upstream_lock","web:dependencies website:dependencies",2
+"@lit/reactive-element",1368064,897656,"2.1.2","upstream_lock","web:dependencies",1
+"@rc-component/pagination",1363968,186227,"1.2.0","upstream_lock","web:dependencies",1
+"iconv-lite",1335296,1109415,"0.4.24 0.6.3 0.7.1","upstream_lock","cli:dependencies cli:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",3
+"lit",1335296,130966,"3.3.2","upstream_lock","web:dependencies",1
+"@emotion/react",1327104,870007,"11.14.0","upstream_lock","web:dependencies",1
+"grammy",1327104,1224194,"1.38.4","upstream_lock","cli:dependencies hub:dependencies",1
+"csstype",1269760,1257545,"3.2.3","upstream_lock","cli:dependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"engine.io-client",1257472,912513,"6.6.3","upstream_lock","cli:dependencies web:dependencies",1
+"pino",1257472,723405,"10.1.0","upstream_lock","cli:dependencies",1
+"@vue/runtime-dom",1245184,1216108,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"react-i18next",1196032,935136,"16.5.1","upstream_lock","website:dependencies",1
+"pngjs",1187840,1037599,"5.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"uuid",1171456,244630,"11.1.0 13.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@elevenlabs/client",1155072,1042723,"0.13.0","upstream_lock","web:dependencies",1
+"@babel/runtime",1150976,264499,"7.28.4","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"@algolia/autocomplete-core",1138688,948918,"1.17.7","upstream_lock","docs:devDependencies",1
+"@babel/core",1138688,873049,"7.28.5","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"async",1130496,820029,"3.2.6","upstream_lock","root:devDependencies",1
+"radix-ui",1114112,134233,"1.6.7","upstream_lock","web:dependencies",1
+"@rc-component/table",1089536,490407,"1.9.1","upstream_lock","web:dependencies",1
+"type-fest",1089536,564174,"0.16.0 4.41.0","upstream_lock","cli:dependencies root:devDependencies",2
+"antd-style",1077248,341674,"4.1.0","upstream_lock","web:dependencies",1
+"@assistant-ui/store",1073152,560209,"0.3.14","upstream_lock","web:dependencies",1
+"oniguruma-parser",1060864,695291,"0.12.1","upstream_lock","web:dependencies website:dependencies",1
+"ps-list",1048576,1014698,"8.1.1 9.0.0","upstream_lock","cli:dependencies",2
+"immer",1024000,946127,"11.1.4","upstream_lock","web:dependencies",1
+"tailwind-merge",1015808,954820,"3.4.0","upstream_lock","web:dependencies website:dependencies website:devDependencies",1
+"layout-base",987136,759291,"1.0.2 2.0.1","upstream_lock","web:dependencies website:dependencies",2
+"@floating-ui/react",978944,940920,"0.27.19","upstream_lock","web:dependencies",1
+"@algolia/recommend",962560,891670,"5.46.2","upstream_lock","docs:devDependencies",1
+"diff",958464,559038,"8.0.3","upstream_lock","web:dependencies",1
+"marked",958464,908139,"16.4.2 17.0.6","upstream_lock","web:dependencies website:dependencies",2
+"assistant-cloud",946176,554565,"0.2.2","upstream_lock","web:dependencies",1
+"embla-carousel",925696,514319,"8.6.0","upstream_lock","website:dependencies",1
+"minisearch",925696,859281,"7.2.0","upstream_lock","docs:devDependencies",1
+"d3-shape",917504,540037,"1.3.7 3.2.0","upstream_lock","web:dependencies website:dependencies",2
+"parse5",909312,749121,"7.3.0","upstream_lock","cli:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"d3",901120,883573,"7.9.0","upstream_lock","web:dependencies website:dependencies",1
+"magic-string",901120,849201,"0.25.9 0.30.21","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",2
+"rc-util",901120,312948,"5.44.4","upstream_lock","web:dependencies",1
+"chroma-js",888832,511788,"3.2.0","upstream_lock","web:dependencies",1
+"dom-accessibility-api",888832,556474,"0.5.16 0.6.3","upstream_lock","web:devDependencies",2
+"tr46",884736,841280,"0.0.3 1.0.1 5.1.1","upstream_lock","cli:dependencies cli:devDependencies hub:dependencies root:devDependencies web:devDependencies website:devDependencies",3
+"@rc-component/trigger",880640,475397,"2.3.1 3.9.0","upstream_lock","web:dependencies",2
+"core-js-compat",876544,832248,"3.47.0","upstream_lock","root:devDependencies",1
+"@babel/traverse",872448,732952,"7.28.5","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@rc-component/select",872448,395528,"1.6.15","upstream_lock","web:dependencies",1
+"dompurify",872448,841615,"3.3.1","upstream_lock","web:dependencies website:dependencies",1
+"khroma",872448,204693,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@vue/runtime-core",851968,831128,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"workbox-build",851968,521349,"7.4.0","upstream_lock","root:devDependencies",1
+"tailwindcss",847872,757024,"4.1.18","upstream_lock","web:devDependencies website:dependencies website:devDependencies",1
+"numeral",843776,380957,"2.0.6","upstream_lock","web:dependencies",1
+"@docsearch/js",839680,822945,"3.8.2","upstream_lock","docs:devDependencies",1
+"ink",835584,365044,"6.6.0","upstream_lock","cli:dependencies",1
+"focus-trap",819200,771084,"7.7.1","upstream_lock","docs:devDependencies",1
+"@rc-component/util",794624,259292,"1.10.1","upstream_lock","web:dependencies",1
+"@ant-design/cssinjs",786432,306604,"2.1.2","upstream_lock","web:dependencies",1
+"@ant-design/react-slick",782336,718846,"2.0.0","upstream_lock","web:dependencies",1
+"d3-array",778240,332390,"2.12.1 3.2.4","upstream_lock","web:dependencies website:dependencies",2
+"@simplewebauthn/browser",774144,340290,"14.0.0","local_direct_new","web:dependencies",1
+"tsyringe",774144,238685,"4.10.0","local_transitive_new","cli:dependencies hub:dependencies",1
+"workbox-core",770048,352874,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"common-tags",765952,465750,"1.8.2","upstream_lock","root:devDependencies",1
+"micromark-core-commonmark",757760,283224,"2.0.3","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"motion",757760,648173,"12.38.0","upstream_lock","web:dependencies",1
+"@base-ui/utils",749568,205652,"0.2.3","upstream_lock","web:dependencies",1
+"@radix-ui/react-select",745472,696417,"2.2.6 2.3.7","upstream_lock","web:dependencies website:dependencies",2
+"workbox-window",745472,609354,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"chai",737280,613138,"5.3.3 6.2.2","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"reselect",733184,674778,"5.1.1","upstream_lock","web:dependencies",1
+"@iconify/utils",729088,251875,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"workbox-precaching",729088,390739,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"regex",708608,580309,"6.1.0","upstream_lock","docs:devDependencies web:dependencies website:dependencies",1
+"zustand",696320,358077,"3.7.2 5.0.15","upstream_lock","web:dependencies",2
+"@use-gesture/core",684032,407016,"10.3.1","upstream_lock","web:dependencies",1
+"@vue/compiler-dom",684032,655404,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"mdast-util-to-markdown",684032,165321,"2.1.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"minimatch",679936,512348,"10.1.1 5.1.6","upstream_lock","root:devDependencies",2
+"webrtc-adapter",675840,580705,"9.0.3","upstream_lock","web:dependencies",1
+"@babel/generator",671744,579105,"7.28.5","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"find-my-way",671744,433245,"9.3.0","upstream_lock","cli:dependencies",1
+"resolve",671744,383548,"1.22.11","upstream_lock","root:devDependencies web:dependencies",1
+"@types/google.maps",663552,650950,"3.58.1","upstream_lock","website:devDependencies",1
+"@vue/compiler-core",659456,638280,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"fast-json-stringify",655360,437410,"6.1.1","upstream_lock","cli:dependencies",1
+"glob",655360,500590,"11.1.0","upstream_lock","root:devDependencies",1
+"react-dropzone",655360,510181,"12.1.0","upstream_lock","web:dependencies",1
+"react-resizable-panels",655360,565700,"3.0.6","upstream_lock","website:dependencies",1
+"rc-menu",647168,305650,"9.16.1","upstream_lock","web:dependencies",1
+"jose",643072,384484,"6.1.3","upstream_lock","cli:dependencies hub:dependencies relay:dependencies web:dependencies",1
+"i18next",630784,585728,"25.7.3","upstream_lock","website:dependencies",1
+"css-line-break",622592,569361,"2.1.0","upstream_lock","web:dependencies",1
+"@docsearch/react",614400,577141,"3.8.2","upstream_lock","docs:devDependencies",1
+"@algolia/abtesting",606208,544097,"1.12.2","upstream_lock","docs:devDependencies",1
+"tsx",606208,457228,"4.21.0","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"@rc-component/menu",598016,274935,"1.2.0","upstream_lock","web:dependencies",1
+"@peculiar/asn1-x509",593920,204291,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@xterm/addon-canvas",593920,557076,"0.7.0","upstream_lock","web:dependencies",1
+"@vueuse/integrations",589824,302730,"12.8.2","upstream_lock","docs:devDependencies",1
+"acorn",589824,567230,"8.15.0","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"path-scurry",585728,552396,"2.0.1","upstream_lock","root:devDependencies",1
+"@fastify/swagger",581632,420364,"9.6.1","upstream_lock","cli:dependencies",1
+"@peculiar/x509",573440,559303,"1.14.3","local_transitive_new","cli:dependencies hub:dependencies",1
+"@radix-ui/react-menu",569344,520539,"2.1.16 2.1.24","upstream_lock","web:dependencies website:dependencies",2
+"@stitches/react",569344,533094,"1.2.8","upstream_lock","web:dependencies",1
+"workbox-strategies",569344,425274,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"ws",569344,435561,"7.5.10 8.17.1 8.18.3","upstream_lock","cli:dependencies cli:devDependencies hub:dependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",3
+"@vue/devtools-kit",561152,532225,"7.7.9","upstream_lock","docs:devDependencies",1
+"lit-element",557056,140060,"4.2.2","upstream_lock","web:dependencies",1
+"@rc-component/async-validator",548864,164865,"5.1.0","upstream_lock","web:dependencies",1
+"@shikijs/core",548864,403160,"2.5.0 3.20.0 3.23.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",4
+"motion-utils",548864,200144,"12.23.6 12.36.0","upstream_lock","web:dependencies website:dependencies",2
+"@algolia/client-abtesting",544768,487725,"5.46.2","upstream_lock","docs:devDependencies",1
+"@rc-component/tree",540672,341477,"1.2.4","upstream_lock","web:dependencies",1
+"lightningcss",540672,509346,"1.30.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"vscode-languageserver-protocol",536576,389918,"3.17.5","upstream_lock","web:dependencies website:dependencies",1
+"@algolia/client-insights",532480,460843,"5.46.2","upstream_lock","docs:devDependencies",1
+"@algolia/monitoring",532480,479701,"1.46.2","upstream_lock","docs:devDependencies",1
+"vscode-uri",524288,441732,"3.0.8 3.1.0","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-navigation-menu",516096,478453,"1.2.14 1.2.22","upstream_lock","web:dependencies website:dependencies",2
+"react-colorful",516096,407819,"5.6.1","upstream_lock","web:dependencies",1
+"@floating-ui/core",507904,449204,"1.7.3 1.7.5","upstream_lock","web:dependencies website:dependencies",2
+"@surma/rollup-plugin-off-main-thread",507904,222549,"2.2.3","upstream_lock","root:devDependencies",1
+"@vitest/utils",507904,353352,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"cssstyle",507904,237246,"4.6.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@algolia/client-query-suggestions",503808,456719,"5.46.2","upstream_lock","docs:devDependencies",1
+"swr",503808,363169,"2.4.1","upstream_lock","web:dependencies",1
+"@rc-component/form",499712,279310,"1.8.0","upstream_lock","web:dependencies",1
+"undici-types",495616,236764,"7.16.0 8.3.0","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies hub:devDependencies relay:devDependencies root:devDependencies web:devDependencies website:devDependencies",2
+"@grammyjs/types",491520,451896,"3.22.2","upstream_lock","cli:dependencies hub:dependencies",1
+"esbuild",491520,440886,"0.21.5 0.25.12 0.27.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",3
+"@babel/helper-create-class-features-plugin",483328,449809,"7.28.5","upstream_lock","root:devDependencies",1
+"@rc-component/cascader",483328,206226,"1.14.0","upstream_lock","web:dependencies",1
+"workbox-routing",479232,294759,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"tldts-core",475136,275926,"6.1.86","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"mime-db",471040,439297,"1.52.0 1.54.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies website:dependencies",2
+"tabbable",471040,436534,"6.4.0","upstream_lock","docs:devDependencies web:dependencies",1
+"workbox-background-sync",471040,326201,"7.4.0","upstream_lock","root:devDependencies",1
+"@radix-ui/react-scroll-area",466944,420898,"1.2.10 1.2.18","upstream_lock","web:dependencies website:dependencies",2
+"autoprefixer",466944,219488,"10.4.23","upstream_lock","web:devDependencies website:devDependencies",1
+"react-zoom-pan-pinch",466944,449672,"3.7.0","upstream_lock","web:dependencies",1
+"@peculiar/utils",462848,228679,"2.0.3","local_transitive_new","cli:dependencies hub:dependencies",1
+"@rc-component/tree-select",458752,204512,"1.8.0","upstream_lock","web:dependencies",1
+"@testing-library/jest-dom",454656,333668,"6.9.1","upstream_lock","web:devDependencies",1
+"commander",454656,387091,"2.20.3 7.2.0 8.3.0","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",3
+"micromark",454656,234211,"4.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"@rc-component/tabs",450560,193346,"1.7.0","upstream_lock","web:dependencies",1
+"@types/react",446464,410434,"19.2.7","upstream_lock","cli:dependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"@vue/server-renderer",446464,425342,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"@emotion/css",438272,309816,"11.13.5","upstream_lock","web:dependencies",1
+"@rc-component/virtual-list",438272,158656,"1.0.2","upstream_lock","web:dependencies",1
+"cose-base",438272,344084,"1.0.3 2.2.0","upstream_lock","web:dependencies website:dependencies",2
+"search-insights",438272,217639,"2.17.3","upstream_lock","docs:devDependencies",1
+"@algolia/client-personalization",434176,392174,"5.46.2","upstream_lock","docs:devDependencies",1
+"mdast-util-to-hast",434176,144402,"13.2.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"vite-plugin-manus-runtime",430080,415814,"0.0.57","upstream_lock","website:devDependencies",1
+"chevrotain-allstar",425984,302722,"0.3.1 0.4.1","upstream_lock","web:dependencies website:dependencies",2
+"utrie",425984,375755,"1.0.2","upstream_lock","web:dependencies",1
+"avvio",421888,222086,"9.1.0","upstream_lock","cli:dependencies",1
+"d3-geo",421888,251641,"3.1.1","upstream_lock","web:dependencies website:dependencies",1
+"@algolia/autocomplete-shared",417792,83596,"1.17.7","upstream_lock","docs:devDependencies",1
+"@pierre/theme",417792,366850,"0.0.28","upstream_lock","web:dependencies",1
+"@dnd-kit/sortable",413696,274982,"10.0.0","upstream_lock","web:dependencies",1
+"@floating-ui/dom",413696,360204,"1.7.4 1.7.6","upstream_lock","web:dependencies website:dependencies",2
+"vscode-languageserver-types",413696,393085,"3.17.5","upstream_lock","web:dependencies website:dependencies",1
+"@rc-component/image",409600,173599,"1.8.1","upstream_lock","web:dependencies",1
+"@testing-library/react",409600,353142,"16.3.2","upstream_lock","web:devDependencies",1
+"react-transition-group",409600,297276,"4.4.5","upstream_lock","website:dependencies",1
+"react-smooth",405504,329161,"4.0.4","upstream_lock","website:dependencies",1
+"@rc-component/slider",401408,205075,"1.0.1","upstream_lock","web:dependencies",1
+"rc-image",401408,183405,"7.12.0","upstream_lock","web:dependencies",1
+"vscode-languageserver",401408,228641,"9.0.1","upstream_lock","web:dependencies website:dependencies",1
+"yargs",401408,246946,"15.4.1","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"@vitest/mocker",397312,262178,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"seroval-plugins",397312,222839,"1.5.4","upstream_lock","web:dependencies",1
+"@mdx-js/mdx",393216,180105,"3.1.1","upstream_lock","web:dependencies",1
+"@assistant-ui/react-markdown",389120,217323,"0.14.16","upstream_lock","web:dependencies",1
+"@emotion/cache",389120,268682,"11.14.0","upstream_lock","web:dependencies",1
+"confbox",389120,281380,"0.1.8","upstream_lock","web:dependencies website:dependencies",1
+"is-what",389120,45590,"5.5.0","upstream_lock","docs:devDependencies",1
+"roughjs",389120,194260,"4.6.6","upstream_lock","web:dependencies website:dependencies",1
+"semver",389120,198854,"6.3.1 7.7.3","upstream_lock","cli:dependencies root:devDependencies web:devDependencies website:devDependencies",2
+"@ant-design/cssinjs-utils",385024,153606,"2.1.2","upstream_lock","web:dependencies",1
+"express",385024,321762,"4.22.1 5.2.1","upstream_lock","cli:dependencies website:dependencies",2
+"stylis",385024,309018,"4.2.0 4.3.6","upstream_lock","web:dependencies website:dependencies",2
+"@hono/node-server",376832,221625,"1.19.7","upstream_lock","cli:dependencies",1
+"d3-format",376832,74217,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@peculiar/asn1-cms",372736,134141,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@algolia/autocomplete-preset-algolia",368640,181426,"1.17.7","upstream_lock","docs:devDependencies",1
+"@radix-ui/react-slider",368640,325555,"1.3.6 1.4.7","upstream_lock","web:dependencies website:dependencies",2
+"@vue/reactivity",364544,340796,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"asn1js",360448,350394,"3.1.0","local_transitive_new","cli:dependencies hub:dependencies",1
+"vite-plugin-pwa",360448,264347,"1.2.0","upstream_lock","root:devDependencies",1
+"vscode-jsonrpc",360448,232947,"8.2.0","upstream_lock","cli:dependencies web:dependencies website:dependencies",1
+"@vueuse/shared",356352,337020,"12.8.2","upstream_lock","docs:devDependencies",1
+"d3-selection",356352,151099,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"tslib",356352,241072,"1.14.1 2.6.2 2.8.1","local_transitive_new upstream_lock","cli:dependencies hub:dependencies web:dependencies website:dependencies",3
+"enhanced-resolve",352256,236408,"5.18.4","upstream_lock","web:devDependencies website:devDependencies",1
+"fast-equals",352256,302771,"5.4.0","upstream_lock","website:dependencies",1
+"robust-predicates",352256,308296,"3.0.2","upstream_lock","web:dependencies website:dependencies",1
+"whatwg-url",352256,251448,"14.2.0 5.0.0 7.1.0","upstream_lock","cli:dependencies cli:devDependencies hub:dependencies root:devDependencies web:devDependencies website:devDependencies",3
+"postcss",348160,212529,"8.5.6","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"workbox-expiration",348160,272228,"7.4.0","upstream_lock","root:devDependencies web:dependencies",1
+"@radix-ui/react-tooltip",339968,290286,"1.2.16 1.2.8","upstream_lock","web:dependencies website:dependencies",2
+"jackspeak",339968,304164,"4.1.1","upstream_lock","root:devDependencies",1
+"minipass",339968,302586,"7.1.2","upstream_lock","cli:dependencies root:devDependencies",1
+"@elevenlabs/react",335872,298532,"0.13.0","upstream_lock","web:dependencies",1
+"@radix-ui/react-menubar",335872,298181,"1.1.16 1.1.24","upstream_lock","web:dependencies website:dependencies",2
+"qs",335872,288718,"6.14.0","upstream_lock","cli:dependencies website:dependencies",1
+"react-remove-scroll",335872,107031,"2.7.2","upstream_lock","web:dependencies website:dependencies",1
+"text-segmentation",331776,285638,"1.0.3","upstream_lock","web:dependencies",1
+"yoga-layout",331776,252944,"3.2.1","upstream_lock","cli:dependencies",1
+"tough-cookie",327680,240012,"5.1.2","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"property-information",323584,128907,"7.1.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"@radix-ui/react-collection",319488,283031,"1.1.15 1.1.7","upstream_lock","web:dependencies website:dependencies",2
+"@vitest/runner",319488,247883,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"@babel/helper-define-polyfill-provider",315392,261772,"0.6.5","upstream_lock","root:devDependencies",1
+"@peculiar/asn1-schema",315392,155303,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@rc-component/color-picker",315392,109164,"3.1.1","upstream_lock","web:dependencies",1
+"vite-node",315392,212485,"2.1.9","upstream_lock","website:devDependencies",1
+"@jridgewell/trace-mapping",311296,163108,"0.3.31","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@vitest/expect",311296,281611,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"astring",311296,285452,"1.9.0","upstream_lock","web:dependencies",1
+"jake",311296,211935,"10.9.4","upstream_lock","root:devDependencies",1
+"react-draggable",311296,268047,"4.5.0","upstream_lock","web:dependencies",1
+"speakingurl",311296,191635,"14.0.1","upstream_lock","docs:devDependencies",1
+"@tanstack/react-query-devtools",307200,127255,"5.91.1","upstream_lock","web:dependencies",1
+"decimal.js",307200,288443,"10.6.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@chevrotain/regexp-to-ast",303104,216211,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/portal",303104,85066,"1.1.2 2.2.0","upstream_lock","web:dependencies",2
+"json5",303104,247486,"2.2.3","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@babel/preset-env",299008,170442,"7.28.5","upstream_lock","root:devDependencies",1
+"@upsetjs/venn.js",299008,258164,"2.0.0","upstream_lock","web:dependencies",1
+"baseline-browser-mapping",299008,283436,"2.9.7","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@rc-component/qrcode",294912,193448,"1.1.1","upstream_lock","web:dependencies",1
+"loupe",294912,66782,"3.2.1","upstream_lock","website:devDependencies",1
+"postcss-selector-parser",294912,199718,"6.0.10","upstream_lock","website:devDependencies",1
+"thread-stream",294912,106886,"3.1.0","upstream_lock","cli:dependencies",1
+"v8n",294912,228901,"1.5.1","upstream_lock","web:dependencies",1
+"@peculiar/asn1-x509-attr",290816,81612,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"file-selector",290816,207906,"0.5.0","upstream_lock","web:dependencies",1
+"rc-motion",290816,135389,"2.9.5","upstream_lock","web:dependencies",1
+"d3-scale-chromatic",286720,104369,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"fs-extra",286720,191235,"9.1.0","upstream_lock","root:devDependencies",1
+"babel-plugin-polyfill-corejs3",282624,240331,"0.13.0","upstream_lock","root:devDependencies",1
+"engine.io",282624,191276,"6.6.4","upstream_lock","cli:dependencies hub:dependencies",1
+"use-callback-ref",282624,72293,"1.3.3","upstream_lock","web:dependencies website:dependencies",1
+"@dnd-kit/utilities",278528,121223,"3.2.2","upstream_lock","web:dependencies",1
+"@radix-ui/react-context-menu",278528,241092,"2.2.16 2.3.7","upstream_lock","web:dependencies website:dependencies",2
+"d3-hierarchy",278528,160806,"3.1.2","upstream_lock","web:dependencies website:dependencies",1
+"emoji-regex",278528,201195,"10.6.0 8.0.0 9.2.2","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",3
+"@algolia/autocomplete-plugin-algolia-insights",274432,175708,"1.17.7","upstream_lock","docs:devDependencies",1
+"reflect-metadata",274432,245254,"0.2.2","local_transitive_new","cli:dependencies hub:dependencies",1
+"@radix-ui/react-dropdown-menu",270336,230809,"2.1.16 2.1.24","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/motion",270336,119986,"1.3.2","upstream_lock","web:dependencies",1
+"fast-uri",270336,179095,"3.1.0","upstream_lock","cli:dependencies root:devDependencies",1
+"workbox-streams",270336,143046,"7.4.0","upstream_lock","root:devDependencies",1
+"@radix-ui/react-dialog",266240,217272,"1.1.15 1.1.23","upstream_lock","web:dependencies website:dependencies",2
+"qrcode",266240,164036,"1.5.4","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"react",266240,179796,"19.2.3","upstream_lock","cli:dependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"@fastify/merge-json-schemas",262144,126871,"0.2.1","upstream_lock","cli:dependencies",1
+"@shikijs/types",262144,192053,"2.5.0 3.20.0 3.23.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",4
+"d3-scale",262144,186651,"4.0.2","upstream_lock","web:dependencies website:dependencies",1
+"use-sidecar",262144,70117,"1.1.3","upstream_lock","web:dependencies website:dependencies",1
+"@vueuse/metadata",258048,243481,"12.8.2","upstream_lock","docs:devDependencies",1
+"mlly",258048,240953,"1.8.0","upstream_lock","web:dependencies website:dependencies",1
+"ts-md5",258048,203124,"2.0.1","upstream_lock","web:dependencies",1
+"workbox-recipes",258048,142600,"7.4.0","upstream_lock","root:devDependencies",1
+"@radix-ui/react-radio-group",253952,208704,"1.3.8 1.4.7","upstream_lock","web:dependencies website:dependencies",2
+"d3-time-format",253952,101987,"4.1.0","upstream_lock","web:dependencies website:dependencies",1
+"debug",253952,160672,"2.6.9 4.3.7 4.4.3","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",3
+"decimal.js-light",253952,226447,"2.5.1","upstream_lock","website:dependencies",1
+"lz-string",253952,208593,"1.5.0","upstream_lock","web:devDependencies",1
+"@radix-ui/react-accordion",249856,199334,"1.2.12 1.2.20","upstream_lock","web:dependencies website:dependencies",2
+"recharts-scale",249856,194772,"0.4.5","upstream_lock","website:dependencies",1
+"@babel/plugin-transform-regenerator",245760,203201,"7.28.4","upstream_lock","root:devDependencies",1
+"@floating-ui/utils",245760,157088,"0.2.10 0.2.11","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-one-time-password-field",245760,217582,"0.1.16","upstream_lock","web:dependencies",1
+"@tanstack/store",245760,144539,"0.9.3","upstream_lock","web:dependencies",1
+"light-my-request",245760,183498,"6.6.0","upstream_lock","cli:dependencies",1
+"nanoid",245760,112782,"3.3.11 5.1.6 6.0.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",3
+"process-warning",245760,104914,"4.0.1 5.0.0","upstream_lock","cli:dependencies",2
+"@date-fns/tz",241664,109320,"1.4.1","upstream_lock","website:dependencies",1
+"@rc-component/tour",241664,102300,"2.3.0","upstream_lock","web:dependencies",1
+"picomatch",241664,191593,"2.3.1 4.0.3","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",2
+"rc-dialog",241664,110180,"9.6.0","upstream_lock","web:dependencies",1
+"@chevrotain/gast",237568,145007,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-alert-dialog",237568,168930,"1.1.15 1.1.23","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/dialog",237568,101522,"1.8.4","upstream_lock","web:dependencies",1
+"@vitest/snapshot",237568,164360,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"colord",237568,122004,"2.9.3","upstream_lock","web:dependencies",1
+"d3-transition",237568,131005,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"workbox-broadcast-update",237568,146710,"7.4.0","upstream_lock","root:devDependencies",1
+"resize-observer-polyfill",233472,167800,"1.5.1","upstream_lock","web:dependencies",1
+"@emotion/babel-plugin",229376,168718,"11.13.5","upstream_lock","web:dependencies",1
+"@vitejs/plugin-vue",229376,209326,"5.2.4","upstream_lock","docs:devDependencies",1
+"fastify-type-provider-zod",229376,138942,"6.1.0","upstream_lock","cli:dependencies",1
+"@radix-ui/react-dismissable-layer",225280,183731,"1.1.11 1.1.19","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-popper",225280,181457,"1.2.8 1.3.7","upstream_lock","web:dependencies website:dependencies",2
+"hast-util-to-html",225280,92278,"9.0.5","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"modern-screenshot",225280,192064,"4.6.7","upstream_lock","website:devDependencies",1
+"object-inspect",225280,123400,"1.13.4","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"vfile",225280,129878,"6.0.3","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"estree-walker",221184,136286,"1.0.1 2.0.2 3.0.3","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",3
+"event-target-shim",221184,197075,"5.0.1","upstream_lock","cli:dependencies hub:dependencies",1
+"workbox-range-requests",221184,128653,"7.4.0","upstream_lock","root:devDependencies",1
+"@peculiar/asn1-pfx",217088,64301,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@rc-component/drawer",217088,98391,"1.4.2","upstream_lock","web:dependencies",1
+"cosmiconfig",217088,100203,"7.1.0","upstream_lock","web:dependencies",1
+"fraction.js",217088,168189,"5.3.4","upstream_lock","web:devDependencies website:devDependencies",1
+"json-schema-typed",217088,201284,"8.0.2","upstream_lock","cli:dependencies",1
+"micromark-extension-mdx-jsx",217088,127089,"3.0.2","upstream_lock","web:dependencies",1
+"@adobe/css-tools",212992,170666,"4.4.4","upstream_lock","web:devDependencies",1
+"@chevrotain/types",212992,199942,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-hover-card",212992,172179,"1.1.15 1.1.23","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-slot",212992,138630,"1.2.3 1.2.4 1.3.3","upstream_lock","web:dependencies website:dependencies",3
+"@radix-ui/react-toast",212992,194650,"1.2.23","upstream_lock","web:dependencies",1
+"@rc-component/mentions",212992,95872,"1.6.0","upstream_lock","web:dependencies",1
+"@rc-component/notification",212992,99050,"1.2.0","upstream_lock","web:dependencies",1
+"signal-exit",212992,107404,"3.0.7 4.1.0","upstream_lock","cli:dependencies hub:dependencies root:devDependencies shared:dependencies web:dependencies",2
+"@babel/helper-module-transforms",208896,170017,"7.28.3","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"electron-to-chromium",208896,183236,"1.5.267","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"micromark-extension-gfm-table",208896,108458,"2.1.1","upstream_lock","web:dependencies website:dependencies",1
+"react-textarea-autosize",208896,104894,"8.5.9","upstream_lock","web:dependencies",1
+"superjson",208896,100983,"2.2.6","upstream_lock","docs:devDependencies",1
+"vaul",208896,192493,"1.1.2","upstream_lock","website:dependencies",1
+"@rc-component/progress",204800,81048,"1.0.2","upstream_lock","web:dependencies",1
+"rc-input",204800,106630,"1.8.0","upstream_lock","web:dependencies",1
+"sdp",204800,166605,"3.2.1","upstream_lock","web:dependencies",1
+"@lit-labs/ssr-dom-shim",200704,122036,"1.5.1","upstream_lock","web:dependencies",1
+"@radix-ui/react-checkbox",200704,159541,"1.3.11 1.3.3","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-roving-focus",200704,155942,"1.1.11 1.1.19","upstream_lock","web:dependencies website:dependencies",2
+"rc-input-number",200704,114328,"9.5.0","upstream_lock","web:dependencies",1
+"workbox-google-analytics",200704,124120,"7.4.0","upstream_lock","root:devDependencies",1
+"@chevrotain/utils",196608,69088,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@elevenlabs/types",196608,129677,"0.4.0","upstream_lock","web:dependencies",1
+"@rc-component/input",196608,93285,"1.1.2","upstream_lock","web:dependencies",1
+"rrweb-cssom",196608,117766,"0.8.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"sonner",196608,173968,"2.0.7","upstream_lock","website:dependencies",1
+"@algolia/client-common",192512,171889,"5.46.2","upstream_lock","docs:devDependencies",1
+"@radix-ui/react-context",192512,123673,"1.1.2 1.1.3 1.2.2","upstream_lock","web:dependencies website:dependencies",3
+"eventsource",192512,159592,"3.0.7","upstream_lock","cli:dependencies",1
+"hast-util-to-estree",192512,80111,"3.1.3","upstream_lock","web:dependencies",1
+"node-fetch",192512,170445,"2.7.0","upstream_lock","cli:dependencies hub:dependencies",1
+"source-map-js",192512,148064,"1.2.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@floating-ui/react-dom",188416,141652,"2.1.6 2.1.8","upstream_lock","web:dependencies website:dependencies",2
+"@jridgewell/gen-mapping",188416,114277,"0.3.13","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@rc-component/input-number",188416,107089,"1.6.2","upstream_lock","web:dependencies",1
+"foreground-child",188416,84686,"3.3.1","upstream_lock","root:devDependencies",1
+"pathe",188416,106714,"1.1.2 2.0.3","upstream_lock","cli:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"ret",188416,81484,"0.5.0","upstream_lock","cli:dependencies",1
+"@jridgewell/sourcemap-codec",184320,103396,"1.5.5","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@radix-ui/react-focus-scope",184320,144322,"1.1.16 1.1.7","upstream_lock","web:dependencies website:dependencies",2
+"@shikijs/engine-javascript",184320,69018,"2.5.0 3.20.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",3
+"@shikijs/transformers",184320,137305,"2.5.0 3.23.0 4.0.2","upstream_lock","docs:devDependencies web:dependencies",3
+"@types/markdown-it",184320,105812,"14.1.2","upstream_lock","docs:devDependencies",1
+"d3-interpolate",184320,86071,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"intersection-observer",184320,165752,"0.12.2","upstream_lock","web:dependencies",1
+"rc-overflow",184320,83379,"1.5.0","upstream_lock","web:dependencies",1
+"react-avatar-editor",184320,164402,"15.1.0","upstream_lock","web:dependencies",1
+"rehype-harden",184320,153720,"1.1.7","upstream_lock","website:dependencies",1
+"unified",184320,154124,"11.0.5","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"get-tsconfig",180224,162190,"4.13.0","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"@rc-component/upload",176128,71280,"1.1.0","upstream_lock","web:dependencies",1
+"ejs",176128,155123,"3.1.10","upstream_lock","root:devDependencies",1
+"math-intrinsics",176128,33707,"1.1.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"minizlib",176128,134195,"3.1.0","upstream_lock","cli:dependencies",1
+"saxes",176128,167870,"6.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"sonic-boom",176128,105680,"4.2.0","upstream_lock","cli:dependencies",1
+"workbox-cacheable-response",176128,103491,"7.4.0","upstream_lock","root:devDependencies",1
+"@apideck/better-ajv-errors",172032,106211,"0.3.6","upstream_lock","root:devDependencies",1
+"@chevrotain/cst-dts-gen",172032,99721,"11.0.3 12.0.0","upstream_lock","web:dependencies website:dependencies",2
+"@peculiar/asn1-rsa",172032,72837,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@rc-component/overflow",172032,75393,"1.0.0","upstream_lock","web:dependencies",1
+"@rc-component/steps",172032,66255,"1.2.2","upstream_lock","web:dependencies",1
+"body-parser",172032,125444,"1.20.4 2.2.1","upstream_lock","cli:dependencies website:dependencies",2
+"engine.io-parser",172032,70349,"5.2.3","upstream_lock","cli:dependencies hub:dependencies web:dependencies",1
+"events",172032,95066,"3.3.0","upstream_lock","web:dependencies",1
+"re-resizable",172032,146966,"6.11.2","upstream_lock","web:dependencies",1
+"workbox-navigation-preload",172032,80107,"7.4.0","upstream_lock","root:devDependencies",1
+"@emotion/hash",167936,60850,"0.8.0 0.9.2","upstream_lock","web:dependencies",2
+"@pinojs/redact",167936,121927,"0.4.0","upstream_lock","cli:dependencies",1
+"@radix-ui/react-form",167936,151968,"0.1.16","upstream_lock","web:dependencies",1
+"@rollup/pluginutils",167936,135876,"3.1.0 5.3.0","upstream_lock","root:devDependencies",2
+"react-is",167936,109598,"16.13.1 17.0.2 18.3.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",3
+"yallist",167936,115543,"3.1.1 5.0.0","upstream_lock","cli:dependencies root:devDependencies web:devDependencies website:devDependencies",2
+"@jridgewell/remapping",163840,75750,"2.3.5","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@radix-ui/react-switch",163840,122937,"1.2.6 1.3.7","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-tabs",163840,122582,"1.1.13 1.1.21","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-toggle-group",163840,127618,"1.1.11 1.1.19","upstream_lock","web:dependencies website:dependencies",2
+"mdast-util-from-markdown",163840,114212,"2.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"on-change",163840,63915,"4.0.2","upstream_lock","web:dependencies",1
+"pretty-format",163840,86456,"27.5.1","upstream_lock","web:devDependencies",1
+"rc-collapse",163840,78017,"4.0.0","upstream_lock","web:dependencies",1
+"regexpu-core",163840,146094,"6.4.0","upstream_lock","root:devDependencies",1
+"@babel/preset-modules",159744,116400,"0.1.6-no-external-plugins","upstream_lock","root:devDependencies",1
+"@radix-ui/react-primitive",159744,92607,"2.1.10 2.1.3 2.1.4","upstream_lock","web:dependencies website:dependencies",3
+"@tailwindcss/node",159744,131485,"4.1.18","upstream_lock","web:devDependencies website:devDependencies",1
+"@use-gesture/react",159744,57669,"10.3.1","upstream_lock","web:dependencies",1
+"expect-type",159744,128038,"1.3.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"i18next-browser-languagedetector",159744,118693,"8.2.0","upstream_lock","website:dependencies",1
+"micromark-extension-cjk-friendly-util",159744,104478,"2.1.1 3.0.1","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-presence",155648,106331,"1.1.10 1.1.5","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/collapse",155648,70528,"1.2.0","upstream_lock","web:dependencies",1
+"@rc-component/mini-decimal",155648,61699,"1.1.3","upstream_lock","web:dependencies",1
+"@tanstack/history",155648,133992,"1.162.0","upstream_lock","web:dependencies",1
+"cytoscape-cose-bilkent",155648,102875,"4.1.0","upstream_lock","web:dependencies website:dependencies",1
+"object.assign",155648,94684,"4.1.7","upstream_lock","root:devDependencies",1
+"@radix-ui/react-collapsible",151552,107163,"1.1.12 1.1.20","upstream_lock","web:dependencies website:dependencies",2
+"@shikijs/vscode-textmate",151552,137318,"10.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",1
+"@types/d3-scale",151552,139069,"4.0.9","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-shape",151552,140726,"3.1.7","upstream_lock","web:dependencies website:dependencies",1
+"express-rate-limit",151552,132673,"7.5.1","upstream_lock","cli:dependencies",1
+"ipaddr.js",151552,121570,"1.9.1 2.3.0","upstream_lock","cli:dependencies website:dependencies",2
+"@fastify/ajv-compiler",147456,85734,"4.0.5","upstream_lock","cli:dependencies",1
+"@isaacs/fs-minipass",147456,117001,"4.0.1","upstream_lock","cli:dependencies",1
+"@radix-ui/react-password-toggle-field",147456,119646,"0.1.11","upstream_lock","web:dependencies",1
+"@rollup/plugin-node-resolve",147456,129251,"15.3.1","upstream_lock","root:devDependencies",1
+"d3-force",147456,101839,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"idb",147456,98531,"7.1.1","upstream_lock","root:devDependencies web:dependencies",1
+"wouter",147456,87135,"3.9.0","upstream_lock","website:dependencies",1
+"@radix-ui/primitive",143360,57132,"1.1.3 1.1.7","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/textarea",143360,67181,"1.1.2","upstream_lock","web:dependencies",1
+"@tailwindcss/typography",143360,122801,"0.5.19","upstream_lock","website:devDependencies",1
+"d3-delaunay",143360,116741,"6.0.4","upstream_lock","web:dependencies website:dependencies",1
+"fastify-plugin",143360,71195,"5.1.0","upstream_lock","cli:dependencies",1
+"hastscript",143360,57554,"9.0.1","upstream_lock","web:dependencies website:dependencies",1
+"rc-resize-observer",143360,69284,"1.4.3","upstream_lock","web:dependencies",1
+"smob",143360,89365,"1.5.0","upstream_lock","root:devDependencies",1
+"socket.io-parser",143360,78977,"4.2.4","upstream_lock","cli:dependencies hub:dependencies web:dependencies",1
+"@radix-ui/react-avatar",139264,95454,"1.1.11 1.2.6","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-controllable-state",139264,93985,"1.2.2 1.2.6","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/tooltip",139264,68386,"1.4.0","upstream_lock","web:dependencies",1
+"@socket.io/bun-engine",139264,70566,"0.1.0","upstream_lock","cli:dependencies hub:dependencies",1
+"agent-base",139264,83120,"6.0.2 7.1.4","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"loglevel",139264,102553,"1.9.2","upstream_lock","web:dependencies",1
+"micromark-extension-gfm-footnote",139264,95850,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"micromark-extension-math",139264,70268,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"minimist",139264,70861,"1.2.8","upstream_lock","cli:dependencies hub:dependencies",1
+"@rc-component/dropdown",135168,64799,"1.0.2","upstream_lock","web:dependencies",1
+"@rc-component/resize-observer",135168,69631,"1.1.2","upstream_lock","web:dependencies",1
+"input-otp",135168,118825,"1.4.2","upstream_lock","website:dependencies",1
+"pino-std-serializers",135168,78587,"7.0.0","upstream_lock","cli:dependencies",1
+"react-remove-scroll-bar",135168,49512,"2.3.8","upstream_lock","web:dependencies website:dependencies",1
+"react-style-singleton",135168,39913,"2.2.3","upstream_lock","web:dependencies website:dependencies",1
+"rw",135168,40536,"1.3.3","upstream_lock","web:dependencies website:dependencies",1
+"style-to-js",135168,83122,"1.1.21","upstream_lock","web:dependencies website:dependencies",1
+"ufo",135168,112949,"1.6.1","upstream_lock","web:dependencies website:dependencies",1
+"@ant-design/colors",131072,44264,"8.0.1","upstream_lock","web:dependencies",1
+"@babel/compat-data",131072,75341,"7.28.5","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@csstools/css-color-parser",131072,113342,"3.1.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@emotion/unitless",131072,47049,"0.10.0 0.7.5","upstream_lock","web:dependencies",2
+"@playwright/test",131072,65268,"1.60.0 1.61.0","upstream_lock","root:devDependencies web:devDependencies",2
+"asn1.js",131072,78519,"5.4.1","upstream_lock","cli:dependencies hub:dependencies",1
+"cac",131072,94089,"6.7.14","upstream_lock","website:devDependencies",1
+"d3-random",131072,50390,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"d3-zoom",131072,99166,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"es-to-primitive",131072,60915,"1.3.0","upstream_lock","root:devDependencies",1
+"eventsource-parser",131072,88703,"3.0.6","upstream_lock","cli:dependencies",1
+"prop-types",131072,102729,"15.8.1","upstream_lock","web:dependencies website:dependencies",1
+"react-helmet-async",131072,94511,"2.0.5","upstream_lock","website:dependencies",1
+"scheduler",131072,90857,"0.27.0","upstream_lock","cli:dependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"secure-json-parse",131072,74906,"4.1.0","upstream_lock","cli:dependencies web:dependencies",1
+"streamdown",131072,102609,"1.6.10","upstream_lock","website:dependencies",1
+"@babel/plugin-transform-block-scoping",126976,97262,"7.28.5","upstream_lock","root:devDependencies",1
+"@peculiar/asn1-android",126976,86874,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@radix-ui/react-popover",126976,102029,"1.1.23","upstream_lock","web:dependencies website:dependencies",1
+"@rc-component/rate",126976,51061,"1.0.1","upstream_lock","web:dependencies",1
+"bn.js",126976,112215,"4.12.2","upstream_lock","cli:dependencies hub:dependencies",1
+"cmdk",126976,90044,"1.1.1","upstream_lock","website:dependencies",1
+"dotenv",126976,90594,"17.2.3","upstream_lock","cli:devDependencies",1
+"es-module-lexer",126976,105728,"1.7.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"https-proxy-agent",126976,70098,"5.0.1 7.0.6","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"json-schema-ref-resolver",126976,79309,"3.0.0","upstream_lock","cli:dependencies",1
+"micromark-extension-cjk-friendly",126976,92488,"1.2.3 2.0.1","upstream_lock","web:dependencies website:dependencies",2
+"micromark-extension-gfm-autolink-literal",126976,81765,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@babel/template",122880,78955,"7.27.2","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@dnd-kit/modifiers",122880,61289,"9.0.0","upstream_lock","web:dependencies",1
+"@peculiar/asn1-ecc",122880,48517,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@vitest/pretty-format",122880,106956,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"compute-scroll-into-view",122880,107600,"3.1.1","upstream_lock","web:dependencies",1
+"d3-time",122880,76771,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"inline-style-parser",122880,82876,"0.2.7","upstream_lock","web:dependencies website:dependencies",1
+"mime-types",122880,75772,"2.1.35 3.0.1 3.0.2","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies website:dependencies",3
+"xmlchars",122880,83533,"2.2.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@alcalzone/ansi-tokenize",118784,40096,"0.2.2","upstream_lock","cli:dependencies",1
+"@babel/plugin-transform-classes",118784,99556,"7.28.4","upstream_lock","root:devDependencies",1
+"@emotion/serialize",118784,77312,"1.3.3","upstream_lock","web:dependencies",1
+"@radix-ui/react-progress",118784,76815,"1.1.16 1.1.8","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-is-hydrated",118784,41940,"0.1.0 0.1.3","upstream_lock","web:dependencies website:dependencies",2
+"@tailwindcss/postcss",118784,103338,"4.1.18","upstream_lock","web:devDependencies",1
+"@vue/shared",118784,96024,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"abort-controller",118784,84489,"3.0.0","upstream_lock","cli:dependencies hub:dependencies",1
+"babel-plugin-polyfill-corejs2",118784,94941,"0.4.14","upstream_lock","root:devDependencies",1
+"d3-quadtree",118784,55679,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"nwsapi",118784,102928,"2.2.23","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@ant-design/fast-color",114688,68591,"3.0.1","upstream_lock","web:dependencies",1
+"@fastify/proxy-addr",114688,62353,"5.1.0","upstream_lock","cli:dependencies",1
+"@levischuck/tiny-cbor",114688,71748,"0.2.11","local_transitive_new","cli:dependencies hub:dependencies",1
+"@radix-ui/react-use-effect-event",114688,49054,"0.0.2 0.0.5","upstream_lock","web:dependencies website:dependencies",2
+"cookie",114688,96209,"0.7.2 1.1.1","upstream_lock","cli:dependencies hub:dependencies website:dependencies",2
+"embla-carousel-react",114688,75205,"8.6.0","upstream_lock","website:dependencies",1
+"safe-content-frame",114688,69332,"0.0.31","upstream_lock","web:dependencies",1
+"send",114688,90790,"0.19.2 1.2.1","upstream_lock","cli:dependencies website:dependencies",2
+"style-to-object",114688,66244,"1.0.14","upstream_lock","web:dependencies website:dependencies",1
+"tapable",114688,56622,"2.3.0","upstream_lock","web:devDependencies website:devDependencies",1
+"webidl-conversions",114688,80449,"3.0.1 4.0.2 7.0.0","upstream_lock","cli:dependencies cli:devDependencies hub:dependencies root:devDependencies web:devDependencies website:devDependencies",3
+"@babel/plugin-transform-destructuring",110592,93960,"7.28.5","upstream_lock","root:devDependencies",1
+"@braintree/sanitize-url",110592,48402,"7.1.1","upstream_lock","web:dependencies website:dependencies",1
+"@fastify/error",110592,61448,"4.2.0","upstream_lock","cli:dependencies",1
+"@types/chai",110592,96107,"5.2.3","upstream_lock","cli:devDependencies web:devDependencies",1
+"form-data",110592,92093,"4.0.6","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"negotiator",110592,72469,"0.6.3 1.0.0","upstream_lock","cli:dependencies hub:dependencies website:dependencies",2
+"pino-abstract-transport",110592,66876,"2.0.0","upstream_lock","cli:dependencies",1
+"react-rnd",110592,99192,"10.5.3","upstream_lock","web:dependencies",1
+"source-map-support",110592,89273,"0.5.21","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"throttle-debounce",110592,85016,"5.0.2","upstream_lock","web:dependencies",1
+"tinyexec",110592,88585,"0.3.2 1.0.2","upstream_lock","cli:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"@babel/helper-compilation-targets",106496,62058,"7.27.2","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@csstools/color-helpers",106496,89062,"5.1.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@dnd-kit/accessibility",106496,45465,"3.1.1","upstream_lock","web:dependencies",1
+"@emotion/utils",106496,44528,"1.4.2","upstream_lock","web:dependencies",1
+"browserslist",106496,73285,"4.28.1","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"d3-brush",106496,78843,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"d3-contour",106496,61601,"4.0.2","upstream_lock","web:dependencies website:dependencies",1
+"d3-path",106496,65669,"1.0.9 3.1.0","upstream_lock","web:dependencies website:dependencies",2
+"embla-carousel-reactive-utils",106496,58948,"8.6.0","upstream_lock","website:dependencies",1
+"fastq",106496,62306,"1.19.1","upstream_lock","cli:dependencies",1
+"hast-util-from-html",106496,68862,"2.0.3","upstream_lock","web:dependencies website:dependencies",1
+"micromark-util-events-to-acorn",106496,54494,"2.0.3","upstream_lock","web:dependencies",1
+"micromark-util-subtokenize",106496,67546,"2.1.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"regexp.prototype.flags",106496,52502,"1.5.4","upstream_lock","root:devDependencies",1
+"string.prototype.matchall",106496,52107,"4.0.12","upstream_lock","root:devDependencies",1
+"stringify-entities",106496,40164,"4.0.4","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"wrap-ansi",106496,59793,"6.2.0 7.0.0 8.1.0 9.0.2","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",4
+"@babel/helper-module-imports",102400,71916,"7.27.1","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@babel/plugin-transform-parameters",102400,73362,"7.27.7","upstream_lock","root:devDependencies",1
+"@emotion/use-insertion-effect-with-fallbacks",102400,35517,"1.2.0","upstream_lock","web:dependencies",1
+"@isaacs/brace-expansion",102400,61731,"5.0.0","upstream_lock","root:devDependencies",1
+"@radix-ui/rect",102400,50884,"1.1.1 1.1.3","upstream_lock","web:dependencies website:dependencies",2
+"@types/babel__traverse",102400,90062,"7.28.0","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@vitest/spy",102400,72707,"2.1.9 4.0.16","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"ajv-formats",102400,69051,"3.0.1","upstream_lock","cli:dependencies",1
+"d3-color",102400,73440,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"d3-dsv",102400,67617,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"d3-ease",102400,46917,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"es-errors",102400,24612,"1.3.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"function.prototype.name",102400,43446,"1.1.8","upstream_lock","root:devDependencies",1
+"micromark-util-symbol",102400,48722,"2.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"retry",102400,52690,"0.12.0","upstream_lock","cli:dependencies hub:dependencies shared:dependencies web:dependencies",1
+"socket.io-adapter",102400,69835,"2.5.5","upstream_lock","cli:dependencies hub:dependencies",1
+"@babel/plugin-transform-object-rest-spread",98304,84457,"7.28.4","upstream_lock","root:devDependencies",1
+"@csstools/css-tokenizer",98304,81175,"3.0.4","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@emotion/sheet",98304,54059,"1.4.0","upstream_lock","web:dependencies",1
+"@lobehub/fluent-emoji",98304,43689,"4.1.0","upstream_lock","web:dependencies",1
+"@ungap/structured-clone",98304,47980,"1.3.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"ansi-styles",98304,60350,"4.3.0 5.2.0 6.2.3","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies web:devDependencies",3
+"call-bind-apply-helpers",98304,28240,"1.0.2","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"hasown",98304,35481,"2.0.2 2.0.4","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies web:dependencies website:dependencies",2
+"path-to-regexp",98304,75233,"0.1.12 8.3.0","upstream_lock","cli:dependencies website:dependencies",2
+"pkg-types",98304,82329,"1.3.1","upstream_lock","web:dependencies website:dependencies",1
+"react-refresh",98304,66600,"0.18.0","upstream_lock","web:devDependencies website:devDependencies",1
+"remark-cjk-friendly",98304,71516,"1.2.3 2.0.1","upstream_lock","web:dependencies website:dependencies",2
+"string-width",98304,43137,"4.2.3 5.1.2 7.2.0 8.1.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",4
+"tinypool",98304,56437,"1.1.1","upstream_lock","website:devDependencies",1
+"yargs-parser",98304,79674,"18.1.3","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"@csstools/css-calc",94208,79204,"2.1.4","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"asynckit",94208,35554,"0.4.0","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"chalk",94208,64822,"5.6.2","upstream_lock","cli:dependencies",1
+"fast-json-stable-stringify",94208,37439,"2.1.0","upstream_lock","root:devDependencies",1
+"hast-util-to-jsx-runtime",94208,64802,"2.3.6","upstream_lock","web:dependencies website:dependencies",1
+"micromark-extension-gfm-strikethrough",94208,43969,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"regjsparser",94208,81762,"0.13.0","upstream_lock","root:devDependencies",1
+"string.prototype.trim",94208,43430,"1.2.10","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-modules-systemjs",90112,75230,"7.28.5","upstream_lock","root:devDependencies",1
+"@emotion/is-prop-valid",90112,44931,"1.4.0","upstream_lock","web:dependencies website:dependencies",1
+"@fastify/fast-json-stringify-compiler",90112,44758,"5.0.3","upstream_lock","cli:dependencies",1
+"@radix-ui/react-arrow",90112,37695,"1.1.15 1.1.7","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-aspect-ratio",90112,42129,"1.1.15 1.1.8","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-focus-guards",90112,42974,"1.1.3 1.1.6","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-label",90112,38172,"2.1.15 2.1.8","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-portal",90112,39963,"1.1.17 1.1.9","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-separator",90112,45698,"1.1.15 1.1.8","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-toggle",90112,46069,"1.1.10 1.1.18","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-visually-hidden",90112,41389,"1.2.11 1.2.3","upstream_lock","web:dependencies website:dependencies",2
+"@rc-component/mutate-observer",90112,26117,"2.0.1","upstream_lock","web:dependencies",1
+"@rc-component/segmented",90112,58646,"1.3.0","upstream_lock","web:dependencies",1
+"@rollup/plugin-babel",90112,77128,"5.3.1","upstream_lock","root:devDependencies",1
+"@types/react-dom",90112,38255,"19.2.3","upstream_lock","web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"@vitejs/plugin-react",90112,69650,"5.1.2","upstream_lock","web:devDependencies website:devDependencies",2
+"d3-drag",90112,55311,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"has-symbols",90112,39793,"1.1.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"lodash.sortby",90112,79851,"4.7.0","upstream_lock","root:devDependencies",1
+"micromark-extension-mdx-expression",90112,49204,"3.0.1","upstream_lock","web:dependencies",1
+"path-data-parser",90112,45970,"0.1.0","upstream_lock","web:dependencies website:dependencies",1
+"react-hotkeys-hook",90112,41837,"5.2.4","upstream_lock","web:dependencies",1
+"react-markdown",90112,60829,"10.1.0","upstream_lock","web:dependencies",1
+"regex-recursion",90112,70194,"6.0.2","upstream_lock","docs:devDependencies web:dependencies website:dependencies",1
+"remend",90112,56020,"1.0.1 1.3.0","upstream_lock","web:dependencies website:dependencies",2
+"shell-quote",90112,36032,"1.8.3","upstream_lock","cli:dependencies root:devDependencies",1
+"tinybench",90112,71137,"2.9.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"unist-util-visit-parents",90112,47279,"6.0.2","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"use-sync-external-store",90112,44570,"1.6.0","upstream_lock","web:dependencies website:dependencies",1
+"@emotion/weak-memoize",86016,26287,"0.4.0","upstream_lock","web:dependencies",1
+"@jridgewell/resolve-uri",86016,65441,"3.1.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@radix-ui/number",86016,25004,"1.1.1 1.1.3","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-compose-refs",86016,41162,"1.1.2 1.1.5","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-direction",86016,34541,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-id",86016,31718,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-callback-ref",86016,30932,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-escape-keydown",86016,34458,"1.1.1 1.1.5","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-layout-effect",86016,29884,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-previous",86016,30192,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-rect",86016,31812,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@radix-ui/react-use-size",86016,41364,"1.1.1 1.1.4","upstream_lock","web:dependencies website:dependencies",2
+"@rollup/plugin-terser",86016,53278,"0.4.4","upstream_lock","root:devDependencies",1
+"@tanstack/react-store",86016,40380,"0.9.3","upstream_lock","web:dependencies",1
+"@xterm/addon-web-links",86016,63060,"0.12.0","upstream_lock","web:dependencies",1
+"d3-chord",86016,50837,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"d3-sankey",86016,58493,"0.12.3","upstream_lock","web:dependencies website:dependencies",1
+"globalthis",86016,31857,"1.0.4","upstream_lock","root:devDependencies",1
+"html-parse-stringify",86016,63716,"3.0.1","upstream_lock","website:dependencies",1
+"is-generator-function",86016,44383,"1.1.2","upstream_lock","root:devDependencies",1
+"micromark-extension-gfm-task-list-item",86016,40794,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"package-json-from-dist",86016,52837,"1.0.1","upstream_lock","root:devDependencies",1
+"remark-rehype",86016,56493,"11.1.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"sdp-transform",86016,56881,"2.15.0","upstream_lock","web:dependencies",1
+"symbol-tree",86016,65265,"3.2.4","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"web-push",86016,56435,"3.6.7","upstream_lock","cli:dependencies hub:dependencies",1
+"which-typed-array",86016,56201,"1.1.19","upstream_lock","root:devDependencies",1
+"@babel/helper-validator-identifier",81920,57005,"7.28.5","upstream_lock","docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@emotion/memoize",81920,24489,"0.9.0","upstream_lock","web:dependencies website:dependencies",1
+"@peculiar/asn1-csr",81920,32906,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@peculiar/asn1-pkcs9",81920,68927,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"@types/d3-geo",81920,69608,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-selection",81920,70098,"3.0.11","upstream_lock","web:dependencies website:dependencies",1
+"birpc",81920,57847,"2.9.0","upstream_lock","docs:devDependencies",1
+"function-bind",81920,43715,"1.1.2","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies web:dependencies website:dependencies",1
+"get-intrinsic",81920,58830,"1.3.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"has-proto",81920,26761,"1.2.0","upstream_lock","root:devDependencies",1
+"has-tostringtag",81920,33987,"1.0.2","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"mdast-util-mdx-jsx",81920,64968,"3.2.0","upstream_lock","web:dependencies website:dependencies",1
+"micromark-extension-mdxjs-esm",81920,50857,"3.0.0","upstream_lock","web:dependencies",1
+"mime",81920,59930,"1.6.0","upstream_lock","website:dependencies",1
+"query-string",81920,61813,"9.3.1","upstream_lock","web:dependencies",1
+"scroll-into-view-if-needed",81920,57072,"3.1.0","upstream_lock","web:dependencies",1
+"string.prototype.trimend",81920,31774,"1.0.9","upstream_lock","root:devDependencies",1
+"string.prototype.trimstart",81920,31081,"1.0.8","upstream_lock","root:devDependencies",1
+"ts-dedent",81920,47126,"2.2.0","upstream_lock","web:dependencies website:dependencies",1
+"vscode-languageserver-textdocument",81920,56661,"1.0.12","upstream_lock","web:dependencies website:dependencies",1
+"@babel/helper-member-expression-to-functions",77824,63081,"7.28.5","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-modules-commonjs",77824,49770,"7.27.1","upstream_lock","root:devDependencies",1
+"@hexagon/base64",77824,47693,"1.1.28","local_transitive_new","cli:dependencies hub:dependencies",1
+"@isaacs/balanced-match",77824,34588,"4.0.1","upstream_lock","root:devDependencies",1
+"@jridgewell/source-map",77824,49857,"0.3.11","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"@radix-ui/react-toolbar",77824,58307,"1.1.19","upstream_lock","web:dependencies",1
+"@rc-component/context",77824,36617,"2.0.1","upstream_lock","web:dependencies",1
+"@types/estree",77824,52183,"0.0.39 1.0.8","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"arraybuffer.prototype.slice",77824,29865,"1.0.4","upstream_lock","root:devDependencies",1
+"chownr",77824,38432,"3.0.0","upstream_lock","cli:dependencies",1
+"es-object-atoms",77824,23730,"1.1.1","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"esutils",77824,58774,"2.0.3","upstream_lock","root:devDependencies",1
+"fdir",77824,61483,"6.5.0","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"finalhandler",77824,45452,"1.3.2 2.1.1","upstream_lock","cli:dependencies website:dependencies",2
+"for-each",77824,36203,"0.3.5","upstream_lock","root:devDependencies",1
+"is-symbol",77824,39330,"1.1.1","upstream_lock","root:devDependencies",1
+"json-schema-traverse",77824,42700,"1.0.0","upstream_lock","cli:dependencies root:devDependencies",1
+"reflect.getprototypeof",77824,31540,"1.0.10","upstream_lock","root:devDependencies",1
+"remark-github",77824,46751,"12.0.0","upstream_lock","web:dependencies",1
+"safe-regex2",77824,33777,"5.0.0","upstream_lock","cli:dependencies",1
+"use-isomorphic-layout-effect",77824,23286,"1.2.1","upstream_lock","web:dependencies",1
+"@csstools/css-parser-algorithms",73728,53573,"3.0.5","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@livekit/mutex",73728,36520,"1.1.1","upstream_lock","web:dependencies",1
+"@shikijs/primitive",73728,48088,"4.0.2","upstream_lock","web:dependencies",1
+"@vue/compiler-ssr",73728,56695,"3.5.26","upstream_lock","docs:devDependencies web:dependencies",1
+"accepts",73728,41904,"1.3.8 2.0.0","upstream_lock","cli:dependencies hub:dependencies website:dependencies",2
+"async-function",73728,21923,"1.0.0","upstream_lock","root:devDependencies",1
+"base64-arraybuffer",73728,40673,"1.0.2","upstream_lock","web:dependencies",1
+"content-disposition",73728,46520,"0.5.4 1.0.1","upstream_lock","cli:dependencies website:dependencies",2
+"define-data-property",73728,43139,"1.1.4","upstream_lock","root:devDependencies",1
+"dunder-proto",73728,25291,"1.0.1","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"escape-string-regexp",73728,22996,"2.0.0 4.0.0 5.0.0","upstream_lock","cli:dependencies web:dependencies website:dependencies",3
+"estree-util-to-js",73728,47032,"2.0.0","upstream_lock","web:dependencies",1
+"generator-function",73728,22366,"2.0.1","upstream_lock","root:devDependencies",1
+"get-proto",73728,23128,"1.0.1","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"internal-slot",73728,35297,"1.1.0","upstream_lock","root:devDependencies",1
+"internmap",73728,45345,"1.0.1 2.0.3","upstream_lock","web:dependencies website:dependencies",2
+"is-boolean-object",73728,38774,"1.2.2","upstream_lock","root:devDependencies",1
+"is-date-object",73728,36460,"1.1.0","upstream_lock","root:devDependencies",1
+"is-map",73728,32700,"2.0.3","upstream_lock","root:devDependencies",1
+"is-negative-zero",73728,39412,"2.0.3","upstream_lock","root:devDependencies",1
+"is-number-object",73728,37472,"1.1.1","upstream_lock","root:devDependencies",1
+"is-regex",73728,43924,"1.2.1","upstream_lock","root:devDependencies",1
+"is-weakset",73728,32082,"2.0.4","upstream_lock","root:devDependencies",1
+"rc-footer",73728,41478,"0.6.8","upstream_lock","web:dependencies",1
+"reusify",73728,28080,"1.1.0","upstream_lock","cli:dependencies",1
+"router",73728,55043,"2.2.0","upstream_lock","cli:dependencies",1
+"set-proto",73728,21589,"1.0.0","upstream_lock","root:devDependencies",1
+"sourcemap-codec",73728,44090,"1.4.8","upstream_lock","root:devDependencies",1
+"tiny-invariant",73728,31193,"1.3.3","upstream_lock","website:dependencies",1
+"tinyrainbow",73728,31290,"1.2.0 3.0.3","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",2
+"toad-cache",73728,57743,"3.7.0","upstream_lock","cli:dependencies",1
+"type-is",73728,47958,"1.6.18 2.0.1","upstream_lock","cli:dependencies website:dependencies",2
+"@babel/plugin-transform-for-of",69632,53042,"7.27.1","upstream_lock","root:devDependencies",1
+"@docsearch/css",69632,50884,"3.8.2","upstream_lock","docs:devDependencies",1
+"@giscus/react",69632,45702,"3.1.0","upstream_lock","web:dependencies",1
+"@lobehub/emojilib",69632,60585,"1.0.0","upstream_lock","web:dependencies",1
+"@peculiar/asn1-pkcs8",69632,31036,"2.11.1","local_transitive_new","cli:dependencies hub:dependencies",1
+"aria-hidden",69632,51496,"1.2.6","upstream_lock","web:dependencies website:dependencies",1
+"call-bind",69632,35190,"1.0.8","upstream_lock","root:devDependencies",1
+"d3-fetch",69632,28707,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"deepmerge",69632,39349,"4.3.1","upstream_lock","root:devDependencies",1
+"delaunator",69632,59370,"5.0.1","upstream_lock","web:dependencies website:dependencies",1
+"get-symbol-description",69632,29453,"1.1.0","upstream_lock","root:devDependencies",1
+"is-set",69632,31995,"2.0.3","upstream_lock","root:devDependencies",1
+"is-string",69632,36289,"1.1.1","upstream_lock","root:devDependencies",1
+"is-typed-array",69632,34210,"1.1.15","upstream_lock","root:devDependencies",1
+"micromark-util-character",69632,50613,"2.1.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"node-releases",69632,57176,"2.0.27","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"on-exit-leak-free",69632,29726,"2.1.2","upstream_lock","cli:dependencies",1
+"package-manager-detector",69632,35625,"1.6.0","upstream_lock","web:dependencies website:dependencies",1
+"react-error-boundary",69632,54109,"6.1.1","upstream_lock","web:dependencies",1
+"rfdc",69632,43534,"1.4.1","upstream_lock","cli:dependencies docs:devDependencies",1
+"serve-static",69632,48045,"1.16.3 2.2.1","upstream_lock","cli:dependencies website:dependencies",2
+"shiki-stream",69632,36349,"0.1.4","upstream_lock","web:dependencies",1
+"side-channel",69632,33833,"1.1.0","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"tinyglobby",69632,48367,"0.2.15","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"ts-debounce",69632,41076,"4.0.0","upstream_lock","web:dependencies",1
+"unbox-primitive",69632,30795,"1.1.0","upstream_lock","root:devDependencies",1
+"use-merge-value",69632,27972,"1.2.0","upstream_lock","web:dependencies",1
+"which-boxed-primitive",69632,31566,"1.1.1","upstream_lock","root:devDependencies",1
+"@babel/helper-replace-supers",65536,51500,"7.27.1","upstream_lock","root:devDependencies",1
+"@rolldown/pluginutils",65536,29916,"1.0.0-beta.53","upstream_lock","web:devDependencies website:devDependencies",1
+"@types/d3-array",65536,56575,"3.2.2","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-force",65536,54921,"3.0.10","upstream_lock","web:dependencies website:dependencies",1
+"available-typed-arrays",65536,32668,"1.0.7","upstream_lock","root:devDependencies",1
+"d3-axis",65536,43698,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"estree-util-build-jsx",65536,45209,"3.0.1","upstream_lock","web:dependencies",1
+"estree-util-visit",65536,30805,"2.0.0","upstream_lock","web:dependencies",1
+"hoist-non-react-statics",65536,51143,"3.3.2","upstream_lock","web:dependencies",1
+"is-async-function",65536,31504,"2.1.1","upstream_lock","root:devDependencies",1
+"is-bigint",65536,30183,"1.1.0","upstream_lock","root:devDependencies",1
+"is-callable",65536,41238,"1.2.7","upstream_lock","root:devDependencies",1
+"is-core-module",65536,41667,"2.16.1","upstream_lock","root:devDependencies web:dependencies",1
+"is-finalizationregistry",65536,29490,"1.1.1","upstream_lock","root:devDependencies",1
+"is-weakmap",65536,32859,"2.0.2","upstream_lock","root:devDependencies",1
+"is-weakref",65536,28160,"1.1.1","upstream_lock","root:devDependencies",1
+"micromark-factory-mdx-expression",65536,43053,"2.0.3","upstream_lock","web:dependencies",1
+"mitt",65536,34636,"3.0.1","upstream_lock","docs:devDependencies website:dependencies",1
+"object-keys",65536,34736,"1.1.1","upstream_lock","root:devDependencies",1
+"pvtsutils",65536,48955,"1.3.6","local_transitive_new","cli:dependencies hub:dependencies",1
+"raw-body",65536,45170,"2.5.3 3.0.2","upstream_lock","cli:dependencies website:dependencies",2
+"regenerate",65536,53252,"1.4.2","upstream_lock","root:devDependencies",1
+"safer-buffer",65536,46395,"2.1.2","upstream_lock","cli:dependencies cli:devDependencies hub:dependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"side-channel-list",65536,27029,"1.0.0","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"tw-animate-css",65536,55204,"1.4.0","upstream_lock","website:devDependencies",1
+"typed-array-length",65536,36527,"1.0.7","upstream_lock","root:devDependencies",1
+"unist-util-is",65536,39681,"6.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"@algolia/requester-fetch",61440,27271,"5.46.2","upstream_lock","docs:devDependencies",1
+"@algolia/requester-node-http",61440,29683,"5.46.2","upstream_lock","docs:devDependencies",1
+"@babel/helper-create-regexp-features-plugin",61440,35016,"7.28.5","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-optional-chaining",61440,45990,"7.28.5","upstream_lock","root:devDependencies",1
+"@socket.io/component-emitter",61440,37600,"3.1.2","upstream_lock","cli:dependencies hub:dependencies web:dependencies",1
+"@types/express-serve-static-core",61440,50346,"4.19.7","upstream_lock","website:devDependencies",1
+"@vue/devtools-shared",61440,39888,"7.7.9","upstream_lock","docs:devDependencies",1
+"@xterm/addon-fit",61440,37111,"0.11.0","upstream_lock","web:dependencies",1
+"babel-plugin-macros",61440,46175,"3.1.0","upstream_lock","web:dependencies",1
+"call-bound",61440,29394,"1.0.4","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"character-entities",61440,48730,"2.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"d3-polygon",61440,27115,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"dequal",61440,26517,"2.0.3","upstream_lock","cli:dependencies docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"escalade",61440,24673,"3.2.0","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"eventemitter3",61440,46159,"4.0.7","upstream_lock","website:dependencies",1
+"functions-have-names",61440,29003,"1.2.3","upstream_lock","root:devDependencies",1
+"gopd",61440,22157,"1.2.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"has-bigints",61440,27090,"1.1.0","upstream_lock","root:devDependencies",1
+"hast-util-raw",61440,43067,"9.1.0","upstream_lock","web:dependencies website:dependencies",1
+"is-array-buffer",61440,28406,"3.0.5","upstream_lock","root:devDependencies",1
+"is-data-view",61440,25747,"1.0.2","upstream_lock","root:devDependencies",1
+"is-shared-array-buffer",61440,29405,"1.0.4","upstream_lock","root:devDependencies",1
+"openapi-types",61440,40910,"12.1.3","upstream_lock","cli:dependencies",1
+"postcss-value-parser",61440,35385,"4.2.0","upstream_lock","web:devDependencies website:devDependencies",1
+"rehype-github-alerts",61440,50368,"4.2.0","upstream_lock","web:dependencies",1
+"safe-array-concat",61440,29891,"1.1.3","upstream_lock","root:devDependencies",1
+"safe-regex-test",61440,24205,"1.1.0","upstream_lock","root:devDependencies",1
+"safe-stable-stringify",61440,38879,"2.5.0","upstream_lock","cli:dependencies",1
+"set-function-length",61440,22939,"1.2.2","upstream_lock","root:devDependencies",1
+"side-channel-map",61440,25636,"1.0.1","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"side-channel-weakmap",61440,26955,"1.0.2","upstream_lock","cli:dependencies root:devDependencies website:dependencies",1
+"typed-array-buffer",61440,24503,"1.0.3","upstream_lock","root:devDependencies",1
+"typed-array-byte-offset",61440,32046,"1.0.4","upstream_lock","root:devDependencies",1
+"upath",61440,46538,"1.2.0","upstream_lock","root:devDependencies",1
+"use-latest",61440,21257,"1.3.0","upstream_lock","web:dependencies",1
+"vfile-message",61440,42412,"4.0.3","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"which-builtin-type",61440,38233,"1.2.1","upstream_lock","root:devDependencies",1
+"which-collection",61440,32352,"1.0.2","upstream_lock","root:devDependencies",1
+"workbox-sw",61440,30590,"7.4.0","upstream_lock","root:devDependencies",1
+"@iconify/types",57344,29767,"2.0.0","upstream_lock","docs:devDependencies web:dependencies website:dependencies",1
+"@isaacs/cliui",57344,40085,"8.0.2","upstream_lock","root:devDependencies",1
+"@types/d3-transition",57344,46407,"3.0.9","upstream_lock","web:dependencies website:dependencies",1
+"@types/ws",57344,46443,"8.18.1","upstream_lock","cli:devDependencies hub:devDependencies",1
+"array-buffer-byte-length",57344,24295,"1.0.2","upstream_lock","root:devDependencies",1
+"classnames",57344,27677,"2.5.1","upstream_lock","web:dependencies",1
+"convert-source-map",57344,35480,"1.9.0 2.0.0","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",2
+"d3-timer",57344,30693,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"data-view-buffer",57344,23611,"1.0.2","upstream_lock","root:devDependencies",1
+"data-view-byte-length",57344,23662,"1.0.2","upstream_lock","root:devDependencies",1
+"data-view-byte-offset",57344,23418,"1.0.1","upstream_lock","root:devDependencies",1
+"es-define-property",57344,22505,"1.0.1","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"estree-util-scope",57344,24728,"1.0.0","upstream_lock","web:dependencies",1
+"follow-redirects",57344,34710,"1.16.0","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"gensync",57344,37083,"1.0.0-beta.2","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"graceful-fs",57344,36631,"4.2.11","upstream_lock","cli:dependencies hub:dependencies root:devDependencies shared:dependencies web:dependencies web:devDependencies website:devDependencies",1
+"hast-util-from-parse5",57344,32780,"8.0.3","upstream_lock","web:dependencies website:dependencies",1
+"hast-util-to-text",57344,42267,"4.0.2","upstream_lock","web:dependencies website:dependencies",1
+"hookable",57344,39658,"5.5.3","upstream_lock","docs:devDependencies",1
+"js-cookie",57344,34350,"3.0.5","upstream_lock","web:dependencies",1
+"jsesc",57344,44568,"3.1.0","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"mdast-util-find-and-replace",57344,31592,"3.0.2","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-gfm-footnote",57344,32243,"2.1.0","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-math",57344,36515,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"micromark-extension-cjk-friendly-gfm-strikethrough",57344,37233,"1.2.3","upstream_lock","website:dependencies",1
+"micromark-factory-destination",57344,28741,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"own-keys",57344,22085,"1.0.1","upstream_lock","root:devDependencies",1
+"points-on-curve",57344,30688,"0.2.0","upstream_lock","web:dependencies website:dependencies",1
+"safe-push-apply",57344,20788,"1.0.0","upstream_lock","root:devDependencies",1
+"stop-iteration-iterator",57344,23934,"1.1.0","upstream_lock","root:devDependencies",1
+"strip-comments",57344,35197,"2.0.1","upstream_lock","root:devDependencies",1
+"trough",57344,31069,"2.2.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"typed-array-byte-length",57344,30731,"1.0.3","upstream_lock","root:devDependencies",1
+"unist-util-visit",57344,36672,"5.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"use-composed-ref",57344,21247,"1.4.0","upstream_lock","web:dependencies",1
+"@babel/code-frame",53248,41352,"7.27.1","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@babel/helper-string-parser",53248,40008,"7.27.1","upstream_lock","docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@rc-component/checkbox",53248,33246,"2.0.0","upstream_lock","web:dependencies",1
+"@rc-component/switch",53248,36325,"1.0.3","upstream_lock","web:dependencies",1
+"@rollup/plugin-replace",53248,37903,"2.4.2","upstream_lock","root:devDependencies",1
+"@types/d3-hierarchy",53248,44011,"3.1.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-zoom",53248,40762,"3.0.8","upstream_lock","web:dependencies website:dependencies",1
+"@types/mdurl",53248,17695,"2.0.0","upstream_lock","docs:devDependencies",1
+"@types/qrcode",53248,30741,"1.5.6","upstream_lock","hub:devDependencies web:devDependencies",1
+"class-variance-authority",53248,30265,"0.7.1","upstream_lock","web:dependencies website:dependencies",1
+"cross-spawn",53248,28382,"7.0.6","upstream_lock","cli:dependencies root:devDependencies",1
+"depd",53248,39405,"2.0.0","upstream_lock","cli:dependencies website:dependencies",1
+"detect-libc",53248,34629,"2.1.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"es-set-tostringtag",53248,22736,"2.1.0","upstream_lock","cli:dependencies docs:devDependencies root:devDependencies website:dependencies",1
+"fast-deep-equal",53248,21158,"3.1.3","upstream_lock","cli:dependencies root:devDependencies web:dependencies",1
+"hast-util-from-dom",53248,24561,"5.0.1","upstream_lock","web:dependencies website:dependencies",1
+"hast-util-is-element",53248,34530,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"hast-util-to-parse5",53248,28256,"8.0.1","upstream_lock","web:dependencies website:dependencies",1
+"jws",53248,27014,"4.0.1","upstream_lock","cli:dependencies hub:dependencies",1
+"mdast-util-gfm",53248,30345,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-gfm-table",53248,39065,"2.0.0","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-mdx-expression",53248,33920,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"media-typer",53248,28503,"0.3.0 1.1.0","upstream_lock","cli:dependencies website:dependencies",2
+"micromark-util-types",53248,43046,"2.0.2","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"next-themes",53248,41975,"0.4.6","upstream_lock","website:dependencies",1
+"parse-entities",53248,34602,"4.0.2","upstream_lock","web:dependencies website:dependencies",1
+"possible-typed-array-names",53248,21986,"1.1.0","upstream_lock","root:devDependencies",1
+"proper-lockfile",53248,38067,"4.1.2","upstream_lock","cli:dependencies hub:dependencies shared:dependencies web:dependencies",1
+"punycode",53248,37610,"2.3.1","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"pvutils",53248,39700,"1.2.0","local_transitive_new","cli:dependencies hub:dependencies",1
+"rehype-katex",53248,24227,"7.0.1","upstream_lock","web:dependencies website:dependencies",1
+"remark-gfm",53248,30185,"4.0.1","upstream_lock","web:dependencies website:dependencies",1
+"remark-mdx",53248,22933,"3.1.1","upstream_lock","web:dependencies",1
+"supports-preserve-symlinks-flag",53248,21466,"1.0.0","upstream_lock","root:devDependencies web:dependencies",1
+"to-vfile",53248,34580,"8.0.0","upstream_lock","web:dependencies",1
+"@babel/helper-globals",49152,31271,"7.28.0","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"@babel/plugin-bugfix-v8-static-class-fields-redefine-readonly",49152,33917,"7.28.3","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-class-static-block",49152,33528,"7.28.3","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-explicit-resource-management",49152,34803,"7.28.0","upstream_lock","root:devDependencies",1
+"@mdx-js/react",49152,22585,"3.1.1","upstream_lock","web:dependencies",1
+"@types/babel__core",49152,37116,"7.20.5","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@types/hast",49152,39363,"3.0.5","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"@types/json-schema",49152,35844,"7.0.15","upstream_lock","web:dependencies",1
+"ansi-regex",49152,19666,"5.0.1 6.2.2","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies web:devDependencies",2
+"clsx",49152,16747,"2.1.1","upstream_lock","web:dependencies website:dependencies website:devDependencies",1
+"color-convert",49152,31285,"2.0.1","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",1
+"cookie-es",49152,36975,"3.1.1","upstream_lock","web:dependencies",1
+"define-properties",49152,21082,"1.2.1","upstream_lock","root:devDependencies",1
+"ecdsa-sig-formatter",49152,28780,"1.0.11","upstream_lock","cli:dependencies hub:dependencies",1
+"extend",49152,27557,"3.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"fast-querystring",49152,31353,"1.1.2","upstream_lock","cli:dependencies",1
+"fresh",49152,28597,"0.5.2 2.0.0","upstream_lock","cli:dependencies website:dependencies",2
+"get-nonce",49152,21642,"1.0.1","upstream_lock","web:dependencies website:dependencies",1
+"has-property-descriptors",49152,23199,"1.0.2","upstream_lock","root:devDependencies",1
+"hast-util-from-html-isomorphic",49152,22393,"2.0.0","upstream_lock","web:dependencies website:dependencies",1
+"html-url-attributes",49152,16867,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"indent-string",49152,17334,"4.0.0 5.0.0","upstream_lock","cli:dependencies web:devDependencies",2
+"is-extendable",49152,20224,"0.1.1 1.0.1","upstream_lock","web:dependencies",2
+"is-fullwidth-code-point",49152,16713,"3.0.0 5.1.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",2
+"isbot",49152,34264,"5.1.32","upstream_lock","web:dependencies",1
+"lru_map",49152,36140,"0.4.1","upstream_lock","web:dependencies",1
+"mdast-util-gfm-autolink-literal",49152,29895,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-mdx",49152,28123,"3.0.0","upstream_lock","web:dependencies",1
+"merge-descriptors",49152,17646,"1.0.3 2.0.0","upstream_lock","cli:dependencies website:dependencies",2
+"micromark-factory-label",49152,25780,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-factory-space",49152,21945,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-factory-title",49152,24719,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-factory-whitespace",49152,20335,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-chunked",49152,24447,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-classify-character",49152,19620,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-decode-numeric-character-reference",49152,19606,"2.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-decode-string",49152,19280,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-normalize-identifier",49152,20448,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-sanitize-uri",49152,26109,"2.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"obug",49152,29407,"2.1.1","upstream_lock","cli:devDependencies web:devDependencies",1
+"pkce-challenge",49152,26403,"5.0.1","upstream_lock","cli:dependencies",1
+"pretty-bytes",49152,31012,"5.6.0 6.1.1","upstream_lock","root:devDependencies",2
+"quick-format-unescaped",49152,29213,"4.0.4","upstream_lock","cli:dependencies",1
+"remark-parse",49152,27673,"11.0.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"remark-stringify",49152,27831,"11.0.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"safe-buffer",49152,36197,"5.2.1","upstream_lock","cli:dependencies hub:dependencies root:devDependencies website:dependencies",1
+"set-function-name",49152,24912,"2.0.2","upstream_lock","root:devDependencies",1
+"string-convert",49152,12334,"0.2.1","upstream_lock","web:dependencies",1
+"strip-ansi",49152,16341,"6.0.1 7.1.2","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",2
+"unicode-match-property-value-ecmascript",49152,34921,"2.2.1","upstream_lock","root:devDependencies",1
+"@babel/helper-validator-option",45056,19967,"7.27.1","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@babel/helper-wrap-function",45056,27127,"7.28.3","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-async-generator-functions",45056,28485,"7.28.0","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-computed-properties",45056,30876,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-modules-amd",45056,29071,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-modules-umd",45056,33744,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-private-property-in-object",45056,28004,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-spread",45056,31614,"7.27.1","upstream_lock","root:devDependencies",1
+"@emoji-mart/react",45056,15300,"1.1.1","upstream_lock","web:dependencies",1
+"@radix-ui/react-accessible-icon",45056,18452,"1.1.15","upstream_lock","web:dependencies",1
+"@standard-schema/spec",45056,30826,"1.1.0","upstream_lock","cli:devDependencies web:dependencies web:devDependencies",1
+"@types/d3-dsv",45056,32675,"3.0.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-time",45056,35370,"3.0.4","upstream_lock","web:dependencies website:dependencies",1
+"@types/mdast",45056,33528,"4.0.4","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"acorn-jsx",45056,28481,"5.3.2","upstream_lock","web:dependencies",1
+"ansi-escapes",45056,24921,"7.2.0","upstream_lock","cli:dependencies",1
+"cookie-signature",45056,17268,"1.0.7 1.2.2","upstream_lock","cli:dependencies website:dependencies",2
+"cors",45056,28180,"2.8.5","upstream_lock","cli:dependencies hub:dependencies",1
+"d3-dispatch",45056,27892,"3.0.1","upstream_lock","web:dependencies website:dependencies",1
+"detect-node-es",45056,15498,"1.1.0","upstream_lock","web:dependencies website:dependencies",1
+"devlop",45056,30202,"1.1.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"esast-util-from-js",45056,27210,"2.0.1","upstream_lock","web:dependencies",1
+"estree-util-attach-comments",45056,24655,"3.0.0","upstream_lock","web:dependencies",1
+"extend-shallow",45056,21623,"2.0.1 3.0.2","upstream_lock","web:dependencies",2
+"http-proxy-agent",45056,25452,"7.0.2","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"is-mobile",45056,17487,"5.0.0","upstream_lock","web:dependencies",1
+"isexe",45056,19148,"2.0.0","upstream_lock","cli:dependencies root:devDependencies",1
+"json-schema",45056,34271,"0.4.0","upstream_lock","root:devDependencies",1
+"markdown-table",45056,30205,"3.0.4","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-gfm-strikethrough",45056,26020,"2.0.0","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-gfm-task-list-item",45056,26533,"2.0.0","upstream_lock","web:dependencies website:dependencies",1
+"mdast-util-mdxjs-esm",45056,28535,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"points-on-path",45056,21945,"0.2.1","upstream_lock","web:dependencies website:dependencies",1
+"recma-build-jsx",45056,17719,"1.0.0","upstream_lock","web:dependencies",1
+"recma-jsx",45056,17305,"1.0.1","upstream_lock","web:dependencies",1
+"recma-parse",45056,20079,"1.0.0","upstream_lock","web:dependencies",1
+"recma-stringify",45056,20848,"1.0.0","upstream_lock","web:dependencies",1
+"regexparam",45056,22690,"3.0.0","upstream_lock","website:dependencies",1
+"rehype-recma",45056,17252,"1.0.0","upstream_lock","web:dependencies",1
+"remark-cjk-friendly-gfm-strikethrough",45056,31331,"1.2.3","upstream_lock","website:dependencies",1
+"semver-compare",45056,16339,"1.0.0","upstream_lock","web:dependencies",1
+"std-env",45056,34247,"3.10.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"update-browserslist-db",45056,19395,"1.2.2","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"vfile-location",45056,21281,"5.0.3","upstream_lock","web:dependencies website:dependencies",1
+"whatwg-mimetype",45056,24913,"4.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@antfu/install-pkg",40960,21110,"1.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@builder.io/jsx-loc-internals",40960,23481,"0.0.1","upstream_lock","website:devDependencies",1
+"@tailwindcss/oxide",40960,32953,"4.1.18","upstream_lock","web:devDependencies website:devDependencies",1
+"@types/d3-chord",40960,29464,"3.0.6","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-color",40960,32012,"3.1.3","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-drag",40960,29851,"3.0.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-interpolate",40960,28597,"3.0.4","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-scale-chromatic",40960,31832,"3.1.0","upstream_lock","web:dependencies website:dependencies",1
+"@types/linkify-it",40960,22278,"5.0.0","upstream_lock","docs:devDependencies",1
+"@types/unist",40960,22997,"2.0.11 3.0.3","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",2
+"cssesc",40960,29776,"3.0.0","upstream_lock","website:devDependencies",1
+"decode-named-character-reference",40960,13543,"1.2.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"deep-eql",40960,27984,"5.0.2","upstream_lock","website:devDependencies",1
+"dijkstrajs",40960,18990,"1.0.3","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"esast-util-from-estree",40960,21610,"2.0.0","upstream_lock","web:dependencies",1
+"estree-util-is-identifier-name",40960,20054,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"hast-util-parse-selector",40960,20844,"4.0.0","upstream_lock","web:dependencies website:dependencies",1
+"hast-util-whitespace",40960,19973,"3.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"mdast-util-newline-to-break",40960,18986,"2.0.0","upstream_lock","web:dependencies",1
+"mdast-util-phrasing",40960,18224,"4.1.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"mdast-util-to-string",40960,20884,"4.0.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-extension-gfm-tagfilter",40960,20152,"2.0.0","upstream_lock","web:dependencies website:dependencies",1
+"ms",40960,21179,"2.0.0 2.1.3","upstream_lock","cli:dependencies cli:devDependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",2
+"rehype-raw",40960,20719,"7.0.0","upstream_lock","web:dependencies website:dependencies",1
+"remark-breaks",40960,19142,"4.0.0","upstream_lock","web:dependencies",1
+"remark-math",40960,21083,"6.0.0","upstream_lock","web:dependencies website:dependencies",1
+"resolve-pkg-maps",40960,23229,"1.0.0","upstream_lock","cli:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"tinyspy",40960,25787,"3.0.2","upstream_lock","website:devDependencies",1
+"unist-util-find-after",40960,23539,"5.0.0","upstream_lock","web:dependencies website:dependencies",1
+"unist-util-position",40960,20971,"5.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"unist-util-position-from-estree",40960,20119,"2.0.0","upstream_lock","web:dependencies",1
+"unist-util-remove-position",40960,19230,"5.0.0","upstream_lock","web:dependencies website:dependencies",1
+"unist-util-stringify-position",40960,21372,"4.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"w3c-xmlserializer",40960,26165,"5.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"why-is-node-running",40960,15488,"2.3.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"xmlhttprequest-ssl",40960,33606,"2.1.2","upstream_lock","cli:dependencies web:dependencies",1
+"@algolia/requester-browser-xhr",36864,14815,"5.46.2","upstream_lock","docs:devDependencies",1
+"@babel/plugin-proposal-private-property-in-object",36864,24531,"7.21.0-placeholder-for-preset-env.2","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-template-literals",36864,24020,"7.27.1","upstream_lock","root:devDependencies",1
+"@standard-schema/utils",36864,17078,"0.3.0","upstream_lock","website:dependencies",1
+"@vue/devtools-api",36864,12713,"7.7.9","upstream_lock","docs:devDependencies",1
+"attr-accept",36864,20366,"2.2.5","upstream_lock","web:dependencies",1
+"babel-plugin-polyfill-regenerator",36864,22300,"0.6.5","upstream_lock","root:devDependencies",1
+"brace-expansion",36864,19726,"2.0.2","upstream_lock","root:devDependencies",1
+"combined-stream",36864,19706,"1.0.8","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"filelist",36864,22683,"1.0.4","upstream_lock","root:devDependencies",1
+"find-root",36864,13464,"1.1.0","upstream_lock","web:dependencies",1
+"get-east-asian-width",36864,19715,"1.4.0","upstream_lock","cli:dependencies web:dependencies website:dependencies",1
+"get-own-enumerable-property-symbols",36864,12896,"3.0.2","upstream_lock","root:devDependencies",1
+"giscus",36864,25465,"1.6.0","upstream_lock","web:dependencies",1
+"hachure-fill",36864,16867,"0.5.2","upstream_lock","web:dependencies website:dependencies",1
+"is-arrayish",36864,8149,"0.2.1","upstream_lock","web:dependencies",1
+"loose-envify",36864,9910,"1.4.0","upstream_lock","web:dependencies website:dependencies",1
+"micromark-extension-gfm",36864,24417,"3.0.0","upstream_lock","web:dependencies website:dependencies",1
+"randombytes",36864,10459,"2.1.0","upstream_lock","root:devDependencies",1
+"regex-utilities",36864,27727,"2.3.0","upstream_lock","docs:devDependencies web:dependencies website:dependencies",1
+"require-directory",36864,16167,"2.1.1","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"screenfull",36864,26320,"5.2.0","upstream_lock","web:dependencies",1
+"tailwindcss-animate",36864,22217,"1.0.7","upstream_lock","website:dependencies",1
+"typed-emitter",36864,15533,"2.1.0","upstream_lock","web:dependencies",1
+"whatwg-encoding",36864,21531,"3.1.1","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@babel/helper-plugin-utils",32768,20010,"7.27.1","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@babel/helper-remap-async-to-generator",32768,18025,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-bugfix-firefox-class-in-computed-class-key",32768,20865,"7.28.5","upstream_lock","root:devDependencies",1
+"@babel/plugin-bugfix-safari-class-field-initializer-scope",32768,19034,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-bugfix-v8-spread-parameters-in-optional-chaining",32768,18841,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-duplicate-keys",32768,17305,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-exponentiation-operator",32768,19747,"7.28.5","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-logical-assignment-operators",32768,16668,"7.28.5","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-new-target",32768,18426,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-nullish-coalescing-operator",32768,18588,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-object-super",32768,17410,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-react-jsx-self",32768,17214,"7.27.1","upstream_lock","web:devDependencies website:devDependencies",1
+"@babel/plugin-transform-react-jsx-source",32768,17378,"7.27.1","upstream_lock","web:devDependencies website:devDependencies",1
+"@babel/plugin-transform-typeof-symbol",32768,18711,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-unicode-escapes",32768,22091,"7.27.1","upstream_lock","root:devDependencies",1
+"@builder.io/vite-plugin-jsx-loc",32768,11922,"0.1.1","upstream_lock","website:devDependencies",1
+"@medv/finder",32768,18266,"4.0.2","upstream_lock","website:devDependencies",1
+"@tailwindcss/vite",32768,19554,"4.1.18","upstream_lock","website:devDependencies",1
+"@types/d3-axis",32768,19751,"3.0.6","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-brush",32768,19958,"3.0.6","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-fetch",32768,20999,"3.0.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-format",32768,22049,"3.0.4","upstream_lock","web:dependencies website:dependencies",1
+"@types/katex",32768,18339,"0.16.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/web-push",32768,19081,"3.6.4","upstream_lock","hub:devDependencies",1
+"add",32768,12154,"2.0.6","upstream_lock","website:devDependencies",1
+"auto-bind",32768,10896,"5.0.1","upstream_lock","cli:dependencies",1
+"buffer-equal-constant-time",32768,9328,"1.0.1","upstream_lock","cli:dependencies hub:dependencies",1
+"copy-anything",32768,18190,"4.0.5","upstream_lock","docs:devDependencies",1
+"delayed-stream",32768,16213,"1.0.0","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"emoji-regex-xs",32768,11910,"1.0.0","upstream_lock","docs:devDependencies",1
+"fast-decode-uri-component",32768,13328,"1.0.1","upstream_lock","cli:dependencies",1
+"http-errors",32768,23160,"2.0.1","upstream_lock","cli:dependencies website:dependencies",1
+"invariant",32768,11735,"2.2.4","upstream_lock","website:dependencies",1
+"js-tokens",32768,19165,"4.0.0","upstream_lock","root:devDependencies web:dependencies web:devDependencies website:dependencies website:devDependencies",1
+"json-schema-resolver",32768,17412,"3.0.0","upstream_lock","cli:dependencies",1
+"json2mq",32768,14228,"0.2.0","upstream_lock","web:dependencies",1
+"jwa",32768,18148,"2.0.1","upstream_lock","cli:dependencies hub:dependencies",1
+"micromark-extension-mdxjs",32768,18086,"3.0.0","upstream_lock","web:dependencies",1
+"micromark-util-combine-extensions",32768,16483,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-encode",32768,12067,"2.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-html-tag-name",32768,14522,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"micromark-util-resolve-all",32768,14412,"2.0.1","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"on-finished",32768,17775,"2.4.1","upstream_lock","cli:dependencies website:dependencies",1
+"patch-console",32768,14177,"2.0.0","upstream_lock","cli:dependencies",1
+"perfect-debounce",32768,17431,"1.0.0","upstream_lock","docs:devDependencies",1
+"picocolors",32768,10469,"1.1.1","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:dependencies web:devDependencies website:devDependencies",1
+"proxy-addr",32768,19495,"2.0.7","upstream_lock","cli:dependencies website:dependencies",1
+"react-fast-compare",32768,20250,"3.2.2","upstream_lock","web:dependencies website:dependencies",1
+"serialize-javascript",32768,20989,"6.0.2","upstream_lock","root:devDependencies",1
+"set-cookie-parser",32768,24646,"2.7.2","upstream_lock","cli:dependencies",1
+"setprototypeof",32768,12217,"1.2.0","upstream_lock","cli:dependencies website:dependencies",1
+"split2",32768,21515,"4.2.0","upstream_lock","cli:dependencies",1
+"stackback",32768,10980,"0.0.2","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"which",32768,18167,"2.0.2","upstream_lock","cli:dependencies root:devDependencies",1
+"xml-name-validator",32768,21766,"5.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"@alloc/quick-lru",28672,18195,"5.2.0","upstream_lock","web:devDependencies",1
+"@babel/helper-annotate-as-pure",28672,12234,"7.27.3","upstream_lock","root:devDependencies",1
+"@babel/helper-optimise-call-expression",28672,14864,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/helper-skip-transparent-expression-wrappers",28672,14193,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-bugfix-safari-id-destructuring-collision-in-function-expression",28672,15898,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-syntax-import-assertions",28672,13927,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-syntax-import-attributes",28672,14546,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-arrow-functions",28672,13742,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-async-to-generator",28672,16196,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-block-scoped-functions",28672,15341,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-class-properties",28672,13220,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-dotall-regex",28672,12326,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-duplicate-named-capturing-groups-regex",28672,13530,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-dynamic-import",28672,14319,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-export-namespace-from",28672,16183,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-function-name",28672,15307,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-json-strings",28672,13936,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-literals",28672,12819,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-member-expression-literals",28672,13134,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-named-capturing-groups-regex",28672,13050,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-numeric-separator",28672,13483,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-optional-catch-binding",28672,12911,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-private-methods",28672,13066,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-property-literals",28672,12908,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-regexp-modifiers",28672,12408,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-reserved-words",28672,12435,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-shorthand-properties",28672,15299,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-sticky-regex",28672,12835,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-unicode-property-regex",28672,13222,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-unicode-regex",28672,12126,"7.27.1","upstream_lock","root:devDependencies",1
+"@babel/plugin-transform-unicode-sets-regex",28672,13111,"7.27.1","upstream_lock","root:devDependencies",1
+"@fastify/forwarded",28672,13892,"3.0.1","upstream_lock","cli:dependencies",1
+"@types/aria-query",28672,16079,"5.0.4","upstream_lock","web:devDependencies",1
+"@types/babel__generator",28672,15537,"7.27.0","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@types/d3-contour",28672,17573,"3.0.6","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-delaunay",28672,18293,"6.0.4","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-ease",28672,17501,"3.0.2","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-quadtree",28672,15677,"3.0.6","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-random",28672,18727,"3.0.3","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-time-format",28672,16690,"4.0.3","upstream_lock","web:dependencies website:dependencies",1
+"@types/dom-mediacapture-record",28672,17149,"1.0.22","upstream_lock","web:dependencies",1
+"@types/trusted-types",28672,16769,"2.0.7","upstream_lock","root:devDependencies web:dependencies website:dependencies",1
+"@types/web-bluetooth",28672,17384,"0.0.21","upstream_lock","docs:devDependencies",1
+"atomic-sleep",28672,10667,"1.0.0","upstream_lock","cli:dependencies",1
+"balanced-match",28672,15131,"1.0.2","upstream_lock","root:devDependencies",1
+"base64id",28672,12884,"2.0.0","upstream_lock","cli:dependencies hub:dependencies",1
+"bytes",28672,16366,"3.1.2","upstream_lock","cli:dependencies website:dependencies",1
+"character-entities-html4",28672,15460,"2.1.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"character-entities-legacy",28672,13237,"3.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"character-reference-invalid",28672,12524,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"check-error",28672,15479,"2.1.1","upstream_lock","website:devDependencies",1
+"cli-boxes",28672,10712,"3.0.0","upstream_lock","cli:dependencies",1
+"cli-truncate",28672,17179,"5.1.1","upstream_lock","cli:dependencies",1
+"cliui",28672,18969,"6.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"code-excerpt",28672,12407,"4.0.0","upstream_lock","cli:dependencies",1
+"collapse-white-space",28672,14140,"2.1.0","upstream_lock","web:dependencies",1
+"comma-separated-tokens",28672,14067,"2.0.3","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"content-type",28672,14567,"1.0.5","upstream_lock","cli:dependencies website:dependencies",1
+"convert-to-spaces",28672,11154,"2.0.1","upstream_lock","cli:dependencies",1
+"data-urls",28672,16026,"5.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"etag",28672,14905,"1.8.1","upstream_lock","cli:dependencies website:dependencies",1
+"get-caller-file",28672,8815,"2.0.5","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"html-encoding-sniffer",28672,19854,"4.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"http_ece",28672,21302,"1.2.0","upstream_lock","cli:dependencies hub:dependencies",1
+"is-in-ci",28672,8111,"2.0.0","upstream_lock","cli:dependencies",1
+"is-promise",28672,7054,"4.0.0","upstream_lock","cli:dependencies",1
+"jsonfile",28672,14924,"6.2.0","upstream_lock","root:devDependencies",1
+"lines-and-columns",28672,13578,"1.2.4","upstream_lock","web:dependencies",1
+"lodash.debounce",28672,18047,"4.0.8","upstream_lock","root:devDependencies",1
+"markdown-extensions",28672,6919,"2.0.0","upstream_lock","web:dependencies",1
+"micromark-extension-mdx-md",28672,14228,"2.0.0","upstream_lock","web:dependencies",1
+"proxy-from-env",28672,19739,"2.1.0","upstream_lock","cli:dependencies docs:devDependencies website:dependencies",1
+"react-merge-refs",28672,14183,"3.0.2","upstream_lock","web:dependencies",1
+"regjsgen",28672,19082,"0.8.0","upstream_lock","root:devDependencies",1
+"shallowequal",28672,11443,"1.1.0","upstream_lock","website:dependencies",1
+"siginfo",28672,8885,"2.0.0","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"stack-utils",28672,18696,"2.0.6","upstream_lock","cli:dependencies",1
+"statuses",28672,16601,"2.0.2","upstream_lock","cli:dependencies website:dependencies",1
+"url-join",28672,12934,"5.0.0","upstream_lock","web:dependencies",1
+"util-deprecate",28672,9577,"1.0.2","upstream_lock","website:devDependencies",1
+"y18n",28672,15087,"4.0.3","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"zwitch",28672,17848,"2.0.4","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"@babel/plugin-syntax-unicode-sets-regex",24576,11588,"7.18.6","upstream_lock","root:devDependencies",1
+"@types/d3-dispatch",24576,11718,"3.0.7","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-path",24576,12480,"3.1.1","upstream_lock","web:dependencies website:dependencies",1
+"@types/express",24576,11959,"4.17.21","upstream_lock","website:devDependencies",1
+"@types/geojson",24576,13610,"7946.0.16","upstream_lock","web:dependencies website:dependencies",1
+"@types/js-cookie",24576,11530,"3.0.6","upstream_lock","web:dependencies",1
+"@types/mdx",24576,13884,"2.0.13","upstream_lock","web:dependencies",1
+"@types/resolve",24576,13981,"1.20.2","upstream_lock","root:devDependencies",1
+"@types/retry",24576,11669,"0.12.5","upstream_lock","shared:devDependencies",1
+"@types/send",24576,13102,"1.2.1","upstream_lock","website:devDependencies",1
+"@types/serve-static",24576,12756,"2.2.0","upstream_lock","website:devDependencies",1
+"assertion-error",24576,9928,"2.0.1","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"bail",24576,10449,"2.0.2","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"callsites",24576,10428,"3.1.0","upstream_lock","web:dependencies",1
+"camelcase",24576,11543,"5.3.1","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"ccount",24576,11440,"2.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"cli-cursor",24576,8546,"4.0.0","upstream_lock","cli:dependencies",1
+"color-name",24576,10789,"1.1.4","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies root:devDependencies web:dependencies",1
+"crypto-random-string",24576,8025,"2.0.0","upstream_lock","root:devDependencies",1
+"decode-uri-component",24576,10618,"0.4.1","upstream_lock","web:dependencies",1
+"destroy",24576,13114,"1.2.0","upstream_lock","website:dependencies",1
+"eastasianwidth",24576,17736,"0.2.0","upstream_lock","root:devDependencies",1
+"environment",24576,12985,"1.1.0","upstream_lock","cli:dependencies",1
+"error-ex",24576,13132,"1.3.4","upstream_lock","web:dependencies",1
+"filter-obj",24576,10032,"5.1.0","upstream_lock","web:dependencies",1
+"find-up",24576,15707,"4.1.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"forwarded",24576,9972,"0.2.0","upstream_lock","cli:dependencies website:dependencies",1
+"html-void-elements",24576,10995,"3.0.0","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"import-fresh",24576,8789,"3.3.1","upstream_lock","web:dependencies",1
+"inherits",24576,8054,"2.0.4","upstream_lock","cli:dependencies hub:dependencies website:dependencies",1
+"is-alphabetical",24576,11331,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"is-alphanumerical",24576,11489,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"is-decimal",24576,10988,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"is-hexadecimal",24576,11374,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"is-module",24576,6975,"1.0.0","upstream_lock","root:devDependencies",1
+"is-plain-obj",24576,8176,"4.1.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"is-plain-object",24576,11599,"2.0.4","upstream_lock","web:dependencies",1
+"is-stream",24576,10023,"2.0.1","upstream_lock","root:devDependencies",1
+"isobject",24576,11028,"3.0.1","upstream_lock","web:dependencies",1
+"json-parse-even-better-errors",24576,14522,"2.3.1","upstream_lock","web:dependencies",1
+"jsonpointer",24576,10847,"5.0.1","upstream_lock","root:devDependencies",1
+"leven",24576,9438,"3.1.0","upstream_lock","root:devDependencies",1
+"locate-path",24576,10680,"5.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"longest-streak",24576,11757,"3.1.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"merge-value",24576,11474,"1.0.0","upstream_lock","web:dependencies",1
+"methods",24576,9384,"1.1.2","upstream_lock","website:dependencies",1
+"mimic-fn",24576,8553,"2.1.0","upstream_lock","cli:dependencies",1
+"onetime",24576,10269,"5.1.2","upstream_lock","cli:dependencies",1
+"p-limit",24576,11486,"2.3.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"p-locate",24576,11381,"4.1.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"p-try",24576,8467,"2.2.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"parseurl",24576,14395,"1.3.3","upstream_lock","cli:dependencies website:dependencies",1
+"path-exists",24576,8015,"4.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"path-key",24576,8649,"3.1.1","upstream_lock","cli:dependencies root:devDependencies",1
+"path-type",24576,9503,"4.0.0","upstream_lock","web:dependencies",1
+"pathval",24576,18435,"2.0.1","upstream_lock","website:devDependencies",1
+"range-parser",24576,12553,"1.2.1","upstream_lock","cli:dependencies website:dependencies",1
+"real-require",24576,13019,"0.2.0","upstream_lock","cli:dependencies",1
+"redent",24576,7695,"3.0.0","upstream_lock","web:devDependencies",1
+"require-main-filename",24576,8024,"2.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"restore-cursor",24576,7321,"4.0.0","upstream_lock","cli:dependencies",1
+"set-blocking",24576,8320,"2.0.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"set-value",24576,14418,"2.0.1","upstream_lock","web:dependencies",1
+"shebang-regex",24576,6924,"3.0.0","upstream_lock","cli:dependencies root:devDependencies",1
+"slice-ansi",24576,12131,"7.1.2","upstream_lock","cli:dependencies",1
+"space-separated-tokens",24576,11849,"2.0.2","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"split-on-first",24576,7872,"3.0.0","upstream_lock","web:dependencies",1
+"split-string",24576,17917,"3.1.0","upstream_lock","web:dependencies",1
+"strip-indent",24576,7408,"3.0.0","upstream_lock","web:devDependencies",1
+"temp-dir",24576,7381,"2.0.0","upstream_lock","root:devDependencies",1
+"tempy",24576,13023,"0.6.0","upstream_lock","root:devDependencies",1
+"toidentifier",24576,8781,"1.0.1","upstream_lock","cli:dependencies website:dependencies",1
+"trim-lines",24576,11589,"3.0.1","upstream_lock","docs:devDependencies web:dependencies web:devDependencies website:dependencies",1
+"unique-string",24576,6976,"2.0.0","upstream_lock","root:devDependencies",1
+"unpipe",24576,8407,"1.0.0","upstream_lock","cli:dependencies website:dependencies",1
+"utils-merge",24576,7816,"1.0.1","upstream_lock","website:dependencies",1
+"vary",24576,12843,"1.1.2","upstream_lock","cli:dependencies hub:dependencies website:dependencies",1
+"web-namespaces",24576,11539,"2.0.1","upstream_lock","web:dependencies website:dependencies",1
+"widest-line",24576,7474,"5.0.0","upstream_lock","cli:dependencies",1
+"@types/babel__template",20480,10505,"7.4.4","upstream_lock","root:devDependencies web:devDependencies website:devDependencies",1
+"@types/body-parser",20480,11984,"1.19.6","upstream_lock","website:devDependencies",1
+"@types/connect",20480,10003,"3.4.38","upstream_lock","website:devDependencies",1
+"@types/cors",20480,10244,"2.8.19","upstream_lock","cli:dependencies hub:dependencies",1
+"@types/cross-spawn",20480,8943,"6.0.6","upstream_lock","cli:dependencies",1
+"@types/d3",20480,12472,"7.4.3","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-polygon",20480,10591,"3.0.2","upstream_lock","web:dependencies website:dependencies",1
+"@types/d3-timer",20480,10851,"3.0.2","upstream_lock","web:dependencies website:dependencies",1
+"@types/debug",20480,10546,"4.1.12","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"@types/deep-eql",20480,8858,"4.0.2","upstream_lock","cli:devDependencies web:devDependencies",1
+"@types/estree-jsx",20480,9869,"1.0.5","upstream_lock","web:dependencies website:dependencies",1
+"@types/http-errors",20480,10923,"2.0.5","upstream_lock","website:devDependencies",1
+"@types/ms",20480,9197,"2.1.0","upstream_lock","web:dependencies web:devDependencies website:dependencies",1
+"@types/parse-json",20480,7042,"4.0.2","upstream_lock","web:dependencies",1
+"@types/proper-lockfile",20480,9936,"4.1.4","upstream_lock","shared:devDependencies",1
+"@types/qs",20480,11605,"6.14.0","upstream_lock","website:devDependencies",1
+"@types/range-parser",20480,8711,"1.2.7","upstream_lock","website:devDependencies",1
+"abstract-logging",20480,6396,"2.0.1","upstream_lock","cli:dependencies",1
+"array-flatten",20480,8518,"1.1.1","upstream_lock","website:dependencies",1
+"assign-symbols",20480,9944,"1.0.0","upstream_lock","web:dependencies",1
+"at-least-node",20480,6721,"1.0.0","upstream_lock","root:devDependencies",1
+"buffer-from",20480,9143,"1.1.2","upstream_lock","cli:devDependencies docs:devDependencies root:devDependencies web:devDependencies website:devDependencies",1
+"css.escape",20480,10582,"1.5.1","upstream_lock","web:devDependencies",1
+"decamelize",20480,7036,"1.2.0","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"ee-first",20480,10355,"1.1.1","upstream_lock","cli:dependencies website:dependencies",1
+"encodeurl",20480,11076,"2.0.0","upstream_lock","cli:dependencies website:dependencies",1
+"escape-html",20480,7756,"1.0.3","upstream_lock","cli:dependencies website:dependencies",1
+"for-in",20480,10380,"1.0.2","upstream_lock","web:dependencies",1
+"is-obj",20480,6499,"1.0.1","upstream_lock","root:devDependencies",1
+"is-potential-custom-element-name",20480,8014,"1.0.1","upstream_lock","cli:devDependencies web:devDependencies website:devDependencies",1
+"isarray",20480,7526,"2.0.5","upstream_lock","root:devDependencies",1
+"min-indent",20480,7065,"1.0.1","upstream_lock","web:devDependencies",1
+"minimalistic-assert",20480,5643,"1.0.1","upstream_lock","cli:dependencies hub:dependencies",1
+"mixin-deep",20480,11314,"1.3.2","upstream_lock","web:dependencies",1
+"object-assign",20480,9589,"4.1.1","upstream_lock","cli:dependencies hub:dependencies web:dependencies website:dependencies",1
+"once",20480,8142,"1.4.0","upstream_lock","cli:dependencies",1
+"parent-module",20480,8018,"1.0.1","upstream_lock","web:dependencies",1
+"parse-json",20480,9505,"5.2.0","upstream_lock","web:dependencies",1
+"path-parse",20480,8607,"1.0.7","upstream_lock","root:devDependencies web:dependencies",1
+"require-from-string",20480,7518,"2.0.2","upstream_lock","cli:dependencies root:devDependencies",1
+"resolve-from",20480,8737,"4.0.0","upstream_lock","web:dependencies",1
+"shebang-command",20480,6652,"2.0.0","upstream_lock","cli:dependencies root:devDependencies",1
+"stringify-object",20480,12216,"3.3.0","upstream_lock","root:devDependencies",1
+"unicode-canonical-property-names-ecmascript",20480,8913,"2.0.1","upstream_lock","root:devDependencies",1
+"unicode-match-property-ecmascript",20480,9143,"2.0.0","upstream_lock","root:devDependencies",1
+"unicode-property-aliases-ecmascript",20480,10126,"2.2.0","upstream_lock","root:devDependencies",1
+"universalify",20480,8771,"2.0.1","upstream_lock","root:devDependencies",1
+"void-elements",20480,7209,"3.1.0","upstream_lock","website:dependencies",1
+"which-module",20480,8132,"2.0.1","upstream_lock","cli:dependencies docs:devDependencies hub:dependencies web:dependencies",1
+"wrappy",20480,7057,"1.0.2","upstream_lock","cli:dependencies",1
+"@types/ps-list",16384,5828,"6.2.1","upstream_lock","cli:dependencies",1
+"get-value",16384,7805,"2.0.6","upstream_lock","web:dependencies",1
+"is-regexp",16384,5304,"1.0.0","upstream_lock","root:devDependencies",1
+"hast",12288,4605,"1.0.0","upstream_lock","website:dependencies",1

@@ -118,7 +118,7 @@ def prepare(args):
 
 def main():
     home = Path.home()
-    deployment = home / "hapi-deployment"
+    deployment = home / ".local/share/hapi"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("targets", nargs="+", choices=("source", "web", "cli"))
     parser.add_argument("--commit", required=True, help="full commit ID in the source repository")
@@ -126,7 +126,7 @@ def main():
     parser.add_argument("--repo", default="C:/Users/Igna/codex-temp/hapi-deployment/source",
                         help="repository path as seen by the chosen Git executable")
     parser.add_argument("--git", default="/mnt/c/Program Files/Git/cmd/git.exe", help="Git executable")
-    parser.add_argument("--build-root", type=Path, default=deployment / "release-builds",
+    parser.add_argument("--build-root", type=Path, default=home / ".cache/hapi/builds",
                         help="WSL directory for temporary build trees")
     parser.add_argument("--bun", type=Path, default=deployment / "build-tools/bun/bin/bun",
                         help="Bun executable")

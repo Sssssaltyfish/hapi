@@ -1,0 +1,17 @@
+{
+  "matched_exact": 707,
+  "matched_after_crlf_normalization": 2580,
+  "missing": [
+    "docs/claude-composer-command-research.zh-CN.md",
+    "docs/provider-deep-research-coverage.zh-CN.md"
+  ],
+  "different": [
+    "docs/guide/pwa.md"
+  ],
+  "extra_untracked": [
+    "cli/src/codex/shared/discoveryAudit.ts",
+    "cli/src/codex/shared/discoverySmoke.ts",
+    "cli/src/codex/shared/subagentAudit.ts"
+  ],
+  "extra_tracked": []
+}

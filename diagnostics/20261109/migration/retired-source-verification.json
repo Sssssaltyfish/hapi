@@ -1,0 +1,14 @@
+{
+  "oldRoot": "/home/igna/hapi-deployment/source",
+  "deployedRelease": "/home/igna/.local/share/hapi/releases/hub-6a5341eef013",
+  "matchedFiles": 3289,
+  "historicalDocs": [
+    "docs/guide/pwa.md"
+  ],
+  "unmatchedFiles": [
+    "hub/logs/CodexDesktopScript.log",
+    "hub/src/web/embeddedAssets.generated.ts",
+    "shared/tools/tunwg/tunwg-x64-linux"
+  ],
+  "applicationGit": "/mnt/c/Users/Igna/codex-temp/hapi-deployment/source"
+}

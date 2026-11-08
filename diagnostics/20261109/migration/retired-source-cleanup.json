@@ -1,0 +1,12 @@
+{
+  "deleted": "/home/igna/hapi-deployment/source",
+  "bytes": 259678208,
+  "matchingFiles": 3289,
+  "oldDocBlobInApplicationGit": "0c74948ea240dd11778ce6eac71e4dfd8e05aba4",
+  "otherFiles": [
+    "old log",
+    "generated web asset manifest",
+    "rebuildable unused relay executable"
+  ],
+  "otherOldDeploymentDirectoriesPreserved": true
+}
