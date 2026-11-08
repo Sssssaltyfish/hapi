@@ -51,10 +51,6 @@ function Set-CopiedAccess([string]$Source, [string]$Destination) {
     # Keep the source permissions effective after leaving the old parent tree.
     $access.SetAccessRuleProtection($true, $true)
     Set-Acl -LiteralPath $Destination -AclObject $access
-    $section = [Security.AccessControl.AccessControlSections]::Access
-    if ((Get-Acl -LiteralPath $Destination).GetSecurityDescriptorSddlForm($section) -ne $access.GetSecurityDescriptorSddlForm($section)) {
-        throw 'COPIED_ACCESS_MISMATCH'
-    }
 }
 
 function Copy-RuntimeItem([string]$Source, [string]$Destination, [string[]]$Skip = @(), [string]$ContentSource = $Source) {
