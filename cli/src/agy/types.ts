@@ -1,5 +1,6 @@
 import type { AgyPermissionMode } from '@hapi/protocol/types';
 import type { SessionEffort, SessionModel } from '@/api/types';
+import type { QueuedSkillReference } from '@/utils/queuedSkillReference';
 
 export type PermissionMode = AgyPermissionMode;
 
@@ -14,4 +15,6 @@ export interface AgyMode {
     permissionMode: PermissionMode;
     model?: SessionModel;
     effort?: SessionEffort;
+    /** Explicit skill reference in one isolated, attachment-formatted prompt. */
+    skillReference?: QueuedSkillReference;
 }

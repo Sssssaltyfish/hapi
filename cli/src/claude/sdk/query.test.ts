@@ -50,6 +50,41 @@ afterEach(() => {
 })
 
 describe('Query', () => {
+    it('discovers the native catalog with a control request and no user message', async () => {
+        const child = createFakeChild()
+        spawnMock.mockReturnValueOnce(child)
+        process.env.HAPI_CLAUDE_PATH = 'claude'
+        const writes: Array<{ type: string; request_id: string; request?: unknown }> = []
+        child.stdin.on('data', chunk => {
+            const message = JSON.parse(String(chunk)) as typeof writes[number]
+            writes.push(message)
+            child.stdout.write(JSON.stringify({ type: 'control_response', response: {
+                request_id: message.request_id,
+                subtype: 'success',
+                response: {
+                    commands: [{ name: 'hapi-visualize', description: 'Make a visualization', argumentHint: '' }]
+                }
+            } }) + '\n')
+        })
+
+        const { extractSDKMetadata } = await import('./metadataExtractor')
+        await expect(extractSDKMetadata({
+            cwd: '/workspace', claudeArgs: ['--plugin-dir', '/plugins/example', '--settings=preferences.json', '--resume', 'ignored']
+        })).resolves.toMatchObject({ slashCommands: ['hapi-visualize'] })
+
+        const [command, args, options] = spawnMock.mock.calls[0]!
+        expect(command).toBe('claude')
+        expect(args).toEqual([
+            '--output-format', 'stream-json', '--verbose', '--plugin-dir', '/plugins/example', '--settings=preferences.json',
+            '--no-session-persistence', '--permission-mode', 'default', '--input-format', 'stream-json'
+        ])
+        expect(options.cwd).toBe('/workspace')
+        expect(writes).toEqual([{
+            type: 'control_request', request_id: expect.any(String), request: { subtype: 'initialize' }
+        }])
+        expect(killProcessMock).toHaveBeenCalledOnce()
+    })
+
     it('answers and cancels native side questions while a main turn waits for approval', async () => {
         const { Query } = await import('./query')
         const stdin = new PassThrough()

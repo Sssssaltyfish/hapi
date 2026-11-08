@@ -166,6 +166,10 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
         function onMessage(message: SDKMessage) {
             if (message.type === 'rate_limit_event') session.client.noteProviderRateLimit?.(message.rate_limit_info);
+            if (message.type === 'system' && message.subtype === 'init' && Array.isArray(message.tools)) {
+                const tools = message.tools.filter((tool): tool is string => typeof tool === 'string');
+                session.client.updateMetadata(metadata => ({ ...metadata, tools }));
+            }
             formatClaudeMessageForInk(message, messageBuffer);
             permissionHandler.onMessage(message);
 

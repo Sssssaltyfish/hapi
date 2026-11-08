@@ -4,7 +4,7 @@ import { registerKillSessionHandler } from '@/claude/registerKillSessionHandler'
 import { createRunnerLifecycle, setControlledByUser } from '@/agent/runnerLifecycle'
 import { bootstrapExistingSession, bootstrapSession } from '@/agent/sessionFactory'
 import { registerSessionConfigRpc } from '@/agent/sessionConfigRpc'
-import { formatMessageWithAttachments } from '@/utils/attachmentFormatter'
+import { formatQueuedSkillMessage } from '@/utils/queuedSkillReference'
 import { getInvokedCwd } from '@/utils/invokedCwd'
 import { logger } from '@/ui/logger'
 import type { AgentState } from '@/api/types'
@@ -72,11 +72,16 @@ export async function runDsh(opts: {
             session.sendSessionEvent({ type: 'message', message: 'DSH /compact does not accept attachments through this adapter. Send the command without attachments.' })
             return
         }
-        const push = /^\/[a-z][a-z0-9-]*(?:\s|$)/.test(message.content.text.trim())
+        const formatted = formatQueuedSkillMessage(message.content.text, message.content.attachments)
+        const push = formatted.skillReference || /^\/[a-z][a-z0-9-]*(?:\s|$)/.test(message.content.text.trim())
             ? queue.pushIsolated.bind(queue) : queue.push.bind(queue)
         push(
-            compact ? message.content.text.trim() : formatMessageWithAttachments(message.content.text, message.content.attachments),
-            { ...dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()), ...(customSlash ? { customSlash: true as const } : {}) },
+            compact ? message.content.text.trim() : formatted.message,
+            {
+                ...dshModeForPreference(currentModel, launcherRef.current?.getConfigPreferences()),
+                ...(customSlash ? { customSlash: true } : {}),
+                ...(formatted.skillReference ? { skillReference: formatted.skillReference } : {})
+            },
             localId
         )
         if (localId && message.meta?.deliveryMode === 'steer') sessionRef.current?.requestQueuedSteer(localId)

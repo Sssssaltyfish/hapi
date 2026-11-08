@@ -4,7 +4,7 @@
  */
 
 import { query } from './query'
-import type { SDKSystemMessage } from './types'
+import { z } from 'zod'
 import { logger } from '@/ui/logger'
 import type { SkillSummary } from '@/modules/common/skills'
 
@@ -26,6 +26,11 @@ const CATALOG_VALUE_FLAGS = new Set([
     '--settings',
     '--setting-sources'
 ])
+const InitializeCatalogSchema = z.object({
+    commands: z.array(z.object({ name: z.string().trim().min(1) })),
+    tools: z.array(z.string()).optional(),
+    skills: z.array(z.string()).optional()
+})
 
 export function filterCatalogAffectingClaudeArgs(args: readonly string[] | undefined): string[] {
     if (!args) return []
@@ -72,64 +77,30 @@ export function classifyClaudeSlashCatalog(
     return { commands, skills }
 }
 
-/**
- * Extract SDK metadata by running a minimal query and capturing the init message
- * @returns SDK metadata containing tools and slash commands
- */
+/** Read the native catalog through stream-json control without starting a model turn. */
 export async function extractSDKMetadata(options: {
     cwd?: string
     claudeArgs?: readonly string[]
 } = {}): Promise<SDKMetadata> {
     const abortController = new AbortController()
     const timeout = setTimeout(() => abortController.abort(), 10_000)
-    
     try {
         logger.debug('[metadataExtractor] Starting SDK metadata extraction')
-        
-        // Run SDK with minimal tools allowed
         const sdkQuery = query({
-            prompt: 'hello',
+            prompt: null,
             options: {
                 cwd: options.cwd,
-                additionalArgs: filterCatalogAffectingClaudeArgs(options.claudeArgs),
-                allowedTools: ['Bash(echo)'],
-                maxTurns: 1,
+                additionalArgs: [...filterCatalogAffectingClaudeArgs(options.claudeArgs), '--no-session-persistence'],
                 abort: abortController.signal
             }
         })
-
-        // Wait for the first system message which contains tools and slash commands
-        for await (const message of sdkQuery) {
-            if (message.type === 'system' && message.subtype === 'init') {
-                const systemMessage = message as SDKSystemMessage
-                
-                const metadata: SDKMetadata = {
-                    tools: systemMessage.tools,
-                    skills: systemMessage.skills,
-                    slashCommands: systemMessage.slash_commands
-                }
-                
-                logger.debug('[metadataExtractor] Captured SDK metadata:', metadata)
-                
-                // Abort the query since we got what we need
-                abortController.abort()
-                
-                return metadata
-            }
-        }
-        
-        logger.debug('[metadataExtractor] No init message received from SDK')
-        return {}
-        
+        const catalog = InitializeCatalogSchema.parse(await sdkQuery.initialize(abortController.signal))
+        return { tools: catalog.tools, skills: catalog.skills, slashCommands: catalog.commands.map(command => command.name) }
     } catch (error) {
-        // Check if it's an abort error (expected)
-        if (error instanceof Error && error.name === 'AbortError') {
-            logger.debug('[metadataExtractor] SDK query aborted after capturing metadata')
-            return {}
-        }
         logger.debug('[metadataExtractor] Error extracting SDK metadata:', error)
         return {}
     } finally {
         clearTimeout(timeout)
+        abortController.abort()
     }
 }

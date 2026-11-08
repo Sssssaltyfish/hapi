@@ -18,6 +18,7 @@ import { killProcessByChildProcess } from '@/utils/process';
 import { AGY_MODEL_LABELS } from '@hapi/protocol';
 import { getAgentLaunchCommand } from '@/agent/agentLaunchCommand';
 import { AgySteering } from './agySteering';
+import { hasQueuedSkill } from '@/utils/queuedSkillReference';
 
 const AGY_PRINT_TIMEOUT = '30m';
 
@@ -392,6 +393,21 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
         mode: AgyMode,
         signal: AbortSignal,
     ): Promise<boolean> {
+        // Keep the original queued text available to Stop and retry, including
+        // during skill discovery before there is a child process to terminate.
+        this.activeWebPrompt = prompt;
+        this.activeLocalIds = localIds;
+        this.turnFinalizing = false;
+        this.turnCompleted = false;
+        const skill = mode.skillReference;
+        let providerPrompt = prompt;
+        if (skill && await hasQueuedSkill(skill, this.session.path, 'agy')) {
+            // AGY expands skills in print mode when the prompt starts with /.
+            const attachments = prompt.slice(0, skill.offset).trim();
+            const invocation = `/${prompt.slice(skill.offset + 1)}`;
+            providerPrompt = attachments ? `${invocation}\n\n${attachments}` : invocation;
+        }
+        if (signal.aborted) return false;
         const onAbort = () => {
             void this.terminateChild();
         };
@@ -408,7 +424,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
             ? this.steering.beginTurn(this.session.queue.modeHasher(mode), this.conversationId)
             : { env: undefined, addDirectory: undefined };
         const args = buildAgyHeadlessArgs({
-            prompt,
+            prompt: providerPrompt,
             conversationId: this.conversationId ?? undefined,
             model: sessionModel,
             permissionMode: mode.permissionMode,
@@ -424,11 +440,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
 
         this.session.onThinkingChange(true);
         this.stderrTail = '';
-        this.activeWebPrompt = prompt;
-        this.activeLocalIds = localIds;
         this.lastTurnSoftDenied = false;
-        this.turnFinalizing = false;
-        this.turnCompleted = false;
 
         // Per-turn planner: partial text must never leak into a later turn's
         // response if this turn is aborted or crashes mid-stream.

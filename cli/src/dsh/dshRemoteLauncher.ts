@@ -18,6 +18,7 @@ import type { QueueReservation } from '@/utils/MessageQueue2'
 import { isAcpIndeterminateError } from '@/agent/backends/acp/AcpStdioTransport'
 import { DSH_STEERING_CAPABILITY, DSH_STEERING_METHOD, hasDshSteeringCapability, isDshSteerReceipt } from './utils/steering'
 import { listProviderSlashCommands } from '@/modules/common/slashCommands'
+import { hasQueuedSkill } from '@/utils/queuedSkillReference'
 
 export class DshRemoteLauncher extends RemoteLauncherBase {
     private backend: ReturnType<typeof createDshBackend> | null = null
@@ -415,9 +416,16 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 continue
             }
 
+            // DSH expands /skill in the ACP prompt. Resolve after native command
+            // dispatch so an explicitly selected skill cannot become a command.
+            const skill = batch.mode.skillReference
+            const text = skill && await hasQueuedSkill(skill, this.session.path, 'dsh')
+                ? `${batch.message.slice(0, skill.offset)}/${batch.message.slice(skill.offset + 1)}`
+                : batch.message
+            if (this.shouldExit || this.abortController.signal.aborted) break
             this.session.onThinkingChange(true)
             this.messageBuffer.addMessage(batch.message, 'user')
-            const prompt: PromptContent[] = [{ type: 'text', text: batch.message }]
+            const prompt: PromptContent[] = [{ type: 'text', text }]
             try {
                 this.promptInFlight = true
                 this.activePromptModeHash = this.effectiveModeHash()

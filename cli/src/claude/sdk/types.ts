@@ -132,6 +132,10 @@ export interface InterruptRequest extends ControlRequest {
     subtype: 'interrupt'
 }
 
+export interface InitializeRequest extends ControlRequest {
+    subtype: 'initialize'
+}
+
 export interface CanUseToolRequest extends ControlRequest {
     subtype: 'can_use_tool'
     tool_name: string
@@ -218,7 +222,8 @@ export interface QueryOptions {
 /**
  * Query prompt types
  */
-export type QueryPrompt = string | AsyncIterable<SDKMessage>
+/** Null opens stream-json stdin for control requests without sending a prompt. */
+export type QueryPrompt = string | AsyncIterable<SDKMessage> | null
 
 /**
  * Control response handlers

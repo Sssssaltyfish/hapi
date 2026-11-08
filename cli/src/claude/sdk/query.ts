@@ -16,6 +16,7 @@ import {
     type ControlResponseHandler,
     type SDKControlRequest,
     type ControlRequest,
+    type InitializeRequest,
     type SDKControlResponse,
     type CanCallToolCallback,
     type CanUseToolControlRequest,
@@ -189,6 +190,12 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
         await this.request({
             subtype: 'interrupt'
         }, this.childStdin)
+    }
+
+    async initialize(signal: AbortSignal): Promise<unknown> {
+        if (!this.childStdin) throw new Error('Initialize requires --input-format stream-json')
+        const request: InitializeRequest = { subtype: 'initialize' }
+        return (await this.request(request, this.childStdin, signal)).response
     }
 
     async askSideQuestion(question: string, signal: AbortSignal): Promise<string> {
@@ -515,7 +522,7 @@ export function query(config: {
     // to avoid temporal dependency on `query` variable
     const query = new Query(childStdin, child.stdout, processExitPromise, canCallTool)
 
-    if (typeof prompt !== 'string') {
+    if (prompt !== null && typeof prompt !== 'string') {
         void streamToStdin(prompt, child.stdin, config.options?.abort).catch(async (error) => {
             const err = error instanceof Error ? error : new Error(String(error))
             if (!query.registerPromptFailure(err)) {

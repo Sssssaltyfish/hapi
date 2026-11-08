@@ -135,7 +135,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
                 currentSessionRef.current?.setNativeSkillNames(catalog.skills.map((skill) => skill.name));
                 session.updateMetadata((currentMetadata) => ({
                     ...currentMetadata,
-                    tools: sdkMetadata.tools,
+                    ...(sdkMetadata.tools !== undefined ? { tools: sdkMetadata.tools } : {}),
                     slashCommands: catalog.commands
                 }));
                 logger.debug('[start] Session metadata updated with SDK capabilities');

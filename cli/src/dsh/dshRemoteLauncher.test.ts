@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MessageQueue2 } from '@/utils/MessageQueue2'
+import { formatQueuedSkillMessage } from '@/utils/queuedSkillReference'
 import type { DshMode } from './types'
 
 const FLASH = '["deepseek-official","deepseek-flash"]'
@@ -24,6 +25,7 @@ const harness = vi.hoisted(() => ({
     steeringCapability: null as unknown,
     commandCapability: null as unknown,
     commandCatalog: [] as Array<{ name: string }>,
+    skills: [] as Array<{ name: string }>,
     steerResult: null as Promise<unknown> | null,
     // When set, newSession() parks on this promise — lets tests query the
     // catalog RPC while session/new is still pending.
@@ -84,6 +86,7 @@ vi.mock('@/modules/common/permission/AcpPermissionHandler', () => ({
 
 vi.mock('@/ui/ink/RemoteModeDisplay', () => ({ RemoteModeDisplay: () => null }))
 vi.mock('@/ui/logger', () => ({ logger: { debug: vi.fn(), warn: vi.fn() } }))
+vi.mock('@/modules/common/skills', () => ({ listSkills: async () => harness.skills }))
 
 import { DshRemoteLauncher } from './dshRemoteLauncher'
 
@@ -130,6 +133,7 @@ describe('DshRemoteLauncher', () => {
         harness.steeringCapability = null
         harness.commandCapability = null
         harness.commandCatalog = []
+        harness.skills = []
         harness.steerResult = null
         harness.newSessionBlocker = null
     })
@@ -170,6 +174,36 @@ describe('DshRemoteLauncher', () => {
         const catalog = await listCommands()
         expect(catalog.commands).toContainEqual(expect.objectContaining({ name: 'permission', source: 'plugin' }))
         expect(catalog.commands).toContainEqual(expect.objectContaining({ name: 'approve', source: 'builtin' }))
+    })
+
+    it('delivers an explicit skill through ACP despite a same-name native command', async () => {
+        harness.commandCapability = { version: 1, method: '_hapi/dsh/command' }
+        harness.commandCatalog = [{ name: 'compact' }]
+        harness.skills = [{ name: 'compact' }]
+        const session = createSession()
+        session.queue.reset()
+        session.queue.push('earlier prompt', {})
+        const first = formatQueuedSkillMessage('$compact keep the details')
+        session.queue.pushIsolated(first.message, { skillReference: first.skillReference })
+        const attached = formatQueuedSkillMessage(' $compact check this', [{
+            id: 'file', filename: 'notes.txt', mimeType: 'text/plain', size: 1, path: '/tmp/notes.txt'
+        }])
+        session.queue.pushIsolated(attached.message, { skillReference: attached.skillReference })
+        const unknown = formatQueuedSkillMessage('$HOME is a variable')
+        session.queue.pushIsolated(unknown.message, { skillReference: unknown.skillReference })
+        session.queue.close()
+
+        await new DshRemoteLauncher(session as never).launch()
+
+        expect(harness.prompts).toEqual([
+            [{ type: 'text', text: 'earlier prompt' }],
+            [{ type: 'text', text: '/compact keep the details' }],
+            [{ type: 'text', text: '@/tmp/notes.txt\n\n /compact check this' }],
+            [{ type: 'text', text: '$HOME is a variable' }]
+        ])
+        expect(harness.backend!.sendExtensionRequest).not.toHaveBeenCalledWith(
+            '_hapi/dsh/command', expect.objectContaining({ operation: 'execute' }), expect.anything()
+        )
     })
 
     it('preserves a same-name custom command instead of executing native compaction', async () => {

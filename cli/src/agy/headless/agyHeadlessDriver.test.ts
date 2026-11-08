@@ -5,7 +5,12 @@ import { logger } from '@/ui/logger';
 import { buildAgyHeadlessArgs, AgyHeadlessDriver } from './agyHeadlessDriver';
 import { AgySession } from '../session';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
+import { formatQueuedSkillMessage } from '@/utils/queuedSkillReference';
 import type { AgyMode, PermissionMode } from '../types';
+
+vi.mock('@/modules/common/skills', () => ({
+    listSkills: async () => [{ name: 'hapi-visualize' }],
+}));
 
 // A fake agy binary: emits a fixed NDJSON stream for one turn, then exits 0.
 function fakeAgyProcess(lines: string[], exitCode = 0): ChildProcessWithoutNullStreams {
@@ -131,6 +136,30 @@ describe('buildAgyHeadlessArgs', () => {
 });
 
 describe('AgyHeadlessDriver', () => {
+    it('delivers an explicit installed skill with its arguments and attachment in print mode', async () => {
+        const { session, queue, client } = createSession();
+        const mode = { permissionMode: 'request-review' as const };
+        const skill = formatQueuedSkillMessage('$hapi-visualize chart the sample', [{
+            id: 'sample', filename: 'sample.csv', mimeType: 'text/csv', size: 12, path: '/tmp/sample.csv'
+        }]);
+        const spawnAgy = vi.fn((_args: string[]) => fakeAgyProcess(FULL_TURN));
+        const driver = new AgyHeadlessDriver({ session, spawnAgy });
+        queue.push('prior prompt', mode, 'prior');
+        queue.pushIsolated(skill.message, { ...mode, skillReference: skill.skillReference }, 'skill');
+        queue.close();
+        try {
+            await driver.launch();
+            expect(spawnAgy.mock.calls.map(([args]) => args[1])).toEqual([
+                'prior prompt',
+                '/hapi-visualize chart the sample\n\n@/tmp/sample.csv',
+            ]);
+            expect(spawnAgy.mock.calls[1]?.[0]).toEqual(expect.arrayContaining(['--conversation', 'conv-1']));
+            expect(client.emitMessagesConsumed).toHaveBeenCalledWith(['skill']);
+        } finally {
+            session.stopKeepAlive();
+        }
+    });
+
     it.each([true, false])('does not repeat aggregated replies after hook continuation (final DONE=%s)', async (done) => {
         const { session, queue, sent } = createSession();
         const lines = [
