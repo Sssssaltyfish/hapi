@@ -142,6 +142,8 @@ describe('ToolGroupCard', () => {
         expect(within(header).getByText('Reviewing results').tagName).toBe('STRONG')
 
         fireEvent.click(header)
+        expect(header).toHaveAttribute('aria-expanded', 'true')
+        expect(within(header).getByText('Reviewing results')).toBeVisible()
         const detail = await screen.findByRole('button', { name: 'Reasoning' })
         fireEvent.click(detail)
         expect(await screen.findByText('Check the earlier settings.')).toBeVisible()

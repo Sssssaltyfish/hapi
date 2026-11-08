@@ -231,7 +231,7 @@ export function ToolGroupCard(props: {
     const activityCount = entries.filter(entry => entry.kind === 'agent-event').length
     const latestReasoning = entries.findLast(entry => entry.kind === 'agent-reasoning')
     const running = runningTool || (latestReasoning !== undefined && isActiveNativeCodexReasoning(latestReasoning))
-    const reasoningPreview = !open && running ? latestReasoning?.text : undefined
+    const reasoningPreview = running ? latestReasoning?.text : undefined
     const primaryTitle = toolCount > 0 ? formatGroupedHeaderTitle(props.block, t)
         : t(latestReasoning ? 'toolGroup.workProcess' : 'toolGroup.agentActivity')
     const minimalState = props.block.summary.errorCount > 0 ? 'error'
