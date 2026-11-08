@@ -46,13 +46,6 @@ function Get-Failure($Record) {
     return "$($Record.Exception.GetType().Name) ($($Record.Exception.HResult))"
 }
 
-function Set-CopiedAccess([string]$Source, [string]$Destination) {
-    $access = Get-Acl -LiteralPath $Source
-    # Keep the source permissions effective after leaving the old parent tree.
-    $access.SetAccessRuleProtection($true, $true)
-    Set-Acl -LiteralPath $Destination -AclObject $access
-}
-
 function Copy-RuntimeItem([string]$Source, [string]$Destination, [string[]]$Skip = @(), [string]$ContentSource = $Source) {
     if (!$Source.StartsWith("$OldRoot\", [StringComparison]::OrdinalIgnoreCase) -or
         !$ContentSource.StartsWith("$OldRoot\", [StringComparison]::OrdinalIgnoreCase) -or
@@ -63,15 +56,14 @@ function Copy-RuntimeItem([string]$Source, [string]$Destination, [string[]]$Skip
     $item = Get-Item -LiteralPath $Source -Force
     if ($item.PSIsContainer) {
         [IO.Directory]::CreateDirectory($Destination) | Out-Null
-        Set-CopiedAccess $Source $Destination
         foreach ($child in Get-ChildItem -LiteralPath $Source -Force) {
             if ($child.Name -notin $Skip) { Copy-RuntimeItem $child.FullName (Join-Path $Destination $child.Name) }
         }
         return
     }
-    # Apply the file ACL before writing its data to the destination.
+    # New files inherit the protected runtime root's current-user/System ACL.
+    # Copy data without trying to restore unrelated source owners or audit ACLs.
     ([IO.File]::Open($Destination, [IO.FileMode]::CreateNew)).Dispose()
-    Set-CopiedAccess $Source $Destination
     $payload = Get-Item -LiteralPath $ContentSource -Force
     $inputFile = [IO.File]::Open($ContentSource, 'Open', 'Read', 'ReadWrite, Delete')
     try {
@@ -355,7 +347,6 @@ try {
     Copy-RuntimeItem "$OldRoot\hidden-task-launcher" "$NewRoot\hidden-task-launcher"
     Copy-RuntimeItem "$OldRoot\windows-native" "$NewRoot\windows-native" @('state')
     [IO.Directory]::CreateDirectory("$NewRoot\windows-state") | Out-Null
-    Set-CopiedAccess "$OldRoot\windows-state" "$NewRoot\windows-state"
     if (Test-Path -LiteralPath "$OldRoot\windows-state\runtime" -PathType Container) {
         Copy-RuntimeItem "$OldRoot\windows-state\runtime" "$NewRoot\windows-state\runtime"
     }
@@ -395,6 +386,7 @@ try {
 } catch {
     $receipt.status = 'failed'
     $receipt.failure = Get-Failure $_
+    $receipt.failureLine = $_.InvocationInfo.ScriptLineNumber
     if ($tasksChanged) {
         try {
             if ($newStartAttempted) {

@@ -20,7 +20,7 @@
     "deployment/hidden-task-launcher/Launcher.cs": "efb6d02456d7cdd0b4fcc2130c875c828cf33e86fa595c9693fe6bb12016ccd2",
     "deployment/hidden-task-launcher/apply.ps1": "d66d1f27ed392b3cfdd53c81957df4ee227dea1955540f3ce9c0d332bdf7efdb",
     "deployment/hidden-task-launcher/probe.ps1": "7fdc36bdda43cb1dedb9535e4ca245502a58d16c1b294ab0373001f92cb62eed",
-    "deployment/migrate-windows-runtime.ps1": "75d8a4643c8654897c578abdc668fda131b4bbefed7e05be606c1593a7fd100b",
+    "deployment/migrate-windows-runtime.ps1": "65cbdcf64f24ce933927d8002791379b9783fc92c19ad0820e8ba74e0d147faf",
     "deployment/start-windows-runner.ps1": "c208c275a27e3d4549b13ff243467e766f47b2df2226f95a35d866bed8cf13ee",
     "deployment/windows-native/find-tools-pipe.ps1": "9de36d342c4ad695f8268a123721bff52e51d9dbadc3ec65bcacaf62f0de02b1",
     "deployment/windows-native/install.ps1": "f1b2f592dd997b9f07a6d2e6ca292d0bf6d365ea04330da7c503d5afd1a71b3c",
