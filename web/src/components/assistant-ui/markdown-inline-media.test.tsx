@@ -11,7 +11,7 @@ vi.mock('@tanstack/react-router', async importOriginal => ({
     useNavigate: () => vi.fn(),
 }))
 
-function renderMedia(content: string, options?: { sessionId?: string; firstTicketExpired?: boolean }) {
+function renderMedia(content: string, options?: { sessionId?: string; firstTicketExpired?: boolean; cacheScope?: string }) {
     const file = { success: true, content: 'YQ==' }
     const readSessionFile = vi.fn(async () => file)
     const readCodexNativeFile = vi.fn(async () => file)
@@ -20,7 +20,10 @@ function renderMedia(content: string, options?: { sessionId?: string; firstTicke
         createSessionMediaUrl.mockResolvedValueOnce({ url: '/api/media/stream-ticket', expiresAt: Date.now() - 1 })
     }
     const value: HappyChatContextValue = {
-        api: { readSessionFile, readCodexNativeFile, createSessionMediaUrl } as unknown as ApiClient,
+        api: {
+            readSessionFile, readCodexNativeFile, createSessionMediaUrl,
+            getConversationCacheScope: options?.cacheScope ? () => ({ key: options.cacheScope, persistent: false }) : undefined,
+        } as unknown as ApiClient,
         sessionId: options?.sessionId ?? 'runner-1',
         metadata: null,
         terminalToolDisplayMode: 'compact',
@@ -32,10 +35,16 @@ function renderMedia(content: string, options?: { sessionId?: string; firstTicke
         isLoadingMoreMessages: false,
         loadOlderMessagesPreservingScroll: async () => 'loaded',
     }
+    const view = (visible: boolean) => <I18nProvider><HappyChatProvider value={value}>
+        {visible && <MarkdownRenderer content={content} inlineMedia />}
+    </HappyChatProvider></I18nProvider>
+    const rendered = render(view(true))
     return {
-        ...render(<I18nProvider><HappyChatProvider value={value}>
-            <MarkdownRenderer content={content} inlineMedia />
-        </HappyChatProvider></I18nProvider>),
+        ...rendered,
+        reopen() {
+            rendered.rerender(view(false))
+            rendered.rerender(view(true))
+        },
         readSessionFile, readCodexNativeFile, createSessionMediaUrl,
     }
 }
@@ -96,6 +105,19 @@ it('uses the Native media URL for linked images and preserves their link', async
         { path: 'C:/exports/generated image.png', mimeType: 'image/png' }, expect.any(AbortSignal))
     expect(readCodexNativeFile).not.toHaveBeenCalled()
     expect(readSessionFile).not.toHaveBeenCalled()
+})
+
+it('renders the last image address on re-entry while verifying the file version', async () => {
+    const { createSessionMediaUrl, reopen } = renderMedia('![Photo](./photo.png)', { cacheScope: 'image-remount' })
+    expect(await screen.findByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/stream-ticket')
+    let finish!: (address: { url: string; expiresAt: number }) => void
+    createSessionMediaUrl.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+
+    reopen()
+    expect(screen.getByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/stream-ticket')
+    expect(createSessionMediaUrl).toHaveBeenCalledTimes(2)
+    finish({ url: '/api/media/new-file-version', expiresAt: Date.now() + 60_000 })
+    await waitFor(() => expect(screen.getByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/new-file-version'))
 })
 
 it('opens an audio preview in a portaled dialog and restores focus on close', async () => {

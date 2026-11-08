@@ -7,6 +7,20 @@ const MAX_IMAGE_SCALE = 8
 const IMAGE_SCALE_STEP = 0.25
 const BACKDROP_CLICK_MAX_MOVEMENT = 4
 
+let touchViewport = typeof window === 'undefined'
+    ? undefined
+    : { width: window.innerWidth, height: window.innerHeight }
+
+function getImageViewportHeight() {
+    const { innerWidth: width, innerHeight: height } = window
+    if (!window.matchMedia?.('(pointer: coarse)').matches) return height
+    // Chrome's resizes-content keyboard changes layout viewport units as
+    // well. Preserve the image's fit and center while that viewport shrinks,
+    // but measure again for rotation. The dialog itself still fits the screen.
+    if (touchViewport?.width !== width || height > touchViewport.height) touchViewport = { width, height }
+    return touchViewport.height
+}
+
 function clampImageScale(value: number): number {
     return Math.min(MAX_IMAGE_SCALE, Math.max(MIN_IMAGE_SCALE, value))
 }
@@ -54,6 +68,7 @@ export function ImagePreview(props: {
     const [previewIndex, setPreviewIndex] = useState(0)
     const [scale, setScale] = useState(1)
     const [offset, setOffset] = useState({ x: 0, y: 0 })
+    const [imageFrameHeight, setImageFrameHeight] = useState<number>()
     const triggerRef = useRef<HTMLButtonElement>(null)
     const scaleRef = useRef(scale)
     const offsetRef = useRef(offset)
@@ -62,6 +77,14 @@ export function ImagePreview(props: {
     const pinchRef = useRef<{ startDistance: number; startScale: number; startCenter: ImagePoint; origin: ImagePoint } | null>(null)
     const backdropPressRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
     const backdropClickRef = useRef(false)
+
+    const attachViewerCanvas = useCallback((canvas: HTMLDivElement | null) => {
+        if (!canvas) return
+        const measure = () => setImageFrameHeight(Math.max(1, getImageViewportHeight() - canvas.getBoundingClientRect().top))
+        measure()
+        window.addEventListener('resize', measure)
+        return () => window.removeEventListener('resize', measure)
+    }, [])
 
     const stopEvent = useCallback((event: SyntheticEvent) => {
         event.stopPropagation()
@@ -391,6 +414,7 @@ export function ImagePreview(props: {
                         </DialogPrimitive.Close>
                     </div>
                     <div
+                        ref={attachViewerCanvas}
                         className="relative min-h-0 flex-1 cursor-grab touch-none overflow-hidden active:cursor-grabbing"
                         onWheel={handleWheel}
                         onPointerDown={handlePointerDown}
@@ -409,6 +433,8 @@ export function ImagePreview(props: {
                             draggable={false}
                             className="absolute left-1/2 top-1/2 max-h-[90vh] max-w-[90vw] select-none object-contain"
                             style={{
+                                top: imageFrameHeight === undefined ? undefined : imageFrameHeight / 2,
+                                maxHeight: imageFrameHeight === undefined ? undefined : imageFrameHeight * 0.9,
                                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})`,
                                 transformOrigin: 'center center'
                             }}

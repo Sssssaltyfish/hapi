@@ -20,7 +20,7 @@ import { FileIcon } from '@/components/FileIcon'
 import { useTranslation } from '@/lib/use-translation'
 import { inlineMediaLabelKey, isInlineAudioMimeType, isInlineImageMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
 import { InlineMediaPlayer } from './InlineMediaPlayer'
-import { useMediaSource } from '@/hooks/useMediaSource'
+import { imageMediaCacheKey, useMediaSource } from '@/hooks/useMediaSource'
 
 function isToolCallBlock(value: unknown): value is ToolCallBlock {
     if (!isObject(value)) return false
@@ -73,7 +73,7 @@ export function computeTinyImageScale(width: number, height: number): number {
 
 /** Exported for generated-media fetch and renderer tests. */
 export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
-    const { api, sessionId } = useHappyChatContext()
+    const { api, sessionId, metadata } = useHappyChatContext()
     const { imageId, nativeFilePath, fileName, mimeType } = props.block
     const { t } = useTranslation()
     const [sizing, setSizing] = useState<{ url: string; style: CSSProperties }>()
@@ -91,7 +91,12 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                 ? { path: nativeFilePath, mimeType: mimeType ?? 'image/png' }
                 : { generatedImageId: imageId }, signal)
     }, [api, sessionId, imageId, nativeFilePath, mimeType, isFile])
-    const { url: mediaUrl, error, onPlaybackError, sourceRevision } = useMediaSource(isFile && !loadMedia ? null : load)
+    const cacheKey = isImage
+        ? imageMediaCacheKey(api, sessionId, nativeFilePath
+            ? { path: nativeFilePath, mimeType: mimeType ?? 'image/png' }
+            : { generatedImageId: imageId }, metadata?.nativeCodex)
+        : undefined
+    const { url: mediaUrl, error, onPlaybackError, sourceRevision } = useMediaSource(isFile && !loadMedia ? null : load, cacheKey)
 
     return (
         <div className="max-w-[92%] rounded-2xl border border-[var(--app-border)] bg-[var(--app-tool-card-bg)] p-3">
@@ -129,8 +134,8 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                                 const scale = computeTinyImageScale(currentTarget.naturalWidth, currentTarget.naturalHeight)
                                 if (scale !== 1) setSizing({ url: mediaUrl, style: { transform: `scale(${scale})` } })
                             }}
-                            buttonClassName="block max-h-[min(28rem,60vh)] max-w-full cursor-zoom-in rounded-xl text-left"
-                            imageClassName="max-h-[min(28rem,60vh)] max-w-full rounded-xl object-contain"
+                            buttonClassName="block max-h-[28rem] max-w-full cursor-zoom-in rounded-xl text-left"
+                            imageClassName="max-h-[28rem] max-w-full rounded-xl object-contain"
                             imageStyle={sizing?.url === mediaUrl ? sizing.style : undefined}
                         />
                     </div>
