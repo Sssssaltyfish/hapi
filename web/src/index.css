@@ -510,6 +510,10 @@ html:has(.chat-scroll-y) #root {
     transition-duration: var(--app-disclosure-duration);
 }
 
+.hapi-disclosure-content > .collapsible-inner {
+    transition-timing-function: linear;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .hapi-disclosure-chevron,
     .hapi-disclosure-content,
