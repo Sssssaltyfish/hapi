@@ -100,7 +100,10 @@ type NewSessionProps = {
     onChooseFolder?: (args: { machineId: string | null; nativeEndpointId?: string; directory: string; browseDraftId: string }) => void
     initialDirectory?: string
     initialMachineId?: string
+    initialAgent?: AgentType
     initialNativeEndpointId?: string
+    initialNativeProjectId?: string
+    initialNativeProjectName?: string
     browseDraftId?: string
 }
 
@@ -118,13 +121,18 @@ export function NewSession(props: NewSessionProps) {
     const [isDirectoryFocused, setIsDirectoryFocused] = useState(false)
     const [creationChoice, setAgent] = useState<AgentSelection>(() => {
         if (props.initialNativeEndpointId) return 'codex-native'
+        if (props.initialAgent) return props.initialAgent
         const preferred = loadPreferredCreationChoice()
         return props.initialMachineId ? creationChoiceFlavor(preferred) : preferred
     })
     const agent = creationChoiceFlavor(creationChoice)
     const isNative = creationChoice === 'codex-native'
     const nativeTarget = useNativeCreationTarget(props.api, isNative, props.initialNativeEndpointId)
-    const nativeWorkspace = useNativeWorkspace(props.api, nativeTarget.endpointId, isNative)
+    const nativeWorkspace = useNativeWorkspace(props.api, nativeTarget.endpointId, isNative,
+        props.initialNativeEndpointId === nativeTarget.endpointId && props.initialNativeProjectId
+            ? { id: props.initialNativeProjectId, name: props.initialNativeProjectName }
+            : undefined
+    )
     const nativeMachineKey = nativeTarget.selected ? `codex-native:${nativeTarget.selected.id}` : null
     const target: CreationTarget = isNative
         ? { kind: 'native', endpointId: nativeTarget.selected?.id ?? null }
@@ -254,6 +262,7 @@ export function NewSession(props: NewSessionProps) {
         // Updating the current history entry before leaving for Browse must not
         // consume its draft while this same form is still mounted.
         if (props.browseDraftId && props.browseDraftId !== mountedBrowseDraftIdRef.current) return
+        if (!props.browseDraftId && (props.initialAgent || props.initialNativeEndpointId)) return
         if (!shouldRestoreNewSessionFormDraft({
             initialDirectory: props.initialDirectory,
             initialMachineId: props.initialMachineId,
@@ -308,6 +317,7 @@ export function NewSession(props: NewSessionProps) {
         isNative,
         props.initialDirectory,
         props.initialMachineId,
+        props.initialAgent,
         props.initialNativeEndpointId,
         props.browseDraftId,
         machineId
@@ -315,6 +325,7 @@ export function NewSession(props: NewSessionProps) {
 
     useEffect(() => {
         if (props.machines.length === 0) return
+        if (machineId === props.initialMachineId) return
         if (machineId && props.machines.find((m) => m.id === machineId)) return
 
         const lastUsed = getLastUsedMachineId()
@@ -329,7 +340,7 @@ export function NewSession(props: NewSessionProps) {
         } else if (props.machines[0]) {
             setMachineId(props.machines[0].id)
         }
-    }, [isNative, props.machines, machineId, getLastUsedMachineId, getRecentPaths, props.initialDirectory])
+    }, [isNative, props.machines, machineId, getLastUsedMachineId, getRecentPaths, props.initialDirectory, props.initialMachineId])
 
     const initializedNativeTarget = useRef<string | null>(null)
     useEffect(() => {
@@ -374,9 +385,10 @@ export function NewSession(props: NewSessionProps) {
     useEffect(() => {
         if (isNative || agentAvailability.isLoading || agentAvailability.error || availableAgents.length === 0) return
         if (availableAgents.includes(agent)) return
+        if (agent === props.initialAgent && (!props.initialMachineId || machineId === props.initialMachineId)) return
         preserveRestoredDraftRef.current = false
         setAgent(availableAgents[0]!)
-    }, [agent, isNative, agentAvailability.error, agentAvailability.isLoading, availableAgents])
+    }, [agent, isNative, agentAvailability.error, agentAvailability.isLoading, availableAgents, machineId, props.initialAgent, props.initialMachineId])
     const runnerCodexModelsState = useCodexModels({
         api: props.api,
         machineId,
@@ -1652,7 +1664,7 @@ export function NewSession(props: NewSessionProps) {
     }, [suggestions, selectedIndex, moveUp, moveDown, clearSuggestions, handleSuggestionSelect])
 
     async function handleCreate() {
-        if (!trimmedDirectory || createInFlightRef.current || (target.kind === 'runner' ? !target.machineId : !target.endpointId)) return
+        if (!trimmedDirectory || createInFlightRef.current || (target.kind === 'runner' ? !selectedMachine : !target.endpointId)) return
 
         createInFlightRef.current = true
         setIsCreating(true)
@@ -1902,7 +1914,7 @@ export function NewSession(props: NewSessionProps) {
         && serviceTier === 'fast'
         && codexModelsState.isLoading
     const canCreate = isNative ? Boolean(nativeTarget.selected && trimmedDirectory && nativeWorkspace.canCreate && !isCreating && !nativeTarget.catalog.isLoading) : Boolean(
-        machineId
+        selectedMachine
         && trimmedDirectory
         && !isFormDisabled
         && !missingWorktreeDirectory

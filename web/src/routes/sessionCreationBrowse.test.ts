@@ -16,4 +16,12 @@ describe('session creation Browse route search', () => {
             directory: '/chosen', shareTransferId: 'share-1', browseDraftId: 'form-draft',
         })
     })
+
+    it('keeps the assigned Native workspace scoped to its endpoint during Browse', () => {
+        const context = sessionCreationBrowseSearch({
+            directory: '/repo', nativeEndpointId: 'wsl', nativeProjectId: 'project', nativeProjectName: 'Workspace',
+        })
+        expect(selectedBrowserDirectorySearch('wsl', '/repo/subfolder', context)).toEqual({ ...context, directory: '/repo/subfolder' })
+        expect(selectedBrowserDirectorySearch('windows', 'C:\\Work', context)).toEqual({ nativeEndpointId: 'windows', directory: 'C:\\Work' })
+    })
 })

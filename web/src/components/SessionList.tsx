@@ -2,7 +2,7 @@ import { createContext, memo, useCallback, useContext, useEffect, useLayoutEffec
 import * as Popover from '@radix-ui/react-popover'
 import { SessionListScrollAnchor } from './SessionListScrollAnchor'
 import type { SessionSummary } from '@/types/api'
-import { SESSION_LIFECYCLE_IDLE } from '@hapi/protocol'
+import { CREATABLE_AGENT_FLAVORS, SESSION_LIFECYCLE_IDLE, type AgentFlavor } from '@hapi/protocol'
 import type { ApiClient } from '@/api/client'
 import {
     buildSessionSearchScoreIndex,
@@ -165,6 +165,15 @@ type SessionGroup = {
     nativeEndpointId?: string
     nativeProjectId?: string | null
     nativeDesktopOnly?: boolean
+}
+
+export type WorkspaceSessionTarget = {
+    machineId: string | null
+    directory: string
+    agent?: AgentFlavor
+    nativeEndpointId?: string
+    nativeProjectId?: string
+    nativeProjectName?: string
 }
 
 const RUNNING_BUCKETS = [
@@ -1443,7 +1452,7 @@ export function SessionList(props: {
     sessions: SessionSummary[]
     onSelect: (sessionId: string) => void
     onNewSession: () => void
-    onNewSessionInDirectory?: (args: { machineId: string | null; directory: string; nativeEndpointId?: string }) => void
+    onNewSessionInDirectory?: (target: WorkspaceSessionTarget) => void
     onBrowse?: () => void
     onRefresh: () => Promise<unknown> | void
     isLoading: boolean
@@ -1883,6 +1892,40 @@ export function SessionList(props: {
         )
     }
 
+    const renderNewSessionInDirectory = (group: SessionGroup) => {
+        if (!onNewSessionInDirectory || !group.directory || group.directory === 'Other') return null
+        return (
+            <button
+                type="button"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    const target: WorkspaceSessionTarget = { machineId: group.machineId, directory: group.directory }
+                    if (group.nativeEndpointId) {
+                        target.nativeEndpointId = group.nativeEndpointId
+                        // A Desktop-only group has a directory but no project that the daemon can assign.
+                        if (group.nativeProjectId && !group.nativeDesktopOnly) {
+                            target.nativeProjectId = group.nativeProjectId
+                            target.nativeProjectName = group.displayName
+                        }
+                    } else {
+                        const latest = group.sessions.reduce<SessionSummary | undefined>((current, session) => {
+                            const flavor = session.metadata?.flavor
+                            return CREATABLE_AGENT_FLAVORS.some(value => value === flavor) && (!current || session.updatedAt > current.updatedAt)
+                                ? session : current
+                        }, undefined)
+                        target.agent = CREATABLE_AGENT_FLAVORS.find(value => value === latest?.metadata?.flavor)
+                    }
+                    onNewSessionInDirectory(target)
+                }}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] opacity-70 transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-link)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
+                title={t('sessions.group.new')}
+                aria-label={t('sessions.group.new')}
+            >
+                <PlusIcon className="h-3.5 w-3.5" />
+            </button>
+        )
+    }
+
     const renderActionOnlyGroupHeader = (group: SessionGroup) => {
         // With multiple machines in the unfiltered view, disambiguate
         // same-named directories by suffixing the machine label.
@@ -1901,24 +1944,7 @@ export function SessionList(props: {
                     </span>
                     {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} desktopOnly={group.nativeDesktopOnly} /> : null}
                     {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
-                    {onNewSessionInDirectory && group.directory && group.directory !== 'Other' ? (
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                onNewSessionInDirectory({
-                                    machineId: group.machineId,
-                                    directory: group.directory,
-                                    ...(group.nativeEndpointId ? { nativeEndpointId: group.nativeEndpointId } : {})
-                                })
-                            }}
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] opacity-70 transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-link)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
-                            title={t('sessions.group.new')}
-                            aria-label={t('sessions.group.new')}
-                        >
-                            <PlusIcon className="h-3.5 w-3.5" />
-                        </button>
-                    ) : null}
+                    {renderNewSessionInDirectory(group)}
                 </div>
             </div>
         )
@@ -1940,7 +1966,6 @@ export function SessionList(props: {
         const collapseCount = visibleGroupSessions.length - previousGroupSessions.length
         const canShowFewerSessions = previousLimit < currentLimit && collapseCount > 0
         const expandCount = Math.min(sessionPreviewLimit, hiddenSessionCount)
-        const canStartInGroupDirectory = Boolean(group.directory) && group.directory !== 'Other'
         // With multiple machines in the unfiltered view, disambiguate
         // same-named directories by suffixing the machine label.
         const groupName = group.nativeEndpointId && group.nativeProjectId === null ? t('newSession.native.noWorkspace') : group.displayName
@@ -1960,24 +1985,7 @@ export function SessionList(props: {
                     </span>
                     {group.nativeEndpointId && group.nativeProjectId && api ? <NativeProjectActions api={api} endpointId={group.nativeEndpointId} projectId={group.nativeProjectId} name={group.displayName} desktopOnly={group.nativeDesktopOnly} /> : null}
                     {group.directory ? <CopyPathButton path={group.directory} className="opacity-0 group-hover/project:opacity-100 transition-opacity duration-150" /> : null}
-                    {onNewSessionInDirectory && canStartInGroupDirectory ? (
-                        <button
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                onNewSessionInDirectory({
-                                    machineId: group.machineId,
-                                    directory: group.directory,
-                                    ...(group.nativeEndpointId ? { nativeEndpointId: group.nativeEndpointId } : {})
-                                })
-                            }}
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--app-hint)] opacity-70 transition-colors hover:bg-[var(--app-secondary-bg)] hover:text-[var(--app-link)] hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-link)]"
-                            title={t('sessions.group.new')}
-                            aria-label={t('sessions.group.new')}
-                        >
-                            <PlusIcon className="h-3.5 w-3.5" />
-                        </button>
-                    ) : null}
+                    {renderNewSessionInDirectory(group)}
                     <span className="text-[11px] tabular-nums text-[var(--app-hint)] shrink-0">
                         ({group.sessions.length})
                     </span>

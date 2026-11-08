@@ -19,7 +19,7 @@ import {
 } from '@/lib/sessionNavigation'
 import { App } from '@/App'
 import { SessionChat } from '@/components/SessionChat'
-import { SessionList } from '@/components/SessionList'
+import { SessionList, type WorkspaceSessionTarget } from '@/components/SessionList'
 import { NewSession } from '@/components/NewSession'
 import { WorkspaceBrowser } from '@/components/WorkspaceBrowser'
 import { nativeWorkspaceBrowserSource, runnerWorkspaceBrowserSource } from '@/components/WorkspaceBrowserSource'
@@ -80,6 +80,11 @@ import { NativeSessionCatalog } from '@/codex-native/NativeSessionCatalog'
 import { retargetSharePendingTransfer, setSharePendingTransfer } from '@/lib/sharePendingState'
 import { deleteShareTransfer, parseShareSearch } from '@/lib/shareTransfer'
 
+declare module '@tanstack/react-router' {
+    interface HistoryState {
+        newSessionWorkspaceEntry?: string
+    }
+}
 
 function BackIcon(props: { className?: string }) {
     return (
@@ -199,14 +204,13 @@ function SessionsPage() {
     const handleSelectSession = useCallback((sessionId: string) => {
         navigate(getSessionListSelectionNavigation(sessionId))
     }, [navigate])
-    const handleNewSessionInDirectory = useCallback((args: { machineId: string | null; directory: string; nativeEndpointId?: string }) => {
+    const handleNewSessionInDirectory = useCallback(({ machineId, directory, agent, nativeEndpointId, nativeProjectId, nativeProjectName }: WorkspaceSessionTarget) => {
         navigate({
             to: '/sessions/new',
-            search: args.nativeEndpointId
-                ? { directory: args.directory, nativeEndpointId: args.nativeEndpointId }
-                : args.machineId
-                ? { directory: args.directory, machineId: args.machineId }
-                : { directory: args.directory },
+            search: nativeEndpointId
+                ? { directory, nativeEndpointId, nativeProjectId, nativeProjectName }
+                : { directory, machineId: machineId ?? undefined, agent },
+            state: { newSessionWorkspaceEntry: crypto.randomUUID() },
             ...PRESERVE_SESSION_SIDEBAR_SCROLL,
         })
     }, [navigate])
@@ -917,7 +921,12 @@ function NewSessionPage() {
     const queryClient = useQueryClient()
     const { machines, isLoading: machinesLoading, error: machinesError } = useMachines(api, true)
     const { t } = useTranslation()
-    const { directory: initialDirectory, machineId: initialMachineId, nativeEndpointId: initialNativeEndpointId, shareTransferId, browseDraftId } = newSessionRoute.useSearch()
+    const {
+        directory: initialDirectory, machineId: initialMachineId, agent: initialAgent,
+        nativeEndpointId: initialNativeEndpointId, nativeProjectId: initialNativeProjectId,
+        nativeProjectName: initialNativeProjectName, shareTransferId, browseDraftId,
+    } = newSessionRoute.useSearch()
+    const workspaceEntry = useLocation({ select: location => location.state.newSessionWorkspaceEntry })
     const browseNavigationRef = useRef(false)
 
     const handleCancel = useCallback(() => {
@@ -962,18 +971,23 @@ function NewSessionPage() {
         const search: SessionCreationBrowseSearch = {}
         if (args.machineId) search.machineId = args.machineId
         if (args.nativeEndpointId) search.nativeEndpointId = args.nativeEndpointId
+        if (args.nativeEndpointId && args.nativeEndpointId === initialNativeEndpointId) {
+            search.nativeProjectId = initialNativeProjectId
+            search.nativeProjectName = initialNativeProjectName
+        }
+        if (args.machineId && args.machineId === initialMachineId) search.agent = initialAgent
         search.directory = args.directory
         if (shareTransferId) search.shareTransferId = shareTransferId
         search.browseDraftId = args.browseDraftId
         try {
             // Preserve the return destination for the header and browser Back
             // controls, including a form whose execution directory is empty.
-            await navigate({ to: '/sessions/new', search, replace: true })
+            await navigate({ to: '/sessions/new', search, replace: true, state: { newSessionWorkspaceEntry: workspaceEntry } })
             await navigate({ to: '/browse', search })
         } finally {
             browseNavigationRef.current = false
         }
-    }, [navigate, shareTransferId])
+    }, [navigate, shareTransferId, initialAgent, initialMachineId, initialNativeEndpointId, initialNativeProjectId, initialNativeProjectName, workspaceEntry])
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -1001,6 +1015,7 @@ function NewSessionPage() {
                 ) : null}
 
                 <NewSession
+                    key={workspaceEntry}
                     api={api}
                     machines={machines}
                     isLoading={machinesLoading}
@@ -1009,7 +1024,10 @@ function NewSessionPage() {
                     onChooseFolder={handleChooseFolder}
                     initialDirectory={initialDirectory}
                     initialMachineId={initialMachineId}
+                    initialAgent={initialAgent}
                     initialNativeEndpointId={initialNativeEndpointId}
+                    initialNativeProjectId={initialNativeProjectId}
+                    initialNativeProjectName={initialNativeProjectName}
                     browseDraftId={browseDraftId}
                 />
             </div>

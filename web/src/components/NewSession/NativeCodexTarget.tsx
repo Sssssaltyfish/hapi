@@ -15,8 +15,8 @@ export function useNativeCreationTarget(api: ApiClient, enabled: boolean, initia
     const configured = useMemo(() => endpoints.data?.endpoints ?? [], [endpoints.data])
     const selected = configured.find((endpoint) => endpoint.id === endpointId)
     useEffect(() => {
-        if (configured.length && !configured.some(endpoint => endpoint.id === endpointId)) setEndpointId(configured[0].id)
-    }, [configured, endpointId])
+        if (configured.length && endpointId !== initialEndpointId && !configured.some(endpoint => endpoint.id === endpointId)) setEndpointId(configured[0].id)
+    }, [configured, endpointId, initialEndpointId])
     const models = useQuery({
         queryKey: ['codex-native', endpointId, 'models'],
         queryFn: () => api.withCodexNativeEndpoint(endpointId).getCodexNativeModels(),
@@ -41,7 +41,7 @@ export function useNativeCreationTarget(api: ApiClient, enabled: boolean, initia
         status,
         catalog: {
             models: catalog,
-            isLoading: enabled && (endpoints.isPending || (configured.length > 0 && (!selected || models.isPending))),
+            isLoading: enabled && (endpoints.isPending || (selected ? models.isPending : configured.length > 0 && !endpointId)),
             error: endpoints.error?.message ?? models.error?.message ?? null,
         },
     }

@@ -59,7 +59,7 @@ function renderWithProviders(children: ReactNode) {
 }
 
 describe('SessionList directory action', () => {
-    it('starts a new session with the project machine and directory', () => {
+    it('starts a new session with the project machine, directory and most recently used provider', () => {
         const onNewSessionInDirectory = vi.fn()
         const session = makeSession({
             id: 'session-1',
@@ -74,7 +74,12 @@ describe('SessionList directory action', () => {
 
         renderWithProviders(
             <SessionList
-                sessions={[session]}
+                sessions={[session, makeSession({
+                    id: 'older',
+                    pinned: true,
+                    updatedAt: session.updatedAt - 1,
+                    metadata: { ...session.metadata!, flavor: 'claude' },
+                })]}
                 selectedSessionId={null}
                 onSelect={vi.fn()}
                 onNewSession={vi.fn()}
@@ -92,7 +97,34 @@ describe('SessionList directory action', () => {
         expect(onNewSessionInDirectory).toHaveBeenCalledWith({
             machineId: 'machine-1',
             directory: '/home/ubuntu',
+            agent: 'codex',
         })
+    })
+
+    it.each([
+        { projectId: 'project', expected: { nativeProjectId: 'project', nativeProjectName: 'Native workspace' } },
+        { desktopProjectId: 'desktop', expected: {} },
+    ])('prefills the Native directory and only assigns a daemon project', ({ projectId, desktopProjectId, expected }) => {
+        const onNewSessionInDirectory = vi.fn()
+        const session = makeSession({
+            id: 'native-session',
+            hasConversationContent: true,
+            metadata: {
+                path: '/project/worktree',
+                machineId: 'codex-native:wsl',
+                flavor: 'codex',
+                nativeCodex: {
+                    endpointId: 'wsl', threadId: 'thread', available: true, projectId, desktopProjectId,
+                    projectName: 'Native workspace', projectPath: '/project',
+                },
+            },
+        })
+        renderWithProviders(<SessionList sessions={[session]} onSelect={vi.fn()} onNewSession={vi.fn()}
+            onNewSessionInDirectory={onNewSessionInDirectory} onRefresh={vi.fn()} isLoading={false} api={null} />)
+
+        fireEvent.click(screen.getByRole('button', { name: 'New session in this directory' }))
+
+        expect(onNewSessionInDirectory).toHaveBeenCalledWith({ machineId: 'codex-native:wsl', directory: '/project', nativeEndpointId: 'wsl', ...expected })
     })
 
     it('keeps the sticky project header opaque and aligned with the list viewport', () => {
@@ -657,6 +689,7 @@ describe('SessionList collapse behavior', () => {
         expect(onNewSessionInDirectory).toHaveBeenCalledWith({
             machineId: 'machine-1',
             directory: '/work/hapi',
+            agent: 'codex',
         })
     })
 

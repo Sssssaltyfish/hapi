@@ -7,10 +7,11 @@ import { useTranslation } from '@/lib/use-translation'
 import type { NativeWorkspaceCreationDraft } from './newSessionFormDraft'
 import { nativeCatalogKey } from '@/codex-native/catalogQueries'
 
-export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: boolean) {
-    const [mode, setMode] = useState<'none' | 'existing' | 'new'>('none')
-    const [projectId, setProjectId] = useState('')
+export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: boolean, initialProject?: { id: string; name?: string }) {
+    const [mode, setMode] = useState<'none' | 'existing' | 'new'>(initialProject ? 'existing' : 'none')
+    const [projectId, setProjectId] = useState(initialProject?.id ?? '')
     const [name, setName] = useState('')
+    const previousEndpoint = useRef(endpointId)
     const creation = useRef<NativeWorkspaceCreationDraft | null>(null)
     const captureCreationDraft = useCallback(() => creation.current ? { ...creation.current } : undefined, [])
     const restoreCreationDraft = useCallback((draft?: NativeWorkspaceCreationDraft) => { creation.current = draft ? { ...draft } : null }, [])
@@ -24,7 +25,15 @@ export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: 
         retry: false,
     })
     const projects = query.data?.pages.flatMap(page => page.data) ?? []
-    useEffect(() => { setMode('none'); setProjectId(''); setName(''); creation.current = null }, [endpointId])
+    useEffect(() => {
+        if (previousEndpoint.current === endpointId) return
+        previousEndpoint.current = endpointId
+        setMode('none')
+        setProjectId('')
+        setName('')
+        creation.current = null
+    }, [endpointId])
+    const selectedProjectName = projectId && initialProject?.id === projectId ? initialProject.name : undefined
     async function resolveProjectId(path: string): Promise<string | null> {
         if (mode === 'none') return null
         if (mode === 'existing') {
@@ -39,12 +48,13 @@ export function useNativeWorkspace(api: ApiClient, endpointId: string, enabled: 
         pending.projectId = result.project.id
         return result.project.id
     }
-    return { mode, setMode, projectId, setProjectId, name, setName, query, projects, resolveProjectId, captureCreationDraft, restoreCreationDraft, canCreate: mode === 'none' || (mode === 'existing' ? Boolean(projectId) : Boolean(name.trim())) }
+    return { mode, setMode, projectId, setProjectId, selectedProjectName, name, setName, query, projects, resolveProjectId, captureCreationDraft, restoreCreationDraft, canCreate: mode === 'none' || (mode === 'existing' ? Boolean(projectId) : Boolean(name.trim())) }
 }
 
 export function NativeWorkspaceSection(props: { workspace: ReturnType<typeof useNativeWorkspace>; isDisabled: boolean; onSelect: (project: NativeDaemonProject) => void }) {
     const { t } = useTranslation()
     const { workspace } = props
+    const projectOutsideLoadedPage = workspace.projectId && !workspace.projects.some(project => project.id === workspace.projectId)
     const className = 'w-full rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] p-2 text-sm disabled:opacity-50'
     return <div className="flex flex-col gap-2 px-3 py-3">
         <label className="text-xs font-medium text-[var(--app-hint)]" htmlFor="native-workspace-mode">{t('newSession.native.workspace')}</label>
@@ -60,9 +70,10 @@ export function NativeWorkspaceSection(props: { workspace: ReturnType<typeof use
                 if (project) props.onSelect(project)
             }}>
                 <option value="" disabled>{t(workspace.query.isPending ? 'loading' : 'newSession.native.selectWorkspace')}</option>
+                {projectOutsideLoadedPage ? <option value={workspace.projectId}>{workspace.selectedProjectName ?? workspace.projectId}</option> : null}
                 {workspace.projects.map(project => <option key={project.id} value={project.id}>{project.name}{project.roots[0]?.path ? ` · ${project.roots[0].path}` : ''}</option>)}
             </SelectControl>
-            {!workspace.query.isPending && workspace.projects.length === 0 && !workspace.query.error ? <p className="text-xs text-[var(--app-hint)]">{t('newSession.native.noWorkspaces')}</p> : null}
+            {!workspace.query.isPending && workspace.projects.length === 0 && !workspace.projectId && !workspace.query.error ? <p className="text-xs text-[var(--app-hint)]">{t('newSession.native.noWorkspaces')}</p> : null}
             {workspace.query.hasNextPage ? <button type="button" disabled={workspace.query.isFetchingNextPage} onClick={() => void workspace.query.fetchNextPage()} className="self-start text-xs text-[var(--app-link)]">{t('newSession.native.moreWorkspaces')}</button> : null}
         </> : null}
         {workspace.mode === 'new' ? <input aria-label={t('newSession.native.workspaceName')} placeholder={t('newSession.native.workspaceName')} maxLength={200} value={workspace.name} disabled={props.isDisabled} onChange={event => workspace.setName(event.target.value)} className={className} /> : null}

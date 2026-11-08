@@ -394,6 +394,32 @@ it.each(['none', 'existing', 'new'] as const)('preserves the Native target, mode
     await waitFor(() => expect(create).toHaveBeenCalledWith('wsl', { cwd: '/repo/chosen', projectId: mode === 'existing' ? 'canonical' : mode === 'new' ? 'new-project' : null, model: 'gpt-5.6-terra', effort: 'max' }))
 })
 
+it('creates in the Native workspace opened from the session list when it is outside the first workspace page', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    savePreferredAgent('claude')
+    const create = vi.fn().mockResolvedValue({ session: { id: 'native-created' } })
+    const nativeApi = {
+        getCodexNativeEndpoints: async () => ({ endpoints: [{ id: 'windows', label: 'Windows' }, { id: 'wsl', label: 'WSL' }] }),
+        getCodexNativeEndpointStatus: async () => ({ available: true }),
+        listCodexNativeProjects: async () => ({ data: [{ id: 'other', name: 'Other', roots: [] }], nextCursor: 'more' }),
+        createCodexNativeThread: create,
+        withCodexNativeEndpoint: () => ({ getCodexNativeModels: async () => ({ data: [] }) }),
+    } as unknown as ApiClient
+    render(<NewSession api={nativeApi} machines={[]} initialNativeEndpointId="wsl" initialNativeProjectId="canonical"
+        initialNativeProjectName="Target workspace" initialDirectory="/target" onChooseFolder={vi.fn()}
+        onSuccess={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.getByRole('radio', { name: 'Codex Native' })).toBeChecked()
+    expect(screen.getByLabelText('newSession.native.workspace')).toHaveValue('existing')
+    expect(screen.getByRole('option', { name: 'Target workspace', selected: true })).toHaveValue('canonical')
+    await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+    expect(screen.getByLabelText('native-machine-selector')).toHaveValue('wsl')
+    expect(screen.getByTestId('directory')).toHaveValue('/target')
+    fireEvent.click(screen.getByTestId('create'))
+    await waitFor(() => expect(create).toHaveBeenCalledWith('wsl', { cwd: '/target', projectId: 'canonical' }))
+})
+
 it.each([
     { chosen: '/repo', projectCreates: 1, projectId: 'project-1' },
     { chosen: '/other', projectCreates: 2, projectId: 'project-2' },
@@ -574,6 +600,20 @@ describe('NewSession launch preferences', () => {
         fireEvent.click(screen.getByTestId('create'))
         await waitFor(() => expect(mocks.spawnSession).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1', directory: '/home/igna', agent: 'codex' })))
         expect(mocks.onSuccess).toHaveBeenCalledWith('runner-created')
+    })
+
+    it('creates with the runner provider and directory opened from the session list', async () => {
+        savePreferredCreationChoice('codex-native')
+        const otherMachine = { id: 'machine-2' } as Machine
+        mocks.spawnSession.mockResolvedValue({ type: 'success', sessionId: 'runner-created' })
+        render(<NewSession api={api} machines={[otherMachine, machine]} initialMachineId="machine-1" initialAgent="claude"
+            initialDirectory={'C:\\repo'} onSuccess={mocks.onSuccess} onCancel={vi.fn()} />)
+
+        expect(screen.getByRole('radio', { name: 'Claude' })).toBeChecked()
+        expect(screen.getByLabelText('machine-selector')).toHaveValue('machine-1')
+        await waitFor(() => expect(screen.getByTestId('create')).toBeEnabled())
+        fireEvent.click(screen.getByTestId('create'))
+        await waitFor(() => expect(mocks.spawnSession).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1', directory: 'C:\\repo', agent: 'claude' })))
     })
 
     it('refuses a directory rejected by workspace-root validation', async () => {

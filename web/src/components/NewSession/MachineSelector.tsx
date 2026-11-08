@@ -86,6 +86,9 @@ export function MachineSelectionField(props: {
                 {!props.isLoading && props.options.length > 0 && props.placeholder ? (
                     <option value="">{props.placeholder}</option>
                 ) : null}
+                {!props.isLoading && props.value && !props.options.some(option => option.id === props.value) ? (
+                    <option value={props.value} disabled>{props.value}</option>
+                ) : null}
                 {props.options.map((option) => {
                     const platform = formatMachinePlatform(option.platform, t)
                     return <option key={`${option.kind}:${option.id}`} value={option.id}>
