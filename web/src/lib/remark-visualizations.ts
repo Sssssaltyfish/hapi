@@ -111,8 +111,8 @@ export function remarkVisualizations(this: Processor) {
 
     return (tree: MarkdownNode, file: { toString(): string }) => {
         const source = file.toString()
-        // Other providers may omit Codex's private-use delimiters. Recognize
-        // the portable spelling only as a standalone top-level paragraph.
+        // Some providers omit Codex's private-use delimiters. Recover those
+        // malformed references only as standalone top-level paragraphs.
         // Read its source span so Markdown never changes JSON escaping.
         for (const node of tree.children ?? []) {
             const start = node.position?.start.offset

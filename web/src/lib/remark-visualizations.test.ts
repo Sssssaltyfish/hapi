@@ -55,7 +55,7 @@ describe('assistant visualization references', () => {
         expect(nodes[2].getAttribute('data-mode')).toBe('wide')
     })
 
-    it('leaves portable examples and incomplete references as ordinary Markdown', () => {
+    it('leaves stripped examples and incomplete references as ordinary Markdown', () => {
         const reference = 'visualize{"path":"/work/example.html"}'
         for (const markdown of [
             `Before ${reference}`, `${reference}\nAfter`, `\`${reference}\``,
