@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import { CODEX_APPROVAL_POLICIES, CODEX_APPROVALS_REVIEWERS } from '@hapi/protocol'
+import { SideQuestionClientIdSchema, SideQuestionConflict, SideQuestionRequestSchema } from '@hapi/protocol/sideQuestion'
 import type { WebAppEnv } from '../middleware/auth'
 import { NativeService } from '../../codexNative/service'
 import { NativeRegistry, nativeSession } from '../../codexNative/registry'
@@ -315,6 +316,21 @@ export function createCodexNativeRoutes(
     app.get('/codex-native/threads/:id/commands', async (c) =>
         c.json(await getService(c).threadCommandState(c.req.param('id')))
     )
+    app.post('/codex-native/threads/:id/btw', async (c) => {
+        const parsed = SideQuestionRequestSchema.safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid side question' }, 400)
+        try {
+            return c.json(await getService(c).askSideQuestion(c.req.param('id'), parsed.data))
+        } catch (error) {
+            if (error instanceof SideQuestionConflict) return c.json({ error: error.message }, 409)
+            throw error
+        }
+    })
+    app.post('/codex-native/threads/:id/btw/:clientId/cancel', c => {
+        const parsed = SideQuestionClientIdSchema.safeParse(c.req.param('clientId'))
+        if (!parsed.success) return c.json({ error: 'Invalid side question ID' }, 400)
+        return c.json(getService(c).cancelSideQuestion(c.req.param('id'), parsed.data))
+    })
     app.post('/codex-native/threads/:id/commands/recap/:clientId/cancel', c => {
         const parsed = z.string().min(1).max(200).safeParse(c.req.param('clientId'))
         if (!parsed.success) return c.json({ error: 'Invalid recap request ID' }, 400)

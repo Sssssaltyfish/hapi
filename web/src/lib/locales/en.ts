@@ -1,4 +1,13 @@
 export default {
+  'sideQuestion.title': 'Side question',
+  'sideQuestion.description': 'Ask about this conversation without interrupting it',
+  'sideQuestion.placeholder': 'Ask a side question…',
+  'sideQuestion.send': 'Ask',
+  'sideQuestion.pending': 'Answering side question',
+  'sideQuestion.cancel': 'Stop side answer',
+  'sideQuestion.minimize': 'Minimize side question',
+  'sideQuestion.unavailable': 'Side questions are unavailable for this provider.',
+  'sideQuestion.disconnected': 'Reconnect the session to ask a side question.',
   'settings.display.appIcon.title': 'App icon',
   'settings.display.appIcon.description': 'Shared across this hub.',
   'settings.display.appIcon.choose': 'Choose image',

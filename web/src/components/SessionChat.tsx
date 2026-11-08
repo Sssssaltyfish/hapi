@@ -40,6 +40,8 @@ import { createSerialAsyncQueue } from '@/lib/serialAsyncQueue'
 import { HappyComposer, type ComposerSendError, type ComposerCommandOutcome } from '@/components/AssistantChat/HappyComposer'
 import { SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
 import { useComposerSendMode } from '@/hooks/useComposerSendMode'
+import { useSideQuestion } from '@/hooks/useSideQuestion'
+import { SideQuestionPanel } from '@/components/AssistantChat/SideQuestionPanel'
 import {
     isDictateHotkeyBlockedTarget,
     isDictateToggleHotkey,
@@ -679,6 +681,22 @@ function SessionChatInner(props: SessionChatProps) {
     const { haptic } = usePlatform()
     const { t } = useTranslation()
     const { toolGroupsCollapsed } = useToolGroupCollapse()
+    const sideQuestion = useSideQuestion(props.api, props.session.id)
+    const sideQuestionSupported = Boolean(native || props.session.metadata?.capabilities?.sideQuestion)
+    const sideQuestionAvailable = sideQuestionSupported && props.session.active && (!native || native.available && native.connected)
+    const [sideQuestionError, setSideQuestionError] = useState<string | null>(null)
+    const autocompleteSuggestions = useCallback(async (query: string): Promise<Suggestion[]> => {
+        const suggestions = await props.autocompleteSuggestions?.(query) ?? []
+        if (!query.startsWith('/')) return suggestions
+        // Runner capabilities, rather than the local fallback catalog, decide
+        // whether this independent request can be offered in this conversation.
+        const filtered = suggestions.filter(value => value.text !== '/btw' || value.source !== 'builtin')
+        if (sideQuestionSupported && 'btw'.startsWith(query.slice(1).toLowerCase()) && !filtered.some(value => value.text === '/btw')) {
+            filtered.push({ key: '/btw', text: '/btw', label: '/btw', source: 'builtin',
+                description: t('sideQuestion.description'), submitOnSelect: true })
+        }
+        return filtered
+    }, [props.autocompleteSuggestions, sideQuestionSupported, t])
     const navigate = useNavigate()
     const [historyActionPending, setHistoryActionPending] = useState(false)
     const [rewindRevision, setRewindRevision] = useState(0)
@@ -2154,6 +2172,11 @@ function SessionChatInner(props: SessionChatProps) {
                                 />
                             ) : null}
                             {native?.queueContent}
+                            <SideQuestionPanel sideQuestion={sideQuestion} disabled={!sideQuestionAvailable} />
+                            {sideQuestionError && <div role="alert" className="mx-auto flex w-full max-w-content items-center gap-2 py-1 text-xs text-[var(--app-hint)]">
+                                <span className="flex-1">{sideQuestionError}</span>
+                                <button type="button" aria-label={t('button.close')} onClick={() => setSideQuestionError(null)}>×</button>
+                            </div>}
                             {runnerControls.goalControlsAvailable || runnerControls.goalEditorOpen ? <div className="mx-auto w-full max-w-content">
                                 <CodexGoalControls goal={runnerControls.goal ?? null} editing={runnerControls.goalEditorOpen}
                                     onEditingChange={runnerControls.setGoalEditorOpen} disabled={!props.session.active || Boolean(runnerControls.goalUnavailable)}
@@ -2370,8 +2393,19 @@ function SessionChatInner(props: SessionChatProps) {
                         onSwitchToRemote={native ? undefined : handleSwitchToRemote}
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
-                        autocompleteSuggestions={props.autocompleteSuggestions}
-                        onSubmitCommand={native?.onSubmitCommand ?? (text => {
+                        autocompleteSuggestions={autocompleteSuggestions}
+                        onSubmitCommand={text => {
+                            const btw = /^\s*\/btw(?:\s+([\s\S]*))?$/i.exec(text)
+                            const customBtw = props.availableSlashCommands?.some(command => command.name === 'btw' && command.source !== 'builtin')
+                            if (btw && !customBtw) {
+                                if (!sideQuestionAvailable) {
+                                    setSideQuestionError(t(sideQuestionSupported ? 'sideQuestion.disconnected' : 'sideQuestion.unavailable'))
+                                    return 'failed'
+                                }
+                                setSideQuestionError(null)
+                                return sideQuestion.ask(btw[1] ?? '') ? 'handled' : 'failed'
+                            }
+                            if (native?.onSubmitCommand) return native.onSubmitCommand(text)
                             if (runnerControls.goalControlsAvailable) {
                                 const command = parseCodexThreadCommand(text)
                                 if (command?.command === 'goal' && command.action === 'show') {
@@ -2383,7 +2417,7 @@ function SessionChatInner(props: SessionChatProps) {
                                 state: props.session.agentState, commands: props.availableSlashCommands ?? [],
                                 nativeCommands: props.session.metadata?.slashCommands,
                                 resolveCommands: props.resolveSlashCommands, open: setApprovalRequestId })
-                        })}
+                        }}
                         voiceStatus={voice?.status}
                         voiceMicMuted={voice?.micMuted}
                         onVoiceToggle={voice && voiceBackendReady ? handleVoiceToggle : undefined}

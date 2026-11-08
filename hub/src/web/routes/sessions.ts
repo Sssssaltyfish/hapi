@@ -1,4 +1,5 @@
 import { CodexGoalControlRequestSchema } from '@hapi/protocol/codexGoalControl'
+import { SideQuestionClientIdSchema, SideQuestionConflict, SideQuestionRequestSchema } from '@hapi/protocol/sideQuestion'
 import {
     CursorMigrateToAcpRequestSchema,
     DeleteUploadRequestSchema,
@@ -549,6 +550,36 @@ export function createSessionsRoutes(getSyncEngine: () => SyncEngine | null, nat
                         : outcome.reason === 'no_legacy_store_on_disk' ? 404
                             : 500
         return c.json(outcome, status)
+    })
+
+    app.post('/sessions/:id/btw', async c => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const access = requireSessionFromParam(c, engine, { requireActive: true })
+        if (access instanceof Response) return access
+        const parsed = SideQuestionRequestSchema.safeParse(await c.req.json().catch(() => null))
+        if (!parsed.success) return c.json({ error: 'Invalid side question' }, 400)
+        try {
+            return c.json(await engine.askSideQuestion(access.sessionId, c.get('namespace'), parsed.data))
+        } catch (error) {
+            return c.json({ error: error instanceof Error ? error.message : 'Side question failed.' },
+                error instanceof SideQuestionConflict ? 409 : 502)
+        }
+    })
+
+    app.post('/sessions/:id/btw/:clientId/cancel', async c => {
+        const engine = requireSyncEngine(c, getSyncEngine)
+        if (engine instanceof Response) return engine
+        const access = requireSessionFromParam(c, engine, { requireActive: true })
+        if (access instanceof Response) return access
+        const parsed = SideQuestionClientIdSchema.safeParse(c.req.param('clientId'))
+        if (!parsed.success) return c.json({ error: 'Invalid side question ID' }, 400)
+        try {
+            return c.json(await engine.cancelSideQuestion(access.sessionId, c.get('namespace'), parsed.data))
+        } catch (error) {
+            return c.json({ error: error instanceof Error ? error.message : 'Side question could not be canceled.' },
+                error instanceof SideQuestionConflict ? 409 : 502)
+        }
     })
 
     app.post('/sessions/:id/codex/goal', async (c) => {

@@ -11,6 +11,7 @@
         "./messages": "./src/messages.ts",
         "./slashCommands": "./src/slashCommands.ts",
         "./recap": "./src/recap.ts",
+        "./sideQuestion": "./src/sideQuestion.ts",
         "./buildInfo": "./src/buildInfo.ts",
         "./conversationHistory": "./src/conversationHistory.ts",
         "./codexInputContext": "./src/codexInputContext.ts",

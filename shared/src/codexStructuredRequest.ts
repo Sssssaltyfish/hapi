@@ -10,6 +10,7 @@ export type CodexStructuredRequestOptions = {
     settings?: RecordValue
     timeoutMs?: number
     cleanupTimeoutMs?: number
+    maxOutputBytes?: number
     signal?: AbortSignal
 }
 const record = (value: unknown): RecordValue => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as RecordValue : {}
@@ -32,6 +33,7 @@ export async function codexStructuredRequest<T>(
     const invalidResponse = `The ${name} helper returned an invalid response.`
     const timeoutMs = options.timeoutMs ?? 30_000
     const cleanupMs = options.cleanupTimeoutMs ?? 5_000
+    const maxOutputBytes = options.maxOutputBytes ?? 8 * 1024
     let helperId: string | undefined
     let turnId: string | undefined
     let completed = false
@@ -71,7 +73,7 @@ export async function codexStructuredRequest<T>(
         if (event.method === 'item/completed') {
             const item = record(params.item)
             if (item.type !== 'agentMessage') return
-            if (typeof item.text !== 'string' || new TextEncoder().encode(item.text).length > 8 * 1024) {
+            if (typeof item.text !== 'string' || new TextEncoder().encode(item.text).length > maxOutputBytes) {
                 fail(invalidResponse); return
             }
         }

@@ -50,6 +50,47 @@ afterEach(() => {
 })
 
 describe('Query', () => {
+    it('answers and cancels native side questions while a main turn waits for approval', async () => {
+        const { Query } = await import('./query')
+        const stdin = new PassThrough()
+        const stdout = new PassThrough()
+        const writes: Array<{ type: string; request_id: string; request?: unknown }> = []
+        stdin.on('data', chunk => writes.push(JSON.parse(String(chunk))))
+        let exit!: () => void
+        let approvalStarted!: () => void
+        const approval = new Promise<void>(resolve => { approvalStarted = resolve })
+        const query = new Query(stdin, stdout, new Promise<void>(resolve => { exit = resolve }),
+            async (_, __, { signal }) => {
+                approvalStarted()
+                await new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))
+                return { behavior: 'deny', message: 'closed' }
+            })
+        const write = (message: unknown) => stdout.write(JSON.stringify(message) + '\n')
+        try {
+            write({ type: 'control_request', request_id: 'main-approval', request: { subtype: 'can_use_tool', tool_name: 'Bash', input: {} } })
+            await approval
+            const answer = query.askSideQuestion('What has been checked?', new AbortController().signal)
+            const first = writes[0]!
+            expect(first.request).toEqual({ subtype: 'side_question', question: 'What has been checked?' })
+            write({ type: 'system', subtype: 'control_request_progress', request_id: first.request_id })
+            write({ type: 'control_response', response: {
+                subtype: 'success', request_id: first.request_id, response: { response: 'The existing tests.', synthetic: false }
+            } })
+            await expect(answer).resolves.toBe('The existing tests.')
+
+            const cancel = new AbortController()
+            const canceled = query.askSideQuestion('Another question', cancel.signal)
+            const second = writes[1]!
+            cancel.abort(new Error('canceled by user'))
+            await expect(canceled).rejects.toThrow('canceled by user')
+            expect(writes.slice(2)).toEqual([{ type: 'control_cancel_request', request_id: second.request_id }])
+            write({ type: 'system', subtype: 'status' })
+            await expect(query.next()).resolves.toMatchObject({ value: { type: 'system', subtype: 'status' } })
+        } finally {
+            stdout.end(); exit()
+        }
+    })
+
     it('writes priority input on the existing stream and proves closed input was not dispatched', async () => {
         const { Query } = await import('./query')
         const { ClaudeInputUnavailableError } = await import('./types')

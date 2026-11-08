@@ -39,6 +39,7 @@ const SessionCapabilitiesSchema = z.object({
     steering: z.boolean().optional(),
     concurrentClients: z.boolean().optional(),
     terminal: z.boolean().optional(),
+    sideQuestion: z.boolean().optional(),
     permissionModes: z.array(PermissionModeSchema).optional(),
     conversationHistory: ConversationHistoryCapabilitiesSchema.optional()
 })

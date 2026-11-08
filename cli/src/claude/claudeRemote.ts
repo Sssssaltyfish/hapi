@@ -15,6 +15,7 @@ import { filterCatalogAffectingClaudeArgs } from "./sdk/metadataExtractor";
 import { randomUUID } from 'node:crypto';
 import type { ClaudeInputLease } from './claudeSteering';
 import { ClaudeInputUnavailableError } from './sdk/types';
+import type { ClaudeSideQuestionHandler } from './session';
 
 // acceptEdits/bypassPermissions are emulated in canCallTool so they can change
 // mid-session. Launching Claude natively in them skips canCallTool, so a later
@@ -51,6 +52,7 @@ export async function claudeRemote(opts: {
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void
     onInputLease?: (lease: ClaudeInputLease | null) => void,
+    onSideQuestionHandler?: (handler: ClaudeSideQuestionHandler | null) => void,
     waitForSteering?: (signal?: AbortSignal) => Promise<void>
     hasPendingSteering?: () => boolean
 }) {
@@ -261,6 +263,8 @@ export async function claudeRemote(opts: {
         prompt: messages,
         options: sdkOptions,
     });
+    const liveQuery = response;
+    opts.onSideQuestionHandler?.((question, signal) => liveQuery.askSideQuestion(question, signal));
 
     let nextMessageFetchInFlight = false;
     let inputEnded = false;
@@ -466,6 +470,7 @@ export async function claudeRemote(opts: {
         }
     } finally {
         inputEnded = true;
+        opts.onSideQuestionHandler?.(null);
         activeInputUuid = null;
         publishInputLease();
         logger.debug(

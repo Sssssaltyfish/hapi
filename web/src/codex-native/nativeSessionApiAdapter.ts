@@ -8,6 +8,8 @@ import type { useNativeThread } from './useNativeThread'
 import type { projectNativeItems } from './projectNativeItems'
 
 type SupportedOperation =
+    | 'askSideQuestion'
+    | 'cancelSideQuestion'
     | 'getSessionCodexModels'
     | 'getConversationOutline'
     | 'getCodexNativeTurnContext'
@@ -221,6 +223,8 @@ export function createNativeSessionApiAdapter(
         }
     }
     const operations = {
+        askSideQuestion: async (_id, payload) => target.askNativeSideQuestion(threadId, payload),
+        cancelSideQuestion: async (_id, clientId) => target.cancelNativeSideQuestion(threadId, clientId),
         getCodexNativeTurnContext: async (_id, turnId, itemId, signal) =>
             target.getCodexNativeTurnContext(threadId, turnId, itemId, signal),
         getConversationOutline: async (_id, page, stopIds) => {

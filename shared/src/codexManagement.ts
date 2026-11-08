@@ -3,6 +3,7 @@ import { normalizeCodexUsage } from './codexUsage'
 export { codexRecap, type CodexRecapTransport, type CodexRecapOptions } from './codexRecap'
 export { codexTitle } from './codexTitle'
 export type { CodexStructuredRequestTransport } from './codexStructuredRequest'
+export { codexSideQuestion } from './codexSideQuestion'
 
 type RecordValue = Record<string, unknown>
 type Request = (method: string, params: RecordValue) => Promise<unknown>

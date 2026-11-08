@@ -102,6 +102,19 @@ schemes. Each scheme includes its base preset, per-appearance color overrides,
 and an optional background image with brightness and blur. Images and saved
 schemes stay in this browser's IndexedDB; exported JSON includes the image.
 
+### Side questions
+
+`/btw` opens a compact side-question panel; `/btw <question>` starts the question
+immediately. The main composer remains available. Side answers can be minimized,
+canceled, or closed and are not appended to the main conversation. Leaving a
+conversation cancels its pending side question.
+
+Codex Native and capable Codex runners use a temporary, tool-free daemon thread
+with a bounded excerpt of visible conversation and tool results. Claude runners
+prefer Claude Code's native side-question control, with a nonpersistent,
+tool-free fork when the live control is unavailable. Other runners expose this
+command only when their adapter declares the corresponding capability.
+
 ### Chat interface (`src/components/SessionChat.tsx`)
 
 - Message thread with infinite scroll.

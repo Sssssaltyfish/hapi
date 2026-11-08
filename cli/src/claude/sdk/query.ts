@@ -4,6 +4,7 @@
  */
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { existsSync } from 'node:fs'
 import { Stream } from './stream'
@@ -22,7 +23,8 @@ import {
     type ControlCancelRequest,
     type PermissionResult,
     AbortError,
-    ClaudeInputUnavailableError
+    ClaudeInputUnavailableError,
+    ClaudeSideQuestionUnavailableError
 } from './types'
 import { getDefaultClaudeCodePath, logDebug, streamToStdin } from './utils'
 import { withBunRuntimeEnv } from '@/utils/bunRuntime'
@@ -133,12 +135,15 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
                             }
                             continue
                         } else if (message.type === 'control_request') {
-                            await this.handleControlRequest(message as unknown as CanUseToolControlRequest)
+                            // An approval can outlive an independent side question. Keep reading
+                            // controls while the approval callback waits for its decision.
+                            void this.handleControlRequest(message as unknown as CanUseToolControlRequest).catch(error => logDebug(String(error)))
                             continue
                         } else if (message.type === 'control_cancel_request') {
                             this.handleControlCancelRequest(message as unknown as ControlCancelRequest)
                             continue
                         }
+                        if (message.type === 'system' && message.subtype === 'control_request_progress') continue
 
                         this.inputStream.enqueue(message)
                     } catch (e) {
@@ -157,6 +162,9 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
                 this.inputStream.done()
             }
             this.cleanupControllers()
+            for (const [requestId, handler] of this.pendingControlResponses) {
+                handler({ subtype: 'error', request_id: requestId, error: 'Claude process closed before responding.' })
+            }
             rl.close()
         }
     }
@@ -183,6 +191,31 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
         }, this.childStdin)
     }
 
+    async askSideQuestion(question: string, signal: AbortSignal): Promise<string> {
+        signal.throwIfAborted()
+        if (this.inputClosed || this.promptFailure || !this.childStdin?.writable || this.childStdin.destroyed || this.childStdin.writableEnded) {
+            throw new ClaudeSideQuestionUnavailableError('The live Claude input is closed.')
+        }
+        const timeout = AbortSignal.timeout(60_000)
+        let result: unknown
+        try {
+            const response = await this.request({ subtype: 'side_question', question }, this.childStdin, AbortSignal.any([signal, timeout]))
+            result = response.response
+        } catch (error) {
+            if (timeout.aborted && !signal.aborted) throw new Error('Side question timed out. Try again.')
+            const detail = error instanceof Error ? error.message : String(error)
+            if (!signal.aborted && /(?:unsupported|unknown|unrecognized).*(?:side_question|control request|subtype)|side_question.*not supported|does not handle control_request subtype: side_question/i.test(detail)) {
+                throw new ClaudeSideQuestionUnavailableError(detail)
+            }
+            throw error
+        }
+        if (!result || typeof result !== 'object' || !('response' in result) || typeof result.response !== 'string'
+            || !result.response.trim() || 'synthetic' in result && result.synthetic === true) {
+            throw new Error('Claude did not return a side question answer.')
+        }
+        return result.response.trim()
+    }
+
     /** Write soft input on this process; native UUID receipts confirm acceptance. */
     async sendUserMessage(message: SDKUserMessage): Promise<void> {
         if (this.inputClosed || this.promptFailure || !this.childStdin?.writable || this.childStdin.destroyed || this.childStdin.writableEnded) {
@@ -197,8 +230,8 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
     /**
      * Send control request to Claude process
      */
-    private request(request: ControlRequest, childStdin: Writable): Promise<SDKControlResponse['response']> {
-        const requestId = Math.random().toString(36).substring(2, 15)
+    private request<T extends ControlRequest>(request: T, childStdin: Writable, signal?: AbortSignal): Promise<SDKControlResponse['response']> {
+        const requestId = randomUUID()
         const sdkRequest: SDKControlRequest = {
             request_id: requestId,
             type: 'control_request',
@@ -206,7 +239,21 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
         }
 
         return new Promise((resolve, reject) => {
+            const cleanup = () => {
+                this.pendingControlResponses.delete(requestId)
+                signal?.removeEventListener('abort', cancel)
+            }
+            const cancel = () => {
+                cleanup()
+                if (childStdin.writable && !childStdin.destroyed && !childStdin.writableEnded) {
+                    childStdin.write(JSON.stringify({ type: 'control_cancel_request', request_id: requestId }) + '\n', () => {})
+                }
+                reject(signal?.reason)
+            }
+            if (signal?.aborted) { reject(signal.reason); return }
+            signal?.addEventListener('abort', cancel, { once: true })
             this.pendingControlResponses.set(requestId, (response) => {
+                cleanup()
                 if (response.subtype === 'success') {
                     resolve(response)
                 } else {
@@ -214,7 +261,11 @@ export class Query implements AsyncIterableIterator<SDKMessage> {
                 }
             })
 
-            childStdin.write(JSON.stringify(sdkRequest) + '\n')
+            childStdin.write(JSON.stringify(sdkRequest) + '\n', error => {
+                if (!error) return
+                cleanup()
+                reject(error)
+            })
         })
     }
 

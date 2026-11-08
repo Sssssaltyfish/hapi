@@ -1,4 +1,13 @@
 export default {
+  'sideQuestion.title': '旁问',
+  'sideQuestion.description': '就当前对话提问，不打断正在进行的工作',
+  'sideQuestion.placeholder': '顺便问一下…',
+  'sideQuestion.send': '提问',
+  'sideQuestion.pending': '正在回答旁问',
+  'sideQuestion.cancel': '停止旁问',
+  'sideQuestion.minimize': '收起旁问',
+  'sideQuestion.unavailable': '当前 provider 不支持旁问。',
+  'sideQuestion.disconnected': '请连接会话后提问。',
   'settings.display.appIcon.title': '应用图标',
   'settings.display.appIcon.description': '此 Hub 共用。',
   'settings.display.appIcon.choose': '选择图片',

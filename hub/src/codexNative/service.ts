@@ -3,7 +3,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { settingsMatch as nativeModeSettingsMatch } from '@hapi/protocol/nativeSettings.server'
 import type { CodexThreadCommand, NativeCommandResult } from '@hapi/protocol/codexThreadCommands'
 import { splitCodexInputContext } from '@hapi/protocol/codexInputContext'
-import { CodexGuardianDenials, codexRecap, codexTitle, type CodexStructuredRequestTransport } from '@hapi/protocol/codexManagement'
+import { CodexGuardianDenials, codexRecap, codexSideQuestion, codexTitle, type CodexStructuredRequestTransport } from '@hapi/protocol/codexManagement'
+import { SideQuestions, type SideQuestionRequest } from '@hapi/protocol/sideQuestion'
 import { messageInput, mentionSuggestions } from './mentions'
 import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
@@ -95,6 +96,7 @@ export function fallbackThread(thread: NativeRecord): boolean {
 }
 export class NativeService {
     dispose(): void {
+        this.sideQuestions.dispose()
         for (const run of this.recapRuns.values()) run.controller.abort()
         this.invalidateDesktopWorkspaces()
         this.catalogEvents.dispose()
@@ -115,6 +117,7 @@ export class NativeService {
     private commandRuns = new Map<string, Promise<unknown>>()
     private recapRuns = new Map<string, RecapRun>()
     private recapRequests = new Map<string, RecapRun>()
+    private readonly sideQuestions = new SideQuestions()
     private catalogEvents = new NativeCatalogEvents(() => this.connection())
     private desktopWorkspaces?: DesktopWorkspaceLookup
     private identities = createWorkspaceIdentityReader()
@@ -694,6 +697,15 @@ export class NativeService {
         })()
         run.promise = pending
         return pending
+    }
+    askSideQuestion(threadId: string, request: SideQuestionRequest) {
+        return this.sideQuestions.ask(threadId, request, signal => this.withConnection(client => codexSideQuestion(
+            structuredRequestTransport(client), threadId, request.question,
+            { settings: this.subscriptions.get(threadId)?.snapshot, signal, timeoutMs: 60_000 },
+        )))
+    }
+    cancelSideQuestion(threadId: string, clientId: string) {
+        return this.sideQuestions.cancel(threadId, clientId)
     }
     guardianDenial(threadId: string) {
         return this.subscriptions.get(threadId)?.denials?.show() ?? null

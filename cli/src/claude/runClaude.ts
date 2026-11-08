@@ -7,7 +7,8 @@ import { hashObject } from '@/utils/deterministicJson';
 import { classifyClaudeSlashCatalog, extractSDKMetadata } from '@/claude/sdk/metadataExtractor';
 import { parseSpecialCommand } from '@/parsers/specialCommands';
 import { isCustomSlashMessage, parseRemoteBuiltinCommand } from '@/modules/common/remoteBuiltinCommands';
-import { createClaudeSideRecap } from './claudeSideRecap';
+import { createClaudeSideQuestion, createClaudeSideRecap } from './claudeSideRecap';
+import { ClaudeSideQuestionUnavailableError } from './sdk/types';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { startHappyServer, toClaudeAllowedHapiMcpTools } from '@/claude/utils/startHappyServer';
 import { startHookServer } from '@/claude/utils/startHookServer';
@@ -19,6 +20,7 @@ import { registerLocalHandoffHandler } from '@/agent/localHandoff';
 import { createModeChangeHandler, createRunnerLifecycle, setControlledByUser } from '@/agent/runnerLifecycle';
 import { isPermissionModeAllowedForFlavor } from '@hapi/protocol';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
+import { SideQuestionCancelRequestSchema, SideQuestionRequestSchema, SideQuestions } from '@hapi/protocol/sideQuestion';
 import { PermissionModeSchema } from '@hapi/protocol/schemas';
 import { formatAttachmentsForClaude, formatMessageWithAttachments } from '@/utils/attachmentFormatter';
 import { normalizeClaudeSessionModel } from './model';
@@ -87,6 +89,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         });
     const { api, session, sessionInfo } = bootstrap;
     const sideQueryAbort = new AbortController();
+    const sideQuestions = new SideQuestions();
     let recapInFlight = false;
     session.setNativeSlashCommandChecker?.(name => name === 'recap');
     logger.debug(`Session created: ${sessionInfo.id}`);
@@ -243,7 +246,10 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         session,
         logTag: 'claude',
         stopKeepAlive: () => currentSessionRef.current?.stopKeepAlive(),
-        onBeforeClose: () => sideQueryAbort.abort(),
+        onBeforeClose: () => {
+            sideQueryAbort.abort();
+            sideQuestions.dispose();
+        },
         onAfterClose: () => {
             happyServer.stop();
             currentSessionRef.current?.localPermissionBridge.stop();
@@ -265,6 +271,7 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
         capabilities: {
             ...metadata?.capabilities,
             steering: false,
+            sideQuestion: true,
             ...(conversationHistory ? { conversationHistory } : {})
         }
     }))
@@ -314,6 +321,29 @@ export async function runClaude(options: StartOptions = {}): Promise<void> {
     let currentAppendSystemPrompt: string | undefined = undefined; // Track current append system prompt
     let currentAllowedTools: string[] | undefined = undefined; // Track current allowed tools
     let currentDisallowedTools: string[] | undefined = undefined; // Track current disallowed tools
+
+    session.rpcHandlerManager.registerHandler(RPC_METHODS.SideQuestion, async (raw: unknown) => {
+        const request = SideQuestionRequestSchema.parse(raw);
+        return sideQuestions.ask(sessionInfo.id, request, async signal => {
+            const current = currentSessionRef.current;
+            if (current?.sideQuestionHandler) {
+                try {
+                    return { text: await current.sideQuestionHandler(request.question, signal) };
+                } catch (error) {
+                    if (!(error instanceof ClaudeSideQuestionUnavailableError)) throw error;
+                }
+            }
+            const nativeSessionId = current ? current.sessionId : session.getMetadata()?.claudeSessionId;
+            if (!nativeSessionId) throw new Error('Start a conversation before asking a side question.');
+            return { text: await createClaudeSideQuestion({
+                sessionId: nativeSessionId, cwd: workingDirectory, model: current?.getModel() ?? currentModel ?? undefined, signal,
+            }, request.question) };
+        });
+    });
+    session.rpcHandlerManager.registerHandler(RPC_METHODS.CancelSideQuestion, async (raw: unknown) => {
+        const { clientId } = SideQuestionCancelRequestSchema.parse(raw);
+        return sideQuestions.cancel(sessionInfo.id, clientId);
+    });
 
     const syncSessionModes = () => {
         const sessionInstance = currentSessionRef.current;

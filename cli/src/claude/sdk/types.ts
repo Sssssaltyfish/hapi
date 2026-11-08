@@ -109,6 +109,7 @@ export interface SDKControlResponse extends SDKMessage {
         request_id: string
         subtype: 'success' | 'error'
         error?: string
+        response?: unknown
     }
 }
 
@@ -233,3 +234,6 @@ export class AbortError extends Error {
         this.name = 'AbortError'
     }
 }
+
+/** The live process cannot accept the native side question protocol. */
+export class ClaudeSideQuestionUnavailableError extends Error {}

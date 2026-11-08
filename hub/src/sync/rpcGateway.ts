@@ -1,5 +1,6 @@
 import type { AgentFlavor, CodexCollaborationMode, CopilotAgentMode, PermissionMode } from '@hapi/protocol/types'
 import { PERMISSION_REQUEST_NOT_FOUND_MESSAGE, RPC_METHODS } from '@hapi/protocol/rpcMethods'
+import { SideQuestionCancelResponseSchema, SideQuestionResponseSchema, type SideQuestionRequest } from '@hapi/protocol/sideQuestion'
 import {
     ArchiveCodexSessionRpcResponseSchema,
     AgentAvailabilityResponseSchema,
@@ -597,6 +598,17 @@ export class RpcGateway {
 
     async controlCodexGoal(sessionId: string, request: import('@hapi/protocol/codexGoalControl').CodexGoalControlRequest): Promise<import('@hapi/protocol/codexGoalControl').CodexGoalControlResult> {
         return await this.sessionRpc(sessionId, RPC_METHODS.CodexGoalControl, request) as import('@hapi/protocol/codexGoalControl').CodexGoalControlResult
+    }
+
+    async askSideQuestion(sessionId: string, request: SideQuestionRequest) {
+        const result = await this.sessionRpc(sessionId, RPC_METHODS.SideQuestion, request, 80_000)
+        if (result && typeof result === 'object' && 'error' in result && typeof result.error === 'string') throw new Error(result.error)
+        return SideQuestionResponseSchema.parse(result)
+    }
+
+    async cancelSideQuestion(sessionId: string, clientId: string) {
+        const result = await this.sessionRpc(sessionId, RPC_METHODS.CancelSideQuestion, { clientId })
+        return SideQuestionCancelResponseSchema.parse(result)
     }
 
     async rewindConversation(

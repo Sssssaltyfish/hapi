@@ -12,6 +12,7 @@ type LocalLaunchFailure = {
     message: string;
     exitReason: LocalLaunchExitReason;
 };
+export type ClaudeSideQuestionHandler = (question: string, signal: AbortSignal) => Promise<string>;
 
 export class Session extends AgentSessionBase<EnhancedMode> {
     readonly claudeEnvVars?: Record<string, string>;
@@ -30,6 +31,7 @@ export class Session extends AgentSessionBase<EnhancedMode> {
     private nativeSkillNames = new Set<string>();
     private queuedSteerHandler: ((id: string) => Promise<{ steered: boolean; pending?: boolean; error?: string }>) | null = null;
     private pendingSteer: ((id: string) => boolean) | null = null;
+    sideQuestionHandler: ClaudeSideQuestionHandler | null = null;
 
     registerQueuedSteerHandler(handler: NonNullable<Session['queuedSteerHandler']>, pending: (id: string) => boolean): () => void {
         this.queuedSteerHandler = handler; this.pendingSteer = pending;

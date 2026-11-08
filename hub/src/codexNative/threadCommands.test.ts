@@ -23,6 +23,7 @@ class Daemon {
     canonicalInstructions = false
     recapUnsupported = false
     holdRecap = false
+    holdHelperInterrupt?: Promise<void>
     emit(event: NativeEvent) {
         for (const client of this.clients) for (const listener of client.listeners) listener(event)
     }
@@ -86,6 +87,12 @@ class Daemon {
                         return { queuedSubmission: { id: 'queued', clientUserMessageId: params.clientUserMessageId } }
                     case 'thread/turns/list': return { data: [{ id: 'turn', status: this.latestStatus, items: params.itemsView === 'full'
                         ? [{ type: 'agentMessage', phase: 'final_answer', text: 'Existing final response.' }] : [] }] }
+                    case 'thread/items/list': return params.cursor ? { data: [{ item: { type: 'userMessage',
+                        content: [{ type: 'text', text: 'Earlier user task.' }] } }] } : { nextCursor: 'older-items', data: [
+                        { item: { type: 'commandExecution', command: 'bun test', aggregatedOutput: '42 passed' } },
+                        { item: { type: 'reasoning', text: 'Private reasoning' } },
+                        { item: { type: 'agentMessage', text: 'Checking the tests.' } },
+                    ] }
                     case 'thread/read': return { thread: { id: 'thread', model: 'current-model', modelProvider: 'openai', cwd: '/work', status: { type: this.runtimeStatus } } }
                     case 'config/read': return { config: { mcp_servers: { test: { enabled: true } } } }
                     case 'thread/start':
@@ -94,10 +101,13 @@ class Daemon {
                     case 'turn/start':
                         this.emit({ method: 'turn/started', params: { threadId: 'recap-helper', turn: { id: 'recap-turn' } } })
                         if (!this.holdRecap) {
-                            this.emit({ method: 'item/completed', params: { threadId: 'recap-helper', turnId: 'recap-turn', item: { type: 'agentMessage', text: JSON.stringify({ summary: 'A separate recap.', next_action: null }) } } })
+                            const output = (params.outputSchema as { required?: string[] } | undefined)?.required?.includes('text')
+                                ? { text: '42 tests passed.' } : { summary: 'A separate recap.', next_action: null }
+                            this.emit({ method: 'item/completed', params: { threadId: 'recap-helper', turnId: 'recap-turn', item: { type: 'agentMessage', text: JSON.stringify(output) } } })
                             this.emit({ method: 'turn/completed', params: { threadId: 'recap-helper', turn: { id: 'recap-turn', status: 'completed' } } })
                         }
                         return { turn: { id: 'recap-turn' } }
+                    case 'turn/interrupt': await this.holdHelperInterrupt; return {}
                     case 'thread/queue/list': return { data: this.queued }
                     case 'thread/queue/start':
                         if (this.startFailure) throw new Error('Start confirmation unavailable')
@@ -118,6 +128,56 @@ class Daemon {
         return client as unknown as NativeConnection
     }
 }
+
+describe('Native side questions', () => {
+    const path = '/api/codex-native/threads/thread/btw'
+    const request = (clientId: string) => ({
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, question: 'How many tests passed?' }),
+    })
+
+    test('reads active context, including tool results, and writes only to a temporary thread', async () => {
+        const { app, daemon, service } = fixture()
+        try {
+            const response = await app.request(path, request('side'))
+            expect(response.status).toBe(200)
+            expect(await response.json()).toEqual({ text: '42 tests passed.' })
+            const turn = daemon.calls.find(call => call.method === 'turn/start')!
+            expect(turn.params.threadId).toBe('recap-helper')
+            const input = JSON.stringify(turn.params.input)
+            expect(input).toContain('Earlier user task.')
+            expect(input).toContain('42 passed')
+            expect(input).toContain('How many tests passed?')
+            expect(input).not.toContain('Private reasoning')
+            expect(daemon.calls.find(call => call.method === 'thread/start')!.params)
+                .toMatchObject({ ephemeral: true, dynamicTools: [], config: { 'features.shell_tool': false } })
+            expect(daemon.calls.filter(call => call.params.threadId === 'thread').map(call => call.method))
+                .toEqual(['thread/read', 'thread/items/list', 'thread/items/list'])
+        } finally { service.dispose() }
+    })
+
+    test('cancels only the helper, even when cancel arrives before start', async () => {
+        const { app, daemon, service } = fixture()
+        daemon.holdRecap = true
+        let releaseInterrupt!: () => void
+        daemon.holdHelperInterrupt = new Promise<void>(resolve => { releaseInterrupt = resolve })
+        const cancel = (id: string) => app.request(`${path}/${id}/cancel`, { method: 'POST' })
+        try {
+            expect(await (await cancel('early')).json()).toEqual({ canceled: true })
+            expect((await app.request(path, request('early'))).status).toBe(409)
+            expect(daemon.calls).toEqual([])
+            const response = app.request(path, request('running'))
+            while (!daemon.calls.some(call => call.method === 'turn/start')) await new Promise(resolve => setTimeout(resolve, 1))
+            expect(await (await cancel('running')).json()).toEqual({ canceled: true })
+            daemon.holdRecap = false
+            expect((await app.request(path, request('new'))).status).toBe(200)
+            releaseInterrupt()
+            expect((await response).status).toBe(409)
+            expect(daemon.calls.filter(call => call.method === 'turn/interrupt').map(call => call.params))
+                .toEqual([{ threadId: 'recap-helper', turnId: 'recap-turn' }])
+        } finally { releaseInterrupt(); service.dispose() }
+    })
+})
 function fixture() {
     const daemon = new Daemon()
     const service = new NativeService({ endpoint: 'unix:///fake', namespace: 'owner' }, () => daemon.connection())

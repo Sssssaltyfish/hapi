@@ -9,6 +9,7 @@ import { normalizeCodexModel } from '@/modules/common/codexModels';
 import { formatAttachmentsForClaude, formatMessageWithAttachments } from '@/utils/attachmentFormatter';
 import { codexAnnotatedRequest } from '@hapi/protocol/codexInputContext';
 import { RPC_METHODS } from '@hapi/protocol/rpcMethods';
+import { SideQuestionCancelRequestSchema, SideQuestionRequestSchema, SideQuestions } from '@hapi/protocol/sideQuestion';
 import { CodexGoalControlRequestSchema, type CodexGoalControlRequest, type CodexGoalControlResult } from '@hapi/protocol/codexGoalControl';
 import { ThreadGoalSchema, type ThreadGoal } from '@hapi/protocol/schemas';
 import { ImplementCodexPlanRequestSchema, type ImplementCodexPlanResult } from '@hapi/protocol/apiTypes';
@@ -28,7 +29,7 @@ import { inheritedSandbox, settingsMatch } from './settings';
 import { planImplementationMessageId, planProposalForItem, planProposalForTurn } from './plan';
 import { CodexGuardianDenials, codexUsage } from '@hapi/protocol/codexManagement';
 import { codexUsageSummary } from '@hapi/protocol/codexUsage';
-import { sharedCodexRecap } from './recap';
+import { sharedCodexRecap, sharedCodexSideQuestion } from './recap';
 
 type RuntimeSettings = NonNullable<Parameters<ApiSessionClient['keepAlive']>[2]>;
 export type RootHost = {
@@ -63,6 +64,7 @@ export class SharedCodexRoot {
     private readonly guardianDenials = new CodexGuardianDenials();
     private recapController?: AbortController;
     private recapTask?: Promise<void>;
+    private readonly sideQuestions = new SideQuestions();
     // Ephemeral observations only: dequeue/compaction never prove acceptance.
     private readonly dequeuedInputs = new Set<string>();
     private deliveryTurn?: string;
@@ -232,7 +234,7 @@ export class SharedCodexRoot {
         await this.queue.load();
         this.projection = new SharedCodexProjection(this.session, threadId, (id, invokedAt) => this.queue.committed(id, invokedAt));
         this.session.updateMetadata(metadata => ({ ...metadata, codexSessionId: threadId, capabilities: {
-            ...metadata.capabilities, concurrentClients: true, terminal: true,
+            ...metadata.capabilities, concurrentClients: true, terminal: true, sideQuestion: true,
             // In-place rewind needs a native + hub commit barrier. Do not
             // advertise a destructive operation we cannot make atomic yet.
             conversationHistory: { forkCurrent: true, forkAtMessage: true, rewindToMessage: false }
@@ -566,6 +568,17 @@ export class SharedCodexRoot {
         }
         this.session.on('hub-archived', exitFromHubArchive);
         rpc.registerHandler(RPC_METHODS.SetSessionConfig, raw => this.applySettings(raw));
+        rpc.registerHandler(RPC_METHODS.SideQuestion, raw => {
+            const request = SideQuestionRequestSchema.parse(raw);
+            return this.sideQuestions.ask(this.threadId, request, signal => sharedCodexSideQuestion({
+                endpoint: this.host.endpoint, token: this.host.token, cwd: this.bootstrap.workingDirectory,
+                threadId: this.threadId, settings: this.settingsNative, signal,
+            }, request.question));
+        });
+        rpc.registerHandler(RPC_METHODS.CancelSideQuestion, async raw => {
+            const { clientId } = SideQuestionCancelRequestSchema.parse(raw);
+            return this.sideQuestions.cancel(this.threadId, clientId);
+        });
         rpc.registerHandler(RPC_METHODS.CodexGoalControl, raw => {
             const request = CodexGoalControlRequestSchema.parse(raw);
             const work = this.work.catch(() => {}).then(() => this.goalControl(request));
@@ -755,6 +768,7 @@ export class SharedCodexRoot {
     }
     stopAccepting(): void {
         this.stopping = true; this.ready();
+        this.sideQuestions.dispose();
         this.recapController?.abort();
         this.guardianDenials.clear();
         this.publishSteering();

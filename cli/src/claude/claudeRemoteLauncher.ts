@@ -495,6 +495,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         claudeArgs: session.claudeArgs,
                         onMessage: message => { steering.observe(message); onMessage(message); },
                         onInputLease: lease => steering.setLease(lease, modeHash),
+                        onSideQuestionHandler: handler => { session.sideQuestionHandler = handler; },
                         waitForSteering: signal => steering.waitForPending(signal),
                         hasPendingSteering: () => steering.hasPending(),
                         onFirstResult: (initialMessage) => {

@@ -450,6 +450,22 @@ export class ApiClient {
         return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/commands/recap/${encodeURIComponent(clientId)}/cancel`, { method: 'POST', body: '{}' })
     }
 
+    askSideQuestion(id: string, payload: { clientId: string; question: string }): Promise<{ text: string }> {
+        return this.request(`/api/sessions/${encodeURIComponent(id)}/btw`, { method: 'POST', body: JSON.stringify(payload) })
+    }
+
+    cancelSideQuestion(id: string, clientId: string): Promise<{ canceled: boolean }> {
+        return this.request(`/api/sessions/${encodeURIComponent(id)}/btw/${encodeURIComponent(clientId)}/cancel`, { method: 'POST', body: '{}' })
+    }
+
+    askNativeSideQuestion(id: string, payload: { clientId: string; question: string }): Promise<{ text: string }> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/btw`, { method: 'POST', body: JSON.stringify(payload) })
+    }
+
+    cancelNativeSideQuestion(id: string, clientId: string): Promise<{ canceled: boolean }> {
+        return this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/btw/${encodeURIComponent(clientId)}/cancel`, { method: 'POST', body: '{}' })
+    }
+
     async getCodexNativeActiveTurn(id: string): Promise<NativeRecord> {
         return await this.request(`/api/codex-native/threads/${encodeURIComponent(id)}/active-turn`)
     }
