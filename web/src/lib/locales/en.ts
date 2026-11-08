@@ -1153,6 +1153,7 @@ export default {
   'settings.display.customTheme.select': 'Choose a scheme',
   'settings.display.customTheme.apply': 'Apply',
   'settings.display.customTheme.rename': 'Rename',
+  'settings.display.customTheme.edit': 'Edit',
   'settings.display.customTheme.export': 'Export',
   'settings.display.customTheme.delete': 'Delete',
   'settings.display.customTheme.name': 'Scheme name',

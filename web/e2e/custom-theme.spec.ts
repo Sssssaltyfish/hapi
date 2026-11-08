@@ -26,7 +26,7 @@ test('restores a saved theme including its background after exporting, importing
     await page.getByRole('button', { name: 'Save current scheme' }).click()
     await page.getByRole('textbox', { name: 'Scheme name' }).fill('Evening')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
-    await page.getByRole('button', { name: 'Rename', exact: true }).click()
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
     await page.getByRole('textbox', { name: 'Scheme name' }).fill('Nightfall')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(page.getByRole('option', { name: 'Nightfall' })).toBeAttached()
@@ -35,6 +35,7 @@ test('restores a saved theme including its background after exporting, importing
     await page.getByRole('button', { name: 'Export', exact: true }).click()
     const download = await downloadPromise
     expect(download.suggestedFilename()).toBe('Nightfall.hapi-theme.json')
+    await page.getByRole('button', { name: 'Edit', exact: true }).click()
     await page.getByRole('button', { name: 'Delete', exact: true }).click()
     await page.getByRole('button', { name: 'Remove', exact: true }).click()
     await expect(root).not.toHaveAttribute('data-custom-background')

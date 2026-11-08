@@ -60,7 +60,7 @@ export function CustomThemeSettings() {
     const imageInput = useRef<HTMLInputElement>(null)
     const importInput = useRef<HTMLInputElement>(null)
     const [selectedId, setSelectedId] = useState('')
-    const [editor, setEditor] = useState<{ mode: 'save' | 'rename'; name: string } | null>(null)
+    const [editor, setEditor] = useState<{ mode: 'save' | 'edit'; name: string } | null>(null)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const selected = schemes.find(scheme => scheme.id === selectedId)
@@ -121,7 +121,7 @@ export function CustomThemeSettings() {
         const name = editor.name.trim()
         if (!name) return
         void run(async () => {
-            if (editor.mode === 'rename') {
+            if (editor.mode === 'edit') {
                 if (!selected) return
                 await renameTheme(selected.id, name)
             } else {
@@ -173,12 +173,11 @@ export function CustomThemeSettings() {
                         {selected ? (
                             <div className="flex flex-wrap gap-1">
                                 <button type="button" className={actionClass} disabled={disabled} onClick={() => void run(() => applySavedTheme(selected))}>{t(prefix + 'apply')}</button>
-                                <button type="button" className={actionClass} disabled={disabled} onClick={() => { setError(null); setEditor({ mode: 'rename', name: selected.name }) }}>{t(prefix + 'rename')}</button>
+                                <button type="button" className={actionClass} disabled={disabled} onClick={() => { setError(null); setEditor({ mode: 'edit', name: selected.name }) }}>{t(prefix + 'edit')}</button>
                                 <button type="button" className={actionClass} disabled={disabled} onClick={() => void run(async () => {
                                     const filename = selected.name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').slice(0, THEME_NAME_LIMIT)
                                     downloadFileBlob(`${filename}.hapi-theme.json`, await exportTheme(selected.name, selected))
                                 }, 'exportError')}>{t(prefix + 'export')}</button>
-                                <button type="button" className={actionClass} disabled={disabled} onClick={() => void run(() => deleteTheme(selected.id))}>{t(prefix + 'delete')}</button>
                             </div>
                         ) : null}
                     </div>
@@ -187,7 +186,7 @@ export function CustomThemeSettings() {
             </div>
             <Dialog open={editor !== null} onOpenChange={open => { if (!open && !busy) setEditor(null) }}>
                 <DialogContent className="max-w-sm" aria-describedby={undefined}>
-                    <DialogHeader><DialogTitle>{t(prefix + (editor?.mode === 'rename' ? 'rename' : 'saveCurrent'))}</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>{t(prefix + (editor?.mode === 'edit' ? 'edit' : 'saveCurrent'))}</DialogTitle></DialogHeader>
                     <form className="space-y-4" onSubmit={event => { event.preventDefault(); submitName() }}>
                         <input autoFocus aria-label={t(prefix + 'name')} placeholder={t(prefix + 'name')} className={`${inputClass} w-full`} maxLength={THEME_NAME_LIMIT} value={editor?.name ?? ''} onChange={event => {
                             const name = event.currentTarget.value
@@ -195,6 +194,13 @@ export function CustomThemeSettings() {
                         }} />
                         {error ? <p role="alert" className="text-sm text-red-600 dark:text-red-400">{t(prefix + error)}</p> : null}
                         <div className="flex justify-end gap-2">
+                            {editor?.mode === 'edit' && selected ? (
+                                <button type="button" className={`${actionClass} mr-auto text-red-600 dark:text-red-400`} disabled={disabled} onClick={() => void run(async () => {
+                                    await deleteTheme(selected.id)
+                                    setSelectedId('')
+                                    setEditor(null)
+                                })}>{t(prefix + 'delete')}</button>
+                            ) : null}
                             <button type="button" className={actionClass} disabled={busy} onClick={() => setEditor(null)}>{t('button.cancel')}</button>
                             <button type="submit" className={primaryClass} disabled={disabled || !editor?.name.trim()}>{t('button.save')}</button>
                         </div>

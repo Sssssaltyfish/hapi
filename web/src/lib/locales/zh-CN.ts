@@ -1151,6 +1151,7 @@ export default {
   'settings.display.customTheme.select': '选择方案',
   'settings.display.customTheme.apply': '应用',
   'settings.display.customTheme.rename': '重命名',
+  'settings.display.customTheme.edit': '编辑',
   'settings.display.customTheme.export': '导出',
   'settings.display.customTheme.delete': '删除',
   'settings.display.customTheme.name': '方案名称',

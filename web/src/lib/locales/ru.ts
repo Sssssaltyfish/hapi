@@ -1124,6 +1124,7 @@ export default {
   'settings.display.customTheme.select': 'Выберите схему',
   'settings.display.customTheme.apply': 'Применить',
   'settings.display.customTheme.rename': 'Переименовать',
+  'settings.display.customTheme.edit': 'Редактировать',
   'settings.display.customTheme.export': 'Экспорт',
   'settings.display.customTheme.delete': 'Удалить',
   'settings.display.customTheme.name': 'Название схемы',
