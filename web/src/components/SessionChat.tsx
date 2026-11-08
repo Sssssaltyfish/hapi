@@ -2394,6 +2394,10 @@ function SessionChatInner(props: SessionChatProps) {
                         onTerminal={props.session.active && terminalSupported ? handleViewTerminal : undefined}
                         terminalUnsupported={props.session.active && !terminalSupported}
                         autocompleteSuggestions={autocompleteSuggestions}
+                        skillAutocompleteLeadingOnly={!native && (
+                            agentFlavor === 'codex' || agentFlavor === 'claude' || agentFlavor === 'pi'
+                            || agentFlavor === 'agy' || agentFlavor === 'dsh'
+                        )}
                         onSubmitCommand={text => {
                             const btw = /^\s*\/btw(?:\s+([\s\S]*))?$/i.exec(text)
                             const customBtw = props.availableSlashCommands?.some(command => command.name === 'btw' && command.source !== 'builtin')

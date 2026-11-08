@@ -355,6 +355,7 @@ export function HappyComposer(props: {
     terminalUnsupported?: boolean
     autocompletePrefixes?: string[]
     autocompleteSuggestions?: (query: string) => Promise<Suggestion[]>
+    skillAutocompleteLeadingOnly?: boolean
     /** Local management commands run before send clears the composer. */
     onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome>
     // Voice assistant props
@@ -916,8 +917,10 @@ export function HappyComposer(props: {
     const isIOSPWA = isIOS && isStandalone
     const bottomPaddingClass = isIOSPWA ? 'pb-0' : 'pb-3'
     const activeWord = useActiveWord(inputState.text, inputState.selection, autocompletePrefixes)
+    const skillAfterText = props.skillAutocompleteLeadingOnly && activeWord?.startsWith('$')
+        && inputState.text.slice(0, inputState.selection.start - activeWord.length).trim().length > 0
     const [suggestions, selectedIndex, moveUp, moveDown, clearSuggestions, expandSuggestionGroup] = useActiveSuggestions(
-        activeWord,
+        skillAfterText ? null : activeWord,
         autocompleteSuggestions,
         { clampSelection: true, wrapAround: true }
     )

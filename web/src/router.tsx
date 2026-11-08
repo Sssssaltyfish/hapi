@@ -37,9 +37,9 @@ import { useCursorChatStoreStatus } from '@/hooks/queries/useCursorChatStoreStat
 import { useSessions } from '@/hooks/queries/useSessions'
 import { useSlashCommands } from '@/hooks/queries/useSlashCommands'
 import { useSkills } from '@/hooks/queries/useSkills'
+import { getRunnerWorkspaceSuggestions } from '@/hooks/queries/runnerWorkspaceSuggestions'
 import { getSessionTitle, shortSessionId } from '@/lib/sessionTitle'
 import { buildSessionReferenceText, matchSessionsForMention } from '@/lib/sessionReference'
-import type { Suggestion } from '@/hooks/useActiveSuggestions'
 import { useSendMessage, type SendErrorInfo } from '@/hooks/mutations/useSendMessage'
 import type { ComposerSendError } from '@/components/AssistantChat/HappyComposer'
 import { ApiError } from '@/api/client'
@@ -664,6 +664,7 @@ function HapiSessionPage() {
 
     // Get agent type from session metadata for slash commands
     const agentType = session?.metadata?.flavor ?? 'claude'
+    const workspacePath = session?.metadata?.path
     const {
         commands: slashCommands,
         getSuggestions: getSlashSuggestions,
@@ -715,27 +716,11 @@ function HapiSessionPage() {
                 }
             })
 
-            const fileHits: Suggestion[] = []
-            if ((agentType === 'codex' || agentType === 'copilot') && api && sessionId) {
-                const response = await api.searchSessionFiles(sessionId, search, 50)
-                if (response.success && response.files) {
-                    for (const file of response.files) {
-                        // Codex App Server expects @"path"; Copilot CLI uses @path (relative preferred).
-                        const mentionText = agentType === 'copilot'
-                            ? `@${file.fullPath}`
-                            : `@"${file.fullPath.replace(/(["\\])/g, '\\$1')}"`
-                        fileHits.push({
-                            key: mentionText,
-                            group: 'files',
-                            text: mentionText,
-                            label: `@${file.fileName}`,
-                            description: file.filePath || file.fullPath,
-                        })
-                    }
-                }
-            }
+            const workspaceHits = api && sessionId && workspacePath
+                ? await getRunnerWorkspaceSuggestions(api, queryClient, sessionId, workspacePath, agentType, search)
+                : []
 
-            return [...sessionHits, ...fileHits]
+            return [...sessionHits, ...workspaceHits]
         }
         if (query.startsWith('$')) {
             return (await getSkillSuggestions(query)).map(suggestion => ({ ...suggestion, group: 'skills' as const }))
@@ -744,7 +729,9 @@ function HapiSessionPage() {
     }, [
         agentType,
         api,
+        queryClient,
         sessionId,
+        workspacePath,
         allSessions,
         resolveMentionMachineLabel,
         getSkillSuggestions,

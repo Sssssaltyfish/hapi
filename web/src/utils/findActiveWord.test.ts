@@ -27,4 +27,12 @@ describe('findActiveWord', () => {
         expect(hit?.activeWord).toBe('@peer')
         expect(hit?.offset).toBe(4)
     })
+
+    it('keeps completing @ paths after a period while respecting sentence and command boundaries', () => {
+        const atCursor = (text: string) => findActiveWord(text, { start: text.length, end: text.length }, ['@', '/', '$'])
+        expect(atCursor('check @./docs/readme.m')?.activeWord).toBe('@./docs/readme.m')
+        expect(atCursor('check @docs. Next')).toBeUndefined()
+        expect(atCursor('$skill.name')).toBeUndefined()
+        expect(atCursor('/help.more')).toBeUndefined()
+    })
 })

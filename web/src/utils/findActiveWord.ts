@@ -43,26 +43,25 @@ function findActiveWordStart(
 ): number {
     let startIndex = selection.start - 1
     let spaceIndex = -1
-    let foundPrefix = false
-    let prefixIndex = -1
+    let periodIndex = -1
+    const allowPath = prefixes.includes('@')
 
     while (startIndex >= 0) {
         const char = content.charAt(startIndex)
 
-        // Hard stops (newline / mention atom / punctuation) — never cross.
         if (isHardStopChar(char)) {
-            if (foundPrefix) {
-                return prefixIndex
+            // A period in the word under the cursor may be part of an @ path.
+            if (char === '.' && allowPath && spaceIndex < 0) {
+                if (periodIndex < 0) periodIndex = startIndex
+                startIndex--
+                continue
             }
-            return startIndex + 1
+            return Math.max(startIndex, periodIndex) + 1
         }
         // Soft space boundary (same as historical textarea behavior).
         if (char === ' ') {
-            if (foundPrefix) {
-                return prefixIndex
-            }
             if (spaceIndex >= 0) {
-                return spaceIndex + 1
+                return Math.max(spaceIndex, periodIndex) + 1
             }
             spaceIndex = startIndex
             startIndex--
@@ -70,21 +69,12 @@ function findActiveWordStart(
         }
         // Prefix at a word boundary
         if (prefixes.includes(char) && isPrefixBoundaryBefore(content, startIndex)) {
-            if (char === '@') {
-                foundPrefix = true
-                prefixIndex = startIndex
-                return startIndex
-            }
-            return startIndex
+            return char === '@' || periodIndex < 0 ? startIndex : periodIndex + 1
         }
         startIndex--
     }
 
-    // Reached beginning of text
-    if (foundPrefix) {
-        return prefixIndex
-    }
-    return (spaceIndex >= 0 ? spaceIndex : startIndex) + 1
+    return Math.max(spaceIndex, periodIndex, startIndex) + 1
 }
 
 function findActiveWordEnd(
