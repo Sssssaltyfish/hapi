@@ -1,5 +1,6 @@
 """Publish the current, sealed service handoff from WSL into the Windows workspace."""
 
+import argparse
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -10,16 +11,14 @@ import subprocess
 import tempfile
 
 
-def publish():
-    workspace = Path(__file__).resolve().parents[1]
+def publish(source, output_dir):
     name = 'service-deployment-handoff'
-    source = workspace / 'dsh-web-shell-kit-20261027'
     sums = 'SHA256SUMS.txt'
     stamp = 'PACKAGED_AT.txt'
-    destination = workspace / (name + '.7z')
+    destination = output_dir / (name + '.7z')
 
     # Only publish files in the release's sealed manifest.
-    with tempfile.TemporaryDirectory(dir=workspace, prefix='.handoff-publish-') as tmp:
+    with tempfile.TemporaryDirectory(dir=output_dir, prefix='.handoff-publish-') as tmp:
         staging = Path(tmp)
         package = staging / name
         package.mkdir()
@@ -68,7 +67,15 @@ def publish():
 
 
 if __name__ == '__main__':
-    # Serialize releases through this entry point, including the checksum swap.
-    with open(__file__, 'rb') as lock:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--source', type=Path, required=True, help='Sealed handoff source directory')
+    parser.add_argument('--output-dir', type=Path, required=True, help='Directory for the single current archive')
+    args = parser.parse_args()
+    source = args.source.resolve(strict=True)
+    output_dir = args.output_dir.resolve(strict=True)
+    if not source.is_dir() or not output_dir.is_dir():
+        parser.error('source and output-dir must be existing directories')
+    # Copies of this script publishing to the same directory share the lock.
+    with (output_dir / '.handoff-publish.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        publish()
+        publish(source, output_dir)

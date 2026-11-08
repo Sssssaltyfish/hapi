@@ -24,6 +24,18 @@ Use `--cli-target bun-linux-x64-baseline` to select a CLI target explicitly. Use
 
 Use `--network-concurrency 8` to limit concurrent registry requests during installation. Bun also receives the proxy environment of the WSL command.
 
-Before removing the old stage, run the `source web` example into a new output directory. Match the manifest's commit against the intended revision, compare `sha256sum *.tar.gz` with the manifest, and inspect both archives with `tar -tzf`. The source archive should contain `bun.lock` and `hub/src/index.ts`, and the web archive should contain `web/dist/index.html` and its assets. For a Runner release, prepare `cli` separately, extract the archive in an isolated directory and run the candidate's `--version` there.
+The source and web targets were built from the recorded baseline in a fresh directory before the old stage was removed; see `fresh-build-verification.json`. For a Runner release, prepare `cli` separately, extract the archive in an isolated directory and run the candidate's `--version` there.
 
 For a later source based Hub deployment, extract `source.tar.gz` into a fresh runtime directory, extract `web-dist.tar.gz` into the same directory, and run `bun install --frozen-lockfile` there. Use the existing service configuration and data directory when the service is switched to the new source tree. The helper only prepares the release files.
+
+## Publish the handoff
+
+The publisher uses explicit paths and can run from any checkout location. Update the handoff's `SHA256SUMS.txt` after changing its contents, then run in WSL:
+
+```sh
+python3 /mnt/c/Users/Igna/codex-temp/hapi-deployment/ops/deployment/finalize-handoff.py \
+  --source /mnt/c/Users/Igna/codex-temp/dsh-web-shell-kit-20261027 \
+  --output-dir /mnt/c/Users/Igna/codex-temp
+```
+
+It publishes `service-deployment-handoff.7z` and its checksum sidecar, with `PACKAGED_AT.txt` inside. It compares maximum-compression PPMd and LZMA2 archives and keeps the smaller one. Temporary archives are removed after publication.
