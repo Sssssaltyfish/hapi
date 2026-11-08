@@ -9,6 +9,7 @@
  */
 
 import { getSettingsFile, updateSettings } from './settings'
+import { resolveMediaConfig, type MediaConfig } from './media'
 
 const OLD_SETTINGS_FIELDS = ['webappHost', 'webappPort', 'webappUrl'] as const
 
@@ -41,6 +42,7 @@ export interface ServerSettings {
     listenPort: number
     publicUrl: string
     corsOrigins: string[]
+    media: MediaConfig
     androidPushMode: string | null
     fcmServiceAccountPath: string | null
     iosPushMode: string | null
@@ -307,6 +309,16 @@ export async function loadServerSettings(dataDir: string): Promise<ServerSetting
             }
         }
 
+        if (settings.media !== undefined && (!settings.media || typeof settings.media !== 'object' || Array.isArray(settings.media))) {
+            throw new Error('media settings must be an object')
+        }
+        const mediaSettings = { ...settings.media }
+        const media = resolveMediaConfig(mediaSettings, process.env)
+        if (Object.keys(mediaSettings).length !== Object.keys(settings.media ?? {}).length) {
+            settings.media = mediaSettings
+            needsSave = true
+        }
+
         return {
             settings,
             write: needsSave,
@@ -321,6 +333,7 @@ export async function loadServerSettings(dataDir: string): Promise<ServerSetting
                     listenPort,
                     publicUrl,
                     corsOrigins,
+                    media,
                     ...push,
                 },
                 sources,

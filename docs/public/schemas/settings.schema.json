@@ -46,6 +46,21 @@
       },
       "description": "Allowed CORS origins. ENV: CORS_ORIGINS (comma-separated)"
     },
+    "media": {
+      "type": "object",
+      "description": "Hub limits for temporary Codex Native snapshots and browser media tickets.",
+      "properties": {
+        "nativeCacheMaxBytes": { "type": "integer", "default": 268435456, "minimum": 1, "maximum": 9007199254740991 },
+        "nativeCacheMaxEntries": { "type": "integer", "default": 16, "minimum": 1, "maximum": 1024 },
+        "nativeCacheTtlSeconds": { "type": "integer", "default": 7200, "minimum": 1, "maximum": 2147483 },
+        "nativeMaxConcurrentImports": { "type": "integer", "default": 1, "minimum": 1, "maximum": 64 },
+        "nativeMaxPendingImports": { "type": "integer", "default": 8, "minimum": 0, "maximum": 4096 },
+        "ticketTtlSeconds": { "type": "integer", "default": 7200, "minimum": 1, "maximum": 2592000 },
+        "maxTickets": { "type": "integer", "default": 4096, "minimum": 1, "maximum": 65536 },
+        "browserMaxAgeSeconds": { "type": "integer", "default": 300, "minimum": 0, "maximum": 2592000 }
+      },
+      "additionalProperties": false
+    },
     "telegramBotToken": {
       "type": "string",
       "description": "Telegram Bot API token from @BotFather. ENV: TELEGRAM_BOT_TOKEN"

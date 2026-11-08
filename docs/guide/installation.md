@@ -238,6 +238,36 @@ When ENV values are set and not present in settings.json, they are automatically
 JSON Schema: [settings.schema.json](https://hapi.run/docs/schemas/settings.schema.json)
 </details>
 
+### Media cache settings
+
+Set these values on the Hub and restart it to apply them. Environment variables
+override the matching keys under `media` in `settings.json`.
+
+| Environment variable | `settings.json` key | Default | Accepted values |
+|---|---|---:|---|
+| `HAPI_MEDIA_NATIVE_CACHE_MAX_BYTES` | `media.nativeCacheMaxBytes` | 268435456 (256 MiB) | Positive safe integer in bytes |
+| `HAPI_MEDIA_NATIVE_CACHE_MAX_ENTRIES` | `media.nativeCacheMaxEntries` | 16 | 1–1024 snapshots, including imports and files still open |
+| `HAPI_MEDIA_NATIVE_CACHE_TTL_SECONDS` | `media.nativeCacheTtlSeconds` | 7200 | 1–2147483 seconds since the last read request |
+| `HAPI_MEDIA_NATIVE_MAX_CONCURRENT_IMPORTS` | `media.nativeMaxConcurrentImports` | 1 | 1–64 imports in progress |
+| `HAPI_MEDIA_NATIVE_MAX_PENDING_IMPORTS` | `media.nativeMaxPendingImports` | 8 | 0–4096 imports waiting for a slot |
+| `HAPI_MEDIA_TICKET_TTL_SECONDS` | `media.ticketTtlSeconds` | 7200 | 1–2592000 seconds after issuance |
+| `HAPI_MEDIA_MAX_TICKETS` | `media.maxTickets` | 4096 | 1–65536 active URL tickets |
+| `HAPI_MEDIA_BROWSER_MAX_AGE_SECONDS` | `media.browserMaxAgeSeconds` | 300 | 0–2592000 seconds, capped by the remaining ticket lifetime. Set `0` to revalidate every reuse. |
+
+Native media imports reserve space before writing. Open snapshots keep their
+reservation until the last reader releases them and the file closes. A file that
+exceeds the total cache limit returns HTTP 413. If active readers or queued work
+exhaust capacity, the Hub returns HTTP 503. Expired and least recently used
+snapshots are removed as space is needed. The browser caches media responses
+privately and revalidates with an ETag. The service worker does not store them.
+
+The native daemon sends a whole base64 response for the first import, so its
+first playback request waits for the import to finish. The dedicated media read
+connection rejects messages larger than the byte budget converted to base64,
+plus room for the RPC envelope. The runtime can buffer the full message before
+this check. Each active import can temporarily hold its full response in Hub
+memory. Set import concurrency with that memory use in mind.
+
 ## CLI setup
 
 If the hub is not on localhost, set these before running `hapi`:

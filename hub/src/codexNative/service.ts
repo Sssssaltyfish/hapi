@@ -131,11 +131,11 @@ export class NativeService {
     })
     constructor(
         readonly config: NativeConfig,
-        private createConnection = () => new NativeConnection(config.endpoint!, config.token)
+        private createConnection = (maxPayload?: number) => new NativeConnection(config.endpoint!, config.token, maxPayload)
     ) {}
-    private connection(): NativeConnection {
+    private connection(maxPayload?: number): NativeConnection {
         if (this.connections.size >= 64) throw new Error('Native connection limit reached')
-        const client = this.createConnection()
+        const client = this.createConnection(maxPayload)
         this.connections.add(client)
         client.listeners.add((event) => {
             if (event.method === 'hapi/disconnected') this.connections.delete(client)
@@ -149,10 +149,10 @@ export class NativeService {
                 namespace === this.config.namespace
         )
     }
-    async call(method: string, params: unknown, deadline?: number): Promise<unknown> {
+    async call(method: string, params: unknown, deadline?: number, maxPayload?: number): Promise<unknown> {
         if (deadline !== undefined)
-            return this.withConnection((client) => client.request(method, params), deadline)
-        const client = this.connection()
+            return this.withConnection((client) => client.request(method, params), deadline, maxPayload)
+        const client = this.connection(maxPayload)
         try {
             return await client.request(method, params)
         } finally {
@@ -161,11 +161,12 @@ export class NativeService {
     }
     async withConnection<T>(
         action: (client: NativeConnection) => Promise<T>,
-        deadline?: number
+        deadline?: number,
+        maxPayload?: number
     ): Promise<T> {
         if (deadline !== undefined && deadline <= Date.now())
             throw new Error('Native directory operation timed out')
-        const client = this.connection()
+        const client = this.connection(maxPayload)
         const timer =
             deadline === undefined
                 ? undefined

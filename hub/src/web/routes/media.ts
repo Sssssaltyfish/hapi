@@ -1,18 +1,18 @@
-import { randomBytes } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { MEDIA_CHUNK_BYTES, type MediaSource } from '@hapi/protocol/apiTypes'
+import type { MediaConfig } from '../../config/media'
 import { nativeFilePath } from '../../codexNative/files'
 import { parseNativeSessionId, type NativeRegistry } from '../../codexNative/registry'
-import { record } from '../../codexNative/transport'
+import { NATIVE_PAYLOAD_LIMIT_ERROR, record } from '../../codexNative/transport'
 import type { SyncEngine } from '../../sync/syncEngine'
 import type { WebAppEnv } from '../middleware/auth'
-import { NativeMediaCache } from '../nativeMediaCache'
+import { ifNoneMatchMatches } from '../etag'
+import { NativeMediaCache, NativeMediaCacheError } from '../nativeMediaCache'
 import { requireSession, requireSyncEngine } from './guards'
 
-const TICKET_LIFETIME_MS = 2 * 60 * 60 * 1000
-const MAX_TICKETS = 4096
-const mediaMimeType = z.string().regex(/^(?:audio|video)\/[a-z0-9][a-z0-9.+_-]{0,63}$/)
+const mediaMimeType = z.string().regex(/^(?:audio|video|image)\/[a-z0-9][a-z0-9.+_-]{0,63}$/)
 const ticketRequest = z.union([
     z.object({ sessionId: z.string().min(1).max(512), path: z.string().min(1).max(4096), mimeType: mediaMimeType }).strict(),
     z.object({ sessionId: z.string().min(1).max(512), generatedImageId: z.string().min(1).max(512) }).strict()
@@ -27,7 +27,7 @@ type MediaTarget = {
     | { kind: 'runner'; source: MediaSource; version: string; size: number }
     | { kind: 'native'; binding: NativeBinding; requested: string; path: string; version: string }
 )
-type MediaTicket = MediaTarget & { expiresAt: number }
+type MediaTicket = MediaTarget & { expiresAt: number; etag: string; nativeCacheKey?: string }
 
 type ByteSource = {
     size: number
@@ -91,6 +91,9 @@ function streamBytes(source: ByteSource, start: number, end: number, signal: Abo
 }
 
 function nativeVersion(metadata: Record<string, unknown>): string {
+    if (!Number.isSafeInteger(metadata.createdAtMs) || !Number.isSafeInteger(metadata.modifiedAtMs)) {
+        throw new Error('Native media has no file version')
+    }
     return `${metadata.createdAtMs}:${metadata.modifiedAtMs}`
 }
 
@@ -100,23 +103,41 @@ function sameNativeBinding(a: NativeBinding, b: NativeBinding): boolean {
         JSON.stringify(a.endpoint.config.allowedRoots) === JSON.stringify(b.endpoint.config.allowedRoots)
 }
 
-export function createMediaRoutes(getEngine: () => SyncEngine | null, registry: NativeRegistry) {
+export function createMediaRoutes(getEngine: () => SyncEngine | null, registry: NativeRegistry, config: MediaConfig, secret: Uint8Array) {
     const publicRoutes = new Hono<WebAppEnv>()
     const authenticatedRoutes = new Hono<WebAppEnv>()
     const tickets = new Map<string, MediaTicket>()
-    const nativeCache = new NativeMediaCache()
+    const nativeCache = new NativeMediaCache(config)
+    // The extra space covers the JSON-RPC envelope and initialize response on
+    // this dedicated connection.
+    const nativeMaxPayload = Math.min(Number.MAX_SAFE_INTEGER, 4 * Math.ceil(config.nativeCacheMaxBytes / 3) + 64 * 1024)
+    const digest = (purpose: string, data: unknown) => createHmac('sha256', secret)
+        .update(`hapi-media-${purpose}-v1\0`)
+        .update(JSON.stringify(data))
+        .digest('base64url')
 
     function issue(ticket: MediaTarget) {
-        const now = Date.now()
-        // Insertion order is also expiry order. Bound memory even if a client mints
-        // tickets continuously without opening a media player.
-        for (const [key, value] of tickets) {
-            if (value.expiresAt > now && tickets.size < MAX_TICKETS) break
-            tickets.delete(key)
+        let nativeCacheKey: string | undefined
+        let representation: unknown
+        if (ticket.kind === 'native') {
+            const { config } = ticket.binding.endpoint
+            nativeCacheKey = digest('snapshot', [ticket.namespace, config.id, config.endpoint, config.token,
+                config.fileAccess, config.allowedRoots, ticket.binding.threadId, ticket.path, ticket.version])
+            representation = ['native', nativeCacheKey, ticket.mimeType]
+        } else {
+            representation = ['runner', ticket.namespace, ticket.sessionId, ticket.source, ticket.version, ticket.size, ticket.mimeType]
         }
-        const key = randomBytes(32).toString('base64url')
-        const expiresAt = now + TICKET_LIFETIME_MS
-        tickets.set(key, { ...ticket, expiresAt })
+        const key = digest('ticket', representation)
+        const now = Date.now()
+        // Reissuing the same representation renews the existing URL. Insertion
+        // order still corresponds to expiry order when pruning the ticket table.
+        tickets.delete(key)
+        for (const [oldKey, value] of tickets) {
+            if (value.expiresAt > now && tickets.size < config.maxTickets) break
+            tickets.delete(oldKey)
+        }
+        const expiresAt = now + config.ticketTtlSeconds * 1000
+        tickets.set(key, { ...ticket, expiresAt, nativeCacheKey, etag: `"${digest('etag', representation)}"` })
         return { ticket: key, expiresAt }
     }
 
@@ -179,25 +200,38 @@ export function createMediaRoutes(getEngine: () => SyncEngine | null, registry: 
             return c.json({ error: 'Media ticket not found or expired' }, 404)
         }
 
+        const browserCacheControl = () => {
+            const remaining = Math.max(0, Math.floor((ticket.expiresAt - Date.now()) / 1000))
+            return `private, max-age=${Math.min(config.browserMaxAgeSeconds, remaining)}, must-revalidate`
+        }
+        const notModified = ifNoneMatchMatches(c.req.header('If-None-Match'), ticket.etag)
+        const conditionalResponse = () => c.body(null, 304, { 'Cache-Control': browserCacheControl(), ETag: ticket.etag })
+        const expired = () => c.json({ error: 'Media ticket not found or expired' }, 404)
         let source: ByteSource
-        const engine = getEngine()
-        if (ticket.kind === 'runner') {
-            if (!engine?.resolveSessionAccess(ticket.sessionId, ticket.namespace).ok) return c.notFound()
-            source = {
-                size: ticket.size,
-                async read(offset, length) {
-                    const response = await engine.readMedia(ticket.sessionId, {
-                        ...ticket.source, range: { offset, length, version: ticket.version }
-                    })
-                    if (!response.success || response.version !== ticket.version || response.size !== ticket.size ||
-                        typeof response.content !== 'string' || response.content.length !== 4 * Math.ceil(length / 3)) {
-                        throw new Error('Media file unavailable')
-                    }
-                    return Buffer.from(response.content, 'base64')
+        try {
+            const engine = getEngine()
+            if (ticket.kind === 'runner') {
+                if (!engine?.resolveSessionAccess(ticket.sessionId, ticket.namespace).ok) return c.notFound()
+                const media = await engine.readMedia(ticket.sessionId, ticket.source)
+                if (!media.success || media.version !== ticket.version || media.size !== ticket.size) {
+                    return c.json({ error: 'Media file changed or is unavailable' }, 409)
                 }
-            }
-        } else {
-            try {
+                if (ticket.expiresAt <= Date.now()) return expired()
+                if (notModified) return conditionalResponse()
+                source = {
+                    size: ticket.size,
+                    async read(offset, length) {
+                        const response = await engine.readMedia(ticket.sessionId, {
+                            ...ticket.source, range: { offset, length, version: ticket.version }
+                        })
+                        if (!response.success || response.version !== ticket.version || response.size !== ticket.size ||
+                            typeof response.content !== 'string' || response.content.length !== 4 * Math.ceil(length / 3)) {
+                            throw new Error('Media file unavailable')
+                        }
+                        return Buffer.from(response.content, 'base64')
+                    }
+                }
+            } else {
                 await registry.refresh()
                 const identity = parseNativeSessionId(ticket.sessionId)
                 const endpoint = identity && registry.get(ticket.namespace, identity.endpointId)
@@ -205,23 +239,36 @@ export function createMediaRoutes(getEngine: () => SyncEngine | null, registry: 
                 const binding = identity && endpoint ? { endpoint, threadId: identity.threadId }
                     : access?.ok ? registry.alias(access.session, ticket.namespace) : undefined
                 if (!binding || !sameNativeBinding(ticket.binding, binding)) return c.notFound()
-                source = await nativeCache.acquire(key, ticket.expiresAt, async () => {
-                    const { service, config } = binding.endpoint
-                    const { path, metadata } = await nativeFilePath(service, config, binding.threadId, ticket.requested)
-                    if (path !== ticket.path || metadata.isFile !== true || nativeVersion(metadata) !== ticket.version) {
-                        throw new Error('Media file changed')
-                    }
-                    const response = record(await service.call('fs/readFile', { path }))
+                const { service, config: endpointConfig } = binding.endpoint
+                const { path, metadata } = await nativeFilePath(service, endpointConfig, binding.threadId, ticket.requested)
+                if (path !== ticket.path || metadata.isFile !== true || nativeVersion(metadata) !== ticket.version) {
+                    return c.json({ error: 'Media file changed or is unavailable' }, 409)
+                }
+                if (ticket.expiresAt <= Date.now()) return expired()
+                if (notModified) return conditionalResponse()
+                source = await nativeCache.acquire(ticket.nativeCacheKey!, async () => {
+                    if (ticket.expiresAt <= Date.now()) throw new Error('Media ticket expired')
+                    const response = record(await service.call('fs/readFile', { path }, undefined, nativeMaxPayload))
                     const current = record(await service.call('fs/getMetadata', { path }))
                     if (typeof response.dataBase64 !== 'string' || current.isFile !== true ||
-                        (config.fileAccess !== 'host' && current.isSymlink === true) || nativeVersion(current) !== ticket.version) {
+                        (endpointConfig.fileAccess !== 'host' && current.isSymlink === true) || nativeVersion(current) !== ticket.version) {
                         throw new Error('Media file unavailable')
                     }
                     return response.dataBase64
                 })
-            } catch {
-                return c.json({ error: 'Media file unavailable' }, 502)
             }
+        } catch (error) {
+            if (ticket.expiresAt <= Date.now()) return expired()
+            if (error instanceof NativeMediaCacheError) return c.json({ error: error.message }, error.status)
+            if (error instanceof Error && (error.message === NATIVE_PAYLOAD_LIMIT_ERROR ||
+                (error as NodeJS.ErrnoException).code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH')) {
+                return c.json({ error: 'Media exceeds the native cache capacity' }, 413)
+            }
+            return c.json({ error: 'Media file unavailable' }, 502)
+        }
+        if (ticket.expiresAt <= Date.now()) {
+            source.release?.()
+            return expired()
         }
 
         const headers = {
@@ -229,15 +276,18 @@ export function createMediaRoutes(getEngine: () => SyncEngine | null, registry: 
             'Content-Type': ticket.mimeType,
             'Content-Disposition': 'inline',
             'X-Content-Type-Options': 'nosniff',
-            'Content-Security-Policy': 'sandbox',
+            'Content-Security-Policy': "sandbox; default-src 'none'",
+            ETag: ticket.etag,
         }
         const head = c.req.raw.method === 'HEAD'
-        const value = !head && !c.req.header('If-Range') ? c.req.header('Range') : undefined
+        const ifRange = c.req.header('If-Range')
+        const value = !head && (ifRange === undefined || ifRange.trim() === ticket.etag) ? c.req.header('Range') : undefined
         const range = value === undefined ? undefined : byteRange(value, source.size)
         if (value !== undefined && !range) {
             source.release?.()
             return c.body(null, 416, { ...headers, 'Content-Range': `bytes */${source.size}` })
         }
+        c.header('Cache-Control', browserCacheControl())
         if (head || !source.size) {
             source.release?.()
             return c.body(null, 200, { ...headers, 'Content-Length': String(source.size) })

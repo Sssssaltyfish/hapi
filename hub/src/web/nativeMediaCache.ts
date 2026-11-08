@@ -1,26 +1,30 @@
 import { mkdtemp, open, rm, rmdir, unlink, type FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { MediaConfig } from '../config/media'
 
-const CACHE_BYTES = 256 * 1024 * 1024
-const CACHE_ENTRIES = 16
-const MAX_PENDING_IMPORTS = 8
 // Keep decoder memory independent of file size. Base64 slices need to start at a multiple of four.
 const BASE64_BLOCK_CHARS = 1024 * 1024
 
 type Snapshot = {
-    size: number
     handle: FileHandle
     dispose(): Promise<void>
 }
 
 type Entry = Snapshot & {
+    size: number
     readers: number
     retired: boolean
-    timer: ReturnType<typeof setTimeout>
+    timer?: ReturnType<typeof setTimeout>
 }
 
-async function writeSnapshot(encoded: string): Promise<Snapshot> {
+export class NativeMediaCacheError extends Error {
+    constructor(readonly status: 413 | 503, message: string) {
+        super(message)
+    }
+}
+
+async function openSnapshot(): Promise<Snapshot> {
     const dir = await mkdtemp(join(tmpdir(), 'hapi-media-'))
     const path = join(dir, 'media')
     let handle: FileHandle | undefined
@@ -43,84 +47,130 @@ async function writeSnapshot(encoded: string): Promise<Snapshot> {
             await rmdir(dir)
             unlinked = true
         }
-        let size = 0
-        for (let offset = 0; offset < encoded.length; offset += BASE64_BLOCK_CHARS) {
-            const block = Buffer.from(encoded.slice(offset, offset + BASE64_BLOCK_CHARS), 'base64')
-            for (let written = 0; written < block.length;) {
-                const { bytesWritten } = await handle.write(block, written, block.length - written, size + written)
-                if (!bytesWritten) throw new Error('Could not write the media snapshot')
-                written += bytesWritten
-            }
-            size += block.length
-        }
-        return { size, handle, dispose }
+        return { handle, dispose }
     } catch (error) {
         await dispose()
         throw error
     }
 }
 
+async function writeSnapshot(handle: FileHandle, encoded: string, size: number): Promise<void> {
+    let position = 0
+    for (let offset = 0; offset < encoded.length; offset += BASE64_BLOCK_CHARS) {
+        const block = Buffer.from(encoded.slice(offset, offset + BASE64_BLOCK_CHARS), 'base64')
+        if (block.length > size - position) throw new Error('Invalid native media payload')
+        for (let written = 0; written < block.length;) {
+            const { bytesWritten } = await handle.write(block, written, block.length - written, position + written)
+            if (!bytesWritten) throw new Error('Could not write the media snapshot')
+            written += bytesWritten
+        }
+        position += block.length
+    }
+    if (position !== size) throw new Error('Invalid native media payload')
+}
+
 /** Native `fs/readFile` returns one base64 payload. Keep completed imports on disk. */
 export class NativeMediaCache {
     private readonly entries = new Map<string, Entry>()
     private readonly pending = new Map<string, Promise<Entry>>()
-    private imports: Promise<unknown> = Promise.resolve()
+    private readonly waiting: Array<() => void> = []
+    private activeImports = 0
+    // Reservations include writes in progress and retired snapshots until the last
+    // reader releases them and the file handle has actually been closed.
     private bytes = 0
-    private activeBytes = 0
-    private activeEntries = 0
+    private slots = 0
 
-    private retire(key: string, entry: Entry): void {
-        this.entries.delete(key)
-        this.bytes -= entry.size
-        entry.retired = true
-        clearTimeout(entry.timer)
-        if (!entry.readers) void entry.dispose().catch(console.error)
-    }
+    constructor(private readonly config: MediaConfig) {}
 
-    private trim(keep: Entry): void {
-        for (const [key, entry] of this.entries) {
-            if (this.bytes <= CACHE_BYTES && this.entries.size <= CACHE_ENTRIES) return
-            if (entry !== keep && !entry.readers) this.retire(key, entry)
+    private async dispose(snapshot: Snapshot | undefined, size: number): Promise<void> {
+        try {
+            await snapshot?.dispose()
+            this.bytes -= size
+            this.slots -= 1
+        } catch (error) {
+            // Keep the reservation charged if the snapshot may still be on disk.
+            console.error('[Media] Could not remove native media snapshot', error)
         }
     }
 
-    async acquire(key: string, expiresAt: number, load: () => Promise<string>) {
+    private async retire(key: string, entry: Entry): Promise<void> {
+        if (this.entries.get(key) !== entry) return
+        this.entries.delete(key)
+        entry.retired = true
+        clearTimeout(entry.timer)
+        if (!entry.readers) await this.dispose(entry, entry.size)
+    }
+
+    private async reserve(size: number): Promise<void> {
+        const { nativeCacheMaxBytes, nativeCacheMaxEntries } = this.config
+        if (size > nativeCacheMaxBytes) {
+            throw new NativeMediaCacheError(413, 'Media exceeds the native cache capacity')
+        }
+        while (size > nativeCacheMaxBytes - this.bytes || this.slots >= nativeCacheMaxEntries) {
+            const idle = Array.from(this.entries).find(([key, entry]) => !entry.readers && !this.pending.has(key))
+            if (!idle) throw new NativeMediaCacheError(503, 'Native media cache is busy')
+            await this.retire(...idle)
+        }
+        this.bytes += size
+        this.slots += 1
+    }
+
+    private schedule(load: () => Promise<Entry>): Promise<Entry> {
+        const { nativeMaxConcurrentImports, nativeMaxPendingImports } = this.config
+        if (this.activeImports >= nativeMaxConcurrentImports && this.waiting.length >= nativeMaxPendingImports) {
+            throw new NativeMediaCacheError(503, 'Native media imports are busy')
+        }
+        return new Promise((resolve, reject) => {
+            const start = () => {
+                this.activeImports += 1
+                void load().finally(() => {
+                    this.activeImports -= 1
+                    this.waiting.shift()?.()
+                }).then(resolve, reject)
+            }
+            if (this.activeImports < nativeMaxConcurrentImports) start()
+            else this.waiting.push(start)
+        })
+    }
+
+    private async import(key: string, load: () => Promise<string>): Promise<Entry> {
+        const encoded = await load()
+        if (encoded.length % 4 !== 0) throw new Error('Invalid native media payload')
+        const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0
+        const size = encoded.length / 4 * 3 - padding
+        await this.reserve(size)
+        let snapshot: Snapshot | undefined
+        try {
+            snapshot = await openSnapshot()
+            await writeSnapshot(snapshot.handle, encoded, size)
+            const entry: Entry = { ...snapshot, size, readers: 0, retired: false }
+            this.entries.set(key, entry)
+            return entry
+        } catch (error) {
+            await this.dispose(snapshot, size)
+            throw error
+        }
+    }
+
+    async acquire(key: string, load: () => Promise<string>) {
         let entry = this.entries.get(key)
         if (!entry) {
             let pending = this.pending.get(key)
             if (!pending) {
-                if (this.pending.size >= MAX_PENDING_IMPORTS) throw new Error('Native media imports are busy')
-                pending = this.imports.then(async () => {
-                    if (expiresAt <= Date.now()) throw new Error('Media ticket expired')
-                    // A single large media file can exceed the idle cache budget.
-                    // Defer additional imports while existing readers pin that space.
-                    if (this.activeBytes >= CACHE_BYTES || this.activeEntries >= CACHE_ENTRIES) {
-                        throw new Error('Native media imports are busy')
-                    }
-                    const snapshot = await writeSnapshot(await load())
-                    const record: Entry = {
-                        ...snapshot, readers: 0, retired: false,
-                        timer: setTimeout(() => this.retire(key, record), Math.max(0, expiresAt - Date.now()))
-                    }
-                    record.timer.unref()
-                    this.bytes += record.size
-                    this.entries.set(key, record)
-                    this.trim(record)
-                    return record
-                }).finally(() => this.pending.delete(key))
+                pending = this.schedule(() => this.import(key, load))
                 this.pending.set(key, pending)
-                this.imports = pending.catch(() => {})
             }
-            entry = await pending
+            try { entry = await pending } finally {
+                if (this.pending.get(key) === pending) this.pending.delete(key)
+            }
         }
-        if (entry.retired) throw new Error('Media snapshot expired')
+
         const snapshot = entry
         this.entries.delete(key)
         this.entries.set(key, snapshot)
-        if (!snapshot.readers) {
-            this.activeBytes += snapshot.size
-            this.activeEntries += 1
-        }
+        clearTimeout(snapshot.timer)
+        snapshot.timer = setTimeout(() => void this.retire(key, snapshot), this.config.nativeCacheTtlSeconds * 1000)
+        snapshot.timer.unref()
         snapshot.readers += 1
         let released = false
         return {
@@ -138,12 +188,8 @@ export class NativeMediaCache {
                 if (released) return
                 released = true
                 snapshot.readers -= 1
-                if (!snapshot.readers) {
-                    this.activeBytes -= snapshot.size
-                    this.activeEntries -= 1
-                    if (snapshot.retired) void snapshot.dispose().catch(console.error)
-                    else this.trim(snapshot)
-                }
+                if (!snapshot.readers && snapshot.retired) return this.dispose(snapshot, snapshot.size)
+                return undefined
             }
         }
     }

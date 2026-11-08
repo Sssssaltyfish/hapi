@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promi
 import { randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 import { withSettingsFileLock } from '@hapi/protocol/settingsFileLock'
+import type { MediaConfig } from './media'
 
 export interface Settings {
     /** Hub-only display selections and bounded native directory snapshots. */
@@ -39,6 +40,7 @@ export interface Settings {
     listenPort?: number
     publicUrl?: string
     corsOrigins?: string[]
+    media?: Partial<MediaConfig>
     // Push delivery (FCM + iOS/APNs) — persisted from env like the rest of
     // this section; interpreted by fcmConfig.ts / iosPushConfig.ts.
     androidPushMode?: string

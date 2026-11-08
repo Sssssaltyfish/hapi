@@ -1,14 +1,21 @@
-import WebSocket from 'ws'
+import WebSocket, { type RawData } from 'ws'
 
 export type NativeRecord = Record<string, unknown>
 export type NativeEvent = { method: string; params?: unknown }
 export type NativeRequest = NativeEvent & { id: string | number }
+export const NATIVE_PAYLOAD_LIMIT_ERROR = 'Native response exceeded the WebSocket payload limit'
 export const record = (value: unknown): NativeRecord =>
     value !== null && typeof value === 'object' && !Array.isArray(value)
         ? (value as NativeRecord)
         : {}
 export const text = (value: unknown): string | undefined =>
     typeof value === 'string' && value.length > 0 ? value : undefined
+
+function messageBytes(raw: RawData | string): number {
+    if (typeof raw === 'string') return Buffer.byteLength(raw)
+    if (Array.isArray(raw)) return raw.reduce((bytes, fragment) => bytes + fragment.byteLength, 0)
+    return raw.byteLength
+}
 
 /** A detachable client of an existing daemon. Never launches Codex or persists history. */
 export class NativeConnection {
@@ -29,7 +36,8 @@ export class NativeConnection {
     initialization: NativeRecord = {}
     constructor(
         private endpoint: string,
-        private token?: string
+        private token?: string,
+        private maxPayload = 0
     ) {}
 
     connect(): Promise<void> {
@@ -44,7 +52,7 @@ export class NativeConnection {
                     ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
                 },
                 handshakeTimeout: 10_000,
-                maxPayload: 0,
+                maxPayload: Math.min(this.maxPayload, 2_147_483_647),
                 perMessageDeflate: false,
             }))
             socket.once('error', reject)
@@ -60,6 +68,12 @@ export class NativeConnection {
             })
             socket.on('message', (raw) => {
                 try {
+                    // Bun's ws compatibility client can deliver the full message
+                    // despite maxPayload. Refuse it before copying or parsing it.
+                    if (this.maxPayload && messageBytes(raw) > this.maxPayload) {
+                        this.close(NATIVE_PAYLOAD_LIMIT_ERROR)
+                        return
+                    }
                     this.receive(record(JSON.parse(raw.toString())))
                 } catch {
                     this.close('Invalid native response')
@@ -68,8 +82,10 @@ export class NativeConnection {
             socket.on('close', () =>
                 this.close('Native connection closed; refresh before retrying a mutation')
             )
-            socket.on('error', () =>
-                this.close('Native connection failed; mutation outcome may be unknown')
+            socket.on('error', (error: NodeJS.ErrnoException) =>
+                this.close(error.code === 'WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'
+                    ? NATIVE_PAYLOAD_LIMIT_ERROR
+                    : 'Native connection failed; mutation outcome may be unknown')
             )
         })
         return this.ready

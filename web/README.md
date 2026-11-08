@@ -105,15 +105,18 @@ schemes stay in this browser's IndexedDB; exported JSON includes the image.
 ### Inline media
 
 Assistant Markdown and generated media use inline image, audio, and video
-players. Remote audio/video URLs use the browser's media loader. Local audio
-and video use short-lived, file-scoped media tickets and HTTP byte ranges;
-runner files are read in bounded chunks and stop reading when playback requests
-are canceled.
+players. Remote URLs use the browser's media loader. Local and generated media
+use temporary tickets scoped to the session, source, and file version. Reopening
+the same version reuses its URL and the browser's private HTTP cache. Audio and
+video support HTTP byte ranges. Runner files are read in bounded chunks and stop
+reading when playback requests are canceled.
 
 Codex Native currently exposes only whole-file `fs/readFile`. Its first media
-request imports the file into an expiring disk cache; later seeks read byte
-ranges from that snapshot. The cache bounds idle storage and concurrent imports,
-but a single large file can exceed its storage target while it is in use.
+request imports the file into a temporary disk cache. Later seeks read byte
+ranges from that snapshot. The cache has a hard total size limit that includes
+active and expired snapshots still held open by readers. The Hub also limits
+concurrent imports, waiting imports, and cached files. See the
+[Hub media cache settings](../docs/guide/installation.md#media-cache-settings).
 
 ### Side questions
 

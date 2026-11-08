@@ -247,7 +247,7 @@ function createWebApp(options: {
     const configuration = getConfiguration()
     const appIconStore = new AppIconStore(configuration.dataDir)
     const nativeRegistry = new NativeRegistry(undefined, undefined, { dataDir: configuration.dataDir })
-    const media = createMediaRoutes(options.getSyncEngine, nativeRegistry)
+    const media = createMediaRoutes(options.getSyncEngine, nativeRegistry, configuration.media, options.jwtSecret)
     const corsOrigins = options.corsOrigins ?? configuration.corsOrigins
     const corsOriginOption = corsOrigins.includes('*') ? '*' : corsOrigins
     const corsMiddleware = cors({
@@ -255,8 +255,8 @@ function createWebApp(options: {
         allowMethods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         // last-event-id: browsers attach it to EventSource reconnects for
         // SSE replay; allow it in case a browser preflights the request.
-        allowHeaders: ['authorization', 'content-type', 'last-event-id', 'range'],
-        exposeHeaders: ['Accept-Ranges', 'Content-Range']
+        allowHeaders: ['authorization', 'content-type', 'last-event-id', 'range', 'if-none-match', 'if-range'],
+        exposeHeaders: ['Accept-Ranges', 'Content-Range', 'ETag']
     })
     app.use('/health', corsMiddleware)
     app.use('/api/*', corsMiddleware)
