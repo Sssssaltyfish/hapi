@@ -71,6 +71,19 @@ describe('sessionConfigRpc', () => {
         expect(onAfterApply).not.toHaveBeenCalled()
     })
 
+    it('acknowledges the provider’s resolved model together with an effort change', async () => {
+        const harness = createRpcHarness()
+        registerSessionConfigRpc({
+            rpcHandlerManager: harness.rpcHandlerManager,
+            flavor: 'agy',
+            effortMode: 'nullable',
+            onApply: async () => ({ model: 'gemini-4-argon-medium', effort: 'medium' }),
+        })
+        expect(await harness.getHandler()({ effort: 'medium' })).toEqual({
+            applied: { model: 'gemini-4-argon-medium', effort: 'medium' },
+        })
+    })
+
     it('ignores model config for agents that do not support model changes when configured to ignore', async () => {
         const harness = createRpcHarness()
         const onApply = vi.fn()

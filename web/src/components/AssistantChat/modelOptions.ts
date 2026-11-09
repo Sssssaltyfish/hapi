@@ -1,5 +1,5 @@
-import { getAgyModelLabel } from '@hapi/protocol'
 import { MODEL_OPTIONS } from '@/components/NewSession/types'
+import { groupAgyModelOptions } from '@/lib/agyModelOptions'
 import { CURSOR_AUTO_MODEL_LABEL } from '@/lib/cursorModelOptions'
 import { getClaudeComposerModelOptions, getNextClaudeComposerModel } from './claudeModelOptions'
 import type { ClaudeComposerModelOption } from './claudeModelOptions'
@@ -84,16 +84,19 @@ function getClaudeModelOptions(currentModel?: string | null, customOptions?: Mod
 function getAgyModelOptions(currentModel?: string | null, customOptions?: ModelOption[]): ModelOption[] {
     // The built-in list stands in until the machine answers. Neither list carries
     // a null entry: agy has no mid-session "back to default".
-    const machineOptions = (customOptions ?? []).filter((option) => Boolean(option.value))
-    const options = machineOptions.length > 0
-        ? machineOptions
-        : MODEL_OPTIONS.agy.filter((m) => m.value !== 'auto').map((m) => ({
-            value: m.value,
-            label: m.label
-        }))
+    const machineOptions = (customOptions ?? []).flatMap(({ value, label }) => value ? [{ modelId: value, name: label }] : [])
+    const options = machineOptions.length > 0 ? machineOptions : MODEL_OPTIONS.agy
+        .filter((option) => option.value !== 'auto')
+        .map(({ value, label }) => ({ modelId: value, name: label }))
     // A session can be running a model the machine no longer lists. It stays
-    // selectable; the lookup only keeps a known preset readable.
-    return withCurrentModelOption(options, currentModel, getAgyModelLabel)
+    // selectable as the representative of its family.
+    const selected = normalizeCurrentModel(currentModel)
+    return groupAgyModelOptions(
+        selected && !options.some(option => option.modelId === selected)
+            ? [{ modelId: selected }, ...options]
+            : options,
+        selected
+    )
 }
 
 function getGeminiModelOptions(currentModel?: string | null): ModelOption[] {

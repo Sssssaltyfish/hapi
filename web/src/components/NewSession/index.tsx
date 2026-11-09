@@ -2048,6 +2048,7 @@ export function NewSession(props: NewSessionProps) {
                     isFetching={agyModelsState.isFetching}
                     availableModels={agyModelsState.availableModels}
                     selectedModel={agySelectedModel}
+                    isDisabled={isFormDisabled}
                     onModelChange={(modelId) => {
                         agyModelPickedByUserRef.current = modelId !== null
                         setAgySelectedModel(modelId)

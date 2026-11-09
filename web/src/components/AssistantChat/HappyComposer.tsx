@@ -39,7 +39,7 @@ import { useActiveSuggestions } from '@/hooks/useActiveSuggestions'
 import { applySuggestion } from '@/utils/applySuggestion'
 import { usePlatform } from '@/hooks/usePlatform'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
-import { AGY_EFFORT_LEVELS, CLAUDE_EFFORT_LABELS, supportsModelChange } from '@hapi/protocol'
+import { CLAUDE_EFFORT_LABELS, getAgyModelEffortLevels, getAgyModelVariant, supportsModelChange } from '@hapi/protocol'
 import { markSkillUsed } from '@/lib/recent-skills'
 import { useComposerDraft } from '@/hooks/useComposerDraft'
 import type { AttachmentDraftInput } from '@/lib/composer-attachment-drafts'
@@ -1097,6 +1097,7 @@ export function HappyComposer(props: {
             onEffortChange(getHighestThinkingLevel(selectedPiModel.thinkingLevelMap))
         }
     }, [selectedPiModel, effort, onEffortChange])
+    const agyModelEffort = agentFlavor === 'agy' ? getAgyModelVariant(model)?.effort : undefined
     const effortOptions = useMemo(() => {
         if (agentFlavor === 'pi') {
             return selectedPiModel && selectedPiModel.reasoning !== false
@@ -1110,13 +1111,13 @@ export function HappyComposer(props: {
             ]
         }
         if (agentFlavor === 'agy') {
-            return [
-                { value: null, label: 'Default' },
-                ...AGY_EFFORT_LEVELS.map(value => ({ value, label: CLAUDE_EFFORT_LABELS[value] }))
-            ]
+            const modelIds = availableModelOptions?.flatMap(({ value }) => value ? [value] : []) ?? []
+            const options = getAgyModelEffortLevels(model, modelIds)
+                .map(value => ({ value, label: CLAUDE_EFFORT_LABELS[value] }))
+            return agyModelEffort || options.length === 0 ? options : [{ value: null, label: 'Default' }, ...options]
         }
         return agentFlavor === 'claude' ? getClaudeComposerEffortOptions(effort) : []
-    }, [agentFlavor, effort, selectedPiModel, availableEffortOptions])
+    }, [agentFlavor, effort, selectedPiModel, availableEffortOptions, model, availableModelOptions, agyModelEffort])
     const permissionModes = useMemo(
         () => permissionModeOptions.map((option) => option.mode),
         [permissionModeOptions]
@@ -1808,20 +1809,26 @@ export function HappyComposer(props: {
     }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel])
     const defaultReasoningEffort = resolvedDefaultReasoningEffort?.trim() || null
     const effectiveModelReasoningEffort = modelReasoningEffort ?? defaultReasoningEffort
+    const selectedEffort = agentFlavor === 'agy' && effortOptions.length > 0
+        ? effortOptions.find(option => option.value === agyModelEffort)?.value
+            ?? effortOptions.find(option => option.value === effort)?.value
+            ?? null
+        : effort
     const effectiveEffort = agentFlavor === 'pi' && selectedPiModel
         ? selectedPiModel.reasoning === false
             ? null
             : effort && isThinkingLevelSupported(effort, selectedPiModel.thinkingLevelMap)
                 ? effort
                 : getHighestThinkingLevel(selectedPiModel.thinkingLevelMap)
-        : effort ?? defaultReasoningEffort
+        : selectedEffort ?? defaultReasoningEffort
     const effortValueLabel = reasoningSettings
         ? reasoningSettings.selectedLabel ?? t('misc.reasoningEffort')
         : showModelReasoningEffortSettings
             ? codexReasoningEffortOptions.find(option => option.value === effectiveModelReasoningEffort)?.label
                 ?? effectiveModelReasoningEffort ?? t('misc.reasoningEffort')
             : showEffortSettings
-                ? effortOptions.find(option => option.value === effectiveEffort)?.label ?? effectiveEffort ?? undefined
+                ? effortOptions.find(option => option.value === effectiveEffort)?.label
+                    ?? effectiveEffort ?? (agentFlavor === 'agy' ? t('misc.effort') : undefined)
                 : undefined
     const effortValueTitle = effortValueLabel && (showModelReasoningEffortSettings || reasoningSettings?.selectedLabel)
         ? `${t('misc.reasoningEffort')}: ${effortValueLabel}`
@@ -2050,16 +2057,16 @@ export function HappyComposer(props: {
                                     >
                                         <div
                                             className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${
-                                                effort === option.value
+                                                selectedEffort === option.value
                                                     ? 'border-[var(--app-link)]'
                                                     : 'border-[var(--app-hint)]'
                                             }`}
                                         >
-                                            {effort === option.value && (
+                                            {selectedEffort === option.value && (
                                                 <div className="h-2 w-2 rounded-full bg-[var(--app-link)]" />
                                             )}
                                         </div>
-                                        <span className={effort === option.value ? 'text-[var(--app-link)]' : ''}>
+                                        <span className={selectedEffort === option.value ? 'text-[var(--app-link)]' : ''}>
                                             {option.label}
                                         </span>
                                     </button>
@@ -2293,6 +2300,7 @@ export function HappyComposer(props: {
         model,
         modelReasoningEffort,
         effort,
+        selectedEffort,
         displayedServiceTier,
         collaborationModeOptions,
         copilotAgentModeOptions,

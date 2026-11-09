@@ -59,8 +59,27 @@ describe('AgyModelSelector', () => {
 
         const select = screen.getByTestId('agy-model-list') as HTMLSelectElement
         expect(select.value).toBe('gemini-3.5-flash-medium')
-        expect(screen.getByRole('option', { name: 'Gemini 3.5 Flash (Medium) (no longer listed)' })).toBeInTheDocument()
-        expect(screen.getByRole('option', { name: 'Gemini 3.8 Flash (High)' })).toBeInTheDocument()
+        expect(screen.getByRole('option', { name: 'Gemini 3.5 Flash (no longer listed)' })).toBeInTheDocument()
+        expect(screen.getByRole('option', { name: 'Gemini 3.8 Flash' })).toBeInTheDocument()
+    })
+
+    it('shows one model family and selects its exact launch variant through Effort', () => {
+        const onModelChange = vi.fn()
+        renderSelector({
+            availableModels: [
+                { modelId: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
+                { modelId: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)' },
+            ],
+            selectedModel: 'gemini-4-argon-high',
+            onModelChange,
+        })
+
+        expect(screen.getByRole('option', { name: 'Gemini 4 Argon' })).toHaveValue('gemini-4-argon-high')
+        expect(screen.queryByRole('option', { name: 'Gemini 4 Argon (Medium)' })).toBeNull()
+        const effort = screen.getByRole('combobox', { name: 'Effort' })
+        expect(effort).toHaveValue('high')
+        fireEvent.change(effort, { target: { value: 'medium' } })
+        expect(onModelChange).toHaveBeenCalledExactlyOnceWith('gemini-4-argon-medium')
     })
 
     it('falls back to the wire id for a picked model nobody has a label for', () => {

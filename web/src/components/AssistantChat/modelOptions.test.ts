@@ -14,16 +14,15 @@ describe('getModelOptionsForFlavor', () => {
         expect(options.some((option) => option.value === null)).toBe(false)
     })
 
-    it('offers the machine catalog in an AGY session instead of the built-in mirror', () => {
+    it('groups the machine catalog by AGY model family and keeps the running variant', () => {
         const live = [
             { value: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
             { value: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' }
         ]
 
-        const options = getModelOptionsForFlavor('agy', 'gemini-3.8-flash-high', live)
+        const options = getModelOptionsForFlavor('agy', 'gemini-3.8-flash-low', live)
 
-        expect(options).toEqual(live)
-        expect(options.some((option) => option.value === null)).toBe(false)
+        expect(options).toEqual([{ value: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash' }])
     })
 
     it('keeps the running AGY model selectable, and readable, when the machine catalog no longer lists it', () => {
@@ -31,7 +30,7 @@ describe('getModelOptionsForFlavor', () => {
 
         const options = getModelOptionsForFlavor('agy', 'gemini-3.5-flash-medium', live)
 
-        expect(options[0]).toEqual({ value: 'gemini-3.5-flash-medium', label: 'Gemini 3.5 Flash (Medium)' })
+        expect(options[0]).toEqual({ value: 'gemini-3.5-flash-medium', label: 'Gemini 3.5 Flash' })
         expect(options.some((option) => option.value === 'gemini-3.8-flash-high')).toBe(true)
     })
 
@@ -254,15 +253,17 @@ describe('getNextModelForFlavor', () => {
         expect(getNextModelForFlavor('agy', 'agy-custom-model')).toBe(firstConcrete)
     })
 
-    it('cycles through the machine catalog in an AGY session', () => {
+    it('cycles through AGY families and preserves effort where the next family supports it', () => {
         const live = [
             { value: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
-            { value: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' }
+            { value: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
+            { value: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' },
+            { value: 'gemini-4-argon-low', label: 'Gemini 4 Argon (Low)' }
         ]
 
         expect(getNextModelForFlavor('agy', null, live)).toBe('gemini-3.8-flash-high')
-        expect(getNextModelForFlavor('agy', 'gemini-3.8-flash-high', live)).toBe('gemini-3.8-flash-low')
-        expect(getNextModelForFlavor('agy', 'gemini-3.8-flash-low', live)).toBe('gemini-3.8-flash-high')
+        expect(getNextModelForFlavor('agy', 'gemini-3.8-flash-low', live)).toBe('gemini-4-argon-low')
+        expect(getNextModelForFlavor('agy', 'gemini-4-argon-high', live)).toBe('gemini-3.8-flash-high')
     })
 
     it('cycles Gemini models', () => {

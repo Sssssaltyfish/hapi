@@ -1,4 +1,5 @@
-import { getAgyModelLabel } from '@hapi/protocol'
+import { CLAUDE_EFFORT_LABELS, getAgyModelEffortLevels, getAgyModelVariant } from '@hapi/protocol'
+import { getAgyModelFamilyLabel, groupAgyModelOptions } from '@/lib/agyModelOptions'
 import { useTranslation } from '@/lib/use-translation'
 import type { AgyModelSummary } from '@/types/api'
 
@@ -12,6 +13,7 @@ export type AgyModelSelectorProps = {
     isFetching?: boolean
     availableModels: AgyModelSummary[]
     selectedModel: string | null
+    isDisabled?: boolean
     onModelChange: (modelId: string | null) => void
     onRetry?: () => void
 }
@@ -31,7 +33,7 @@ function withSelectedModel(
     if (!selectedModel || models.some((model) => model.modelId === selectedModel)) {
         return models
     }
-    const label = getAgyModelLabel(selectedModel) ?? selectedModel
+    const label = getAgyModelFamilyLabel(selectedModel)
     return [{ modelId: selectedModel, name: `${label} (${notListedSuffix})` }, ...models]
 }
 
@@ -64,6 +66,16 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
     if (!props.machineId) {
         return null
     }
+
+    const selectedVariant = getAgyModelVariant(props.selectedModel)
+    const selectedFamily = selectedVariant?.baseModel ?? props.selectedModel
+    const efforts = getAgyModelEffortLevels(props.selectedModel, props.availableModels.map(model => model.modelId))
+    const modelOptions = groupAgyModelOptions(withSelectedModel(
+        props.availableModels,
+        props.selectedModel,
+        t('newSession.agyModel.notListed')
+    ), props.selectedModel)
+    const selectClassName = 'w-full px-3 py-2 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50'
 
     return (
         <div className="flex flex-col gap-2 px-3 py-3">
@@ -107,20 +119,36 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                     <select
                         data-testid="agy-model-list"
                         value={props.selectedModel ?? ''}
+                        disabled={props.isDisabled}
                         onChange={(e) => props.onModelChange(e.target.value || null)}
-                        className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50"
+                        className={selectClassName}
                     >
                         <option value="">{t('newSession.model.default')}</option>
-                        {withSelectedModel(
-                            props.availableModels,
-                            props.selectedModel,
-                            t('newSession.agyModel.notListed')
-                        ).map((model) => (
-                            <option key={model.modelId} value={model.modelId}>
-                                {model.name ?? model.modelId}
+                        {modelOptions.map(({ value, label }) => (
+                            <option key={value} value={value}>
+                                {label}
                             </option>
                         ))}
                     </select>
+                    {selectedFamily && efforts.length > 0 ? (
+                        <label className="flex flex-col gap-1.5 pt-1 text-xs font-medium text-[var(--app-hint)]">
+                            {t('newSession.effort')}
+                            <select
+                                value={selectedVariant?.effort ?? ''}
+                                disabled={props.isDisabled}
+                                onChange={(e) => props.onModelChange(`${selectedFamily}-${e.target.value}`)}
+                                className={selectClassName}
+                            >
+                                {!selectedVariant ? <option value="" disabled>{t('newSession.model.default')}</option> : null}
+                                {selectedVariant && !efforts.includes(selectedVariant.effort) ? (
+                                    <option value={selectedVariant.effort} disabled>{CLAUDE_EFFORT_LABELS[selectedVariant.effort]}</option>
+                                ) : null}
+                                {efforts.map(effort => (
+                                    <option key={effort} value={effort}>{CLAUDE_EFFORT_LABELS[effort]}</option>
+                                ))}
+                            </select>
+                        </label>
+                    ) : null}
                 </div>
             )}
         </div>

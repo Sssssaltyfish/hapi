@@ -200,13 +200,25 @@ describe('HappyComposer generic model/effort value buttons', () => {
         expect(changeEffort).toHaveBeenCalledExactlyOnceWith('high')
     })
 
-    it('offers Antigravity effort independent of the model on mobile', () => {
+    it('offers only published efforts for the selected Antigravity family on mobile', () => {
         runtime.narrowViewport = true
         const changeEffort = vi.fn()
-        renderComposer('agy', { model: 'argon-high', effort: null, onEffortChange: changeEffort })
-        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
-        fireEvent.click(screen.getByRole('button', { name: 'XHigh' }))
-        expect(changeEffort).toHaveBeenCalledExactlyOnceWith('xhigh')
+        renderComposer('agy', {
+            model: 'gemini-4-argon-high',
+            effort: 'max',
+            onEffortChange: changeEffort,
+            availableModelOptions: [
+                { value: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' },
+                { value: 'gemini-4-argon-medium', label: 'Gemini 4 Argon (Medium)' },
+                { value: 'gemini-4-flash-max', label: 'Gemini 4 Flash (Max)' },
+            ],
+        })
+        expect(screen.getByRole('button', { name: 'Gemini 4 Argon' })).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: 'High' }))
+        expect(screen.queryByRole('button', { name: 'Max' })).toBeNull()
+        expect(screen.queryByRole('button', { name: 'XHigh' })).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'Medium' }))
+        expect(changeEffort).toHaveBeenCalledExactlyOnceWith('medium')
     })
 
     it('opens the runner-advertised DSH effort options from the mobile toolbar', async () => {

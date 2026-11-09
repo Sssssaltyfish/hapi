@@ -13,7 +13,8 @@ import { registerSessionConfigRpc } from '@/agent/sessionConfigRpc';
 import { formatQueuedSkillMessage } from '@/utils/queuedSkillReference';
 import { getInvokedCwd } from '@/utils/invokedCwd';
 import type { SessionEffort, SessionModel } from '@/api/types';
-import { isAgyEffortLevel } from '@hapi/protocol';
+import { listAgyModels } from '@/modules/common/agyModels';
+import { resolveAgyModelSelection } from './utils/agyModelSelection';
 
 export async function runAgy(opts: {
     startedBy?: 'runner' | 'terminal';
@@ -41,7 +42,12 @@ export async function runAgy(opts: {
         startingMode
     };
 
-    const initialModel = opts.model ?? null;
+    const resolveSelection = async (model: string | null, effort: string | null | undefined) => {
+        const catalog = model ? await listAgyModels() : null;
+        return resolveAgyModelSelection(model, effort, catalog?.availableModels?.map(entry => entry.modelId) ?? []);
+    };
+    const initialSelection = await resolveSelection(opts.model ?? null, opts.effort);
+    const initialModel = initialSelection.model;
 
     const bootstrap = opts.existingSessionId
         ? await bootstrapExistingSession({
@@ -57,7 +63,7 @@ export async function runAgy(opts: {
             tag: `__hapi_agy_${randomUUID()}`,
             agentState: initialState,
             model: initialModel ?? undefined,
-            effort: opts.effort ?? undefined,
+            effort: initialSelection.effort ?? undefined,
             reservedSessionId: opts.reservedSessionId
         });
     const { api, session } = bootstrap;
@@ -70,7 +76,7 @@ export async function runAgy(opts: {
 
     let currentPermissionMode: PermissionMode = opts.permissionMode ?? 'request-review';
     let sessionModel: SessionModel = initialModel;
-    let sessionEffort: SessionEffort | undefined = opts.effort ?? undefined;
+    let sessionEffort: SessionEffort | undefined = initialSelection.effort;
 
     const sessionWrapperRef: { current: any | null } = { current: null };
 
@@ -140,18 +146,20 @@ export async function runAgy(opts: {
             modelMode: 'nullable',
             effortMode: 'nullable',
             onApply: async (config) => {
-                if (config.effort != null && !isAgyEffortLevel(config.effort)) {
-                    throw new Error('Invalid Antigravity effort');
-                }
+                const selection = config.model !== undefined || config.effort !== undefined
+                    ? await resolveSelection(
+                        config.model !== undefined ? config.model : sessionModel,
+                        config.effort !== undefined ? config.effort : config.model !== undefined ? null : sessionEffort,
+                    )
+                    : null;
                 if (config.permissionMode !== undefined) {
                     currentPermissionMode = config.permissionMode;
                 }
-                if (config.model !== undefined) {
-                    sessionModel = config.model;
+                if (selection) {
+                    sessionModel = selection.model;
+                    sessionEffort = selection.effort;
                 }
-                if (config.effort !== undefined) {
-                    sessionEffort = config.effort;
-                }
+                return { ...config, ...selection };
             },
             onAfterApply: syncSessionMode
         });
