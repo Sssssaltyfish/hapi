@@ -45,7 +45,7 @@ export function parseCursorAskQuestionInput(input: unknown): { questions: AskUse
             const optionId = typeof opt.id === 'string' && opt.id.trim()
                 ? opt.id.trim()
                 : label
-            options.push({ id: optionId, label, description: null })
+            options.push({ id: optionId, label, description: null, ...(opt.isOther === true ? { isOther: true } : {}) })
         }
 
         if (!question && options.length === 0) continue

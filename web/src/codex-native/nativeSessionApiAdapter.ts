@@ -4,6 +4,7 @@ import type { CodexApprovalPolicy, CodexApprovalsReviewer } from '@hapi/protocol
 import { resolveCodexModel } from '@/lib/codexModelCapabilities'
 import { nativeModelSummaries } from './nativeModels'
 import { nativeAsyncReplyTurn, record } from './presentation'
+import { isNativeAsyncQuestionRequest } from '@/lib/nativeQuestionReply'
 import type { useNativeThread } from './useNativeThread'
 import type { projectNativeItems } from './projectNativeItems'
 
@@ -163,10 +164,10 @@ export function createNativeSessionApiAdapter(
         options?: unknown
     ) {
         const { projectedRequests, thread } = getState()
-        if (requestId.startsWith('native-async:')) {
+        if (isNativeAsyncQuestionRequest(requestId)) {
             const questions = record(projectedRequests[requestId]?.arguments).questions
             if (!Array.isArray(questions)) throw new Error('Question is no longer pending')
-            const answers = record(record(options).answers)
+            const answers = property === 'approvePermission' ? record(record(options).answers) : {}
             const replies = questions.map(record).map((question) => {
                 const value = answers[String(question.id)]
                 const selected = Array.isArray(value) ? value : record(value).answers

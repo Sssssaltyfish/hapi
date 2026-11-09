@@ -5,6 +5,7 @@ export type AskUserQuestionOption = {
     id?: string
     label: string
     description: string | null
+    isOther?: boolean
 }
 
 export type AskUserQuestionQuestion = {
@@ -48,7 +49,7 @@ export function parseAskUserQuestionInput(input: unknown): { questions: AskUserQ
             const label = typeof opt.label === 'string' ? opt.label.trim() : ''
             if (!label) continue
             const description = typeof opt.description === 'string' ? opt.description.trim() : null
-            options.push({ label, description })
+            options.push({ label, description, ...(opt.isOther === true ? { isOther: true } : {}) })
         }
 
         if (!question && options.length === 0) continue

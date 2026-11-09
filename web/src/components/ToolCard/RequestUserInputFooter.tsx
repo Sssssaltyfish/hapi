@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ApiClient } from '@/api/client'
 import type { ChatToolCall } from '@/chat/types'
 import { Badge } from '@/components/ui/badge'
@@ -14,12 +14,15 @@ import {
     requestUserInputOptions,
     selectRequestUserInputOption,
     type RequestUserInputOption,
-    type RequestUserInputQuestion
+    type RequestUserInputQuestion,
+    type RequestUserInputQuestionAnswer
 } from '@/components/ToolCard/requestUserInput'
 import { cn } from '@/lib/utils'
 import { usePlatform } from '@/hooks/usePlatform'
 import { Spinner } from '@/components/Spinner'
 import { useTranslation } from '@/lib/use-translation'
+import { isNativeAsyncQuestionRequest } from '@/lib/nativeQuestionReply'
+import { DismissQuestionButton, QuestionAnswerInput } from './questionControls'
 
 function SelectionMark(props: { checked: boolean }) {
     const mark = props.checked ? '●' : '○'
@@ -63,11 +66,6 @@ function OptionRow(props: {
     )
 }
 
-type QuestionState = {
-    selected: string[]
-    userNote: string
-}
-
 export function RequestUserInputFooter(props: {
     api: ApiClient
     sessionId: string
@@ -82,36 +80,42 @@ export function RequestUserInputFooter(props: {
     const questions = parsed.questions
 
     const [step, setStep] = useState(0)
-    const [stateByQuestion, setStateByQuestion] = useState<Record<string, QuestionState>>({})
+    const [stateByQuestion, setStateByQuestion] = useState<Record<string, RequestUserInputQuestionAnswer>>({})
 
     const [loading, setLoading] = useState(false)
+    const [dismissed, setDismissed] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const noteRef = useRef<HTMLTextAreaElement>(null)
 
     useEffect(() => {
         setStep(0)
-        const initial: Record<string, QuestionState> = {}
+        const initial: Record<string, RequestUserInputQuestionAnswer> = {}
         for (const q of questions) {
             initial[q.id] = { selected: [], userNote: q.prefill ?? '' }
         }
         setStateByQuestion(initial)
         setLoading(false)
+        setDismissed(false)
         setError(null)
     }, [props.tool.id])
 
-    if (!permission || permission.status !== 'pending') return null
+    if (!permission || permission.status !== 'pending' || dismissed) return null
     if (!isRequestUserInputToolName(props.tool.name)) return null
+    const nativeAsync = isNativeAsyncQuestionRequest(permission.id)
 
-    const run = async (action: () => Promise<void>, hapticType: 'success' | 'error') => {
-        if (props.disabled) return
+    const run = async (action: () => Promise<void>, dismiss = false) => {
+        if (props.disabled || loading) return
+        setLoading(true)
         setError(null)
         try {
             await action()
-            haptic.notification(hapticType)
+            if (dismiss) setDismissed(true)
+            haptic.notification('success')
             props.onDone()
         } catch (e) {
             haptic.notification('error')
             setError(e instanceof Error ? e.message : t('dialog.error.default'))
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -124,7 +128,7 @@ export function RequestUserInputFooter(props: {
     }
 
     const submit = async () => {
-        if (loading) return
+        if (props.disabled || loading) return
 
         // Validate all questions
         for (let i = 0; i < questions.length; i += 1) {
@@ -137,7 +141,7 @@ export function RequestUserInputFooter(props: {
         }
 
         // Format answers for submission
-        const formattedAnswers = formatRequestUserInputAnswers(stateByQuestion, questions)
+        const formattedAnswers = formatRequestUserInputAnswers(stateByQuestion, questions, nativeAsync)
 
         if (parsed.url) {
             if (!isRequestUserInputUrlConfirmed(parsed, stateByQuestion)) {
@@ -151,9 +155,7 @@ export function RequestUserInputFooter(props: {
             }
         }
 
-        setLoading(true)
-        await run(() => props.api.approvePermission(props.sessionId, permission.id, formattedAnswers), 'success')
-        setLoading(false)
+        await run(() => props.api.approvePermission(props.sessionId, permission.id, formattedAnswers))
     }
 
     const next = () => {
@@ -181,21 +183,22 @@ export function RequestUserInputFooter(props: {
                 selected: selectRequestUserInputOption(question, prev[question.id]?.selected ?? [], option)
             }
         }))
-        if (option.isOther) noteRef.current?.focus()
     }
 
-    const updateUserNote = (questionId: string, value: string) => {
+    const updateText = (questionId: string, field: 'userNote' | 'supplementalNote', value: string) => {
         setStateByQuestion((prev) => ({
             ...prev,
             [questionId]: {
                 ...prev[questionId],
-                userNote: value
+                [field]: value
             }
         }))
     }
 
     const currentState = currentQuestion ? stateByQuestion[currentQuestion.id] : null
     const isPureTextQuestion = currentQuestion && currentQuestion.options.length === 0
+    const options = currentQuestion ? requestUserInputOptions(currentQuestion) : []
+    const customSelected = options.some((option) => option.isOther && currentState?.selected.includes(option.label))
 
     return (
         <div className="mt-3 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-3">
@@ -210,10 +213,14 @@ export function RequestUserInputFooter(props: {
                         </span>
                     </div>
                 </div>
+                <DismissQuestionButton
+                    disabled={props.disabled || loading}
+                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }), true)}
+                />
             </div>
 
             {error ? (
-                <div className="mt-2 text-xs text-red-600">
+                <div className="mt-2 text-xs text-red-600" role="alert">
                     {error}
                 </div>
             ) : null}
@@ -227,48 +234,56 @@ export function RequestUserInputFooter(props: {
                     ) : null}
 
                     {isPureTextQuestion ? (
-                        // Pure text question - show only textarea
-                        <textarea
+                        <QuestionAnswerInput
+                            key={currentQuestion.id}
+                            aria-label={currentQuestion.placeholder ?? t('tool.requestUserInput.textPlaceholder')}
                             value={currentState?.userNote ?? ''}
-                            onChange={(e) => updateUserNote(currentQuestion.id, e.target.value)}
+                            onChange={(e) => updateText(currentQuestion.id, 'userNote', e.target.value)}
                             disabled={props.disabled || loading}
                             placeholder={currentQuestion.placeholder ?? t('tool.requestUserInput.textPlaceholder')}
-                            className="mt-3 w-full min-h-[88px] resize-y rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] focus:border-transparent disabled:opacity-50"
+                            className="mt-3 rounded-md bg-[var(--app-bg)]"
                         />
                     ) : (
-                        // Question with options
                         <>
                             <div className="mt-3 flex flex-col gap-1">
-                                {requestUserInputOptions(currentQuestion).map((opt, optIdx) => {
+                                {options.map((opt, optIdx) => {
                                     const isSelected = currentState?.selected.includes(opt.label) ?? false
                                     return (
                                         <OptionRow
                                             key={optIdx}
                                             checked={isSelected}
                                             disabled={props.disabled || loading}
-                                            title={opt.isOther ? t('tool.requestUserInput.otherLabel') : opt.label}
-                                            description={opt.isOther ? t('tool.requestUserInput.otherDescription') : opt.description}
+                                            title={opt.isOther ? t('tool.otherDescription') : opt.label}
+                                            description={opt.description}
                                             onClick={() => selectOption(currentQuestion, opt)}
                                         />
                                     )
                                 })}
                             </div>
 
-                            {/* User note input - always shown for questions with options */}
-                            <div className="mt-3">
-                                <div className="text-xs text-[var(--app-hint)] mb-1">
-                                    {t('tool.requestUserInput.noteLabel')}
-                                </div>
-                                <textarea
-                                    ref={noteRef}
-                                    aria-label={t('tool.requestUserInput.noteLabel')}
+                            {customSelected ? (
+                                <QuestionAnswerInput
+                                    key={currentQuestion.id}
+                                    autoFocus
+                                    aria-label={t('tool.otherDescription')}
                                     value={currentState?.userNote ?? ''}
-                                    onChange={(e) => updateUserNote(currentQuestion.id, e.target.value)}
+                                    onChange={(e) => updateText(currentQuestion.id, 'userNote', e.target.value)}
+                                    disabled={props.disabled || loading}
+                                    placeholder={t('tool.requestUserInput.textPlaceholder')}
+                                    className="mt-3 rounded-md bg-[var(--app-bg)]"
+                                />
+                            ) : null}
+                            {!customSelected ? (
+                                <QuestionAnswerInput
+                                    key={`note:${currentQuestion.id}`}
+                                    aria-label={t('tool.requestUserInput.noteLabel')}
+                                    value={currentState?.supplementalNote ?? ''}
+                                    onChange={(e) => updateText(currentQuestion.id, 'supplementalNote', e.target.value)}
                                     disabled={props.disabled || loading}
                                     placeholder={t('tool.requestUserInput.notePlaceholder')}
-                                    className="w-full min-h-[60px] resize-y rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-sm text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] focus:border-transparent disabled:opacity-50"
+                                    className="mt-3 min-h-[60px] rounded-md bg-[var(--app-bg)]"
                                 />
-                            </div>
+                            ) : null}
                         </>
                     )}
                 </div>

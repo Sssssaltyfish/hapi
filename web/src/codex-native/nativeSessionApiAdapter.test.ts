@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest'
 import { ApiClient } from '@/api/client'
+import { parseNativeQuestionReply } from '@/lib/nativeQuestionReply'
 import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
+import { projectNativeItems } from './projectNativeItems'
 import type { NativeRequest } from './types'
 
 it('sends only the chosen model when its cached effort is stale', async () => {
@@ -35,6 +37,27 @@ it('checks current pending requests through a previously captured approval handl
     requests = []
     await expect(approve('session', '21')).rejects.toThrow('Native request is no longer pending')
     expect(codexNativeAction).toHaveBeenCalledTimes(1)
+})
+
+it('dismisses a Native async question with an empty reply and lets the current turn continue', async () => {
+    const questionItem = { item: { id: 'question', type: 'agentMessage', questions: [{ title: 'Continue?', options: ['Yes'] }] } }
+    const projected = projectNativeItems([questionItem], [])
+    const codexNativeAction = vi.fn().mockResolvedValue({})
+    const adapter = createNativeSessionApiAdapter({ codexNativeAction } as unknown as ApiClient, {
+        sessionId: 'session', threadId: 'thread', setSettingsError: vi.fn(),
+        getState: () => ({ model: null, projectedRequests: projected.requests,
+            thread: { requests: [], detail: { activeTurn: { id: 'turn', status: 'inProgress' } }, refreshDetail: vi.fn(), applySettings: vi.fn() } }),
+    })
+
+    expect(projected.requests['native-async:question'].arguments).toMatchObject({ questions: [{ isOther: true }] })
+    await adapter.denyPermission('session', 'native-async:question', { decision: 'abort' })
+    expect(codexNativeAction).toHaveBeenCalledExactlyOnceWith('thread', 'messages', expect.objectContaining({ expectedTurnId: 'turn' }))
+    const text = codexNativeAction.mock.calls[0][2].text
+    expect(parseNativeQuestionReply(text)).toEqual([{
+        questionItemId: JSON.stringify(['request_user_input_async', 'question', 0]), question: 'Continue?', answer: ''
+    }])
+    const afterReply = projectNativeItems([questionItem, { item: { id: 'reply', type: 'userMessage', content: [{ type: 'text', text }] } }], [])
+    expect(afterReply.requests['native-async:question']).toBeUndefined()
 })
 
 it('preserves cache identity and reads the bound native outline through the real client', async () => {

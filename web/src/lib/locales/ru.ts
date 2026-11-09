@@ -853,6 +853,7 @@ export default {
   'tool.other': 'Другое',
   'tool.otherDescription': 'Введите свой ответ',
   'tool.question': 'Вопрос',
+  'tool.dismissQuestion': 'Закрыть вопрос',
   'tool.selectOption': 'Выберите хотя бы один вариант или введите ответ.',
   'tool.waitingForApproval': 'Ожидание одобрения…',
   'tool.waitingForAnswer': 'Ожидание ответа…',

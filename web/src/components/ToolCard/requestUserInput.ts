@@ -1,4 +1,5 @@
 import { isObject } from '@hapi/protocol'
+import { isCustomQuestionOption } from './customQuestionOption'
 
 // Codex's wire value, never a localized display label.
 export const REQUEST_USER_INPUT_OTHER = 'None of the above'
@@ -24,6 +25,7 @@ export type RequestUserInputQuestion = {
 export type RequestUserInputQuestionAnswer = {
     selected: string[]
     userNote: string
+    supplementalNote?: string
 }
 
 export type ParsedRequestUserInput = {
@@ -89,7 +91,7 @@ export function parseRequestUserInputInput(input: unknown): ParsedRequestUserInp
             const label = typeof opt.label === 'string' ? opt.label.trim() : ''
             if (!label) continue
             const description = typeof opt.description === 'string' ? opt.description.trim() : null
-            options.push({ label, description })
+            options.push({ label, description, ...(opt.isOther === true ? { isOther: true } : {}) })
         }
 
         questions.push({
@@ -97,7 +99,7 @@ export function parseRequestUserInputInput(input: unknown): ParsedRequestUserInp
             question,
             required: raw.required !== false,
             multiple: raw.multiple === true,
-            isOther: raw.isOther === true,
+            isOther: raw.isOther === true || options.some((option) => option.isOther),
             options,
             ...(typeof raw.placeholder === 'string' ? { placeholder: raw.placeholder } : {}),
             ...(typeof raw.prefill === 'string' ? { prefill: raw.prefill } : {}),
@@ -111,7 +113,11 @@ export function parseRequestUserInputInput(input: unknown): ParsedRequestUserInp
 /** Derived choices only; keep the original request/options unchanged. */
 export function requestUserInputOptions(question: RequestUserInputQuestion): RequestUserInputOption[] {
     if (!question.isOther || question.options.length === 0) return question.options
-    return [...question.options, { label: REQUEST_USER_INPUT_OTHER, description: null, isOther: true }]
+    const customOption = question.options.find((option) => option.isOther) ?? question.options.find(isCustomQuestionOption)
+    return [
+        ...question.options.filter((option) => !isCustomQuestionOption(option)),
+        { label: customOption?.label ?? REQUEST_USER_INPUT_OTHER, description: null, isOther: true }
+    ]
 }
 
 export function selectRequestUserInputOption(
@@ -119,8 +125,10 @@ export function selectRequestUserInputOption(
     selected: string[],
     option: RequestUserInputOption
 ): string[] {
-    if (option.isOther || !question.multiple) return [option.label]
-    const current = question.isOther ? selected.filter((value) => value !== REQUEST_USER_INPUT_OTHER) : selected
+    if (!question.multiple) return [option.label]
+    if (option.isOther) return selected.includes(option.label) ? [] : [option.label]
+    const customOption = requestUserInputOptions(question).find((value) => value.isOther)
+    const current = customOption ? selected.filter((value) => value !== customOption.label) : selected
     return current.includes(option.label)
         ? current.filter((value) => value !== option.label)
         : [...current, option.label]
@@ -144,11 +152,14 @@ export function isRequestUserInputQuestionAnswered(
     question: RequestUserInputQuestion,
     answer: RequestUserInputQuestionAnswer | undefined
 ): boolean {
-    if (!question.required) return true
-    if (!answer) return false
+    if (!answer) return !question.required
     if (question.options.length > 0) {
-        return answer.selected.length > 0
+        const customOption = requestUserInputOptions(question).find((option) => option.isOther)
+        return customOption && answer.selected.includes(customOption.label)
+            ? answer.userNote.trim().length > 0
+            : !question.required || answer.selected.length > 0
     }
+    if (!question.required) return true
     if (question.inputType === 'editor') return true
     return answer.userNote.trim().length > 0
 }
@@ -173,23 +184,30 @@ export function extractRequestUserInputQuestionsInfo(input: unknown): RequestUse
 }
 
 /**
- * Format answers for submission in the nested format expected by request_user_input
- * Format: { answers: { [id]: { answers: ["option", "user_note: note text"] } } }
+ * Codex Native async replies carry plain text. Other request_user_input
+ * providers receive structured options and a separate user_note entry.
  */
 export function formatRequestUserInputAnswers(
     answersByQuestion: Record<string, RequestUserInputQuestionAnswer>,
-    questions: RequestUserInputQuestion[] = []
+    questions: RequestUserInputQuestion[] = [],
+    nativeAsync = false
 ): { answers: RequestUserInputAnswers } {
     const answers: RequestUserInputAnswers = {}
     const questionById = new Map(questions.map((question) => [question.id, question]))
 
     for (const [id, answer] of Object.entries(answersByQuestion)) {
-        const answerArray: string[] = []
+        const question = questionById.get(id)
+        const customOption = question && requestUserInputOptions(question).find((option) => option.isOther)
+        const hasCustomAnswer = !question?.options.length || (customOption && answer.selected.includes(customOption.label))
+        const isEditor = question?.inputType === 'editor'
+        const text = hasCustomAnswer ? answer.userNote : answer.supplementalNote ?? ''
+        const note = isEditor ? text : text.trim()
+        if (nativeAsync && hasCustomAnswer) {
+            answers[id] = { answers: note ? [note] : [] }
+            continue
+        }
 
-        answerArray.push(...answer.selected)
-
-        const isEditor = questionById.get(id)?.inputType === 'editor'
-        const note = isEditor ? answer.userNote : answer.userNote.trim()
+        const answerArray = [...answer.selected]
         if (isEditor || note.length > 0) {
             answerArray.push(`user_note: ${note}`)
         }

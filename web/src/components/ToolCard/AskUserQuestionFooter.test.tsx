@@ -23,10 +23,11 @@ function makeTool(id: string): ChatToolCall {
 }
 
 function renderFooter(sessionId: string, tool: ChatToolCall, approvePermission = vi.fn().mockResolvedValue(undefined)) {
+    const denyPermission = vi.fn().mockResolvedValue(undefined)
     return {
         ...render(
             <AskUserQuestionFooter
-                api={{ approvePermission } as unknown as ApiClient}
+                api={{ approvePermission, denyPermission } as unknown as ApiClient}
                 sessionId={sessionId}
                 tool={tool}
                 disabled={false}
@@ -34,6 +35,7 @@ function renderFooter(sessionId: string, tool: ChatToolCall, approvePermission =
             />
         ),
         approvePermission,
+        denyPermission,
     }
 }
 
@@ -118,4 +120,43 @@ describe('AskUserQuestionFooter draft persistence (hapi#1734)', () => {
         rerender(<SessionKeyedWrapper sessionId="session-A" tool={tool} />)
         expect(screen.getByRole('radio', { name: /Alpha/ })).toHaveAttribute('aria-checked', 'false')
     })
+})
+
+it('offers one custom answer and keeps it exclusive in multi-select questions', async () => {
+    const tool = makeTool('multi-choice')
+    tool.input = { questions: [{
+        question: 'Pick options', multiSelect: true,
+        options: [{ label: 'Alpha' }, { label: 'Beta' }, { label: 'Other' }]
+    }] }
+    const { approvePermission } = renderFooter('multi-session', tool)
+    const alpha = screen.getByRole('checkbox', { name: 'Alpha' })
+    const beta = screen.getByRole('checkbox', { name: 'Beta' })
+    const custom = screen.getByRole('checkbox', { name: 'tool.otherDescription' })
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    fireEvent.click(alpha)
+    fireEvent.click(beta)
+    fireEvent.click(custom)
+    expect(alpha).toHaveAttribute('aria-checked', 'false')
+    expect(beta).toHaveAttribute('aria-checked', 'false')
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Gamma' } })
+    fireEvent.click(alpha)
+    expect(custom).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(custom)
+    fireEvent.click(screen.getByRole('button', { name: 'tool.submit' }))
+    await vi.waitFor(() => expect(approvePermission).toHaveBeenCalledWith('multi-session', 'permission-1', {
+        answers: { '0': ['Gamma'] }
+    }))
+})
+
+it('keeps the draft when dismiss fails and closes when a retry succeeds', async () => {
+    const { approvePermission, denyPermission } = renderFooter('dismiss-session', makeTool('dismiss-question'))
+    denyPermission.mockRejectedValueOnce(new Error('dismiss failed'))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alpha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'tool.dismissQuestion' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('dismiss failed')
+    expect(screen.getByRole('radio', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'tool.dismissQuestion' }))
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'tool.dismissQuestion' })).not.toBeInTheDocument())
+    expect(denyPermission).toHaveBeenLastCalledWith('dismiss-session', 'permission-1', { decision: 'abort' })
+    expect(approvePermission).not.toHaveBeenCalled()
 })

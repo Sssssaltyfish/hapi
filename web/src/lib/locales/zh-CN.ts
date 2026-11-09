@@ -880,6 +880,7 @@ export default {
   'tool.other': '其他',
   'tool.otherDescription': '输入您自己的答案',
   'tool.question': '问题',
+  'tool.dismissQuestion': '关闭问题',
   'tool.selectOption': '请至少选择一个选项或输入答案。',
   'tool.waitingForApproval': '等待审批…',
   'tool.waitingForAnswer': '等待回答…',

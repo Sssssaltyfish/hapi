@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils'
 import { usePlatform } from '@/hooks/usePlatform'
 import { Spinner } from '@/components/Spinner'
 import { useTranslation } from '@/lib/use-translation'
+import { isCustomQuestionOption } from './customQuestionOption'
+import { DismissQuestionButton, QuestionAnswerInput } from './questionControls'
 
 const questionNavButtonClassName = 'h-8 rounded-full border-[var(--app-border)] bg-[var(--app-tool-card-bg)] px-3.5 text-[var(--app-fg)] hover:border-[var(--app-md-quote-border)] hover:bg-[var(--app-subtle-bg)]'
 
@@ -63,6 +65,11 @@ function computeAnswersForQuestion(
     otherText: string,
     useStableIds: boolean
 ): string[] {
+    if (otherSelected || question.options.length === 0) {
+        const answer = otherText.trim()
+        return answer ? [answer] : []
+    }
+
     const answers: string[] = []
 
     for (const idx of selectedOptionIndices) {
@@ -79,11 +86,6 @@ function computeAnswersForQuestion(
         if (label.length > 0) {
             answers.push(label)
         }
-    }
-
-    const other = otherText.trim()
-    if (otherSelected && other.length > 0) {
-        answers.push(other)
     }
 
     return answers
@@ -116,6 +118,7 @@ export function AskUserQuestionFooter(props: {
     const [fallbackText, setFallbackText] = useState('')
 
     const [loading, setLoading] = useState(false)
+    const [dismissed, setDismissed] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     // Mirrors the answer-in-progress fields above so the cleanup below can
@@ -135,10 +138,16 @@ export function AskUserQuestionFooter(props: {
         // blank when this instance is reused for a different tool call (hapi#1734).
         submittedRef.current = false
         const draft = getAskUserQuestionDraft(draftKey)
+        const otherSelected = questions.map((question, index) => (
+            draft?.otherSelectedByQuestion[index] || draft?.selectedByQuestion[index]?.some((optionIndex) => {
+                const option = question.options[optionIndex]
+                return option && isCustomQuestionOption(option)
+            }) || false
+        ))
         const restored = {
             step: draft?.step ?? 0,
-            selectedByQuestion: draft?.selectedByQuestion ?? questions.map(() => []),
-            otherSelectedByQuestion: draft?.otherSelectedByQuestion ?? questions.map(() => false),
+            selectedByQuestion: questions.map((_, index) => otherSelected[index] ? [] : draft?.selectedByQuestion[index] ?? []),
+            otherSelectedByQuestion: otherSelected,
             otherTextByQuestion: draft?.otherTextByQuestion ?? questions.map(() => ''),
             fallbackText: draft?.fallbackText ?? '',
         }
@@ -156,6 +165,7 @@ export function AskUserQuestionFooter(props: {
         setOtherTextByQuestion(restored.otherTextByQuestion)
         setFallbackText(restored.fallbackText)
         setLoading(false)
+        setDismissed(false)
         setError(null)
 
         return () => {
@@ -165,21 +175,25 @@ export function AskUserQuestionFooter(props: {
         }
     }, [draftKey])
 
-    if (!permission || permission.status !== 'pending') return null
+    if (!permission || permission.status !== 'pending' || dismissed) return null
     if (!isAskUserQuestionToolName(props.tool.name)) return null
 
-    const run = async (action: () => Promise<void>, hapticType: 'success' | 'error') => {
-        if (props.disabled) return
+    const run = async (action: () => Promise<void>, dismiss = false) => {
+        if (props.disabled || loading) return
+        setLoading(true)
         setError(null)
         try {
             await action()
             submittedRef.current = true
             clearAskUserQuestionDraft(draftKey)
-            haptic.notification(hapticType)
+            if (dismiss) setDismissed(true)
+            haptic.notification('success')
             props.onDone()
         } catch (e) {
             haptic.notification('error')
             setError(e instanceof Error ? e.message : t('dialog.error.default'))
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -213,7 +227,7 @@ export function AskUserQuestionFooter(props: {
     )
 
     const submit = async () => {
-        if (loading) return
+        if (props.disabled || loading) return
 
         const answers: Record<string, string[]> = {}
         if (questions.length === 0) {
@@ -239,9 +253,7 @@ export function AskUserQuestionFooter(props: {
             }
         }
 
-        setLoading(true)
-        await run(() => props.api.approvePermission(props.sessionId, permission.id, { answers }), 'success')
-        setLoading(false)
+        await run(() => props.api.approvePermission(props.sessionId, permission.id, { answers }))
     }
 
     const next = () => {
@@ -264,6 +276,7 @@ export function AskUserQuestionFooter(props: {
         const q = questions[qIdx]
         if (!q) return
         haptic.selection()
+        setError(null)
 
         setSelectedByQuestion((prevSelected) => {
             const nextSelected = prevSelected.slice()
@@ -279,37 +292,27 @@ export function AskUserQuestionFooter(props: {
             return nextSelected
         })
 
-        if (!q.multiSelect) {
-            setOtherSelectedByQuestion((prevOther) => {
-                const nextOther = prevOther.slice()
-                nextOther[qIdx] = false
-                return nextOther
-            })
-        }
+        setOtherSelectedByQuestion((prevOther) => {
+            const nextOther = prevOther.slice()
+            nextOther[qIdx] = false
+            return nextOther
+        })
     }
 
     const toggleOther = (qIdx: number) => {
         const q = questions[qIdx]
         if (!q) return
         haptic.selection()
+        setError(null)
 
-        if (!q.multiSelect) {
-            setSelectedByQuestion((prevSelected) => {
-                const nextSelected = prevSelected.slice()
-                nextSelected[qIdx] = []
-                return nextSelected
-            })
-            setOtherSelectedByQuestion((prevOther) => {
-                const nextOther = prevOther.slice()
-                nextOther[qIdx] = true
-                return nextOther
-            })
-            return
-        }
-
+        setSelectedByQuestion((prevSelected) => {
+            const nextSelected = prevSelected.slice()
+            nextSelected[qIdx] = []
+            return nextSelected
+        })
         setOtherSelectedByQuestion((prevOther) => {
             const nextOther = prevOther.slice()
-            nextOther[qIdx] = !nextOther[qIdx]
+            nextOther[qIdx] = !q.multiSelect || !nextOther[qIdx]
             return nextOther
         })
     }
@@ -320,14 +323,11 @@ export function AskUserQuestionFooter(props: {
             nextText[qIdx] = value
             return nextText
         })
-        if (value.trim().length > 0) {
-            setOtherSelectedByQuestion((prevOther) => {
-                const nextOther = prevOther.slice()
-                nextOther[qIdx] = true
-                return nextOther
-            })
-        }
     }
+
+    const currentQuestion = questions[clampedStep]
+    const isPureTextQuestion = currentQuestion?.options.length === 0
+    const otherSelected = otherSelectedByQuestion[clampedStep] ?? false
 
     return (
         <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-bg)] p-3">
@@ -342,51 +342,57 @@ export function AskUserQuestionFooter(props: {
                         </span>
                     </div>
                 </div>
+                <DismissQuestionButton
+                    disabled={props.disabled || loading}
+                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }), true)}
+                />
             </div>
 
             {error ? (
-                <div className="mt-2 text-xs text-red-600">
+                <div className="mt-2 text-xs text-red-600" role="alert">
                     {error}
                 </div>
             ) : null}
 
-            {questions.length === 0 ? (
+            {!currentQuestion ? (
                 <div className="mt-3">
                     <div className="text-sm text-[var(--app-hint)]">
                         {t('tool.askUserQuestion.fallback')}
                     </div>
-                    <textarea
+                    <QuestionAnswerInput
+                        aria-label={t('tool.askUserQuestion.placeholder')}
                         value={fallbackText}
                         onChange={(e) => setFallbackText(e.target.value)}
                         disabled={props.disabled || loading}
                         placeholder={t('tool.askUserQuestion.placeholder')}
-                        className="mt-2 min-h-[88px] w-full resize-y rounded-xl border border-[var(--app-border)] bg-[var(--app-tool-card-bg)] px-3 py-2 text-sm text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] disabled:opacity-50"
+                        className="mt-2 rounded-xl bg-[var(--app-tool-card-bg)]"
                     />
                 </div>
             ) : (
                 <div className="mt-3">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                            {questions[clampedStep]?.header ? (
+                            {currentQuestion.header ? (
                                 <div className="flex items-center gap-2">
                                     <Badge variant="default">
-                                        {questions[clampedStep].header}
+                                        {currentQuestion.header}
                                     </Badge>
                                 </div>
                             ) : null}
-                            {questions[clampedStep]?.question ? (
+                            {currentQuestion.question ? (
                                 <div className={cn(
                                     askUserQuestionQuoteClassName,
-                                    questions[clampedStep]?.header ? 'mt-2' : ''
+                                    currentQuestion.header ? 'mt-2' : ''
                                 )}>
-                                    <MarkdownRenderer content={questions[clampedStep].question} />
+                                    <MarkdownRenderer content={currentQuestion.question} />
                                 </div>
                             ) : null}
                         </div>
                     </div>
 
                     <div className="mt-3 flex flex-col gap-1.5">
-                        {questions[clampedStep].options.map((opt, optIdx) => {
+                        {currentQuestion.options.map((opt, optIdx) => {
+                            if (isCustomQuestionOption(opt)) return null
                             const selected = (selectedByQuestion[clampedStep] ?? []).includes(optIdx)
                             return (
                                 <OptionRow
@@ -401,22 +407,26 @@ export function AskUserQuestionFooter(props: {
                             )
                         })}
 
-                        <OptionRow
-                            checked={otherSelectedByQuestion[clampedStep] ?? false}
-                            mode={mode}
-                            disabled={props.disabled || loading}
-                            title={t('tool.other')}
-                            description={t('tool.otherDescription')}
-                            onClick={() => toggleOther(clampedStep)}
-                        />
+                        {!isPureTextQuestion ? (
+                            <OptionRow
+                                checked={otherSelected}
+                                mode={mode}
+                                disabled={props.disabled || loading}
+                                title={t('tool.otherDescription')}
+                                onClick={() => toggleOther(clampedStep)}
+                            />
+                        ) : null}
 
-                        {(otherSelectedByQuestion[clampedStep] ?? false) ? (
-                            <textarea
+                        {isPureTextQuestion || otherSelected ? (
+                            <QuestionAnswerInput
+                                key={clampedStep}
+                                autoFocus={!isPureTextQuestion}
+                                aria-label={t('tool.askUserQuestion.placeholder')}
                                 value={otherTextByQuestion[clampedStep] ?? ''}
                                 onChange={(e) => updateOtherText(clampedStep, e.target.value)}
                                 disabled={props.disabled || loading}
-                                placeholder={t('tool.askUserQuestion.otherPlaceholder')}
-                                className="mt-2 min-h-[88px] w-full resize-y rounded-xl border border-[var(--app-border)] bg-[var(--app-tool-card-bg)] px-3 py-2 text-sm text-[var(--app-fg)] placeholder:text-[var(--app-hint)] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--app-button)] disabled:opacity-50"
+                                placeholder={t('tool.askUserQuestion.placeholder')}
+                                className="mt-2 rounded-xl bg-[var(--app-tool-card-bg)]"
                             />
                         ) : null}
                     </div>

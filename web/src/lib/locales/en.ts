@@ -882,6 +882,7 @@ export default {
   'tool.other': 'Other',
   'tool.otherDescription': 'Type your own answer',
   'tool.question': 'Question',
+  'tool.dismissQuestion': 'Dismiss question',
   'tool.selectOption': 'Please select at least one option or type an answer.',
   'tool.waitingForApproval': 'Waiting for approval…',
   'tool.waitingForAnswer': 'Waiting for answer…',

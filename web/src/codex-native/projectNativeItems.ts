@@ -144,6 +144,7 @@ export function projectNativeItems(
                         id: JSON.stringify(['request_user_input_async', item.id, index]),
                         header: String(question.title ?? ''),
                         question: String(question.title ?? ''),
+                        isOther: Array.isArray(question.options) && question.options.length > 0,
                         options: Array.isArray(question.options)
                             ? question.options.map((label) => ({
                                   label: String(label),
