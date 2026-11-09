@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { CODEX_APPROVAL_POLICIES, CODEX_APPROVALS_REVIEWERS } from '@hapi/protocol'
 import type { NativeApprovalSettingsPatch } from './nativeSessionApiAdapter'
 import { record } from './presentation'
-import { useTranslation, type I18nContextValue } from '@/lib/use-translation'
+import { useTranslation } from '@/lib/use-translation'
+import { CODEX_APPROVAL_LABELS } from '@/lib/codexStatusLabels'
 import { SelectControl } from '@/components/ui/select-control'
 
 function getNativeApprovalOptions(settings: Record<string, unknown>) {
@@ -12,13 +13,16 @@ function getNativeApprovalOptions(settings: Record<string, unknown>) {
     }
 }
 
-export function getNativeApprovalStatusLabel(settings: Record<string, unknown>, t: I18nContextValue['t']): string | null {
+export function getNativeApprovalStatusLabel(settings: Record<string, unknown>): string | null {
     const { policy, reviewer } = getNativeApprovalOptions(settings)
-    if (policy === 'never') return t('nativeApproval.status.noPrompts')
-    if (reviewer === 'user') return t('nativeApproval.status.manualReview')
-    if (reviewer) return t(`nativeApproval.reviewer.${reviewer}`)
-    if (policy) return t(`nativeApproval.policy.${policy}`)
-    if (Object.hasOwn(record(settings.approvalPolicy), 'granular')) return t('nativeApproval.status.granular')
+    if (policy === 'never') {
+        const sandbox = record(settings.sandboxPolicy).type
+        if (sandbox === 'dangerFullAccess') return CODEX_APPROVAL_LABELS.fullAccess
+        if (sandbox === 'readOnly') return CODEX_APPROVAL_LABELS.readOnly
+        return CODEX_APPROVAL_LABELS.custom
+    }
+    if (reviewer) return CODEX_APPROVAL_LABELS[reviewer]
+    if (policy || Object.hasOwn(record(settings.approvalPolicy), 'granular')) return CODEX_APPROVAL_LABELS.user
     return null
 }
 

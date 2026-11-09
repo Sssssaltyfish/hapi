@@ -207,7 +207,7 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
-                approvalStatusLabel: getNativeApprovalStatusLabel(settings, t),
+                approvalStatusLabel: getNativeApprovalStatusLabel(settings),
                 modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
                 queueContent: <><NativeManagementResult result={commands.managementResult}
                     pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult}

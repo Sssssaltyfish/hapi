@@ -71,7 +71,7 @@ it('renders native content after the native model catalogue reaches the existing
         <NativeSessionPage api={api as unknown as ApiClient} session={session} onBack={() => {}} />
     </ToastProvider></QueryClientProvider></I18nProvider>)
     expect(await screen.findByText('Native message renders here')).toBeInTheDocument()
-    expect(screen.getByText('Automatic review')).toBeInTheDocument()
+    expect(screen.getByText('Approve for me')).toBeInTheDocument()
     expect(screen.getByTitle('$native-leading')).toHaveClass('rounded-full')
     expect(screen.getByTitle('$native-inline')).toHaveClass('rounded-full')
     expect(screen.getByText(/to inspect \$variable/)).toBeInTheDocument()
@@ -87,11 +87,11 @@ it('renders native content after the native model catalogue reaches the existing
     fireEvent.change(screen.getByLabelText('Approval reviewer'), { target: { value: 'user' } })
     await waitFor(() => expect(codexNativeAction).toHaveBeenCalledWith('native-thread', 'settings', { approvalsReviewer: 'user' }))
     await waitFor(() => expect(screen.getByLabelText('Approval reviewer')).toHaveValue('user'))
-    expect(screen.getByText('Manual review')).toBeInTheDocument()
+    expect(screen.getAllByText('Ask for approval').length).toBeGreaterThan(0)
     expect(screen.getByLabelText('Ask for approval')).toHaveValue('')
     expect(screen.getByText('Sandbox: Read only')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Ask for approval'), { target: { value: 'never' } })
-    expect(await screen.findByText('No approval prompts')).toBeInTheDocument()
+    expect(await screen.findByText('Read only')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
     expect(screen.getByRole('button', { name: 'Attach file' })).toBeEnabled()
     fireEvent.drop(screen.getByRole('textbox'), { dataTransfer: { types: ['Files'], files: [

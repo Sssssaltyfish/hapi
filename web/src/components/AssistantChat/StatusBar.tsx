@@ -11,6 +11,7 @@ import type { ConversationStatus } from '@/realtime/types'
 import {
     formatReasoningLabel,
     formatCompactReasoningLabel,
+    getCodexApprovalStatusLabel,
     getReasoningEffortForFlavor,
     shouldShowReasoningStatusLabel
 } from '@/lib/codexStatusLabels'
@@ -180,7 +181,8 @@ export function StatusBar(props: {
 
     const permissionModeOptions = props.permissionModeOptions ?? getPermissionModeOptionsForSession({ flavor: props.agentFlavor })
     const permissionMode = permissionModeOptions.find(option => option.mode === props.permissionMode)
-    const permissionModeLabel = props.sessionPermissionLabel ?? permissionMode?.label
+    const permissionModeLabel = props.sessionPermissionLabel
+        ?? (props.agentFlavor === 'codex' ? getCodexApprovalStatusLabel(permissionMode?.mode) : permissionMode?.label)
     const permissionModeColor = PERMISSION_TONE_CLASSES[permissionMode?.tone ?? 'neutral']
     const displayCollaborationMode = props.agentFlavor === 'codex' && props.collaborationMode === 'plan'
         ? props.collaborationMode
