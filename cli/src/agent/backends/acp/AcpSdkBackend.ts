@@ -319,6 +319,11 @@ export class AcpSdkBackend implements AgentBackend {
         return this.initializeResult?.agentCapabilities?.loadSession === true;
     }
 
+    supportsResumeSession(): boolean {
+        const capabilities = this.initializeResult?.agentCapabilities?.sessionCapabilities;
+        return isObject(capabilities) && isObject(capabilities.resume);
+    }
+
     /** Read an advertised extension; method names and validation stay in adapters. */
     getAgentExtensionCapability(key: string): unknown {
         return this.initializeResult?.agentCapabilities?._meta?.[key];
@@ -429,6 +434,24 @@ export class AcpSdkBackend implements AgentBackend {
         this.activeSessionId = sessionId;
         this.captureSessionMetadata(sessionId, response);
         return sessionId;
+    }
+
+    async resumeSession(config: AgentSessionConfig & { sessionId: string }): Promise<string> {
+        if (!this.transport) {
+            throw new Error('ACP transport not initialized');
+        }
+
+        const response = await this.transport.sendRequest('session/resume', {
+            sessionId: config.sessionId,
+            cwd: config.cwd,
+            mcpServers: config.mcpServers
+        }, { timeoutMs: 30_000 });
+        if (!isObject(response) || (response.sessionId !== undefined && response.sessionId !== config.sessionId)) {
+            throw new Error('Invalid session/resume response from ACP agent');
+        }
+        this.activeSessionId = config.sessionId;
+        this.captureSessionMetadata(config.sessionId, response);
+        return config.sessionId;
     }
 
     async setModel(

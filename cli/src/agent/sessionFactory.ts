@@ -157,6 +157,10 @@ function pickExistingSessionMetadata(metadata: Metadata | null | undefined): Par
     if (metadata.opencodeSessionId !== undefined) preserved.opencodeSessionId = metadata.opencodeSessionId
     if (metadata.grokSessionId !== undefined) preserved.grokSessionId = metadata.grokSessionId
     if (metadata.agySessionId !== undefined) preserved.agySessionId = metadata.agySessionId
+    if (metadata.dshSessionId !== undefined) preserved.dshSessionId = metadata.dshSessionId
+    if (metadata.flavor === 'dsh' && metadata.sessionConfigOptions !== undefined) {
+        preserved.sessionConfigOptions = metadata.sessionConfigOptions
+    }
     if (metadata.cursorSessionId !== undefined) preserved.cursorSessionId = metadata.cursorSessionId
     if (metadata.cursorSessionProtocol !== undefined) preserved.cursorSessionProtocol = metadata.cursorSessionProtocol
     if (metadata.kimiSessionId !== undefined) preserved.kimiSessionId = metadata.kimiSessionId
@@ -378,6 +382,7 @@ export async function bootstrapExistingSession(options: {
     startedBy?: SessionStartedBy
     workingDirectory: string
     metadataOverrides?: Partial<Metadata>
+    validateSessionInfo?: (session: Session) => void
 }): Promise<SessionBootstrapResult> {
     const startedBy = options.startedBy ?? 'terminal'
     const api = await ApiClient.create()
@@ -389,6 +394,7 @@ export async function bootstrapExistingSession(options: {
     })
 
     const sessionInfo = await api.getSession(options.sessionId)
+    options.validateSessionInfo?.(sessionInfo)
     // #1911 M1 belt: match hub merge-preserve scope — only hub-authored archive.
     // CLI self-archive (archivedBy=cli) must still reopen; hub clears before spawn
     // for intentional revive. CAS closed hub-side (success+preserve + ack EXIT).

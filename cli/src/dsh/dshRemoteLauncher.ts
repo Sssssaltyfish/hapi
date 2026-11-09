@@ -156,6 +156,8 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         private readonly opts: {
             /** Spawn-time model override (opaque ACP config-option value). */
             model?: string
+            resumeSessionId?: string
+            preferredOptions?: SessionConfigOption[]
             onModelRollback?: (model: string | null) => void
             onConfigDiscovered?: (model: string | null) => void
         } = {}
@@ -260,11 +262,14 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 markFailed(new Error('DSH session ended during initialization'))
                 return
             }
-            acpSessionId = await backend.newSession({
+            const config = {
                 cwd: this.session.path,
                 // HAPI leaves tools to the DSH composition and adds no MCP servers.
                 mcpServers: []
-            })
+            }
+            acpSessionId = this.opts.resumeSessionId
+                ? await backend.resumeSession({ ...config, sessionId: this.opts.resumeSessionId })
+                : await backend.newSession(config)
             this.session.sessionId = acpSessionId
             const commandCapability = backend.getAgentExtensionCapability('hapi.dshCommands') as { version?: unknown; method?: unknown } | undefined
             if (commandCapability?.version === 1 && commandCapability.method === '_hapi/dsh/command') {
@@ -292,8 +297,15 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         this.initialBackendModel = modelOption?.currentValue
             ?? backend.getSessionModelsMetadata(acpSessionId)?.currentModelId
             ?? null
-        if (this.opts.model && modelOption) {
+        if (this.opts.model && this.opts.model !== this.initialBackendModel && modelOption) {
             this.currentBackendModel = await this.applyModelSwitch(backend, acpSessionId, this.opts.model)
+        }
+        if (this.opts.resumeSessionId && this.opts.model && this.opts.model !== this.initialBackendModel
+            && (this.currentBackendModel !== this.opts.model
+                || backend.getConfigOptionByCategory(acpSessionId, 'model')?.currentValue !== this.opts.model)) {
+            const error = new Error('DeepSeek Harness could not restore the selected model')
+            markFailed(error)
+            throw error
         }
         if (!this.currentBackendModel) {
             this.currentBackendModel = this.initialBackendModel
@@ -305,13 +317,28 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             }
         }
         this.selectedConfigs = { ...this.initialConfigs }
+        for (const option of this.opts.preferredOptions ?? []) {
+            if (option.category === 'permission' && option.selectedValue !== undefined) {
+                const advertised = this.permissionOptions().find(entry => entry.id === option.id)
+                if (!advertised?.options.some(entry => entry.value === option.selectedValue)) {
+                    const error = new Error('DeepSeek Harness could not restore the selected permission preset')
+                    markFailed(error)
+                    throw error
+                }
+                this.selectedConfigs[option.id] = option.selectedValue
+            }
+        }
         this.configsReady = true
         backend.onSessionConfigOptionsUpdate(() => this.publishPermissionOptions())
         this.publishPermissionOptions()
+        // Messages may have arrived before discovery. Apply the preferences
+        // already selected on the existing HAPI session to those batches too.
+        this.initialConfigs = { ...this.selectedConfigs }
         if (this.currentBackendModel) {
             this.messageBuffer.addMessage(`[MODEL:${this.currentBackendModel}]`, 'system')
         }
         markReady(acpSessionId)
+        if (this.opts.resumeSessionId || backend.supportsResumeSession()) this.session.onSessionFound(acpSessionId)
 
         this.permissionHandler = new AcpPermissionHandler(
             this.session.client,
@@ -330,6 +357,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         }
         this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SteerQueuedMessage, steerHandler)
         this.unregisterQueuedSteer = this.session.registerQueuedSteerHandler(steerHandler)
+        this.session.client.emitSessionReady()
 
         while (!this.shouldExit) {
             const batch = await this.session.queue.waitForMessagesAndGetAsString(this.abortController.signal)

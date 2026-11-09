@@ -1,4 +1,4 @@
-import { describe, expect, it, spyOn } from 'bun:test'
+import { describe, expect, it, mock, spyOn } from 'bun:test'
 import { toSessionSummary } from '@hapi/protocol'
 import type { SyncEvent } from '@hapi/protocol/types'
 import { Store } from '../store'
@@ -3293,7 +3293,7 @@ describe('session model', () => {
         }
     })
 
-    it('does not infer a DSH resume target from stale Claude metadata', () => {
+    it('requires the native DSH ID even when stale Claude metadata is present', () => {
         const store = new Store(':memory:')
         const engine = new SyncEngine(
             store,
@@ -3304,7 +3304,7 @@ describe('session model', () => {
 
         try {
             const session = engine.getOrCreateSession(
-                'local-resume-dsh-fresh-only',
+                'local-resume-dsh-without-native-id',
                 {
                     path: '/tmp/project',
                     host: 'localhost',
@@ -3324,6 +3324,46 @@ describe('session model', () => {
         } finally {
             engine.stop()
         }
+    })
+
+    it.each(['ready', 'ended', 'timeout'] as const)('reopens DSH in place and waits for native readiness (%s)', async ready => {
+        const store = new Store(':memory:')
+        const engine = new SyncEngine(store, {} as never, new RpcRegistry(), { broadcast() {} } as never)
+        try {
+            const session = engine.getOrCreateSession('dsh-in-place', {
+                path: '/tmp/project', host: 'localhost', machineId: 'machine-1', flavor: 'dsh', dshSessionId: 'dsh-native-id',
+                lifecycleState: 'archived', archivedBy: 'cli',
+            }, null, 'default')
+            store.messages.addMessage(session.id, { role: 'user', content: { type: 'text', text: 'keep history' } })
+            engine.getOrCreateMachine('machine-1', { host: 'localhost', platform: 'linux', happyCliVersion: '0.1.0' },
+                { status: 'running', capabilities: { dshExistingSessionResume: true } }, 'default')
+            engine.handleMachineAlive({ machineId: 'machine-1', time: Date.now() })
+            engine.handleSessionEnd({ sid: session.id, time: Date.now() })
+            const spawnSession = mock(async (..._args: Parameters<SyncEngine['spawnSession']>) => {
+                engine.handleSessionAlive({ sid: session.id, time: Date.now() })
+                return { type: 'success', sessionId: session.id }
+            })
+            ;(engine as any).rpcGateway.spawnSession = spawnSession
+            const stopRunnerSession = mock(async () => 'still_alive')
+            ;(engine as any).rpcGateway.stopRunnerSession = stopRunnerSession
+            const waitForReady = spyOn(engine, 'waitForSessionReady').mockResolvedValue(ready)
+            const result = await engine.resumeSession(session.id, 'default')
+
+            expect(spawnSession.mock.calls[0]?.[0]).toBe('machine-1')
+            expect(spawnSession.mock.calls[0]?.[8]).toBe('dsh-native-id')
+            expect(spawnSession.mock.calls[0]?.[12]).toBe(session.id)
+            expect(waitForReady).toHaveBeenCalledWith(session.id)
+            expect(result).toMatchObject(ready === 'ready'
+                ? { type: 'success', sessionId: session.id }
+                : { type: 'error', code: 'resume_failed' })
+            if (ready === 'timeout') {
+                expect(stopRunnerSession).toHaveBeenCalledWith('machine-1', session.id)
+                expect(await engine.reopenSession(session.id, 'default')).toMatchObject({
+                    type: 'error', code: 'resume_failed', message: expect.stringContaining('cleanup is incomplete')
+                })
+            }
+            expect(store.messages.getFirstMessages(session.id, 10)).toHaveLength(1)
+        } finally { engine.stop() }
     })
 
     it('returns resume_unavailable when a cursor session lacks cursorSessionId', () => {

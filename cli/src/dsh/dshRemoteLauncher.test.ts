@@ -43,6 +43,8 @@ vi.mock('./utils/dshBackend', () => ({
                 }
                 return 'dsh-session-1'
             }),
+            resumeSession: vi.fn(async (config: { sessionId: string }) => config.sessionId),
+            supportsResumeSession: vi.fn(() => true),
             prompt: vi.fn(async (_sessionId: string, content: unknown[], onUpdate: (message: unknown) => void) => {
                 harness.prompts.push(content)
                 harness.promptPermissions.push(harness.configOptions.find(option => option.category === 'permission')?.currentValue)
@@ -100,11 +102,12 @@ function createSessionWithBatches(batches: Array<[string, DshMode]>) {
     return {
         path: '/tmp/dsh-test',
         logPath: '/tmp/dsh-test/hapi.log',
-        client: { rpcHandlerManager: { registerHandler: vi.fn() }, updateMetadata: vi.fn(), updateAgentState: vi.fn(),
+        client: { rpcHandlerManager: { registerHandler: vi.fn() }, updateMetadata: vi.fn(), updateAgentState: vi.fn(), emitSessionReady: vi.fn(),
             setSteerDeliveryState: vi.fn(async () => true), emitMessagesConsumed: vi.fn(), emitSteerIndeterminate: vi.fn() },
         registerQueuedSteerHandler: vi.fn(() => () => {}),
         queue,
         sessionId: null as string | null,
+        onSessionFound: vi.fn(function (this: { sessionId: string | null }, id: string) { this.sessionId = id }),
         getPermissionMode: () => 'default' as const,
         onThinkingChange: vi.fn(),
         sendAgentMessage: vi.fn(),
@@ -155,6 +158,31 @@ describe('DshRemoteLauncher', () => {
         })
         expect(session.sendSessionEvent).toHaveBeenCalledWith({ type: 'ready' })
         expect(harness.backend?.disconnect).toHaveBeenCalled()
+    })
+
+    it('resumes the exact native session and applies its selected HAPI permission to the first message', async () => {
+        const session = createSession()
+        const permission = {
+            id: 'permission', name: 'Permission', category: 'permission', type: 'select' as const,
+            currentValue: 'default', options: [{ value: 'default', name: 'Default' }, { value: 'review', name: 'Review' }]
+        }
+        harness.configOptions = [permission]
+        harness.modelOption = { id: 'model', currentValue: PRO }
+        const launcher = new DshRemoteLauncher(session as never, {
+            resumeSessionId: 'persisted-dsh-id', model: PRO,
+            preferredOptions: [{ ...permission, selectedValue: 'review' }]
+        })
+
+        await launcher.launch()
+
+        expect(harness.backend?.resumeSession).toHaveBeenCalledWith({
+            sessionId: 'persisted-dsh-id', cwd: '/tmp/dsh-test', mcpServers: []
+        })
+        expect(harness.backend?.newSession).not.toHaveBeenCalled()
+        expect(session.onSessionFound).toHaveBeenCalledWith('persisted-dsh-id')
+        expect(session.client.emitSessionReady).toHaveBeenCalledOnce()
+        expect(harness.setConfigOptionCalls).toEqual([{ sessionId: 'persisted-dsh-id', configId: 'permission', value: 'review' }])
+        expect(harness.promptPermissions).toEqual(['review'])
     })
 
     it('executes compact through the advertised native command registry without a model prompt', async () => {

@@ -192,8 +192,10 @@ export class SyncEngine {
     private readonly titleSuggestionService: TitleSuggestionService
     private readonly rpcGateway: RpcGateway
     private inactivityTimer: NodeJS.Timeout | null = null
-    /** Sessions that emitted `session-ready` (Cursor ACP or validated Pi get_state). */
+    /** Sessions that emitted `session-ready` after native initialization. */
     private readonly sessionReadyIds = new Set<string>()
+    private readonly dshResumeInFlightIds = new Set<string>()
+    private readonly dshResumeQuarantinedIds = new Set<string>()
     /** Same-ID PTY rows with a resume currently in flight. */
     private readonly ptyResumeInFlightIds = new Set<string>()
     /** PTY rows kept fail-closed after a metadata write/clear failure. */
@@ -644,6 +646,7 @@ export class SyncEngine {
             this.triggerDedupIfNeeded(payload.sid)
         }
         this.sessionReadyIds.delete(payload.sid)
+        this.dshResumeQuarantinedIds.delete(payload.sid)
         this.piResumeQuarantinedIds.delete(payload.sid)
         this.piUnexpectedTempOriginalIds.delete(payload.sid)
         if (ownsPiAttempt || isPiAttemptChild) {
@@ -2824,9 +2827,7 @@ export class SyncEngine {
         if (flavor === 'kimi') return metadata.kimiSessionId ?? null
         if (flavor === 'copilot') return metadata.copilotSessionId ?? null
         if (flavor === 'pi') return metadata.piSessionId ?? null
-        // The official DSH ACP server creates fresh sessions only; never fall
-        // through to a stale Claude id and advertise a false resume path.
-        if (flavor === 'dsh') return null
+        if (flavor === 'dsh') return metadata.dshSessionId ?? null
 
         return metadata.claudeSessionId ?? this.recoverClaudeSessionIdFromMessages(session.id, namespace)
     }
@@ -3249,6 +3250,8 @@ export class SyncEngine {
             this.ptyResumeQuarantinedIds.delete(access.sessionId)
             initialSession = this.sessionCache.getSessionByNamespace(access.sessionId, namespace) ?? initialSession
         }
+        const dshResumeError = this.getDshResumeError(access.sessionId)
+        if (dshResumeError) return dshResumeError
         if (initialSession.active) {
             return { type: 'success', sessionId: access.sessionId }
         }
@@ -3283,11 +3286,12 @@ export class SyncEngine {
         }
 
         const metadata = session.metadata!
+        const requiresDshNativeReady = flavor === 'dsh' && resumeToken !== undefined
 
         const targetMachine = this.resolveOnlineMachineForSession(
             session,
             namespace,
-            { strictMachineId: flavor === 'cursor' || (flavor === 'pi' && resumeToken !== undefined) }
+            { strictMachineId: flavor === 'cursor' || requiresDshNativeReady || (flavor === 'pi' && resumeToken !== undefined) }
         )
         if (!targetMachine) {
             return { type: 'error', message: 'No machine online', code: 'no_machine_online' }
@@ -3295,6 +3299,9 @@ export class SyncEngine {
 
         if (flavor === 'pi' && resumeToken && targetMachine.runnerState?.capabilities?.piExistingSessionResume !== true) {
             return { type: 'error', message: 'Pi resume requires an upgraded runner', code: 'resume_failed' }
+        }
+        if (requiresDshNativeReady && targetMachine.runnerState?.capabilities?.dshExistingSessionResume !== true) {
+            return { type: 'error', message: 'DeepSeek Harness resume requires an upgraded runner', code: 'resume_failed' }
         }
 
         const requiresPiNativeReady = flavor === 'pi' && resumeToken !== undefined
@@ -3390,6 +3397,12 @@ export class SyncEngine {
         }
         let piResumeSucceeded = false
         let ptyResumeSucceeded = false
+        if (requiresDshNativeReady) {
+            const error = this.getDshResumeError(access.sessionId)
+            if (error) return error
+            this.dshResumeInFlightIds.add(access.sessionId)
+            this.sessionReadyIds.delete(access.sessionId)
+        }
         try {
             // #1911 M1: clear archived lifecycle immediately before spawn so the
             // CLI is not refused / cannot CAS-resurrect. Pi/PTY attempt rows
@@ -3425,6 +3438,9 @@ export class SyncEngine {
             )
 
             if (spawnResult.type !== 'success') {
+                if (requiresDshNativeReady) {
+                    return await this.stopUnreadyDshResume(targetMachine.id, access.sessionId, spawnResult.message)
+                }
                 if (requiresPiNativeReady) {
                     const stopped = await this.terminateInPlacePiResume(
                         targetMachine.id,
@@ -3442,6 +3458,10 @@ export class SyncEngine {
                     }
                 }
                 return { type: 'error', message: spawnResult.message, code: 'resume_failed' }
+            }
+
+            if (requiresDshNativeReady && spawnResult.sessionId !== access.sessionId) {
+                return { type: 'error', message: 'Runner did not reopen the existing DeepSeek Harness session', code: 'resume_failed' }
             }
 
             if (requiresPiNativeReady && spawnResult.sessionId !== access.sessionId) {
@@ -3462,6 +3482,9 @@ export class SyncEngine {
 
             const becameActive = await this.waitForSessionActive(spawnResult.sessionId)
             if (!becameActive) {
+                if (requiresDshNativeReady) {
+                    return await this.stopUnreadyDshResume(targetMachine.id, access.sessionId, 'DeepSeek Harness did not become active')
+                }
                 if (resumedStartingMode === 'pty') {
                     const current = this.sessionCache.getSessionByNamespace(access.sessionId, namespace)
                     const stopped = current
@@ -3493,6 +3516,7 @@ export class SyncEngine {
 
             const needsReadyBeforeSuccess = resumedStartingMode === 'pty'
                 || requiresPiNativeReady
+                || requiresDshNativeReady
                 || (
                     spawnResult.sessionId !== access.sessionId
                     && flavor === 'cursor'
@@ -3501,6 +3525,12 @@ export class SyncEngine {
             if (needsReadyBeforeSuccess) {
                 const readyResult = await this.waitForSessionReady(spawnResult.sessionId)
                 if (readyResult !== 'ready') {
+                    if (requiresDshNativeReady && resumedStartingMode !== 'pty') {
+                        if (readyResult === 'timeout') {
+                            return await this.stopUnreadyDshResume(targetMachine.id, access.sessionId, 'DeepSeek Harness native resume timed out')
+                        }
+                        return { type: 'error', message: 'DeepSeek Harness session ended before native resume completed', code: 'resume_failed' }
+                    }
                     if (resumedStartingMode === 'pty' && readyResult === 'timeout') {
                         let status: 'stopped' | 'already_gone' | 'still_alive' | 'unknown'
                         try {
@@ -3618,7 +3648,12 @@ export class SyncEngine {
                 }
             }
             return { type: 'success', sessionId: spawnResult.sessionId }
+        } catch (error) {
+            if (!requiresDshNativeReady) throw error
+            return await this.stopUnreadyDshResume(targetMachine.id, access.sessionId,
+                error instanceof Error ? error.message : 'DeepSeek Harness resume failed')
         } finally {
+            if (requiresDshNativeReady) this.dshResumeInFlightIds.delete(access.sessionId)
             if (resumedStartingMode === 'pty') {
                 this.ptyResumeInFlightIds.delete(access.sessionId)
                 // Do not clear a deliberate fail-closed `resuming` marker left
@@ -3732,6 +3767,8 @@ export class SyncEngine {
             return { type: 'error', message: 'Pi resume is already in progress', code: 'resume_failed' }
         }
 
+        const dshResumeError = this.getDshResumeError(access.sessionId)
+        if (dshResumeError) return dshResumeError
         if (session.active) {
             return { type: 'success', sessionId: access.sessionId, resumed: false }
         }
@@ -4021,6 +4058,33 @@ export class SyncEngine {
             return true
         }
         return this.sessionReadyIds.has(session.id)
+    }
+
+    private getDshResumeError(sessionId: string): Extract<ResumeSessionResult, { type: 'error' }> | undefined {
+        if (this.dshResumeQuarantinedIds.has(sessionId)) {
+            return { type: 'error', message: 'DeepSeek Harness resume cleanup is incomplete', code: 'resume_failed', rollbackSafe: false }
+        }
+        if (this.dshResumeInFlightIds.has(sessionId)) {
+            return { type: 'error', message: 'DeepSeek Harness resume is already in progress', code: 'resume_failed', rollbackSafe: false }
+        }
+        return undefined
+    }
+
+    private async stopUnreadyDshResume(machineId: string, sessionId: string, message: string): Promise<ResumeSessionResult> {
+        // Install the marker before asking the runner to stop. A concurrent
+        // session-end notification can then clear it even if the RPC fails.
+        this.dshResumeQuarantinedIds.add(sessionId)
+        const status = await this.rpcGateway.stopRunnerSession(machineId, sessionId).catch(() => 'unknown' as const)
+        if (status === 'already_gone') {
+            if (this.getSession(sessionId)?.active) {
+                this.handleSessionEnd({ sid: sessionId, time: Date.now(), reason: 'error' })
+            }
+        } else if ((status !== 'stopped' || !await this.waitForSessionInactive(sessionId))
+            && this.dshResumeQuarantinedIds.has(sessionId)) {
+            return { type: 'error', message: `${message}. The runner could not confirm that the child stopped.`, code: 'resume_failed', rollbackSafe: false }
+        }
+        this.dshResumeQuarantinedIds.delete(sessionId)
+        return { type: 'error', message, code: 'resume_failed' }
     }
 
     private async terminateInPlacePiResume(

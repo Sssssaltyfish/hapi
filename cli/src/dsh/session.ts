@@ -3,7 +3,7 @@ import { MessageQueue2 } from '@/utils/MessageQueue2'
 import { AgentSessionBase } from '@/agent/sessionBase'
 import type { DshMode } from './types'
 
-/** Remote-only HAPI session wrapper for the fresh-session DSH ACP server. */
+/** Remote-only HAPI session wrapper for the DSH ACP server. */
 export class DshSession extends AgentSessionBase<DshMode> {
     readonly startedBy: 'runner' | 'terminal'
     private queuedSteerHandler: ((payload: unknown) => Promise<unknown>) | null = null
@@ -40,9 +40,7 @@ export class DshSession extends AgentSessionBase<DshMode> {
             mode: 'remote',
             sessionLabel: 'DshSession',
             sessionIdLabel: 'DeepSeek Harness ACP',
-            // This HAPI adapter currently starts fresh sessions. Keep the native
-            // id out of metadata until HAPI also integrates DSH's resume path.
-            applySessionIdToMetadata: (metadata) => metadata
+            applySessionIdToMetadata: (metadata, sessionId) => ({ ...metadata, dshSessionId: sessionId })
         })
         this.startedBy = opts.startedBy
     }

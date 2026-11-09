@@ -12,9 +12,12 @@ describe('parseDshCommandOptions', () => {
         })
     })
 
-    it('rejects native resume and HAPI permission controls unsupported by DSH ACP', () => {
-        expect(() => parseDshCommandOptions(['--resume', 'native-id']))
-            .toThrow('fresh sessions')
+    it('accepts an exact native resume ID together with the existing HAPI row', () => {
+        expect(parseDshCommandOptions(['--resume', 'native-id', '--existing-session-id', 'hapi-session']))
+            .toEqual({ resumeSessionId: 'native-id', existingSessionId: 'hapi-session', startingMode: 'remote' })
+    })
+
+    it('leaves permission controls to the DSH ACP server', () => {
         expect(() => parseDshCommandOptions(['--yolo']))
             .toThrow('permission policy')
     })

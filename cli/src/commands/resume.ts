@@ -180,6 +180,18 @@ async function dispatchLocalResume(target: LocalResumeTarget): Promise<void> {
         return
     }
 
+    if (target.flavor === 'dsh') {
+        const { runDsh } = await import('@/dsh/runDsh')
+        await runDsh({
+            existingSessionId: base.existingSessionId,
+            workingDirectory: base.workingDirectory,
+            resumeSessionId: base.resumeSessionId,
+            startedBy: base.startedBy,
+            model: target.model ?? undefined
+        })
+        return
+    }
+
     if (target.flavor === 'pi') {
         const { runPi } = await import('@/pi/runPi')
         await runPi({
@@ -269,6 +281,9 @@ export const resumeCommand: CommandDefinition = {
             // between the fetch above and the handoff request below.
             if (target.flavor === 'agy' && target.active) {
                 throw new Error('Antigravity is active. Stop it before resuming.')
+            }
+            if (target.flavor === 'dsh' && target.active) {
+                throw new Error('DeepSeek Harness is active. Stop it before resuming.')
             }
 
             if (target.active) {

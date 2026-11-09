@@ -17,6 +17,7 @@ export async function runDsh(opts: {
     startedBy?: 'runner' | 'terminal'
     startingMode?: 'remote'
     existingSessionId?: string
+    resumeSessionId?: string
     /** Fresh machine-spawn stub (`--hapi-session-id`); adopt via bootstrapSession. */
     reservedSessionId?: string
     /** Spawn-time model override (opaque ACP config-option value). */
@@ -36,7 +37,18 @@ export async function runDsh(opts: {
             sessionId: opts.existingSessionId,
             flavor: 'dsh',
             startedBy,
-            workingDirectory
+            workingDirectory,
+            validateSessionInfo: (session) => {
+                if (session.metadata?.flavor !== 'dsh') {
+                    throw new Error('This HAPI session does not use DeepSeek Harness')
+                }
+                if (session.active) {
+                    throw new Error('DeepSeek Harness is active. Stop it before resuming.')
+                }
+                if (session.metadata.dshSessionId && opts.resumeSessionId && session.metadata.dshSessionId !== opts.resumeSessionId) {
+                    throw new Error('The requested DeepSeek session does not match this HAPI session')
+                }
+            }
         })
         : await bootstrapSession({
             flavor: 'dsh',
@@ -46,7 +58,10 @@ export async function runDsh(opts: {
             reservedSessionId: opts.reservedSessionId,
             model: opts.model
         })
-    const { api, session } = bootstrap
+    const { api, session, sessionInfo } = bootstrap
+    const storedNativeId = opts.existingSessionId ? sessionInfo.metadata?.dshSessionId : undefined
+    const resumeSessionId = opts.resumeSessionId ?? storedNativeId
+    const model = opts.model ?? (opts.existingSessionId ? sessionInfo.model ?? undefined : undefined)
     setControlledByUser(session, startingMode)
 
     const queue = new MessageQueue2<DshMode>((mode) => hashObject(mode))
@@ -55,7 +70,7 @@ export async function runDsh(opts: {
     // Three-state preference: undefined = nothing requested yet (ordinary
     // turns carry no model field), null = the picker's explicit "Default"
     // reset, string = a concrete model. Only the config RPC ever sets null.
-    let currentModel: string | null | undefined = opts.model
+    let currentModel: string | null | undefined = model
 
     const syncSessionMode = () => {
         const active = sessionRef.current
@@ -114,13 +129,15 @@ export async function runDsh(opts: {
         client: session,
         path: workingDirectory,
         logPath: logger.getLogPath(),
-        model: opts.model,
+        model,
         messageQueue: queue,
         onModeChange: () => {},
         startedBy
     })
     const launcher = new DshRemoteLauncher(dshSession, {
-        model: opts.model,
+        model,
+        resumeSessionId,
+        preferredOptions: opts.existingSessionId ? sessionInfo.metadata?.sessionConfigOptions : undefined,
         onModelRollback: (model) => {
             currentModel = model ?? undefined
             syncSessionMode()

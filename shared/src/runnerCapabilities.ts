@@ -17,6 +17,7 @@ import { getBuiltinAgentConfigDescriptors } from './agentConfig'
 export const RUNNER_CAPABILITIES = {
     codexSharedRuntime: true as const,
     piExistingSessionResume: true as const,
+    dshExistingSessionResume: true as const,
     agentConfigs: getBuiltinAgentConfigDescriptors()
 }
 
