@@ -462,6 +462,10 @@ html:has(.chat-scroll-y) #root {
     }
 }
 
+.aui-reasoning-scroll {
+    max-height: min(24rem, 45svh);
+}
+
 /* On touch-first devices, keep the chat scrollbar from shifting centered content. */
 @media (hover: none) and (pointer: coarse) {
     .chat-scroll-y {
@@ -473,6 +477,10 @@ html:has(.chat-scroll-y) #root {
             0.125rem,
             calc(0.75rem - var(--chat-scroll-gutter-inline, 0px))
         );
+    }
+
+    .aui-reasoning-scroll {
+        max-height: min(14rem, 30svh);
     }
 }
 

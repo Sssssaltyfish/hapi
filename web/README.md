@@ -31,6 +31,10 @@ React Mini App / PWA for monitoring and controlling hapi sessions.
   that fits on one rendered line stays inline; longer summaries have their own
   disclosure. Manual expansion survives streaming and history pagination within
   the session.
+- Long reasoning uses a bounded scroll area shared by runner and native sessions.
+  On touch devices, the panel occupies at most 30% of the small viewport, capped
+  at 14rem, leaving room above and below to scroll the conversation. Streaming text
+  follows the latest line until the reader scrolls back inside the panel.
 - Session `@` suggestions require conversation content, including untitled conversations. Names and directory labels affect display/search, not eligibility; empty stubs stay excluded.
 
 ## Routes

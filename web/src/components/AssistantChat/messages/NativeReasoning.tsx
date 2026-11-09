@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import type { AgentReasoningBlock } from '@/chat/types'
 import { getToolGroupEntryAnchor, isActiveNativeCodexReasoning } from '@/chat/toolGroups'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { ReasoningScroll } from '@/components/assistant-ui/reasoning'
 import { useNativeReasoningExpansionState } from '@/components/AssistantChat/context'
 import { DisclosureChevron, DisclosureContent } from '@/components/ui/disclosure'
 import { useReasoningCollapse } from '@/hooks/useReasoningCollapse'
@@ -101,7 +102,11 @@ export const NativeReasoning = memo(function NativeReasoning({ block, className 
                             {active && <span aria-hidden="true" className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" />}
                         </button>
                         <DisclosureContent open={open} id={panelId}>
-                            {() => <MarkdownRenderer content={block.text} className="aui-reasoning-content px-3.5 pb-3" preserveSingleLineBreaks defer />}
+                            {() => (
+                                <ReasoningScroll isOpen={open} isStreaming={active} className="px-3.5 pb-3">
+                                    <MarkdownRenderer content={block.text} className="aui-reasoning-content" preserveSingleLineBreaks defer />
+                                </ReasoningScroll>
+                            )}
                         </DisclosureContent>
                     </div>
                 )}

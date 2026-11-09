@@ -72,28 +72,65 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
     endIndex,
 }) => {
     const panelId = useId()
-    const scrollRef = useRef<HTMLDivElement | null>(null)
-    const followLatestRef = useRef(true)
-    const pointerActiveRef = useRef(false)
-    const pointerCleanupRef = useRef<(() => void) | null>(null)
-    const followSyncFrameRef = useRef<number | null>(null)
-
     const isStreaming = useAuiState((state) => {
         const parts = state.message.parts.slice(startIndex, endIndex === undefined ? undefined : endIndex + 1)
         return parts.some((part) => part.type === 'reasoning' && part.status.type === 'running')
     })
     const { reasoningCollapsed } = useReasoningCollapse()
     const [isOpen, setIsOpen] = useState(() => isStreaming && !reasoningCollapsed)
-    const chatContext = useOptionalHappyChatContext()
-
     useLayoutEffect(() => {
         if (!isStreaming) return
-        const nextOpen = !reasoningCollapsed
-        if (nextOpen) {
-            followLatestRef.current = true
-        }
-        setIsOpen(nextOpen)
+        setIsOpen(!reasoningCollapsed)
     }, [isStreaming, reasoningCollapsed])
+
+    return (
+        <div data-hapi-share-exclude="true" className="aui-reasoning-group my-3 overflow-hidden rounded-2xl bg-[var(--app-reasoning-bg)]">
+            <button
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                onClick={() => setIsOpen(open => !open)}
+                className={cn(
+                    'flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left text-xs font-medium',
+                    'text-[var(--app-hint)] hover:text-[var(--app-fg)]',
+                    'transition-colors cursor-pointer select-none'
+                )}
+            >
+                <DisclosureChevron open={isOpen} className="h-3 w-3" />
+                <span>Reasoning</span>
+                {isStreaming && (
+                    <span className="ml-1 flex items-center gap-1 text-[var(--app-hint)]">
+                        <ShimmerDot />
+                    </span>
+                )}
+            </button>
+
+            <DisclosureContent open={isOpen} id={panelId} keepMounted>
+                <ReasoningScroll isOpen={isOpen} isStreaming={isStreaming} className="border-t border-[var(--app-divider)] px-3.5 py-3">
+                    {children}
+                </ReasoningScroll>
+            </DisclosureContent>
+        </div>
+    )
+}
+
+export function ReasoningScroll({ children, isOpen, isStreaming, className }: PropsWithChildren<{
+    isOpen: boolean
+    isStreaming: boolean
+    className?: string
+}>) {
+    const scrollRef = useRef<HTMLDivElement | null>(null)
+    const followLatestRef = useRef(true)
+    const pointerActiveRef = useRef(false)
+    const pointerCleanupRef = useRef<(() => void) | null>(null)
+    const followSyncFrameRef = useRef<number | null>(null)
+    const chatContext = useOptionalHappyChatContext()
+    const onNestedFollowRef = useRef(chatContext?.onNestedScrollFollowChange)
+    onNestedFollowRef.current = chatContext?.onNestedScrollFollowChange
+
+    useLayoutEffect(() => {
+        if (isOpen && isStreaming) followLatestRef.current = true
+    }, [isOpen, isStreaming])
 
     useEffect(() => {
         if (isOpen || followLatestRef.current) return
@@ -106,14 +143,6 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
         if (!scroll || !isOpen || !isStreaming || !followLatestRef.current) return
         scroll.scrollTop = scroll.scrollHeight
     })
-
-    const handleToggle = () => {
-        const nextOpen = !isOpen
-        if (nextOpen && isStreaming) {
-            followLatestRef.current = true
-        }
-        setIsOpen(nextOpen)
-    }
 
     const syncNestedFollow = useCallback(() => {
         const scroll = scrollRef.current
@@ -176,49 +205,25 @@ export const ReasoningGroup: FC<HappyReasoningGroupProps> = ({
 
     useEffect(() => () => {
         pointerCleanupRef.current?.()
+        if (!followLatestRef.current) onNestedFollowRef.current?.(true)
         if (followSyncFrameRef.current !== null) {
             window.cancelAnimationFrame(followSyncFrameRef.current)
         }
     }, [])
 
     return (
-        <div data-hapi-share-exclude="true" className="aui-reasoning-group my-3 overflow-hidden rounded-2xl bg-[var(--app-reasoning-bg)]">
-            <button
-                type="button"
-                aria-expanded={isOpen}
-                aria-controls={panelId}
-                onClick={handleToggle}
-                className={cn(
-                    'flex w-full items-center gap-1.5 px-3.5 py-2.5 text-left text-xs font-medium',
-                    'text-[var(--app-hint)] hover:text-[var(--app-fg)]',
-                    'transition-colors cursor-pointer select-none'
-                )}
-            >
-                <DisclosureChevron open={isOpen} className="h-3 w-3" />
-                <span>Reasoning</span>
-                {isStreaming && (
-                    <span className="ml-1 flex items-center gap-1 text-[var(--app-hint)]">
-                        <ShimmerDot />
-                    </span>
-                )}
-            </button>
-
-            <DisclosureContent open={isOpen} id={panelId} keepMounted>
-                <div
-                    ref={scrollRef}
-                    data-hapi-nested-scroll="true"
-                    tabIndex={isOpen ? 0 : -1}
-                    onScroll={handleScroll}
-                    onPointerDown={claimNestedPointerScroll}
-                    onWheel={claimNestedWheelScroll}
-                    onKeyDown={claimNestedKeyboardScroll}
-                    // Let wheel/touch events chain to the chat at the edge
-                    // of the panel. Nested follow-tail is handled above.
-                    className="aui-reasoning-scroll max-h-[60vh] overflow-y-auto border-t border-[var(--app-divider)] px-3.5 py-3"
-                >
-                    {children}
-                </div>
-            </DisclosureContent>
+        <div
+            ref={scrollRef}
+            data-hapi-nested-scroll="true"
+            tabIndex={isOpen ? 0 : -1}
+            onScroll={handleScroll}
+            onPointerDown={claimNestedPointerScroll}
+            onWheel={claimNestedWheelScroll}
+            onKeyDown={claimNestedKeyboardScroll}
+            // Allow wheel/touch scrolling to reach the chat at panel edges.
+            className={cn('aui-reasoning-scroll overflow-y-auto', className)}
+        >
+            {children}
         </div>
     )
 }
