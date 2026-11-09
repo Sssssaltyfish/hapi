@@ -92,6 +92,11 @@ describe('claudeRemote/query real seam', () => {
         })
 
         child.stdout.write(JSON.stringify({
+            type: 'stream_event',
+            parent_tool_use_id: null,
+            event: { type: 'message_start', message: { id: 'msg_first' } }
+        }) + '\n')
+        child.stdout.write(JSON.stringify({
             type: 'assistant',
             message: {
                 role: 'assistant',
@@ -110,6 +115,9 @@ describe('claudeRemote/query real seam', () => {
         }) + '\n')
 
         await expect(runPromise).rejects.toThrow('next message failed')
-        expect(received.map((message) => message.type)).toEqual(['assistant', 'result'])
+        expect(spawnMock.mock.calls[0][1]).toEqual(expect.arrayContaining([
+            '--include-partial-messages', '--input-format', 'stream-json'
+        ]))
+        expect(received.map((message) => message.type)).toEqual(['stream_event', 'assistant', 'result'])
     }, 15_000)
 })

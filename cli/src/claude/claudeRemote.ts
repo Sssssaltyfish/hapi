@@ -198,7 +198,7 @@ export async function claudeRemote(opts: {
     // first child prompt so the native fork materializes at the clicked source state.
     const hapiSystemPrompt = getSystemPrompt();
     const sdkOptions: Options = {
-        additionalArgs: filterCatalogAffectingClaudeArgs(opts.claudeArgs),
+        additionalArgs: [...filterCatalogAffectingClaudeArgs(opts.claudeArgs), '--include-partial-messages'],
         cwd: opts.path,
         resume: startFrom ?? undefined,
         forkSession,

@@ -11,6 +11,8 @@ import { SDKToLogConverter } from "./utils/sdkToLogConverter";
 import { PLAN_FAKE_REJECT } from "./sdk/prompts";
 import { EnhancedMode } from "./loop";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
+import { ClaudeReasoningStream } from "./utils/claudeReasoningStream";
+import { convertAgentMessage } from "@/agent/messageConverter";
 import type { ClaudePermissionMode } from "@hapi/protocol/types";
 import { applySessionTitleFallback } from './utils/sessionTitleFallback';
 import { ClaudeSteering } from './claudeSteering';
@@ -141,8 +143,16 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         this.permissionHandler = permissionHandler;
 
         const messageQueue = new OutgoingMessageQueue(
-            (logMessage) => session.client.sendClaudeSessionMessage(logMessage)
+            (message) => {
+                if (message.type === 'reasoning') {
+                    const converted = convertAgentMessage(message);
+                    if (converted) session.client.sendAgentMessage(converted);
+                } else {
+                    session.client.sendClaudeSessionMessage(message);
+                }
+            }
         );
+        const reasoningStream = new ClaudeReasoningStream(message => messageQueue.enqueue(message));
 
         permissionHandler.setOnPermissionRequest((toolCallId: string) => {
             messageQueue.releaseToolCall(toolCallId);
@@ -165,6 +175,9 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
         let ongoingToolCalls = new Map<string, { parentToolCallId: string | null }>();
 
         function onMessage(message: SDKMessage) {
+            const streamedBlockIndex = reasoningStream.observe(message);
+            if (message.type === 'stream_event') return;
+
             if (message.type === 'rate_limit_event') session.client.noteProviderRateLimit?.(message.rate_limit_info);
             if (message.type === 'system' && message.subtype === 'init' && Array.isArray(message.tools)) {
                 const tools = message.tools.filter((tool): tool is string => typeof tool === 'string');
@@ -241,6 +254,16 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
 
             const logMessage = sdkToLogConverter.convert(msg);
             if (logMessage) {
+                const outgoingMessage = streamedBlockIndex !== undefined && logMessage.type === 'assistant'
+                    && Array.isArray(logMessage.message?.content)
+                    ? {
+                        ...logMessage,
+                        message: {
+                            ...logMessage.message,
+                            content: logMessage.message.content.filter((_, index) => index !== streamedBlockIndex)
+                        }
+                    }
+                    : logMessage;
                 if (logMessage.type === 'user' && logMessage.message?.content) {
                     const content = Array.isArray(logMessage.message.content)
                         ? logMessage.message.content
@@ -291,7 +314,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                         const isSidechain = assistantMsg.parent_tool_use_id !== undefined;
 
                         if (!isSidechain) {
-                            messageQueue.enqueue(logMessage, {
+                            messageQueue.enqueue(outgoingMessage, {
                                 delay: 250,
                                 toolCallIds
                             });
@@ -300,7 +323,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                     }
                 }
 
-                messageQueue.enqueue(logMessage);
+                messageQueue.enqueue(outgoingMessage);
             }
 
             if (message.type === 'assistant') {
@@ -657,6 +680,7 @@ class ClaudeRemoteLauncher extends RemoteLauncherBase {
                     logger.debug('[remote]: launch finally');
                     controller.abort();
                     steering.reset();
+                    reasoningStream.finish();
 
                     for (let [toolCallId, { parentToolCallId }] of ongoingToolCalls) {
                         const converted = sdkToLogConverter.generateInterruptedToolResult(toolCallId, parentToolCallId);

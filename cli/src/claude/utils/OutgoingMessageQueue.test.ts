@@ -16,10 +16,18 @@ describe('OutgoingMessageQueue message filtering', () => {
 
     it('sends normal messages', async () => {
         queue.enqueue({ type: 'assistant', uuid: '1' })
-        queue.enqueue({ type: 'user', uuid: '2' })
+        queue.enqueue({ type: 'user', uuid: '2', message: { content: 'hello' } })
         await queue.flush()
 
         expect(sent).toHaveLength(2)
+    })
+
+    it('keeps a reasoning snapshot behind earlier Claude records', async () => {
+        queue.enqueue({ type: 'assistant', uuid: 'tool' }, { delay: 250 })
+        queue.enqueue({ type: 'reasoning', id: 'thinking', text: 'Investigating', live: true })
+        await queue.flush()
+
+        expect(sent.map(message => message.type)).toEqual(['assistant', 'reasoning'])
     })
 
     it('filters hidden system messages but sends visible system messages', async () => {
@@ -46,7 +54,7 @@ describe('OutgoingMessageQueue message filtering', () => {
     })
 
     it('filters out isMeta messages', async () => {
-        queue.enqueue({ type: 'user', isMeta: true, uuid: '1' })
+        queue.enqueue({ type: 'user', isMeta: true, uuid: '1', message: { content: 'hidden' } })
         queue.enqueue({ type: 'assistant', uuid: '2' })
         await queue.flush()
 
@@ -56,7 +64,7 @@ describe('OutgoingMessageQueue message filtering', () => {
 
     it('filters out isCompactSummary messages', async () => {
         queue.enqueue({ type: 'assistant', isCompactSummary: true, uuid: '1' })
-        queue.enqueue({ type: 'user', uuid: '2' })
+        queue.enqueue({ type: 'user', uuid: '2', message: { content: 'hello' } })
         await queue.flush()
 
         expect(sent).toHaveLength(1)
