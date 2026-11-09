@@ -3,26 +3,40 @@ import type { Processor } from 'unified'
 const PREFIX = '\uE200visualize\uE202'
 const END = 0xE201
 const TOKEN = 'hapiVisualization'
+const DIRECTIVE = '::codex-inline-vis{'
+const DIRECTIVE_TOKEN = 'hapiVisualizationDirective'
 const MAX_MARKER_LENGTH = 16 * 1024
 
 export type VisualizationReference = { path: string; mode?: 'wide'; title?: string }
 
+function validateReference(payload: Partial<VisualizationReference> | null): VisualizationReference | null {
+    const path = payload?.path
+    if (typeof path !== 'string' || !/\.html?$/i.test(path) || /[\x00-\x1f\x7f]/.test(path)) return null
+
+    const windowsDrive = /^[a-z]:[\\/][^\\/]/i.test(path)
+    const windowsShare = /^\\\\(?![?.][\\/])[^\\/]+[\\/][^\\/]+[\\/][^\\/]/.test(path)
+    const posix = /^\/[^/]/.test(path)
+    if (!windowsDrive && !windowsShare && !posix) return null
+
+    const title = typeof payload?.title === 'string' ? payload.title.trim().slice(0, 250) : undefined
+    return { path, mode: payload?.mode === 'wide' ? 'wide' : undefined, title: title || undefined }
+}
+
 export function parseVisualizationReference(value: string): VisualizationReference | null {
     try {
-        const payload = JSON.parse(value) as Partial<VisualizationReference> | null
-        const path = payload?.path
-        if (typeof path !== 'string' || !/\.html?$/i.test(path) || /[\x00-\x1f\x7f]/.test(path)) return null
-
-        const windowsDrive = /^[a-z]:[\\/][^\\/]/i.test(path)
-        const windowsShare = /^\\\\(?![?.][\\/])[^\\/]+[\\/][^\\/]+[\\/][^\\/]/.test(path)
-        const posix = /^\/[^/]/.test(path)
-        if (!windowsDrive && !windowsShare && !posix) return null
-
-        const title = typeof payload?.title === 'string' ? payload.title.trim().slice(0, 250) : undefined
-        return { path, mode: payload?.mode === 'wide' ? 'wide' : undefined, title: title || undefined }
+        return validateReference(JSON.parse(value) as Partial<VisualizationReference> | null)
     } catch {
         return null
     }
+}
+
+function parseDirective(value: string): VisualizationReference | null {
+    // Desktop's directive attributes preserve ordinary Windows backslashes.
+    // Read the raw source, not Markdown's decoded text or a JSON string.
+    const match = /^::codex-inline-vis\{(?:path|file)="([^"\r\n]+)"((?:[ \t]+(?:title|mode|expandable)="[^"\r\n]*")*)\}[ \t]*$/.exec(value)
+    if (!match) return null
+    const attributes = Object.fromEntries([...match[2].matchAll(/([a-z]+)="([^"]*)"/g)].map(([, key, value]) => [key, value]))
+    return validateReference({ path: match[1], title: attributes.title, mode: attributes.mode === 'wide' ? 'wide' : undefined })
 }
 
 type Code = number | null
@@ -93,11 +107,36 @@ function tokenize(this: { sliceSerialize(token: Token): string }, effects: Effec
     }
 }
 
+function tokenizeDirective(this: { sliceSerialize(token: Token): string }, effects: Effects, ok: State, nok: State): State {
+    const serialize = this.sliceSerialize.bind(this)
+    let length = 0
+    return start
+
+    function start(code: Code) {
+        effects.enter(DIRECTIVE_TOKEN)
+        return line(code)
+    }
+
+    function line(code: Code): State | undefined {
+        if (code === null || code < -2) {
+            const token = effects.exit(DIRECTIVE_TOKEN)
+            return parseDirective(serialize(token)) ? ok(code) : nok(code)
+        }
+        if (length < DIRECTIVE.length && code !== DIRECTIVE.charCodeAt(length)) return nok(code)
+        if (++length > MAX_MARKER_LENGTH) return nok(code)
+        effects.consume(code)
+        return line
+    }
+}
+
 export function remarkVisualizations(this: Processor) {
     const data = this.data()
     const syntax = (data.micromarkExtensions ??= []) as unknown[]
     const compiler = (data.fromMarkdownExtensions ??= []) as unknown[]
-    syntax.push({ text: { [PREFIX.charCodeAt(0)]: { tokenize } } })
+    syntax.push({
+        text: { [PREFIX.charCodeAt(0)]: { tokenize } },
+        flow: { [DIRECTIVE.charCodeAt(0)]: { tokenize: tokenizeDirective } },
+    })
     compiler.push({
         enter: {
             [TOKEN](this: CompileContext, token: Token) {
@@ -105,8 +144,15 @@ export function remarkVisualizations(this: Processor) {
                 const reference = parseVisualizationReference(value.slice(PREFIX.length, -1))!
                 this.enter(visualizationNode(value, reference), token)
             },
+            [DIRECTIVE_TOKEN](this: CompileContext, token: Token) {
+                const value = this.sliceSerialize(token)
+                this.enter(visualizationNode(value, parseDirective(value)!), token)
+            },
         },
-        exit: { [TOKEN](this: CompileContext, token: Token) { this.exit(token) } },
+        exit: {
+            [TOKEN](this: CompileContext, token: Token) { this.exit(token) },
+            [DIRECTIVE_TOKEN](this: CompileContext, token: Token) { this.exit(token) },
+        },
     })
 
     return (tree: MarkdownNode, file: { toString(): string }) => {

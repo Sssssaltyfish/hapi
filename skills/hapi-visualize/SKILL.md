@@ -22,9 +22,9 @@ Keep data and interactions local. External static dependencies may use `cdnjs.cl
 Read back the fragment. Check the initial render, the main control, and any state or follow-up action you included. Use a browser preview when available. Place the literal reference on its own line in the final assistant response.
 
 ```text
-visualize{"path":"/absolute/workspace/example.html","title":"Example"}
+::codex-inline-vis{path="/absolute/workspace/example.html" title="Example"}
 ```
 
-Use the executor's absolute file path, with JSON escaping for Windows backslashes. The optional `title` labels the widget. Add `"mode":"wide"` for a wider widget when its layout needs the space. Keep the reference outside fences, inline code, quotes, and lists in the actual response.
+Use the executor's absolute file path. Windows paths may use forward slashes (`C:/work/example.html`) or literal single backslashes; this is not JSON. Put `path` first. The optional `title` labels the widget; keep it on one line without double quotes. Add `mode="wide"` for a wider widget when its layout needs the space. Keep the reference outside fences, inline code, quotes, and lists in the actual response.
 
-Preserve all three delimiter characters: U+E200 before `visualize`, U+E202 before the JSON object, and U+E201 after it. Emit those actual characters; bare `visualize{...}`, U+E000/E002/E001, and literal Unicode escape text are not the Desktop-compatible format.
+This ASCII directive is supported by both HAPI and Codex Desktop. Emit it as shown, including both leading colons.

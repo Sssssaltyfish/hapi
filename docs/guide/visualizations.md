@@ -7,10 +7,12 @@ HAPI renders interactive HTML fragments in chat. Any agent can produce one by wr
 Ask for an inline visualization when you want to manipulate data, compare scenarios, or inspect a process. The agent writes an HTML fragment and returns a reference like this on its own line.
 
 ```text
-visualize{"path":"/absolute/workspace/forecast.html","title":"Forecast"}
+::codex-inline-vis{path="/absolute/workspace/forecast.html" title="Forecast"}
 ```
 
-Use the absolute path on the machine running the agent. JSON strings with Windows backslashes need escaping, for example `"C:\\work\\forecast.html"`. Keep the reference in plain response text so HAPI can turn it into a widget. Add `"mode":"wide"` when the layout needs more room. Use the widget's expand control to open a larger view.
+Use the absolute path on the machine running the agent, with `path` as the first attribute. Windows paths can use `C:/work/forecast.html` or single backslashes; directive attributes are not JSON strings. Keep the reference on its own line in plain response text so HAPI can turn it into a widget. Titles should stay on one line without double quotes. Add `mode="wide"` when the layout needs more room. Use the widget's expand control to open a larger view.
+
+The ASCII directive is also supported by Codex Desktop. HAPI continues to recognize Desktop's original private-use-character Visualize references, so existing conversations and the Desktop Visualize skill still work.
 
 Write a regular `.html` file of at most 1 MiB inside the current session workspace. The runner needs read access when HAPI resolves the reference. A path elsewhere on the runner, including an absolute path printed by a different machine, can be unavailable. If the agent works on a remote runner, write the file there rather than on the device displaying the chat.
 
@@ -64,8 +66,9 @@ title: 'Ask about this value' }).
 Write a self-contained HTML fragment named hapi-widget-smoke.html inside this
 session's workspace, with inline CSS and JavaScript and no network requests.
 End your response with the literal marker below on its own line outside code.
-Replace ABSOLUTE_PATH with the JSON-escaped path to the file.
-visualize{"path":"ABSOLUTE_PATH","title":"Slider check","mode":"wide"}
+Replace ABSOLUTE_PATH with the absolute path to the file (use forward slashes
+on Windows).
+::codex-inline-vis{path="ABSOLUTE_PATH" title="Slider check" mode="wide"}
 ```
 
 For a Codex Desktop conversation with Visualize enabled, use this shorter prompt.

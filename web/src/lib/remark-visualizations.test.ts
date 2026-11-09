@@ -14,6 +14,29 @@ function render(markdown: string, plugins: PluggableList = MARKDOWN_PLUGINS_WITH
 }
 
 describe('assistant visualization references', () => {
+    it('renders Desktop directives as blocks alongside prose without changing path characters', () => {
+        const html = render('Before\n::codex-inline-vis{path="C:\\work\\x_y_[1].html" title="*Title* `label`" mode="wide"}\n::codex-inline-vis{file="/work/a b/demo.htm"}\nAfter')
+        const document = new DOMParser().parseFromString(html, 'text/html')
+        const nodes = document.querySelectorAll('hapi-visualization')
+        expect([...nodes].map(node => node.getAttribute('data-path'))).toEqual(['C:\\work\\x_y_[1].html', '/work/a b/demo.htm'])
+        expect(nodes[0].getAttribute('title')).toBe('*Title* `label`')
+        expect(nodes[0].getAttribute('data-mode')).toBe('wide')
+        expect(html).toContain('<p>Before</p>')
+        expect(html).toContain('<p>After</p>')
+    })
+
+    it('keeps directive examples and incomplete or nonlocal references literal', () => {
+        const directive = '::codex-inline-vis{path="/work/example.html"}'
+        for (const markdown of [
+            `Before ${directive}`, `\`${directive}\``, `\`\`\`text\n${directive}\n\`\`\``,
+            directive.slice(0, -1), `${directive} after`,
+            '::codex-inline-vis{path="https://example.test/demo.html"}',
+            '::codex-inline-vis{path="demo.html"}',
+            '::codex-inline-vis{path="/work/demo.svg"}',
+        ]) expect(render(markdown)).not.toContain('<hapi-visualization')
+        expect(render(directive, MARKDOWN_PLUGINS)).not.toContain('<hapi-visualization')
+    })
+
     it('preserves JSON punctuation, both absolute path styles, and surrounding prose', () => {
         const windows = marker({ path: 'C:\\Users\\a\\x_y_[1].HTML', title: '*Title* \uE201 `label`', mode: 'wide' })
         const posix = marker({ path: '/work/a b/demo.htm' })
