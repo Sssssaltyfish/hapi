@@ -15,7 +15,7 @@ function renderMedia(content: string, options?: { sessionId?: string; firstTicke
     const file = { success: true, content: 'YQ==' }
     const readSessionFile = vi.fn(async () => file)
     const readCodexNativeFile = vi.fn(async () => file)
-    const createSessionMediaUrl = vi.fn(async () => ({ url: '/api/media/stream-ticket', expiresAt: Date.now() + 60_000 }))
+    const createSessionMediaUrl = vi.fn(async () => ({ url: '/api/media/stream-ticket', expiresAt: Date.now() + 2 * 60 * 60_000 }))
     if (options?.firstTicketExpired) {
         createSessionMediaUrl.mockResolvedValueOnce({ url: '/api/media/stream-ticket', expiresAt: Date.now() - 1 })
     }
@@ -107,17 +107,24 @@ it('uses the Native media URL for linked images and preserves their link', async
     expect(readSessionFile).not.toHaveBeenCalled()
 })
 
-it('renders the last image address on re-entry while verifying the file version', async () => {
-    const { createSessionMediaUrl, reopen } = renderMedia('![Photo](./photo.png)', { cacheScope: 'image-remount' })
-    expect(await screen.findByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/stream-ticket')
+it.each([
+    ['image', '![Photo](./photo.png)', 'img'],
+    ['video', '[Clip](./clip.mp4)', 'video'],
+    ['audio', '[Voice](./voice.wav)', 'audio'],
+])('renders the unexpired %s address on re-entry while verifying the file version', async (kind, content, selector) => {
+    const { container, createSessionMediaUrl, reopen } = renderMedia(content, { cacheScope: `${kind}-remount` })
+    await waitFor(() => expect(container.querySelector(selector)).toHaveAttribute('src', '/api/media/stream-ticket'))
     let finish!: (address: { url: string; expiresAt: number }) => void
     createSessionMediaUrl.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
 
+    const now = Date.now()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now + 6 * 60_000)
     reopen()
-    expect(screen.getByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/stream-ticket')
+    expect(container.querySelector(selector)).toHaveAttribute('src', '/api/media/stream-ticket')
     expect(createSessionMediaUrl).toHaveBeenCalledTimes(2)
     finish({ url: '/api/media/new-file-version', expiresAt: Date.now() + 60_000 })
-    await waitFor(() => expect(screen.getByRole('img', { name: 'Photo' })).toHaveAttribute('src', '/api/media/new-file-version'))
+    await waitFor(() => expect(container.querySelector(selector)).toHaveAttribute('src', '/api/media/new-file-version'))
+    clock.mockRestore()
 })
 
 it('opens an audio preview in a portaled dialog and restores focus on close', async () => {

@@ -20,7 +20,7 @@ import { FileIcon } from '@/components/FileIcon'
 import { useTranslation } from '@/lib/use-translation'
 import { inlineMediaLabelKey, isInlineAudioMimeType, isInlineImageMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
 import { InlineMediaPlayer } from './InlineMediaPlayer'
-import { imageMediaCacheKey, useMediaSource } from '@/hooks/useMediaSource'
+import { mediaSourceCacheKey, useMediaSource } from '@/hooks/useMediaSource'
 
 function isToolCallBlock(value: unknown): value is ToolCallBlock {
     if (!isObject(value)) return false
@@ -91,8 +91,8 @@ export function GeneratedImageCard(props: { block: GeneratedImageBlock }) {
                 ? { path: nativeFilePath, mimeType: mimeType ?? 'image/png' }
                 : { generatedImageId: imageId }, signal)
     }, [api, sessionId, imageId, nativeFilePath, mimeType, isFile])
-    const cacheKey = isImage
-        ? imageMediaCacheKey(api, sessionId, nativeFilePath
+    const cacheKey = !isFile
+        ? mediaSourceCacheKey(api, sessionId, nativeFilePath
             ? { path: nativeFilePath, mimeType: mimeType ?? 'image/png' }
             : { generatedImageId: imageId }, metadata?.nativeCodex)
         : undefined

@@ -5,39 +5,38 @@ import { parseCodexNativeSessionId, type NativeSessionIdentity } from '@/codex-n
 type MediaAddress = { url: string; expiresAt?: number }
 type LoadMedia = (signal: AbortSignal) => Promise<Blob | MediaAddress>
 type MediaResult = { address: MediaAddress; error?: undefined } | { address?: undefined; error: string }
-type ImageSource = { path: string; mimeType: string } | { generatedImageId: string }
+type MediaSource = { path: string; mimeType: string } | { generatedImageId: string }
 
-const IMAGE_ADDRESS_TTL_MS = 5 * 60_000
-const MAX_IMAGE_ADDRESSES = 256
-const recentImageAddresses = new Map<string, { address: MediaAddress; validUntil: number }>()
+const MAX_MEDIA_ADDRESSES = 256
+const recentMediaAddresses = new Map<string, MediaAddress>()
 
-export function imageMediaCacheKey(api: ApiClient, sessionId: string, source: ImageSource, nativeMetadata?: NativeSessionIdentity | null) {
+export function mediaSourceCacheKey(api: ApiClient, sessionId: string, source: MediaSource, nativeMetadata?: NativeSessionIdentity | null) {
     const scope = api.getConversationCacheScope?.()
     if (!scope) return undefined
     const native = parseCodexNativeSessionId(sessionId) ?? nativeMetadata
     return JSON.stringify([scope.key, sessionId, native?.endpointId, native?.threadId, source])
 }
 
-function rememberImageAddress(key: string, address: MediaAddress) {
+function rememberMediaAddress(key: string, address: MediaAddress) {
     const now = Date.now()
     if (address.expiresAt === undefined || address.expiresAt <= now) return
-    recentImageAddresses.delete(key)
-    recentImageAddresses.set(key, { address, validUntil: Math.min(address.expiresAt, now + IMAGE_ADDRESS_TTL_MS) })
-    if (recentImageAddresses.size > MAX_IMAGE_ADDRESSES) {
-        const oldest = recentImageAddresses.keys().next().value
-        if (oldest !== undefined) recentImageAddresses.delete(oldest)
+    recentMediaAddresses.delete(key)
+    recentMediaAddresses.set(key, address)
+    if (recentMediaAddresses.size > MAX_MEDIA_ADDRESSES) {
+        const oldest = recentMediaAddresses.keys().next().value
+        if (oldest !== undefined) recentMediaAddresses.delete(oldest)
     }
 }
 
-export function useMediaSource(load: LoadMedia | null, imageCacheKey?: string) {
+export function useMediaSource(load: LoadMedia | null, cacheKey?: string) {
     const [revision, renew] = useReducer((value: number) => value + 1, 0)
-    const [state, setState] = useState<{ load: LoadMedia; imageCacheKey?: string; revision: number; result: MediaResult }>()
-    // The browser still owns the image bytes. Reuse the address immediately
+    const [state, setState] = useState<{ load: LoadMedia; cacheKey?: string; revision: number; result: MediaResult }>()
+    // The browser still owns the media bytes. Reuse an unexpired address immediately
     // while asking the Hub to check authorization and the current file version.
     const cached = useMemo(() => {
-        const entry = imageCacheKey ? recentImageAddresses.get(imageCacheKey) : undefined
-        return entry && entry.validUntil > Date.now() ? entry.address : undefined
-    }, [imageCacheKey])
+        const address = cacheKey ? recentMediaAddresses.get(cacheKey) : undefined
+        return address?.expiresAt !== undefined && address.expiresAt > Date.now() ? address : undefined
+    }, [cacheKey])
 
     useEffect(() => {
         if (!load) return
@@ -50,12 +49,12 @@ export function useMediaSource(load: LoadMedia | null, imageCacheKey?: string) {
                 const address = source instanceof Blob
                     ? { url: objectUrl = URL.createObjectURL(source) }
                     : source
-                if (imageCacheKey && !objectUrl) rememberImageAddress(imageCacheKey, address)
-                setState({ load, imageCacheKey, revision, result: { address } })
+                if (cacheKey && !objectUrl) rememberMediaAddress(cacheKey, address)
+                setState({ load, cacheKey, revision, result: { address } })
             } catch (error) {
                 if (controller.signal.aborted) return
-                if (imageCacheKey) recentImageAddresses.delete(imageCacheKey)
-                setState({ load, imageCacheKey, revision, result: { error: error instanceof Error ? error.message : String(error) } })
+                if (cacheKey) recentMediaAddresses.delete(cacheKey)
+                setState({ load, cacheKey, revision, result: { error: error instanceof Error ? error.message : String(error) } })
             }
         }
         void resolve()
@@ -63,10 +62,10 @@ export function useMediaSource(load: LoadMedia | null, imageCacheKey?: string) {
             controller.abort()
             if (objectUrl) URL.revokeObjectURL(objectUrl)
         }
-    }, [load, imageCacheKey, revision])
+    }, [load, cacheKey, revision])
 
     // Keep the player mounted during ticket renewal so it can restore playback.
-    const current = state?.load === load && state?.imageCacheKey === imageCacheKey ? state : undefined
+    const current = state?.load === load && state?.cacheKey === cacheKey ? state : undefined
     const result = current?.result
     const address = result ? result.address : load ? cached : undefined
     return {

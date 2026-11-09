@@ -3,7 +3,7 @@ import { useHappyChatContext, useOptionalHappyChatContext } from '@/components/A
 import { InlineMediaPlayer } from '@/components/AssistantChat/messages/InlineMediaPlayer'
 import { ImagePreview } from '@/components/ImagePreview'
 import { parseCodexNativeSessionId } from '@/codex-native/session-key'
-import { imageMediaCacheKey, useMediaSource } from '@/hooks/useMediaSource'
+import { mediaSourceCacheKey, useMediaSource } from '@/hooks/useMediaSource'
 import { formatReadFileError } from '@/lib/files-i18n'
 import { getInlineMediaMimeType, isInlineVideoMimeType } from '@/lib/generatedInlineMedia'
 import { classifyNoSchemeHref } from '@/lib/markdown-href-policy'
@@ -91,9 +91,7 @@ function LocalMediaPreview({ source, ...preview }: PreviewProps) {
     const { src, mimeType } = source
     const load = useCallback((signal: AbortSignal) => api.createSessionMediaUrl(sessionId, { path: src, mimeType }, signal),
         [api, sessionId, src, mimeType])
-    const cacheKey = mimeType.startsWith('image/')
-        ? imageMediaCacheKey(api, sessionId, { path: src, mimeType }, metadata?.nativeCodex)
-        : undefined
+    const cacheKey = mediaSourceCacheKey(api, sessionId, { path: src, mimeType }, metadata?.nativeCodex)
     const { url, error, onPlaybackError, sourceRevision } = useMediaSource(load, cacheKey)
 
     if (url) return <MediaPreview {...preview} src={url} mimeType={mimeType} onError={onPlaybackError} sourceRevision={sourceRevision} />
