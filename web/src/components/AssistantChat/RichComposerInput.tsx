@@ -98,8 +98,11 @@ function createMentionSpan(
     span.dataset.sessionTitle = title
     span.dataset.composerMention = 'session'
     span.className =
-        'mx-0.5 inline-flex max-w-[12rem] items-center truncate rounded-md bg-[var(--app-subtle-bg)] px-1.5 py-0.5 align-baseline text-[0.95em] font-medium text-[var(--app-link)]'
-    span.textContent = `@${title || shortSessionId(id)}`
+        'mx-0.5 inline-flex max-w-[min(12rem,calc(100%_-_0.25rem))] items-center rounded-md bg-[var(--app-subtle-bg)] px-1.5 py-0.5 align-baseline text-[0.95em] font-medium text-[var(--app-link)]'
+    const label = document.createElement('span')
+    label.className = 'min-w-0 truncate'
+    label.textContent = `@${title || shortSessionId(id)}`
+    span.appendChild(label)
     const tip = resolveTooltip?.(id, title)?.model
         ?? formatSessionMentionTooltip(null, title, id)
     span.setAttribute('aria-label', tip.ariaLabel)

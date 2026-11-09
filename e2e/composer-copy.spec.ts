@@ -35,6 +35,37 @@ test.describe('composer Ctrl+A + Ctrl+C copy', () => {
         expect(copied).toBe('my draft message')
     })
 
+    test('a native thread mention stays inside a narrow composer after typing before it', async ({ page }) => {
+        const editor = page.getByTestId('rich-composer-input')
+        const title = '修复移动端编辑器在引用另一个会话时截断标签的情况'
+        const sessionId = 'codex-native:local:target'
+        const draft = `[${title}](/sessions/${encodeURIComponent(sessionId)})`
+        await page.evaluate(value => window.__composerCopyE2E!.setValue(value), draft)
+
+        const chip = editor.locator('[data-composer-mention="session"]')
+        await expect(chip).toHaveText(`@${title}`)
+        await editor.evaluate(node => {
+            node.style.width = '11rem'
+            node.style.whiteSpace = 'pre-wrap'
+            node.style.overflowY = 'auto'
+            node.focus()
+            window.getSelection()?.collapse(node, 0)
+        })
+
+        const prefix = 'Review this thread before answering:'
+        await page.keyboard.type(prefix)
+
+        const editorBox = (await editor.boundingBox())!
+        const chipBox = (await chip.boundingBox())!
+        expect(chipBox.y).toBeGreaterThan(editorBox.y)
+        expect(chipBox.x + chipBox.width).toBeLessThanOrEqual(editorBox.x + editorBox.width)
+        await expect(chip).toHaveAttribute('data-session-id', sessionId)
+
+        await page.keyboard.press('ControlOrMeta+a')
+        await page.keyboard.press('ControlOrMeta+c')
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(prefix + draft)
+    })
+
     test('Ctrl+A in a textarea keeps native behavior', async ({ page }) => {
         await page.evaluate(() => {
             const textarea = document.createElement('textarea')
