@@ -19,7 +19,7 @@ agent's integration; their supported syntax varies by agent.
 | GitHub Copilot | `hapi copilot` | ACP (`copilot --acp --stdio`) | ✓ | ✓ | `default` `read-only` `safe-yolo` `yolo` | ✓ |
 | Kimi | `hapi kimi` | ACP (`kimi acp`) | ✓ | ✓ | `default` `read-only` `safe-yolo` `yolo` | ✓ |
 | OpenCode | `hapi opencode` | ACP (`opencode acp`) | ✓ | ✓ | `default` `plan` `yolo` | ✓ |
-| DeepSeek Harness | `hapi dsh` | ACP (`dsh --profile acp` or configured server) | — | ✓ | Runtime permission presets, including configured/plugin options | — |
+| DeepSeek Harness | `hapi dsh` | ACP (`dsh --profile acp` or configured server) | — | ✓ | Runtime permission presets, including configured/plugin options | ✓ |
 | Antigravity (agy) | `hapi agy` | Headless print mode (per-turn `agy -p` + NDJSON) | — | ✓ | `request-review` `always-proceed` | ✓ |
 | Pi | `hapi pi` | `pi --mode rpc` (JSON-line RPC over stdio) | — | ✓ | none (always auto-approve) | ✓ |
 | Gemini CLI | — | **Removed** — Google sunset the consumer Gemini CLI (2026-06-18) | — | — | — | — |
@@ -30,7 +30,7 @@ Gemini is no longer launchable: `hapi gemini` is kept as a tombstone command tha
 
 ### ACP
 
-Most remote integrations speak the [Agent Client Protocol](https://agentclientprotocol.com) (ACP) over stdio through a shared HAPI backend. Individual servers advertise the capabilities they implement. Cursor, Grok, Copilot, Kimi, OpenCode, and DeepSeek Harness remote sessions all run over ACP. DSH's official server exposes model and reasoning options, semantic assistant/tool updates, cancellation, one-shot permissions, MCP mounts, and native `session/resume`; HAPI currently uses fresh DSH sessions, supplies no MCP servers, and adds a public plugin wrapper for runtime permission presets.
+Most remote integrations speak the [Agent Client Protocol](https://agentclientprotocol.com) (ACP) over stdio through a shared HAPI backend. Individual servers advertise the capabilities they implement. Cursor, Grok, Copilot, Kimi, OpenCode, and DeepSeek Harness remote sessions all run over ACP. DSH's official server exposes model and reasoning options, semantic assistant/tool updates, cancellation, one-shot permissions, MCP mounts, and native `session/resume`; HAPI uses its native resume and model/reasoning configuration, and adds a public plugin wrapper for runtime permission presets and streaming reasoning.
 
 ### Permission modes
 
@@ -52,7 +52,7 @@ hapi resume                # Interactive picker of resumable sessions on this ma
 hapi resume <session-id>   # Resume a specific HAPI session
 ```
 
-`hapi resume` reopens the conversation on this machine, including active sessions you were using from your phone. Gemini and fresh-session-only DSH cannot be resumed. Pi and Antigravity resume with input still controlled from HAPI rather than the terminal.
+`hapi resume` reopens the conversation on this machine, including active sessions you were using from your phone. DeepSeek Harness, Pi, and Antigravity resume with input still controlled from HAPI rather than the terminal. Stop an active DSH or Antigravity wrapper before resuming it.
 
 ### Mathematical formulas in HAPI Markdown
 
@@ -286,10 +286,14 @@ export HAPI_DSH_ACP_ARGS_JSON='["--dir", "/path/to/deepseek-harness", "run", "de
 hapi dsh
 ```
 
-DSH sessions are remote-only and fresh-session-only in HAPI. HAPI does not inject
-MCP servers. Model selection uses the composition's catalog through `ListDshModels`
-and ACP `session/set_config_option`. The official ACP protocol also exposes
-reasoning effort; HAPI currently provides the model picker for this integration.
+DSH sessions are remote-only in HAPI and can resume the same native conversation
+when the ACP server advertises `session/resume`. Model selection uses the
+composition's catalog through `ListDshModels` and ACP `session/set_config_option`.
+The composer and session settings also expose the current model's advertised
+reasoning choices. Each queued message retains its selected effort, which HAPI
+applies before sending the prompt. After a model change, reasoning choices refresh
+when DSH reports the new model's configuration. The status bar shows the applied
+effort and permission preset; a pending selection remains visible in its picker.
 
 For the default official launcher, HAPI adds a temporary plugin that wraps the
 upstream ACP server's public transport hook. It reads DSH's live

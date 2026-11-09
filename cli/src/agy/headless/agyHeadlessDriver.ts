@@ -15,7 +15,7 @@ import { createNativeSessionTitleMetadataSync } from '@/agent/nativeSessionTitle
 import { readAgyConversationTitle } from '../utils/agySessionTitle';
 import { resolveAgyTurnModels } from '../utils/agyConversationModel';
 import { killProcessByChildProcess } from '@/utils/process';
-import { AGY_MODEL_LABELS } from '@hapi/protocol';
+import { AGY_MODEL_LABELS, isAgyEffortLevel, type AgyEffortLevel } from '@hapi/protocol';
 import { getAgentLaunchCommand } from '@/agent/agentLaunchCommand';
 import { AgySteering } from './agySteering';
 import { hasQueuedSkill } from '@/utils/queuedSkillReference';
@@ -46,7 +46,7 @@ export function buildAgyHeadlessArgs(opts: {
     model?: string;
     permissionMode: PermissionMode;
     mode?: 'accept-edits' | 'plan';
-    effort?: 'low' | 'medium' | 'high';
+    effort?: AgyEffortLevel;
     hookDirectory?: string;
 }): string[] {
     const args = ['-p', opts.prompt, '--output-format', 'stream-json'];
@@ -428,9 +428,7 @@ export class AgyHeadlessDriver extends RemoteLauncherBase {
             conversationId: this.conversationId ?? undefined,
             model: sessionModel,
             permissionMode: mode.permissionMode,
-            effort: sessionEffort === 'low' || sessionEffort === 'medium' || sessionEffort === 'high'
-                ? sessionEffort
-                : undefined,
+            effort: isAgyEffortLevel(sessionEffort) ? sessionEffort : undefined,
             hookDirectory: hooks.addDirectory,
         });
         // Never persist the user's prompt to the log (HAPI debug logs can be

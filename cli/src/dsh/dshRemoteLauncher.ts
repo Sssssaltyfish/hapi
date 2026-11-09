@@ -20,6 +20,8 @@ import { DSH_STEERING_CAPABILITY, DSH_STEERING_METHOD, hasDshSteeringCapability,
 import { listProviderSlashCommands } from '@/modules/common/slashCommands'
 import { hasQueuedSkill } from '@/utils/queuedSkillReference'
 
+type ReasoningPreference = { model: string | null; values: Record<string, string> }
+
 export class DshRemoteLauncher extends RemoteLauncherBase {
     private backend: ReturnType<typeof createDshBackend> | null = null
     private permissionHandler: AcpPermissionHandler | null = null
@@ -29,7 +31,10 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     private initialBackendModel: string | null = null
     private selectedConfigs: Record<string, string> = {}
     private initialConfigs: Record<string, string> = {}
+    private selectedReasoning?: ReasoningPreference
+    private initialReasoning?: ReasoningPreference
     private configsReady = false
+    private switchingModel = false
     private cleanupBridge: (() => Promise<void>) | null = null
     private running: Promise<RemoteLauncherExitReason> | null = null
     private disconnecting: Promise<void> | null = null
@@ -47,14 +52,13 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     private effectiveModeHash(requested?: DshMode): string {
-        const model = requested?.model === null ? this.initialBackendModel
-            : requested?.model ?? this.currentBackendModel
-        const configOptions = Object.fromEntries(this.permissionOptions()
+        const model = this.resolveModel(requested?.model)
+        const configOptions = Object.fromEntries(this.runtimeOptions()
             .filter(option => option.currentValue !== undefined)
             .map(option => [option.id, option.currentValue!]))
         // Before discovery, ordinary messages omit preferences and use the
         // initial presets. Compare those actual values with later snapshots.
-        if (requested) Object.assign(configOptions, requested.configOptions ?? this.initialConfigs)
+        if (requested) Object.assign(configOptions, this.queuedConfigOptions(requested, model))
         return this.session.queue.modeHasher({ ...(model ? { model } : {}), configOptions })
     }
 
@@ -129,25 +133,53 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
     }
 
     getConfigPreferences(): Record<string, string> | undefined {
-        return this.configsReady ? { ...this.selectedConfigs } : undefined
+        if (!this.configsReady) return undefined
+        const model = this.resolveModel(this.opts.getPreferredModel?.())
+        return { ...this.selectedConfigs, ...this.reasoningValues(this.selectedReasoning, model) }
     }
 
-    private permissionOptions(): SessionConfigOption[] {
+    refreshConfigOptions(): void {
+        if (this.configsReady) this.publishConfigOptions()
+    }
+
+    private resolveModel(preference?: string | null): string | null {
+        return preference === null ? this.initialBackendModel : preference ?? this.currentBackendModel
+    }
+
+    private reasoningValues(preference: ReasoningPreference | undefined, model: string | null): Record<string, string> | undefined {
+        return preference?.model === model ? preference.values : undefined
+    }
+
+    private queuedConfigOptions(mode: DshMode, model: string | null): Record<string, string> {
+        return mode.configOptions ?? { ...this.initialConfigs, ...this.reasoningValues(this.initialReasoning, model) }
+    }
+
+    private runtimeOptions(): SessionConfigOption[] {
         if (!this.backend || !this.session.sessionId) return []
         return (this.backend.getSessionConfigOptions(this.session.sessionId) ?? [])
-            .filter(option => option.category === 'permission')
+            .filter(option => option.category === 'permission' || option.category === 'thought_level')
+            .map(option => option.category === 'thought_level' ? { ...option, category: 'reasoning' } : option)
     }
 
-    private publishPermissionOptions(): void {
-        const advertised = this.permissionOptions()
-        for (const [id, value] of Object.entries(this.selectedConfigs)) {
-            const option = advertised.find(option => option.id === id)
-            if (!option?.options.some(choice => choice.value === value)) delete this.selectedConfigs[id]
+    private visibleOptions(options = this.runtimeOptions()): SessionConfigOption[] {
+        const sameModel = this.resolveModel(this.opts.getPreferredModel?.()) === this.currentBackendModel
+        return options.filter(option => sameModel || option.category !== 'reasoning')
+    }
+
+    private publishConfigOptions(): void {
+        const reasoning = this.reasoningValues(this.selectedReasoning, this.currentBackendModel)
+        const runtime = this.runtimeOptions()
+        for (const selections of [this.selectedConfigs, reasoning]) {
+            for (const [id, value] of Object.entries(selections ?? {})) {
+                if (!runtime.find(option => option.id === id)?.options.some(choice => choice.value === value)) {
+                    delete selections?.[id]
+                }
+            }
         }
-        const options = advertised.map(option => ({
-            ...option,
-            ...(this.selectedConfigs[option.id] !== undefined ? { selectedValue: this.selectedConfigs[option.id] } : {})
-        }))
+        const options = this.visibleOptions(runtime).map(option => {
+            const selectedValue = (option.category === 'reasoning' ? reasoning : this.selectedConfigs)?.[option.id]
+            return { ...option, ...(selectedValue !== undefined ? { selectedValue } : {}) }
+        })
         this.session.client.updateMetadata(metadata => ({ ...metadata, sessionConfigOptions: options }))
     }
 
@@ -158,6 +190,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             model?: string
             resumeSessionId?: string
             preferredOptions?: SessionConfigOption[]
+            getPreferredModel?: () => string | null | undefined
             onModelRollback?: (model: string | null) => void
             onConfigDiscovered?: (model: string | null) => void
         } = {}
@@ -228,10 +261,15 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
         this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.SetSessionConfigOption, async (raw: unknown) => {
             await ready
             const { configId, value } = SessionConfigOptionRequestSchema.parse(raw)
-            const option = this.permissionOptions().find(option => option.id === configId)
+            const option = this.visibleOptions().find(option => option.id === configId)
             if (!option?.options.some(choice => choice.value === value)) throw new Error('This DSH configuration value is not currently advertised')
-            this.selectedConfigs[configId] = value
-            this.publishPermissionOptions()
+            if (option.category === 'reasoning') {
+                const model = this.currentBackendModel
+                this.selectedReasoning = { model, values: { ...this.reasoningValues(this.selectedReasoning, model), [configId]: value } }
+            } else {
+                this.selectedConfigs[configId] = value
+            }
+            this.publishConfigOptions()
             return { applied: { configId, value }, applyAt: 'next-message' }
         })
         this.session.client.rpcHandlerManager.registerHandler(RPC_METHODS.ListDshModels, async () => {
@@ -311,29 +349,37 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             this.currentBackendModel = this.initialBackendModel
         }
         this.opts.onConfigDiscovered?.(this.currentBackendModel)
-        for (const option of this.permissionOptions()) {
-            if (option.currentValue !== undefined && option.options.some(choice => choice.value === option.currentValue)) {
+        const runtime = this.runtimeOptions()
+        for (const option of runtime) {
+            if (option.category === 'permission' && option.currentValue !== undefined && option.options.some(choice => choice.value === option.currentValue)) {
                 this.initialConfigs[option.id] = option.currentValue
             }
         }
         this.selectedConfigs = { ...this.initialConfigs }
         for (const option of this.opts.preferredOptions ?? []) {
             if (option.category === 'permission' && option.selectedValue !== undefined) {
-                const advertised = this.permissionOptions().find(entry => entry.id === option.id)
+                const advertised = runtime.find(entry => entry.id === option.id && entry.category === 'permission')
                 if (!advertised?.options.some(entry => entry.value === option.selectedValue)) {
                     const error = new Error('DeepSeek Harness could not restore the selected permission preset')
                     markFailed(error)
                     throw error
                 }
                 this.selectedConfigs[option.id] = option.selectedValue
+            } else if (option.category === 'reasoning' && option.selectedValue !== undefined && this.currentBackendModel === this.initialBackendModel
+                && runtime.some(entry => entry.category === 'reasoning' && entry.id === option.id && entry.options.some(choice => choice.value === option.selectedValue))) {
+                this.selectedReasoning ??= { model: this.currentBackendModel, values: {} }
+                this.selectedReasoning.values[option.id] = option.selectedValue
             }
         }
         this.configsReady = true
-        backend.onSessionConfigOptionsUpdate(() => this.publishPermissionOptions())
-        this.publishPermissionOptions()
+        backend.onSessionConfigOptionsUpdate(() => {
+            if (!this.switchingModel) this.publishConfigOptions()
+        })
+        this.publishConfigOptions()
         // Messages may have arrived before discovery. Apply the preferences
         // already selected on the existing HAPI session to those batches too.
         this.initialConfigs = { ...this.selectedConfigs }
+        this.initialReasoning = this.selectedReasoning && { ...this.selectedReasoning, values: { ...this.selectedReasoning.values } }
         if (this.currentBackendModel) {
             this.messageBuffer.addMessage(`[MODEL:${this.currentBackendModel}]`, 'system')
         }
@@ -367,6 +413,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             }
 
             const requestedModel = batch.mode.model
+            const requestedRuntimeModel = this.resolveModel(requestedModel)
             if (requestedModel === null) {
                 // Explicit "Default": switch back to the server default captured
                 // at session creation. The web picker resets the session model
@@ -403,25 +450,33 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             }
 
             let configFailed = false
-            for (const [configId, value] of Object.entries(batch.mode.configOptions ?? this.initialConfigs)) {
+            for (const [configId, value] of Object.entries(this.queuedConfigOptions(batch.mode, requestedRuntimeModel))) {
+                const option = this.runtimeOptions().find(option => option.id === configId)
+                const label = option?.name ?? configId
                 try {
-                    const option = this.permissionOptions().find(option => option.id === configId)
-                    if (!option) throw new Error('The DSH permission option is no longer available')
-                    if (!option.options.some(choice => choice.value === value)) throw new Error('The selected DSH permission preset is no longer available')
+                    if (!option?.options.some(choice => choice.value === value)
+                        || (option.category === 'reasoning' && requestedRuntimeModel !== this.currentBackendModel)) {
+                        throw new Error('The selected value is no longer available')
+                    }
                     if (option.currentValue === value) continue
                     await backend.setConfigOption(acpSessionId, configId, value)
-                    if (this.permissionOptions().find(option => option.id === configId)?.currentValue !== value) {
-                        throw new Error('DSH did not confirm the selected permission preset')
+                    if (this.runtimeOptions().find(option => option.id === configId)?.currentValue !== value) {
+                        throw new Error('DSH did not confirm the selected value')
                     }
                 } catch (error) {
                     configFailed = true
-                    if (this.selectedConfigs[configId] === value) delete this.selectedConfigs[configId]
-                    this.publishPermissionOptions()
-                    this.session.sendSessionEvent({ type: 'message', message: `DSH permission setting failed; this message was not sent: ${error instanceof Error ? error.message : String(error)}` })
+                    const selections = option?.category === 'reasoning'
+                        ? this.reasoningValues(this.selectedReasoning, requestedRuntimeModel) : this.selectedConfigs
+                    if (selections?.[configId] === value) delete selections[configId]
+                    this.publishConfigOptions()
+                    this.session.sendSessionEvent({ type: 'message', message: `DSH setting ${label} failed; this message was not sent: ${error instanceof Error ? error.message : String(error)}` })
                     break
                 }
             }
-            if (configFailed) continue
+            if (configFailed) {
+                if (this.session.queue.size() === 0 && !this.shouldExit) this.session.sendSessionEvent({ type: 'ready' })
+                continue
+            }
 
             const commandName = /^\/([a-z][a-z0-9-]*)(?:\s|$)/.exec(batch.message.trim())?.[1]
             if (commandName && !batch.mode.customSlash && (this.nativeCommands.has(commandName) || commandName === 'compact')) {
@@ -551,6 +606,7 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
             return null
         }
         try {
+            this.switchingModel = true
             await backend.setConfigOption(acpSessionId, option.id, model)
             this.currentBackendModel = model
             this.messageBuffer.addMessage(`[MODEL:${model}]`, 'system')
@@ -563,6 +619,9 @@ export class DshRemoteLauncher extends RemoteLauncherBase {
                 message: `Failed to switch DSH model: ${message}`
             })
             return null
+        } finally {
+            this.switchingModel = false
+            this.refreshConfigOptions()
         }
     }
 

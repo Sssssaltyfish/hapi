@@ -6,6 +6,11 @@ import type { DshMode } from './types'
 const FLASH = '["deepseek-official","deepseek-flash"]'
 const PRO = '["deepseek-official","deepseek-v4-pro"]'
 
+function reasoningOption() {
+    return { id: 'reasoning_effort', name: 'Reasoning effort', category: 'thought_level', currentValue: 'high',
+        options: [{ value: 'high', name: 'High' }, { value: 'off', name: 'Off' }, { value: 'max', name: 'Max' }] }
+}
+
 const harness = vi.hoisted(() => ({
     backend: null as Record<string, ReturnType<typeof vi.fn>> | null,
     newSessionConfig: null as unknown,
@@ -19,6 +24,7 @@ const harness = vi.hoisted(() => ({
     configOptionError: null as Error | null,
     configOptions: [] as Array<{ id: string; name?: string; category?: string; currentValue?: string; options: Array<{ value: string; name?: string }> }>,
     promptPermissions: [] as Array<string | undefined>,
+    promptReasoning: [] as Array<string | undefined>,
     bridgeCleanup: vi.fn(async () => {}),
     rejectInFlight: null as null | ((error: Error) => void),
     promptBlocker: null as Promise<void> | null,
@@ -48,6 +54,7 @@ vi.mock('./utils/dshBackend', () => ({
             prompt: vi.fn(async (_sessionId: string, content: unknown[], onUpdate: (message: unknown) => void) => {
                 harness.prompts.push(content)
                 harness.promptPermissions.push(harness.configOptions.find(option => option.category === 'permission')?.currentValue)
+                harness.promptReasoning.push(harness.configOptions.find(option => option.category === 'thought_level')?.currentValue)
                 if (harness.promptBlocker) await harness.promptBlocker
                 onUpdate({ type: 'text', text: 'answer' })
             }),
@@ -130,6 +137,7 @@ describe('DshRemoteLauncher', () => {
         harness.configOptionError = null
         harness.configOptions = []
         harness.promptPermissions = []
+        harness.promptReasoning = []
         harness.bridgeCleanup.mockClear()
         harness.rejectInFlight = null
         harness.promptBlocker = null
@@ -160,17 +168,18 @@ describe('DshRemoteLauncher', () => {
         expect(harness.backend?.disconnect).toHaveBeenCalled()
     })
 
-    it('resumes the exact native session and applies its selected HAPI permission to the first message', async () => {
+    it('resumes the exact native session and applies its selected permission and reasoning to the first message', async () => {
         const session = createSession()
         const permission = {
             id: 'permission', name: 'Permission', category: 'permission', type: 'select' as const,
             currentValue: 'default', options: [{ value: 'default', name: 'Default' }, { value: 'review', name: 'Review' }]
         }
-        harness.configOptions = [permission]
+        const reasoning = reasoningOption()
+        harness.configOptions = [permission, reasoning]
         harness.modelOption = { id: 'model', currentValue: PRO }
         const launcher = new DshRemoteLauncher(session as never, {
             resumeSessionId: 'persisted-dsh-id', model: PRO,
-            preferredOptions: [{ ...permission, selectedValue: 'review' }]
+            preferredOptions: [{ ...permission, selectedValue: 'review' }, { ...reasoning, category: 'reasoning', selectedValue: 'max' }]
         })
 
         await launcher.launch()
@@ -181,8 +190,12 @@ describe('DshRemoteLauncher', () => {
         expect(harness.backend?.newSession).not.toHaveBeenCalled()
         expect(session.onSessionFound).toHaveBeenCalledWith('persisted-dsh-id')
         expect(session.client.emitSessionReady).toHaveBeenCalledOnce()
-        expect(harness.setConfigOptionCalls).toEqual([{ sessionId: 'persisted-dsh-id', configId: 'permission', value: 'review' }])
+        expect(harness.setConfigOptionCalls).toEqual([
+            { sessionId: 'persisted-dsh-id', configId: 'permission', value: 'review' },
+            { sessionId: 'persisted-dsh-id', configId: 'reasoning_effort', value: 'max' }
+        ])
         expect(harness.promptPermissions).toEqual(['review'])
+        expect(harness.promptReasoning).toEqual(['max'])
     })
 
     it('executes compact through the advertised native command registry without a model prompt', async () => {
@@ -367,6 +380,42 @@ describe('DshRemoteLauncher', () => {
         await new DshRemoteLauncher(session as never).launch()
         expect(harness.promptPermissions).toEqual(['plugin:inspect', 'plugin:edit'])
         expect(harness.setConfigOptionCalls.map(call => call.value)).toEqual(['plugin:inspect', 'plugin:edit'])
+    })
+
+    it('publishes the ACP reasoning catalog and captures each selection without changing an active prompt', async () => {
+        const reasoning = reasoningOption()
+        harness.modelOption = { id: 'model', category: 'model', currentValue: FLASH }
+        harness.configOptions = [reasoning]
+        let releasePrompt!: () => void
+        harness.promptBlocker = new Promise(resolve => { releasePrompt = resolve })
+        const session = createSession()
+        session.queue.reset()
+        session.queue.push('in progress', {})
+        let preferredModel = FLASH
+        const launcher = new DshRemoteLauncher(session as never, { getPreferredModel: () => preferredModel })
+        const done = launcher.launch()
+        await vi.waitFor(() => expect(harness.promptReasoning).toEqual(['high']))
+
+        const handler = session.client.rpcHandlerManager.registerHandler.mock.calls.find(call => call[0] === 'set-session-config-option')?.[1]
+        const select = (value: string) => handler({ configId: reasoning.id, value })
+        await expect(select('unsupported')).rejects.toThrow('not currently advertised')
+        await expect(select('off')).resolves.toEqual({ applied: { configId: reasoning.id, value: 'off' }, applyAt: 'next-message' })
+        const publish = session.client.updateMetadata.mock.lastCall?.[0]
+        expect(publish({}).sessionConfigOptions).toEqual([{ ...reasoning, category: 'reasoning', selectedValue: 'off' }])
+        session.queue.push('use off', { model: FLASH, configOptions: launcher.getConfigPreferences() })
+        await select('max')
+        session.queue.push('use max', { model: FLASH, configOptions: launcher.getConfigPreferences() })
+
+        preferredModel = PRO
+        launcher.refreshConfigOptions()
+        expect(launcher.getConfigPreferences()).toEqual({})
+        expect(session.client.updateMetadata.mock.lastCall?.[0]({}).sessionConfigOptions).toEqual([])
+        await expect(select('max')).rejects.toThrow('not currently advertised')
+        expect(harness.setConfigOptionCalls).toEqual([])
+        session.queue.close()
+        releasePrompt()
+        await done
+        expect(harness.promptReasoning).toEqual(['high', 'off', 'max'])
     })
 
     it('does not send a queued prompt when the permission preset is refused', async () => {

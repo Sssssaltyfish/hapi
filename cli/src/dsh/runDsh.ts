@@ -77,6 +77,7 @@ export async function runDsh(opts: {
         if (!active) return
         active.setModel(currentModel ?? null)
         active.pushKeepAlive()
+        launcherRef.current?.refreshConfigOptions()
     }
 
     session.onUserMessage((message, localId) => {
@@ -138,6 +139,7 @@ export async function runDsh(opts: {
         model,
         resumeSessionId,
         preferredOptions: opts.existingSessionId ? sessionInfo.metadata?.sessionConfigOptions : undefined,
+        getPreferredModel: () => currentModel,
         onModelRollback: (model) => {
             currentModel = model ?? undefined
             syncSessionMode()

@@ -13,6 +13,7 @@ import { registerSessionConfigRpc } from '@/agent/sessionConfigRpc';
 import { formatQueuedSkillMessage } from '@/utils/queuedSkillReference';
 import { getInvokedCwd } from '@/utils/invokedCwd';
 import type { SessionEffort, SessionModel } from '@/api/types';
+import { isAgyEffortLevel } from '@hapi/protocol';
 
 export async function runAgy(opts: {
     startedBy?: 'runner' | 'terminal';
@@ -137,12 +138,19 @@ export async function runAgy(opts: {
             rpcHandlerManager: session.rpcHandlerManager,
             flavor: 'agy',
             modelMode: 'nullable',
+            effortMode: 'nullable',
             onApply: async (config) => {
+                if (config.effort != null && !isAgyEffortLevel(config.effort)) {
+                    throw new Error('Invalid Antigravity effort');
+                }
                 if (config.permissionMode !== undefined) {
                     currentPermissionMode = config.permissionMode;
                 }
                 if (config.model !== undefined) {
                     sessionModel = config.model;
+                }
+                if (config.effort !== undefined) {
+                    sessionEffort = config.effort;
                 }
             },
             onAfterApply: syncSessionMode

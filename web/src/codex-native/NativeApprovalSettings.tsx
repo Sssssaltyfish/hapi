@@ -2,8 +2,25 @@ import { useState } from 'react'
 import { CODEX_APPROVAL_POLICIES, CODEX_APPROVALS_REVIEWERS } from '@hapi/protocol'
 import type { NativeApprovalSettingsPatch } from './nativeSessionApiAdapter'
 import { record } from './presentation'
-import { useTranslation } from '@/lib/use-translation'
+import { useTranslation, type I18nContextValue } from '@/lib/use-translation'
 import { SelectControl } from '@/components/ui/select-control'
+
+function getNativeApprovalOptions(settings: Record<string, unknown>) {
+    return {
+        policy: CODEX_APPROVAL_POLICIES.find(value => value === settings.approvalPolicy),
+        reviewer: CODEX_APPROVALS_REVIEWERS.find(value => value === settings.approvalsReviewer),
+    }
+}
+
+export function getNativeApprovalStatusLabel(settings: Record<string, unknown>, t: I18nContextValue['t']): string | null {
+    const { policy, reviewer } = getNativeApprovalOptions(settings)
+    if (policy === 'never') return t('nativeApproval.status.noPrompts')
+    if (reviewer === 'user') return t('nativeApproval.status.manualReview')
+    if (reviewer) return t(`nativeApproval.reviewer.${reviewer}`)
+    if (policy) return t(`nativeApproval.policy.${policy}`)
+    if (Object.hasOwn(record(settings.approvalPolicy), 'granular')) return t('nativeApproval.status.granular')
+    return null
+}
 
 export function NativeApprovalSettings(props: {
     settings: Record<string, unknown>
@@ -12,10 +29,7 @@ export function NativeApprovalSettings(props: {
 }) {
     const { t } = useTranslation()
     const [pending, setPending] = useState(false)
-    const policy = props.settings.approvalPolicy
-    const reviewer = props.settings.approvalsReviewer
-    const policyKnown = typeof policy === 'string' && (CODEX_APPROVAL_POLICIES as readonly string[]).includes(policy)
-    const reviewerKnown = typeof reviewer === 'string' && (CODEX_APPROVALS_REVIEWERS as readonly string[]).includes(reviewer)
+    const { policy, reviewer } = getNativeApprovalOptions(props.settings)
     const sandbox = record(props.settings.sandboxPolicy).type
     const sandboxLabel = sandbox === 'readOnly' ? t('nativeApproval.sandbox.readOnly')
         : sandbox === 'workspaceWrite' ? t('nativeApproval.sandbox.workspaceWrite')
@@ -39,11 +53,11 @@ export function NativeApprovalSettings(props: {
                 <SelectControl
                     aria-label={t('nativeApproval.reviewer')}
                     className="w-full rounded border border-[var(--app-divider)] bg-[var(--app-bg)] px-2 py-1.5 disabled:opacity-50"
-                    value={reviewerKnown && typeof reviewer === 'string' ? reviewer : ''}
-                    disabled={props.disabled || pending || reviewer === undefined}
+                    value={reviewer ?? ''}
+                    disabled={props.disabled || pending || props.settings.approvalsReviewer === undefined}
                     onChange={event => void change({ approvalsReviewer: event.target.value as 'user' | 'auto_review' })}
                 >
-                    {!reviewerKnown && <option value="" disabled>{t('nativeApproval.custom')}</option>}
+                    {reviewer === undefined && <option value="" disabled>{t('nativeApproval.custom')}</option>}
                     {CODEX_APPROVALS_REVIEWERS.map(value => <option key={value} value={value}>{t(`nativeApproval.reviewer.${value}`)}</option>)}
                 </SelectControl>
             </label>
@@ -52,11 +66,11 @@ export function NativeApprovalSettings(props: {
                 <SelectControl
                     aria-label={t('nativeApproval.policy')}
                     className="w-full rounded border border-[var(--app-divider)] bg-[var(--app-bg)] px-2 py-1.5 disabled:opacity-50"
-                    value={policyKnown && typeof policy === 'string' ? policy : ''}
-                    disabled={props.disabled || pending || policy === undefined}
+                    value={policy ?? ''}
+                    disabled={props.disabled || pending || props.settings.approvalPolicy === undefined}
                     onChange={event => void change({ approvalPolicy: event.target.value as 'on-request' | 'untrusted' | 'never' })}
                 >
-                    {!policyKnown && <option value="" disabled>{t('nativeApproval.custom')}</option>}
+                    {policy === undefined && <option value="" disabled>{t('nativeApproval.custom')}</option>}
                     {CODEX_APPROVAL_POLICIES.map(value => <option key={value} value={value}>{t(`nativeApproval.policy.${value}`)}</option>)}
                 </SelectControl>
             </label>

@@ -136,23 +136,39 @@ describe('StatusBar context occupancy', () => {
         expect(screen.queryByText('default')).not.toBeInTheDocument()
     })
 
-    it('does not expose ordinary effort for Claude or unknown flavors', () => {
-        const { rerender } = render(
+    it.each(['agy', 'claude', 'grok'])('shows %s ordinary effort beside its current approval mode', agentFlavor => {
+        render(
             <I18nProvider>
                 <StatusBar
                     active
                     thinking={false}
                     agentState={null}
-                    agentFlavor="claude"
-                    effort="max"
+                    agentFlavor={agentFlavor}
+                    effort="high"
+                    permissionMode={agentFlavor === 'agy' ? 'request-review' : 'default'}
                 />
             </I18nProvider>
         )
 
-        expect(screen.queryByText('reasoning max')).not.toBeInTheDocument()
-        expect(screen.queryByText('max')).not.toBeInTheDocument()
+        expect(screen.getByText('high').className.split(' ')).toContain('sm:hidden')
+        expect(screen.getByText('reasoning high')).toBeInTheDocument()
+        expect(screen.getByText(agentFlavor === 'agy' ? 'Request Review' : 'Default')).toBeInTheDocument()
+    })
 
-        rerender(
+    it('shows the running DSH effort and approval labels without translating opaque values', () => {
+        render(
+            <I18nProvider>
+                <StatusBar active thinking={false} agentState={null} agentFlavor="dsh"
+                    sessionReasoningLabel="Deep" sessionPermissionLabel="Ask on write" />
+            </I18nProvider>
+        )
+        expect(screen.getByText('Deep').className.split(' ')).toContain('sm:hidden')
+        expect(screen.getByText('reasoning Deep')).toBeInTheDocument()
+        expect(screen.getByText('Ask on write')).toBeInTheDocument()
+    })
+
+    it('does not claim effort or approval modes for unsupported sessions', () => {
+        render(
             <I18nProvider>
                 <StatusBar
                     active
@@ -160,12 +176,15 @@ describe('StatusBar context occupancy', () => {
                     agentState={null}
                     agentFlavor="unknown"
                     effort="max"
+                    permissionMode="default"
+                    permissionModeOptions={[]}
                 />
             </I18nProvider>
         )
 
         expect(screen.queryByText('reasoning max')).not.toBeInTheDocument()
         expect(screen.queryByText('max')).not.toBeInTheDocument()
+        expect(screen.queryByText('Default')).not.toBeInTheDocument()
     })
 
     it('toggles actual occupancy beside effort on the same status row', () => {

@@ -72,7 +72,11 @@ function fields(...fields: AgentConfigFieldDescriptor[]): AgentConfigFieldDescri
 }
 
 const BUILTIN_DESCRIPTORS: Record<AgentFlavor, AgentConfigFieldDescriptor[]> = {
-    agy: fields({ ...MODEL, optionSource: 'machine' }, PERMISSION),
+    agy: fields(
+        { ...MODEL, optionSource: 'machine' },
+        { id: 'effort', section: 'effort', kind: 'select', optionSource: 'static', availability: 'session' },
+        PERMISSION
+    ),
     claude: fields(MODEL, { id: 'effort', section: 'effort', kind: 'select', optionSource: 'static', availability: 'both' }, PERMISSION),
     codex: fields(
         { ...MODEL, optionSource: 'machine' },
@@ -81,7 +85,10 @@ const BUILTIN_DESCRIPTORS: Record<AgentFlavor, AgentConfigFieldDescriptor[]> = {
         { id: 'serviceTier', section: 'settings', kind: 'select', optionSource: 'model', availability: 'both' },
         { id: 'collaborationMode', section: 'settings', kind: 'select', optionSource: 'static', availability: 'both' }
     ),
-    dsh: fields({ ...PERMISSION, optionSource: 'session', availability: 'session' }),
+    dsh: fields(
+        { id: 'effort', section: 'effort', kind: 'select', optionSource: 'session', availability: 'session' },
+        { ...PERMISSION, optionSource: 'session', availability: 'session' }
+    ),
     copilot: fields({ ...MODEL, optionSource: 'directory' }, PERMISSION),
     cursor: fields({ id: 'model', section: 'model', kind: 'dependent-select', optionSource: 'machine', availability: 'both' }, PERMISSION),
     gemini: fields(MODEL, PERMISSION),

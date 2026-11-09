@@ -10,3 +10,11 @@ export const CLAUDE_EFFORT_LABELS = {
 
 export type ClaudeEffortLevel = keyof typeof CLAUDE_EFFORT_LABELS
 export const CLAUDE_EFFORT_LEVELS = Object.keys(CLAUDE_EFFORT_LABELS) as ClaudeEffortLevel[]
+
+// Values accepted by Antigravity's independent `--effort` CLI option.
+export const AGY_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
+export type AgyEffortLevel = typeof AGY_EFFORT_LEVELS[number]
+
+export function isAgyEffortLevel(value: unknown): value is AgyEffortLevel {
+    return typeof value === 'string' && (AGY_EFFORT_LEVELS as readonly string[]).includes(value)
+}

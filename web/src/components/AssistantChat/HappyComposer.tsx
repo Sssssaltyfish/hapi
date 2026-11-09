@@ -22,7 +22,6 @@ import {
     useRef,
     useState
 } from 'react'
-import { useNarrowViewport } from '@/hooks/useNarrowViewport'
 import { shouldInvokeComposerDictateShortcut } from '@/lib/composerDictateShortcut'
 import { insertPlainTextInComposerSegments, isRichComposerMentionsEnabled, parseComposerSegments, resolveComposerPlaceholderKey, serializeComposerSegments } from '@/lib/composerSegments'
 import type { SessionMentionResolveResult } from '@/components/AssistantChat/RichComposerInput'
@@ -40,8 +39,7 @@ import { useActiveSuggestions } from '@/hooks/useActiveSuggestions'
 import { applySuggestion } from '@/utils/applySuggestion'
 import { usePlatform } from '@/hooks/usePlatform'
 import { usePWAInstall } from '@/hooks/usePWAInstall'
-import { supportsEffort, supportsModelChange, PI_THINKING_LEVEL_LABELS } from '@hapi/protocol'
-import type { PiThinkingLevel } from '@hapi/protocol'
+import { AGY_EFFORT_LEVELS, CLAUDE_EFFORT_LABELS, supportsModelChange } from '@hapi/protocol'
 import { markSkillUsed } from '@/lib/recent-skills'
 import { useComposerDraft } from '@/hooks/useComposerDraft'
 import type { AttachmentDraftInput } from '@/lib/composer-attachment-drafts'
@@ -293,6 +291,11 @@ export function ModelEffortSettingsSection(props: {
     )
 }
 
+function normalizeSelectedEffort(value?: string | null): string | null {
+    const effort = value?.trim().toLowerCase()
+    return !effort || effort === 'auto' || effort === 'default' ? null : effort
+}
+
 export function HappyComposer(props: {
     sessionId?: string
     focusInputRef?: MutableRefObject<(() => void) | null>
@@ -304,6 +307,9 @@ export function HappyComposer(props: {
     availablePermissionModes?: readonly PermissionMode[]
     approvalSettings?: ReactNode
     approvalSettingsTitle?: string
+    sessionPermissionLabel?: string | null
+    sessionReasoningLabel?: string | null
+    reasoningSettings?: { content: ReactNode; selectedLabel: string | null }
     modeControls?: ReactNode
     collaborationMode?: CodexCollaborationMode
     copilotAgentMode?: CopilotAgentMode
@@ -421,6 +427,7 @@ export function HappyComposer(props: {
         availablePermissionModes,
         approvalSettings,
         approvalSettingsTitle,
+        reasoningSettings,
         collaborationMode: rawCollaborationMode,
         copilotAgentMode: rawCopilotAgentMode,
         model: rawModel,
@@ -482,8 +489,8 @@ export function HappyComposer(props: {
     const collaborationMode = rawCollaborationMode ?? 'default'
     const copilotAgentMode = rawCopilotAgentMode ?? 'interactive'
     const model = rawModel ?? null
-    const modelReasoningEffort = rawModelReasoningEffort ?? null
-    const effort = rawEffort ?? null
+    const modelReasoningEffort = agentFlavor === 'opencode' ? rawModelReasoningEffort ?? null : normalizeSelectedEffort(rawModelReasoningEffort)
+    const effort = agentFlavor === 'grok' ? rawEffort ?? null : normalizeSelectedEffort(rawEffort)
     const serviceTier = rawServiceTier ?? null
     const displayedServiceTier = getDisplayedCodexServiceTier(serviceTier)
 
@@ -1090,20 +1097,26 @@ export function HappyComposer(props: {
             onEffortChange(getHighestThinkingLevel(selectedPiModel.thinkingLevelMap))
         }
     }, [selectedPiModel, effort, onEffortChange])
-    const claudeEffortOptions = useMemo(
-        () => agentFlavor === 'pi'
-            ? getPiThinkingLevelOptions(effort, selectedPiModel?.thinkingLevelMap)
-            : agentFlavor === 'grok' && availableEffortOptions && availableEffortOptions.length > 0
-                ? [
-                    { value: null, label: 'Default' },
-                    ...availableEffortOptions.map((option) => ({
-                        value: option.value,
-                        label: option.name ?? option.value
-                    }))
-                ]
-            : getClaudeComposerEffortOptions(effort),
-        [agentFlavor, effort, selectedPiModel, availableEffortOptions]
-    )
+    const effortOptions = useMemo(() => {
+        if (agentFlavor === 'pi') {
+            return selectedPiModel && selectedPiModel.reasoning !== false
+                ? getPiThinkingLevelOptions(effort, selectedPiModel.thinkingLevelMap)
+                : []
+        }
+        if (availableEffortOptions?.length) {
+            return [
+                { value: null, label: 'Default' },
+                ...availableEffortOptions.map(option => ({ value: option.value, label: option.name ?? option.value }))
+            ]
+        }
+        if (agentFlavor === 'agy') {
+            return [
+                { value: null, label: 'Default' },
+                ...AGY_EFFORT_LEVELS.map(value => ({ value, label: CLAUDE_EFFORT_LABELS[value] }))
+            ]
+        }
+        return agentFlavor === 'claude' ? getClaudeComposerEffortOptions(effort) : []
+    }, [agentFlavor, effort, selectedPiModel, availableEffortOptions])
     const permissionModes = useMemo(
         () => permissionModeOptions.map((option) => option.mode),
         [permissionModeOptions]
@@ -1721,14 +1734,8 @@ export function HappyComposer(props: {
             && modelEffortOptions.length > 1
         )
     const showModelReasoningEffortSettings = Boolean(onModelReasoningEffortChange && codexReasoningEffortOptions.length > 0)
-    // For Pi: hide effort while the selected model is unresolved (catalog
-    // still loading/failed) or explicitly has reasoning: false — the generic
-    // fallback levels would mutate a set_thinking_level the model may reject.
-    const piEffortUnavailable = agentFlavor === 'pi'
-        && (!selectedPiModel || selectedPiModel.reasoning === false)
-    const showEffortSettings = Boolean(onEffortChange && supportsEffort(agentFlavor) && !piEffortUnavailable)
+    const showEffortSettings = Boolean(onEffortChange && effortOptions.length > 0)
     const showFastModeSettings = Boolean(onServiceTierChange)
-    const showModelAreaSettings = showModelSettings || showModelEffortSettings || showModelReasoningEffortSettings || showEffortSettings
     const showOtherSettings = showFastModeSettings || showCollaborationSettings || showCopilotAgentModeSettings
     const showSettingsButton = Boolean(
         showCollaborationSettings
@@ -1738,6 +1745,7 @@ export function HappyComposer(props: {
         || showModelEffortSettings
         || showModelReasoningEffortSettings
         || showEffortSettings
+        || reasoningSettings
         || showFastModeSettings
     )
     const showAbortButton = true
@@ -1775,10 +1783,6 @@ export function HappyComposer(props: {
         }
     }, [props.dictateHotkeyRef, invokeDictateHotkey])
 
-    // Value buttons open their own section in the existing settings sheet.
-    // Codex keeps its reasoning shortcut on phones so long model lists do not
-    // push the only effort control below the visible part of the full sheet.
-    const isNarrowViewport = useNarrowViewport()
     // Pi turns run for minutes with thread.isDisabled set the whole time, so
     // Pi keeps its model/effort controls live mid-turn (#1442) — the generic
     // disable rule (controlsDisabled) would lock them for the entire turn.
@@ -1802,28 +1806,26 @@ export function HappyComposer(props: {
         const option = modelOptions.find((candidate) => candidate.value === normalizedKey)
         return option?.label ?? rawKey ?? undefined
     }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel])
-    const effortValueLabel = useMemo(() => {
-        if (agentFlavor === 'codex' && showModelReasoningEffortSettings) {
-            return codexReasoningEffortOptions.find(option => option.value === (modelReasoningEffort || resolvedDefaultReasoningEffort || null))?.label
-                ?? modelReasoningEffort ?? resolvedDefaultReasoningEffort
-                ?? t('misc.reasoningEffort')
-        }
-        if (isNarrowViewport) return undefined
-        if (!onEffortChange || !supportsEffort(agentFlavor)) return undefined
-        // Pi: without a resolved catalog entry there is no capability map to
-        // derive levels from; hide the button until the selected model is known.
-        if (agentFlavor === 'pi') {
-            if (!selectedPiModel || selectedPiModel.reasoning === false) return undefined
-            const effectiveLevel = effort && isThinkingLevelSupported(effort, selectedPiModel?.thinkingLevelMap)
+    const defaultReasoningEffort = resolvedDefaultReasoningEffort?.trim() || null
+    const effectiveModelReasoningEffort = modelReasoningEffort ?? defaultReasoningEffort
+    const effectiveEffort = agentFlavor === 'pi' && selectedPiModel
+        ? selectedPiModel.reasoning === false
+            ? null
+            : effort && isThinkingLevelSupported(effort, selectedPiModel.thinkingLevelMap)
                 ? effort
-                : getHighestThinkingLevel(selectedPiModel?.thinkingLevelMap)
-            return effectiveLevel
-                ? (PI_THINKING_LEVEL_LABELS[effectiveLevel as PiThinkingLevel] ?? effectiveLevel)
+                : getHighestThinkingLevel(selectedPiModel.thinkingLevelMap)
+        : effort ?? defaultReasoningEffort
+    const effortValueLabel = reasoningSettings
+        ? reasoningSettings.selectedLabel ?? t('misc.reasoningEffort')
+        : showModelReasoningEffortSettings
+            ? codexReasoningEffortOptions.find(option => option.value === effectiveModelReasoningEffort)?.label
+                ?? effectiveModelReasoningEffort ?? t('misc.reasoningEffort')
+            : showEffortSettings
+                ? effortOptions.find(option => option.value === effectiveEffort)?.label ?? effectiveEffort ?? undefined
                 : undefined
-        }
-        const option = claudeEffortOptions.find((candidate) => candidate.value === effort)
-        return option?.label ?? (effort ? effort : undefined)
-    }, [isNarrowViewport, onEffortChange, agentFlavor, selectedPiModel, effort, claudeEffortOptions, showModelReasoningEffortSettings, codexReasoningEffortOptions, modelReasoningEffort, resolvedDefaultReasoningEffort, t])
+    const effortValueTitle = effortValueLabel && (showModelReasoningEffortSettings || reasoningSettings?.selectedLabel)
+        ? `${t('misc.reasoningEffort')}: ${effortValueLabel}`
+        : undefined
 
     // Wrapper for DOM onClick consumers: never leak the MouseEvent into the
     // `section` parameter (the gear must always open the full sheet).
@@ -1856,13 +1858,14 @@ export function HappyComposer(props: {
         const sheetModelEffortSettings = showModelEffortSettings && sheetModelAreaOn
         const sheetModelReasoningEffortSettings = showModelReasoningEffortSettings && sheetEffortAreaOn
         const sheetEffortSettings = showEffortSettings && sheetEffortAreaOn
+        const sheetReasoningSettings = sheetEffortAreaOn ? reasoningSettings : undefined
         const sheetPermissionSettings = showPermissionSettings && sheetOthersOn
         const sheetFastModeSettings = showFastModeSettings && sheetOthersOn
         const sheetCollaborationSettings = showCollaborationSettings && sheetOthersOn
         const sheetCopilotAgentModeSettings = showCopilotAgentModeSettings && sheetOthersOn
-        const sheetModelAreaSettings = sheetModelSettings || sheetModelEffortSettings || sheetModelReasoningEffortSettings || sheetEffortSettings
+        const sheetModelAreaSettings = sheetModelSettings || sheetModelEffortSettings || sheetModelReasoningEffortSettings || sheetEffortSettings || sheetReasoningSettings
         const sheetOtherSettings = sheetFastModeSettings || sheetCollaborationSettings || sheetCopilotAgentModeSettings
-        if (showSettings && (sheetCollaborationSettings || sheetCopilotAgentModeSettings || sheetPermissionSettings || sheetModelSettings || sheetModelEffortSettings || sheetModelReasoningEffortSettings || sheetEffortSettings || sheetFastModeSettings)) {
+        if (showSettings && (sheetModelAreaSettings || sheetOtherSettings || sheetPermissionSettings)) {
             return (
                 <div ref={settingsOverlayRef} className={`${overlayPositionClass} w-full`}>
                     <FloatingOverlay maxHeight={320}>
@@ -2030,7 +2033,7 @@ export function HappyComposer(props: {
                                 <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
                                     {t('misc.effort')}
                                 </div>
-                                {claudeEffortOptions.map((option) => (
+                                {effortOptions.map((option) => (
                                     <button
                                         key={option.value ?? 'auto'}
                                         type="button"
@@ -2062,6 +2065,10 @@ export function HappyComposer(props: {
                                     </button>
                                 ))}
                             </div>
+                        ) : null}
+
+                        {sheetReasoningSettings ? (
+                            <div className="py-2">{sheetReasoningSettings.content}</div>
                         ) : null}
 
                         {sheetModelAreaSettings && sheetPermissionSettings ? (
@@ -2275,7 +2282,8 @@ export function HappyComposer(props: {
         agentFlavor,
         modelOptions,
         codexReasoningEffortOptions,
-        claudeEffortOptions,
+        effortOptions,
+        reasoningSettings,
         fastModeOptions,
         suggestions,
         selectedIndex,
@@ -2334,10 +2342,14 @@ export function HappyComposer(props: {
                         contextSize={contextSize}
                         contextWindow={contextWindow}
                         model={model}
-                        modelReasoningEffort={modelReasoningEffort}
-                        effort={effort}
+                        modelReasoningEffort={effectiveModelReasoningEffort}
+                        effort={effectiveEffort}
+                        showReasoningDefault={showEffortSettings && agentFlavor !== 'pi'}
+                        sessionReasoningLabel={props.sessionReasoningLabel}
                         serviceTier={serviceTier}
                         permissionMode={permissionMode}
+                        permissionModeOptions={permissionModeOptions}
+                        sessionPermissionLabel={props.sessionPermissionLabel}
                         collaborationMode={collaborationMode}
                         copilotAgentMode={copilotAgentMode}
                         agentFlavor={agentFlavor}
@@ -2574,7 +2586,7 @@ export function HappyComposer(props: {
                                 modelValueOpen={showSettings && settingsSection !== 'effort'}
                                 onModelValueToggle={handleModelValueToggle}
                                 effortValueLabel={effortValueLabel}
-                                effortValueTitle={agentFlavor === 'codex' && effortValueLabel ? `${t('misc.reasoningEffort')}: ${effortValueLabel}` : undefined}
+                                effortValueTitle={effortValueTitle}
                                 effortValueDisabled={modelEffortControlsDisabled}
                                 effortValueOpen={showSettings && settingsSection !== 'model'}
                                 onEffortValueToggle={handleEffortValueToggle}

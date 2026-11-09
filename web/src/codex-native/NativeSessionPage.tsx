@@ -15,7 +15,7 @@ import { createNativeSessionApiAdapter } from './nativeSessionApiAdapter'
 import { useNativeSuggestions } from './useNativeSuggestions'
 import { getConversationReadingPosition } from '@/lib/conversation-reading-position'
 import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
-import { NativeApprovalSettings } from './NativeApprovalSettings'
+import { getNativeApprovalStatusLabel, NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 import type { NativeItemEntry } from './types'
@@ -207,6 +207,7 @@ function NativeSessionChat({
             nativeCapabilities={{
                 available: !unavailable,
                 connected: thread.connected,
+                approvalStatusLabel: getNativeApprovalStatusLabel(settings, t),
                 modeControls: <NativePlanButton commands={commands} disabled={unavailable || !thread.connected} />,
                 queueContent: <><NativeManagementResult result={commands.managementResult}
                     pending={commands.pending} disabled={unavailable || !thread.connected} execute={commands.execute} dismiss={commands.dismissManagementResult}

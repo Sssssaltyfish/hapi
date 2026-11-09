@@ -6,7 +6,9 @@ import { I18nProvider } from '@/lib/i18n-context'
 import type { PendingSchedule } from '@/components/AssistantChat/ScheduleTimePicker'
 import type { ComposerSendIntent } from '@/lib/messageDelivery'
 import type { ComposerToolbarLayout } from '@/hooks/useComposerToolbarLayout'
+import type { ApiClient } from '@/api/client'
 import { HappyComposer } from './HappyComposer'
+import { SessionConfigSettings } from './SessionConfigSettings'
 
 /**
  * Focused harness for the generic model/effort value buttons and the
@@ -187,17 +189,59 @@ describe('HappyComposer generic model/effort value buttons', () => {
         expect(screen.queryByRole('button', { name: 'High' })).toBeNull()
     })
 
-    it('keeps the model shortcut on narrow viewports alongside settings', () => {
+    it('opens Claude effort from its mobile shortcut when effort is unset', () => {
         runtime.narrowViewport = true
-        renderComposer('claude')
+        const changeEffort = vi.fn()
+        renderComposer('claude', { effort: null, onEffortChange: changeEffort })
         expect(screen.getByRole('button', { name: 'Sonnet 4' })).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: 'Auto' }))
+        expect(screen.queryByText('Model')).toBeNull()
+        fireEvent.click(screen.getByRole('button', { name: 'High' }))
+        expect(changeEffort).toHaveBeenCalledExactlyOnceWith('high')
+    })
+
+    it('offers Antigravity effort independent of the model on mobile', () => {
+        runtime.narrowViewport = true
+        const changeEffort = vi.fn()
+        renderComposer('agy', { model: 'argon-high', effort: null, onEffortChange: changeEffort })
+        fireEvent.click(screen.getByRole('button', { name: 'Default' }))
+        fireEvent.click(screen.getByRole('button', { name: 'XHigh' }))
+        expect(changeEffort).toHaveBeenCalledExactlyOnceWith('xhigh')
+    })
+
+    it('opens the runner-advertised DSH effort options from the mobile toolbar', async () => {
+        runtime.narrowViewport = true
+        const setSessionConfigOption = vi.fn(async () => ({ ok: true }))
+        const api = { setSessionConfigOption } as unknown as ApiClient
+        renderComposer('dsh', {
+            reasoningSettings: {
+                selectedLabel: 'Deep',
+                content: <SessionConfigSettings api={api} sessionId="composer-test" disabled={false} options={[
+                    { id: 'thought_level', name: 'Reasoning effort', category: 'reasoning', currentValue: 'minimal', selectedValue: 'deep', options: [
+                        { value: 'minimal', name: 'Minimal' }, { value: 'deep', name: 'Deep' },
+                    ] },
+                ]} />,
+            },
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Reasoning Effort: Deep' }))
+        const selector = screen.getByRole('combobox', { name: 'Reasoning effort' })
+        expect(selector).toHaveValue('deep')
+        await act(async () => { fireEvent.change(selector, { target: { value: 'minimal' } }) })
+        expect(setSessionConfigOption).toHaveBeenCalledExactlyOnceWith('composer-test', 'thought_level', 'minimal')
+    })
+
+    it('respects a hidden effort shortcut on mobile and keeps effort in settings', () => {
+        runtime.narrowViewport = true
+        runtime.toolbarLayout = { mode: 'left', left: ['model', 'settings'], right: [], hidden: ['effort'] }
+        renderComposer('claude')
         expect(screen.queryByRole('button', { name: 'High' })).toBeNull()
-        expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
+        fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+        expect(screen.getByRole('button', { name: 'High' })).toBeTruthy()
     })
 
     it('opens Codex reasoning directly on phones and omits unavailable scheduling', () => {
         runtime.narrowViewport = true
-        runtime.toolbarLayout = { mode: 'left', left: ['attachment', 'expand'], right: [], hidden: ['settings', 'model', 'effort'] }
+        runtime.toolbarLayout = { mode: 'left', left: ['attachment', 'expand', 'effort'], right: [], hidden: ['settings', 'model'] }
         const changeEffort = vi.fn()
         renderComposer('codex', {
             model: 'gpt-6-astra', modelReasoningEffort: 'high', onModelReasoningEffortChange: changeEffort,

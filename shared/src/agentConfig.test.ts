@@ -27,14 +27,14 @@ describe('agent config descriptors', () => {
         }))
     })
 
-    test('takes DSH permission options from the running session catalog', () => {
+    test('takes DSH effort and permission options from the running session catalog', () => {
         const descriptor = getAgentConfigDescriptor('dsh')
-        expect(descriptor.fields).toEqual([expect.objectContaining({
-            id: 'permission',
+        expect(descriptor.fields).toEqual(['effort', 'permission'].map(id => expect.objectContaining({
+            id,
             kind: 'select',
             optionSource: 'session',
             availability: 'session'
-        })])
+        })))
         expect(resolveHapiYoloPermissionMode('dsh')).toBeNull()
     })
 

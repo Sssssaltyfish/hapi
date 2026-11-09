@@ -4,6 +4,11 @@ import type { ApiClient } from '@/api/client'
 import { useTranslation } from '@/lib/use-translation'
 import { SelectControl } from '@/components/ui/select-control'
 
+export function getSessionConfigValueLabel(option: SessionConfigOption | undefined, value: string | undefined): string | null {
+    if (!value) return null
+    return option?.options.find(choice => choice.value === value)?.name ?? value
+}
+
 /** Labels and opaque values are owned by the running provider and its plugins. */
 export function SessionConfigSettings(props: {
     api: ApiClient

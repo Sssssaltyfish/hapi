@@ -737,9 +737,9 @@ export function ComposerButtons(props: {
     const { t } = useTranslation()
     const { layout } = useComposerToolbarLayout()
     const isNarrowViewport = useNarrowViewport()
-    // Keep phone settings and any explicitly supplied effort shortcut reachable,
-    // including layouts saved before Codex had a direct reasoning control.
-    const narrowValues: ComposerToolbarItemId[] = isNarrowViewport ? [...(props.modelValueLabel ? ['model' as const] : []), ...(props.effortValueLabel ? ['effort' as const] : [])] : []
+    const narrowValues: ComposerToolbarItemId[] = []
+    if (isNarrowViewport && props.modelValueLabel) narrowValues.push('model')
+    if (isNarrowViewport && props.effortValueLabel && !layout.hidden.includes('effort')) narrowValues.push('effort')
     const requiredItems: ComposerToolbarItemId[] = isNarrowViewport ? ['settings', ...narrowValues] : []
     const restoredItems = requiredItems.filter(item => layout.hidden.includes(item))
     const effectiveLayout: ComposerToolbarLayout = isNarrowViewport

@@ -522,7 +522,7 @@ describe('AgyHeadlessDriver', () => {
             },
         });
 
-        queue.push('hello', { permissionMode: 'request-review', effort: 'high' }, 'local-1');
+        queue.push('hello', { permissionMode: 'request-review', effort: 'xhigh' }, 'local-1');
         const launchPromise = driver.launch();
         await new Promise((r) => setTimeout(r, 500));
         queue.close();
@@ -530,7 +530,7 @@ describe('AgyHeadlessDriver', () => {
         await launchPromise;
 
         expect(spawnedArgs[0]).toContain('--effort');
-        expect(spawnedArgs[0]).toContain('high');
+        expect(spawnedArgs[0]).toContain('xhigh');
     });
 
     it('adopts the conversation id from the result envelope when init is absent', async () => {

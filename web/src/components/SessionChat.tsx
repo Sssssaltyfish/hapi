@@ -38,7 +38,7 @@ import {
 } from '@/lib/codexModelCapabilities'
 import { createSerialAsyncQueue } from '@/lib/serialAsyncQueue'
 import { HappyComposer, type ComposerSendError, type ComposerCommandOutcome } from '@/components/AssistantChat/HappyComposer'
-import { SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
+import { getSessionConfigValueLabel, SessionConfigSettings } from '@/components/AssistantChat/SessionConfigSettings'
 import { useComposerSendMode } from '@/hooks/useComposerSendMode'
 import { useSideQuestion } from '@/hooks/useSideQuestion'
 import { SideQuestionPanel } from '@/components/AssistantChat/SideQuestionPanel'
@@ -67,7 +67,7 @@ import {
     type ComposerSendIntent,
 } from '@/lib/messageDelivery'
 import type { MessageDeliveryMode } from '@hapi/protocol'
-import { isSteeringSupportedForSession } from '@hapi/protocol'
+import { isCursorAcpWireModelId, isCursorAutoModelId, isSteeringSupportedForSession, parseCursorSkuParamHints } from '@hapi/protocol'
 import { createAttachmentAdapter } from '@/lib/attachmentAdapter'
 import { getMessageWindowState, hasNewerMessagesOutsideWindow, hydrateMessageWindow, rewindMessageWindow, type OlderLoadOutcome } from '@/lib/message-window-store'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
@@ -123,7 +123,7 @@ import {
     resolveSessionCursorModelChange,
     resolveSessionCursorVariantSelectValue
 } from '@/lib/sessionChatCursorModel'
-import { buildCursorEffortPickerOptionsWithDefaultFirst } from '@/lib/cursorModelOptions'
+import { buildCursorEffortPickerOptionsWithDefaultFirst, parseCursorWireParams } from '@/lib/cursorModelOptions'
 import { useOpencodeModels } from '@/hooks/queries/useOpencodeModels'
 import { useGrokModels } from '@/hooks/queries/useGrokModels'
 import { useCopilotModels } from '@/hooks/queries/useCopilotModels'
@@ -587,7 +587,15 @@ function hasAbortableAgentRun(blocks: readonly ChatBlock[]): boolean {
 
 type SessionChatProps = {
     api: ApiClient
-    nativeCapabilities?: { available: boolean; connected: boolean; approvalSettings?: ReactNode; queueContent?: ReactNode; modeControls?: ReactNode; onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome> }
+    nativeCapabilities?: {
+        available: boolean
+        connected: boolean
+        approvalSettings?: ReactNode
+        approvalStatusLabel?: string | null
+        queueContent?: ReactNode
+        modeControls?: ReactNode
+        onSubmitCommand?: (text: string) => ComposerCommandOutcome | Promise<ComposerCommandOutcome>
+    }
     titleSuggestionAvailable?: boolean
     session: Session
     resolveSlashCommands?: () => SlashCommand[] | null | Promise<SlashCommand[] | null>
@@ -1039,6 +1047,11 @@ function SessionChatInner(props: SessionChatProps) {
         [props.onSend, props.api, props.session.id, props.session.metadata?.capabilities?.concurrentClients, navigate, scratchlist, scratchlistMode],
     )
     const agentFlavor = props.session.metadata?.flavor ?? null
+    const sessionConfigOptions = agentFlavor === 'dsh' ? props.session.metadata?.sessionConfigOptions ?? [] : []
+    const reasoningConfigOptions = sessionConfigOptions.filter(option => option.category === 'reasoning')
+    const approvalConfigOptions = sessionConfigOptions.filter(option => option.category !== 'reasoning')
+    const reasoningConfig = reasoningConfigOptions[0]
+    const permissionConfig = approvalConfigOptions.find(option => option.category === 'permission')
     // The effort-options query is keyed by session only, so a stale option
     // list from the previous model would survive a switch. Reset when the
     // session model changes. `session.model` is updated by the hub at REST-ack
@@ -1354,6 +1367,15 @@ function SessionChatInner(props: SessionChatProps) {
             ? resolveSessionCursorVariantSelectValue(props.session.model, cursorModelEffortOptions)
             : null
     ), [agentFlavor, cursorModelEffortOptions, props.session.model])
+    const cursorStatusModel = agentFlavor === 'cursor'
+        ? props.session.model && !isCursorAutoModelId(props.session.model) ? props.session.model : cursorModelsState.currentModelId
+        : null
+    const cursorStatusParams = cursorStatusModel && (isCursorAcpWireModelId(cursorStatusModel)
+        ? parseCursorWireParams(cursorStatusModel)
+        : parseCursorSkuParamHints(cursorStatusModel))
+    const cursorReasoningLabel = cursorStatusParams && cursorStatusParams.thinking !== 'false'
+        ? cursorStatusParams.reasoning ?? cursorStatusParams.effort
+        : null
     const {
         abortSession,
         switchSession,
@@ -2224,11 +2246,20 @@ function SessionChatInner(props: SessionChatProps) {
                         onClearSchedule={() => updatePendingSchedule(null)}
                         permissionMode={props.session.permissionMode}
                         availablePermissionModes={props.session.metadata?.capabilities?.permissionModes}
-                        approvalSettingsTitle={agentFlavor === 'dsh' ? t('misc.permissionMode') : undefined}
-                        approvalSettings={native?.approvalSettings ?? (agentFlavor === 'dsh' && props.session.metadata?.sessionConfigOptions?.length
+                        approvalSettingsTitle={approvalConfigOptions.length ? t('misc.permissionMode') : undefined}
+                        approvalSettings={native?.approvalSettings ?? (approvalConfigOptions.length
                             ? <SessionConfigSettings api={props.api} sessionId={props.session.id}
-                                options={props.session.metadata.sessionConfigOptions} disabled={!props.session.active} />
+                                options={approvalConfigOptions} disabled={!props.session.active} />
                             : undefined)}
+                        sessionPermissionLabel={native?.approvalStatusLabel
+                            ?? getSessionConfigValueLabel(permissionConfig, permissionConfig?.currentValue ?? permissionConfig?.selectedValue)}
+                        sessionReasoningLabel={cursorReasoningLabel
+                            ?? getSessionConfigValueLabel(reasoningConfig, reasoningConfig?.currentValue ?? reasoningConfig?.selectedValue)}
+                        reasoningSettings={reasoningConfigOptions.some(option => option.options.length > 0) ? {
+                            selectedLabel: getSessionConfigValueLabel(reasoningConfig, reasoningConfig?.selectedValue ?? reasoningConfig?.currentValue),
+                            content: <SessionConfigSettings api={props.api} sessionId={props.session.id}
+                                options={reasoningConfigOptions} disabled={!props.session.active} />,
+                        } : undefined}
                         collaborationMode={!native && codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         copilotAgentMode={agentFlavor === 'copilot' ? props.session.copilotAgentMode : undefined}
                         model={props.session.model}
@@ -2269,7 +2300,9 @@ function SessionChatInner(props: SessionChatProps) {
                         }
                         piModels={piModels}
                         resolvedDefaultModelLabel={resolvedCodexModel?.displayName}
-                        resolvedDefaultReasoningEffort={resolvedCodexModel?.defaultReasoningEffort}
+                        resolvedDefaultReasoningEffort={resolvedCodexModel?.defaultReasoningEffort
+                            ?? (agentFlavor === 'opencode' ? opencodeReasoningEffortState.currentValue : null)
+                            ?? (agentFlavor === 'grok' ? grokEffortState.currentValue : null)}
                         piSelectedModel={agentFlavor === 'pi' ? piSelectedModel : undefined}
                         availableModelReasoningEffortOptions={
                             agentFlavor === 'codex'
@@ -2373,11 +2406,9 @@ function SessionChatInner(props: SessionChatProps) {
                                 : undefined
                         }
                         onEffortChange={
-                            agentFlavor === 'grok'
-                                ? (props.session.active && !controlledByUser && grokEffortState.options.length > 0
-                                    ? handleEffortChange
-                                    : undefined)
-                                : handleEffortChange
+                            props.session.active && (agentFlavor !== 'grok' || (!controlledByUser && grokEffortState.options.length > 0))
+                                ? handleEffortChange
+                                : undefined
                         }
                         serviceTier={effectiveCodexServiceTier}
                         onServiceTierChange={
