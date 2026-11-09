@@ -7,7 +7,7 @@ import { asString, isObject } from '@hapi/protocol';
 import { deriveToolNameWithSource, isPlaceholderToolName } from '@/agent/utils';
 import { parseRateLimitText } from '@/agent/rateLimitParser';
 import { isInternalEventJson } from '@/agent/internalEventFilter';
-import { ACP_SESSION_UPDATE_TYPES } from './constants';
+import { ACP_SESSION_UPDATE_TYPES, DSH_REASONING_SNAPSHOT_META } from './constants';
 
 function normalizeStatus(status: unknown): 'pending' | 'in_progress' | 'completed' | 'failed' {
     if (status === 'in_progress' || status === 'completed' || status === 'failed') {
@@ -613,6 +613,14 @@ export class AcpMessageHandler {
             // should not cause the reasoning to be silently dropped.
             const content = update.content;
             if (isObject(content) && content.type === 'text' && typeof content.text === 'string' && content.text.length > 0) {
+                const snapshot = this.options.flavor === 'dsh' && isObject(update._meta)
+                    ? update._meta[DSH_REASONING_SNAPSHOT_META]
+                    : undefined;
+                if (isObject(snapshot) && typeof snapshot.id === 'string' && snapshot.id && typeof snapshot.live === 'boolean') {
+                    if (!snapshot.live) this.flushReasoning();
+                    this.onMessage({ type: 'reasoning', text: content.text, id: snapshot.id, ...(snapshot.live ? { live: true } : {}) });
+                    return;
+                }
                 this.appendReasoningChunk(content.text);
             }
             return;

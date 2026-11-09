@@ -2,9 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { DSH_REASONING_SNAPSHOT_META } from '@/agent/backends/acp/constants'
+import { DSH_REASONING_BRIDGE_SOURCE } from './reasoningBridge'
 
 /** Embedded source also ships in compiled/npm binaries; no external asset lookup. */
 export const DSH_PERMISSION_BRIDGE_SOURCE = String.raw`
+import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { realpathSync } from 'node:fs'
 import { Readable, Writable } from 'node:stream'
@@ -15,6 +18,7 @@ const acp = await import(pathToFileURL(acpPath).href)
 const { ndJsonStream } = await import(pathToFileURL(createRequire(acpPath).resolve('@agentclientprotocol/sdk')).href)
 const { interpolate } = await import(pathToFileURL(requireRuntime.resolve('@deepseek-ai/cordis-plugin-loader')).href)
 const { createUserMessage } = await import(pathToFileURL(requireRuntime.resolve('@deepseek-ai/dsh-llm')).href)
+${DSH_REASONING_BRIDGE_SOURCE}
 export const name = 'hapi-dsh-acp-permissions'
 export const inject = acp.inject
 export function apply(ctx) {
@@ -35,6 +39,8 @@ export function apply(ctx) {
     const commandMethod = '_hapi/dsh/command'
     const permissionId = 'hapi/permission-preset'
     const send = message => writer.write(message)
+    const reasoning = createReasoningBridge(send, message => ctx.logger.warn(message), randomUUID,
+        ${JSON.stringify(DSH_REASONING_SNAPSHOT_META)}, 250)
     const permissionOption = sessionId => {
         const permission = ctx.get('permissionPresets')
         const session = ctx.sessions.get(sessionId)
@@ -60,8 +66,14 @@ export function apply(ctx) {
     }
     ctx.on('permission-presets/catalog-changed', () => { for (const id of owned.keys()) notifyOptions(id) })
     ctx.on('session/event', (session, event) => {
+        if (sessions.get(session.id)?.agent.session === session) reasoning.event(session, event)
         if (owned.has(session.header.id) && ['permission/preset', 'sandbox/mode', 'approval/policy'].includes(event.type)) notifyOptions(session.header.id)
     })
+    ctx.on('agent/assistant-stream', ({ agent, frame }) => {
+        const state = sessions.get(agent.session.id)
+        if (!state || state.agent !== agent || agents.get(agent.session.id) !== agent) return
+        reasoning.frame(agent.session.id, frame, state.promptId !== undefined && !state.cancelled && !state.closing)
+    }, { global: true })
     const readable = stream.readable.pipeThrough(new TransformStream({
         async transform(message, controller) {
             if (message.method === commandMethod) {
@@ -145,7 +157,10 @@ export function apply(ctx) {
                 }
                 if (message.method === 'session/cancel') state.cancelled = true
                 if (message.method === 'session/close') state.closing = true
-                if (message.method === 'session/cancel' || message.method === 'session/close') state.commandController?.abort()
+                if (message.method === 'session/cancel' || message.method === 'session/close') {
+                    state.commandController?.abort()
+                    reasoning.pause(message.params.sessionId)
+                }
             }
             if (message.id !== undefined && message.method) pending.set(message.id, { method: message.method, params: message.params })
             controller.enqueue(message)
@@ -153,6 +168,11 @@ export function apply(ctx) {
     }))
     const writable = new WritableStream({
         async write(message) {
+            if (message.method === 'session/update') {
+                const { sessionId, update } = message.params
+                const projected = reasoning.update(sessionId, update)
+                if (projected !== update) message = { ...message, params: { ...message.params, update: projected } }
+            }
             if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'config_option_update') {
                 const id = message.params.sessionId
                 const original = message.params.update.configOptions
@@ -165,7 +185,10 @@ export function apply(ctx) {
                 const request = pending.get(message.id)
                 pending.delete(message.id)
                 const active = sessions.get(request?.params?.sessionId)
-                if (request?.method === 'session/prompt' && active?.promptId === message.id) active.promptId = undefined
+                if (request?.method === 'session/prompt' && active?.promptId === message.id) {
+                    active.promptId = undefined
+                    reasoning.clear(request.params.sessionId)
+                }
                 if (request?.method === 'session/close' && message.error && active) active.closing = false
                 if (request && message.result) {
                     const id = request.method === 'session/new' ? message.result.sessionId : request.params?.sessionId
@@ -177,13 +200,20 @@ export function apply(ctx) {
                     }
                     if (id && ['session/new', 'session/load', 'session/resume'].includes(request.method)) {
                         const agent = agents.get(id)
-                        if (agent) sessions.set(id, { agent, receipts: new Map(), promptId: undefined, closing: false, cancelled: false })
+                        if (agent) {
+                            reasoning.clear(id)
+                            sessions.set(id, { agent, receipts: new Map(), promptId: undefined, closing: false, cancelled: false })
+                        }
                     }
                     if (id && Array.isArray(message.result.configOptions)) {
                         owned.set(id, message.result.configOptions)
                         message = { ...message, result: { ...message.result, configOptions: optionsOf(id, message.result.configOptions) } }
                     }
-                    if (request.method === 'session/close') { owned.delete(id); sessions.delete(id) }
+                    if (request.method === 'session/close') {
+                        reasoning.clear(id)
+                        owned.delete(id)
+                        sessions.delete(id)
+                    }
                 }
             }
             await send(message)

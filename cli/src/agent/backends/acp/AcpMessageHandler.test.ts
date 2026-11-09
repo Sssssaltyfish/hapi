@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentMessage } from '@/agent/types';
 import { AcpMessageHandler } from './AcpMessageHandler';
-import { ACP_SESSION_UPDATE_TYPES } from './constants';
+import { ACP_SESSION_UPDATE_TYPES, DSH_REASONING_SNAPSHOT_META } from './constants';
 import { clearGeneratedImages } from '@/modules/common/generatedImages';
 
 function getToolResult(messages: AgentMessage[], id: string): Extract<AgentMessage, { type: 'tool_result' }> {
@@ -1209,6 +1209,34 @@ describe('AcpMessageHandler', () => {
         });
 
         expect(messages).toHaveLength(0);
+    });
+
+    it('forwards DSH reasoning snapshots and final text under the same ID without accumulating them', async () => {
+        const messages: AgentMessage[] = [];
+        const handler = new AcpMessageHandler(message => messages.push(message), { flavor: 'dsh' });
+        const snapshot = (text: string, live: boolean) => ({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentThoughtChunk,
+            content: { type: 'text', text },
+            _meta: { [DSH_REASONING_SNAPSHOT_META]: { id: 'reasoning-1', live } }
+        });
+
+        await handler.handleUpdate(snapshot('First', true));
+        await handler.handleUpdate(snapshot('First second', true));
+        expect(messages).toEqual([
+            { type: 'reasoning', text: 'First', id: 'reasoning-1', live: true },
+            { type: 'reasoning', text: 'First second', id: 'reasoning-1', live: true }
+        ]);
+
+        await handler.handleUpdate(snapshot('Canonical reasoning', false));
+        await handler.handleUpdate({
+            sessionUpdate: ACP_SESSION_UPDATE_TYPES.agentMessageChunk,
+            content: { type: 'text', text: 'Answer' }
+        });
+        handler.drainBuffers();
+        expect(messages.slice(2)).toEqual([
+            { type: 'reasoning', text: 'Canonical reasoning', id: 'reasoning-1' },
+            { type: 'text', text: 'Answer' }
+        ]);
     });
 
     it('does not flush the text buffer when a thought chunk arrives mid-stream', () => {

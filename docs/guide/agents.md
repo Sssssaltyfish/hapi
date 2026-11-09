@@ -294,6 +294,11 @@ reasoning effort; HAPI currently provides the model picker for this integration.
 For the default official launcher, HAPI adds a temporary plugin that wraps the
 upstream ACP server's public transport hook. It reads DSH's live
 `permissionPresets` catalog and changes the selected preset through that service.
+The plugin also forwards live reasoning from DSH's public agent stream. The
+Reasoning card updates while the provider thinks, then receives the committed
+text under the same identity. Cancelled or retried attempts retain only the
+preview already shown, separately from the next attempt. Custom ACP launchers
+use whichever reasoning updates their server supplies.
 The original ACP configuration, prompt handling and approval decisions stay in
 the upstream implementation. No installed package or persistent profile is edited.
 Settings shows only the reported presets, including configured entries and live
