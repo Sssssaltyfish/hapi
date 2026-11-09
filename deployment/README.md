@@ -30,11 +30,13 @@ For a later source based Hub deployment, extract `source.tar.gz` into a fresh ru
 
 ## Switch existing runner sessions
 
-After updating the runner executable, also switch idle provider sessions that still use an older executable. An `active` session is connected; that flag alone does not mean the agent is working. Do not leave an idle session on the old wrapper or request confirmation merely because it is online.
+After updating the runner executable, also switch idle provider sessions that still use an older executable. An `active` session is connected; that flag alone does not mean the agent is working. A newly initialized wrapper can also report lifecycle `running` while waiting for its first prompt. Use actual turn, tool, input, and ownership state to decide whether it is idle. Do not leave an idle session on the old wrapper or request confirmation merely because it is online.
 
 Read the live Hub session immediately before switching. Defer sessions with generation, running tools or background tasks, pending approvals/questions, queued input, or an active local terminal owner. Check queued input through the messages endpoint as well as session state. For each idle resumable session, archive and reopen the existing HAPI session through the Hub APIs. Keep its provider session ID, machine, working directory, model, reasoning level, and permission selection. Wait for provider readiness and verify those values after reopening.
 
 Restarting the manager alone does not upgrade existing provider wrappers: the systemd runner uses `KillMode=process`. Verify each replacement process uses the current executable. A wrapper that cannot resume its native session needs a proper provider resume path before switching; attaching a fresh provider thread to an existing HAPI ID loses context.
+
+For Windows executable replacement, stop the scheduled task and verify that its exact `start-windows-runner.ps1` supervisor has exited before stopping the runner. An orphaned supervisor can otherwise restart the runner during the copy and keep `hapi.exe` locked. Identify it by the deployed script's absolute path, then stop the runner gracefully, wait for its verified process to exit, replace the executable, and start the scheduled task again.
 
 Legacy DSH wrappers did not persist their native session ID in HAPI. For the one-time migration, identify the exact native session from the running ACP child's open `session.lock`, gracefully terminate only the verified wrapper PID, and wait for both processes to exit and HAPI to record the CLI-authored archive. Start the upgraded wrapper with both `--resume <native-id>` and `--existing-session-id <hapi-id>`. Verify that the same native lock and saved configuration are restored. Subsequent DSH switches use the regular Hub archive/reopen path.
 
