@@ -1,0 +1,67 @@
+{
+  "at": "2026-11-10T21:15:08.3877427Z",
+  "windowsBuild": "26300",
+  "sourceSha256": {
+    "run.ps1": "f120fbb691d0813464760c2a87bb472dc73312ad0e2e7ad9d52e928403ae559f",
+    "supervisor.mjs": "33e734b64d47c9feb5d0e71414ab68e379909a918b32fd5ba75631392354e90c",
+    "process-info.ps1": "833a5ac3ef7c8a3084b5538269d1a613a3e423158cd71368e1f703d931c423b0"
+  },
+  "results": {
+    "initialize": {
+      "supervisorPid": 8888,
+      "endpointStates": [
+        0,
+        5
+      ],
+      "listenerStateRecognized": false,
+      "verifiedReverseTuple": true,
+      "daemonPid": 15052,
+      "codexHomeIsolated": true
+    },
+    "concurrentStateReader": {
+      "recovered": true,
+      "heldOpenMs": 350
+    },
+    "daemonRecovery": {
+      "port": 14777,
+      "supervisorPid": 8888,
+      "replacementDaemonPid": 30908,
+      "verifiedReverseTuple": true,
+      "previousDaemonPid": 15052
+    },
+    "requestedStop": {
+      "exitCode": 0,
+      "status": "stopped",
+      "daemonReady": false
+    },
+    "resolverFailure": {
+      "exitCode": 1,
+      "reason": "startup-failed",
+      "status": "failed",
+      "daemonReady": false
+    },
+    "identityMismatch": {
+      "exitCode": 1,
+      "processOwnerAccepted": false,
+      "status": "failed",
+      "verifiedReverseTuple": true
+    },
+    "wrapperTransientFailure": {
+      "firstDelaySeconds": 5,
+      "requestedStopExitCode": 0,
+      "recoveredDaemonPid": 7380,
+      "firstFailureExitCode": 1
+    },
+    "wrapperPermanentFailure": {
+      "exitCode": 1,
+      "retryDelaysSeconds": [
+        5,
+        15,
+        30
+      ],
+      "status": "failed"
+    }
+  },
+  "passed": true,
+  "fixtureRemoved": true
+}

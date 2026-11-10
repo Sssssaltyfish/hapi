@@ -42,6 +42,10 @@ Legacy DSH wrappers did not persist their native session ID in HAPI. For the one
 
 ## Publish the handoff
 
+Windows Desktop's shared backend has its own [startup and recovery procedure](windows-native/README.md).
+Use its independent in-place updater for supervisor changes; runner replacement
+and the original Desktop migration are different operations.
+
 The publisher uses explicit paths and can run from any checkout location. Update the handoff's `SHA256SUMS.txt` after changing its contents, then run in WSL:
 
 ```sh

@@ -1,0 +1,63 @@
+{
+  "at": "2026-11-10T21:10:55.3892542Z",
+  "windowsBuild": "26300",
+  "sourceSha256": {
+    "run.ps1": "330a2d2d05cb675f3cdd7f19072b932e4dd814c916b2b9b227317522c5bcd650",
+    "supervisor.mjs": "33e734b64d47c9feb5d0e71414ab68e379909a918b32fd5ba75631392354e90c",
+    "process-info.ps1": "833a5ac3ef7c8a3084b5538269d1a613a3e423158cd71368e1f703d931c423b0"
+  },
+  "results": {
+    "initialize": {
+      "supervisorPid": 26360,
+      "codexHomeIsolated": true,
+      "verifiedReverseTuple": true,
+      "listenerStateRecognized": false,
+      "daemonPid": 29748,
+      "endpointStates": [
+        0,
+        5
+      ]
+    },
+    "concurrentStateReader": {
+      "heldOpenMs": 350,
+      "recovered": true
+    },
+    "daemonRecovery": {
+      "replacementDaemonPid": 17528,
+      "port": 11566,
+      "previousDaemonPid": 29748,
+      "supervisorPid": 26360,
+      "verifiedReverseTuple": true
+    },
+    "requestedStop": {
+      "daemonReady": false,
+      "status": "stopped",
+      "exitCode": 0
+    },
+    "resolverFailure": {
+      "daemonReady": false,
+      "reason": "startup-failed",
+      "status": "failed",
+      "exitCode": 1
+    },
+    "identityMismatch": {
+      "processOwnerAccepted": false,
+      "verifiedReverseTuple": true,
+      "status": "failed",
+      "exitCode": 1
+    },
+    "scheduledRetry": {
+      "trigger": "one-time scheduled trigger",
+      "restartCount": 1,
+      "restartInterval": "PT1M",
+      "automaticRetryObserved": false,
+      "failedActionExitCode": 1,
+      "failedRunAt": "2026-11-10T21:11:30.0000000Z",
+      "lastObservedRunAt": "2026-11-10T21:11:30.0000000Z",
+      "lastObservedResult": 1
+    }
+  },
+  "passed": false,
+  "error": "Task Scheduler did not retry the failed action.",
+  "validationTaskRemoved": true
+}

@@ -23,6 +23,12 @@ let restartCount = 0;
 let watchBusy = false;
 let daemonReady = false;
 let lastTargetCheck = 0;
+let status = 'starting';
+let failure;
+let runtime;
+let env;
+let supervisorIdentity;
+let watch;
 
 function log(event) {
     fs.appendFileSync(path.join(stateDirectory, 'events.jsonl'), JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n');
@@ -37,32 +43,34 @@ function script(name, args = []) {
 }
 
 function parseOutput(result) {
-    if (result.status !== 0) throw new Error('Managed helper failed');
+    if (result.status !== 0) throw new Error(`Managed helper failed (${result.status ?? result.error?.code}): ${result.stderr?.trim() || result.error?.message || 'no diagnostic'}`);
     return JSON.parse(result.stdout.replace(/^\uFEFF/, ''));
 }
 
-const runtime = parseOutput(script('resolve-runtime.ps1', ['-Config', path.join(root, 'config.json')]));
 const relayPath = `\\\\.\\pipe\\hapi-codex-app-tools-${config.ownerTag}`;
-const env = { ...process.env };
-for (const key of Object.keys(env)) {
-    if (/^(CODEX_|HAPI_|CHATGPT_)/i.test(key) || /TOKEN|SECRET|PASSWORD|API_KEY|CREDENTIAL/i.test(key)) delete env[key];
-    if (/^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)) delete env[key];
+function prepareRuntime() {
+    runtime = parseOutput(script('resolve-runtime.ps1', ['-Config', path.join(root, 'config.json')]));
+    supervisorIdentity = identify(process.pid);
+    env = { ...process.env };
+    for (const key of Object.keys(env)) {
+        if (/^(CODEX_|HAPI_|CHATGPT_)/i.test(key) || /TOKEN|SECRET|PASSWORD|API_KEY|CREDENTIAL/i.test(key)) delete env[key];
+        if (/^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)) delete env[key];
+    }
+    for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'ELECTRON_RUN_AS_NODE']) delete env[key];
+    Object.assign(env, config.proxyEnvironment, {
+        CODEX_HOME: config.codexHome,
+        CODEX_CLI_PATH: runtime.cliExe,
+        CODEX_MCP_NODE_PATH: config.mcpNodeExe,
+        CODEX_BROWSER_USE_NODE_PATH: config.browserNodeExe,
+        CODEX_ELECTRON_RESOURCES_PATH: runtime.resourcesPath,
+        CODEX_APP_TOOLS_PIPE_PATH: relayPath
+    });
+    env.NO_PROXY = [env.NO_PROXY, '127.0.0.1', 'localhost', '::1'].filter(Boolean).join(',');
 }
-for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'ELECTRON_RUN_AS_NODE']) delete env[key];
-Object.assign(env, config.proxyEnvironment, {
-    CODEX_HOME: config.codexHome,
-    CODEX_CLI_PATH: runtime.cliExe,
-    CODEX_MCP_NODE_PATH: config.mcpNodeExe,
-    CODEX_BROWSER_USE_NODE_PATH: config.browserNodeExe,
-    CODEX_ELECTRON_RESOURCES_PATH: runtime.resourcesPath,
-    CODEX_APP_TOOLS_PIPE_PATH: relayPath
-});
-env.NO_PROXY = [env.NO_PROXY, '127.0.0.1', 'localhost', '::1'].filter(Boolean).join(',');
 
 function identify(processId) {
     return parseOutput(script('process-info.ps1', ['-ProcessId', String(processId)]));
 }
-const supervisorIdentity = identify(process.pid);
 
 function launch(executable, args, childEnvironment) {
     let stderr = 'ignore';
@@ -86,6 +94,8 @@ function launch(executable, args, childEnvironment) {
 
 function save() {
     const value = {
+        status,
+        failure,
         supervisor: supervisorIdentity,
         daemon: daemonIdentity,
         desktop: desktopIdentity,
@@ -98,7 +108,16 @@ function save() {
     };
     const temporary = path.join(stateDirectory, 'managed.json.tmp');
     fs.writeFileSync(temporary, JSON.stringify(value, null, 2));
-    fs.renameSync(temporary, path.join(stateDirectory, 'managed.json'));
+    const destination = path.join(stateDirectory, 'managed.json');
+    // Windows readers such as Get-Content can briefly hold the old file without
+    // delete sharing. Keep atomic replacement, but allow the reader to finish.
+    for (let attempt = 0; ; attempt++) {
+        try { fs.renameSync(temporary, destination); break; }
+        catch (error) {
+            if (!['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 20) throw error;
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
+        }
+    }
 }
 
 async function findTarget() {
@@ -142,26 +161,47 @@ async function initializeOwnedDaemon() {
     const deadline = Date.now() + 20000;
     while (Date.now() < deadline) {
         if (stopping || daemon.exitCode !== null || daemon.signalCode !== null) throw new Error('Owned daemon exited');
-        const result = await new Promise(resolve => {
+        const probe = await new Promise(resolve => {
             const ws = new WebSocket(config.websocketUrl);
-            const timer = setTimeout(() => { ws.close(); resolve(null); }, 1500);
-            ws.onerror = () => { clearTimeout(timer); resolve(null); };
+            const close = () => {
+                clearTimeout(timer);
+                ws.onerror = () => {};
+                ws.onclose = null;
+                ws.onmessage = null;
+                ws.close();
+            };
+            const timer = setTimeout(() => { close(); resolve(null); }, 1500);
+            ws.onerror = () => { close(); resolve(null); };
+            ws.onclose = () => { clearTimeout(timer); resolve(null); };
             ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'initialize', params: { clientInfo: { name: 'hapi_windows_managed', version: '1' }, capabilities: { experimentalApi: true } } }));
             ws.onmessage = event => {
-                const message = JSON.parse(event.data);
+                let message;
+                try { message = JSON.parse(event.data); } catch { close(); resolve(null); return; }
                 if (message.id !== 1) return;
                 clearTimeout(timer);
                 if (message.result) ws.send(JSON.stringify({ method: 'initialized' }));
-                ws.close();
-                resolve(message.result ?? { rejected: true });
+                // Keep the probe connected until its server/client TCP pair is
+                // checked. Listener state alone is unreliable on some Windows builds.
+                resolve({ result: message.result ?? { rejected: true }, close });
             };
         });
-        if (result) {
-            const owner = parseOutput(script('process-info.ps1', ['-ProcessId', String(daemon.pid), '-ListeningPort', url.port]));
-            if (!owner.listening || result.platformFamily !== 'windows' || path.resolve(result.codexHome ?? '').toLowerCase() !== path.resolve(config.codexHome).toLowerCase()) throw new Error('Backend identity mismatch');
-            daemonIdentity = owner;
-            log({ event: 'daemon-initialize-verified', pid: daemon.pid, platformFamily: result.platformFamily });
-            return;
+        if (probe) {
+            try {
+                const { result } = probe;
+                const owner = parseOutput(script('process-info.ps1', ['-ProcessId', String(daemon.pid), '-ListeningPort', url.port, '-PeerProcessId', String(process.pid)]));
+                const checks = {
+                    endpoint: owner.listening || owner.probeConnection,
+                    process: owner.pid === daemon.pid && owner.ownerSid === config.ownerSid && path.resolve(owner.executable ?? '').toLowerCase() === path.resolve(runtime.cliExe).toLowerCase(),
+                    platform: result.platformFamily === 'windows',
+                    home: typeof result.codexHome === 'string' && path.resolve(result.codexHome).toLowerCase() === path.resolve(config.codexHome).toLowerCase()
+                };
+                log({ event: 'daemon-identity-check', pid: daemon.pid, checks, endpointStates: owner.endpointStates, probeConnection: owner.probeConnection });
+                if (Object.values(checks).some(value => !value)) throw new Error(`Backend identity mismatch: ${Object.keys(checks).filter(key => !checks[key]).join(', ')}`);
+                if (stopping || daemon.exitCode !== null || daemon.signalCode !== null) throw new Error('Owned daemon exited during verification');
+                daemonIdentity = owner;
+                log({ event: 'daemon-initialize-verified', pid: daemon.pid, platformFamily: result.platformFamily });
+                return;
+            } finally { probe.close(); }
         }
         await new Promise(resolve => setTimeout(resolve, 150));
     }
@@ -170,6 +210,9 @@ async function initializeOwnedDaemon() {
 
 async function startDaemon() {
     daemonReady = false;
+    daemonIdentity = null;
+    status = restarting ? 'restarting' : 'starting';
+    save();
     await requireFreePort();
     daemon = launch(runtime.cliExe, [
         'app-server', '--listen', config.websocketUrl,
@@ -178,23 +221,34 @@ async function startDaemon() {
         '-c', 'features.prefer_mxc=true',
         '-c', 'plugins.codex-app-tools@openai-bundled.mcp_servers.codex_app.enabled=true'
     ], env);
+    const started = Date.now();
     log({ event: 'daemon-start', pid: daemon.pid });
-    await initializeOwnedDaemon();
-    daemonReady = true;
     daemon.once('exit', async code => {
         log({ event: 'daemon-exit', code });
+        const wasReady = daemonReady;
+        daemonReady = false;
+        target = null;
+        save();
+        if (!wasReady) return;
         if (stopping || restarting) return;
-        if (++restartCount > 3) return shutdown('daemon-restart-limit');
+        if (Date.now() - started >= 60000) restartCount = 0;
+        if (++restartCount > 3) return shutdown('daemon-restart-limit', new Error('Daemon repeatedly exited before one minute of uptime'));
         restarting = true;
+        status = 'restarting';
+        save();
         await new Promise(resolve => setTimeout(resolve, 3000));
+        if (stopping) return;
         try {
             await startDaemon();
-        } catch {
-            await shutdown('daemon-restart-failed');
+        } catch (error) {
+            await shutdown('daemon-restart-failed', error);
         } finally {
             restarting = false;
         }
     });
+    await initializeOwnedDaemon();
+    daemonReady = true;
+    status = 'ready';
     save();
 }
 
@@ -212,18 +266,35 @@ function startDesktop() {
     save();
 }
 
-async function shutdown(reason) {
+async function shutdown(reason, error) {
     if (stopping) return;
     stopping = true;
     clearInterval(watch);
-    log({ event: 'supervisor-stop', reason });
+    let exitCode = error ? 1 : 0;
+    const saveStoppedState = () => {
+        try { save(); }
+        catch (error) {
+            exitCode = 1;
+            log({ event: 'state-save-failed', message: error.message });
+        }
+    };
+    failure = error ? { reason, message: error.message, code: error.code } : undefined;
+    status = error ? 'failed' : 'stopping';
+    daemonReady = false;
+    target = null;
+    saveStoppedState();
+    log({ event: 'supervisor-stop', reason, exitCode, failure });
     for (const socket of sockets) socket.destroy();
     relay.close();
     for (const child of children) {
         if (child.exitCode === null && child.signalCode === null) spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore', timeout: 5000 });
     }
-    fs.writeFileSync(path.join(stateDirectory, 'stopped.json'), JSON.stringify({ at: new Date().toISOString(), reason }));
-    process.exit(0);
+    daemonIdentity = null;
+    desktopIdentity = null;
+    status = error ? 'failed' : 'stopped';
+    saveStoppedState();
+    fs.writeFileSync(path.join(stateDirectory, 'stopped.json'), JSON.stringify({ at: new Date().toISOString(), reason, exitCode, failure }));
+    process.exit(exitCode);
 }
 
 const relay = net.createServer(async client => {
@@ -246,7 +317,7 @@ const relay = net.createServer(async client => {
     });
 });
 
-const watch = setInterval(async () => {
+async function poll() {
     if (watchBusy || stopping) return;
     watchBusy = true;
     try {
@@ -267,21 +338,28 @@ const watch = setInterval(async () => {
             desktopIdentity = null;
         }
         save();
-    } catch {
-        log({ event: 'watch-failed' });
+    } catch (error) {
+        log({ event: 'watch-failed', message: error.message });
     } finally {
         watchBusy = false;
     }
-}, 3000);
+}
 
 process.on('SIGTERM', () => shutdown('signal'));
-relay.once('error', () => shutdown('relay-unavailable'));
+process.on('uncaughtException', error => shutdown('uncaught-exception', error));
+process.on('unhandledRejection', error => shutdown('unhandled-rejection', error instanceof Error ? error : new Error(String(error))));
+relay.once('error', error => shutdown('relay-unavailable', error));
 relay.listen(relayPath, async () => {
     try {
+        fs.rmSync(path.join(stateDirectory, 'stopped.json'), { force: true });
         save();
+        if (fs.existsSync(path.join(stateDirectory, 'stop'))) return await shutdown('requested');
+        prepareRuntime();
         await startDaemon();
         startDesktop();
-    } catch {
-        await shutdown('startup-failed');
+        watch = setInterval(poll, 3000);
+    } catch (error) {
+        log({ event: 'startup-error', message: error.message, code: error.code });
+        await shutdown('startup-failed', error);
     }
 });

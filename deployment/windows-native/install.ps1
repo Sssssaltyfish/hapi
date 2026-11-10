@@ -42,10 +42,16 @@ try {
         $summary[$key] = $entry
     }
     $summary | ConvertTo-Json -Depth 4 | Set-Content "$root\state\proxy-summary.json" -Encoding UTF8
-    $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\run.ps1`"" -WorkingDirectory $root
+    $launcher = Join-Path (Split-Path $root -Parent) 'hidden-task-launcher\HiddenTaskLauncher.exe'
+    if (Test-Path -LiteralPath $launcher -PathType Leaf) {
+        $action = New-ScheduledTaskAction -Execute $launcher -Argument "`"$root\run.ps1`" `"$root`" Bypass" -WorkingDirectory $root
+    } else {
+        $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\run.ps1`"" -WorkingDirectory $root
+    }
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $owner.Name
+    $trigger.Delay = 'PT10S'
     $principal = New-ScheduledTaskPrincipal -UserId $owner.Name -LogonType Interactive -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
     Register-ScheduledTask -TaskName $config.taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
     $registered = $true
     [Environment]::SetEnvironmentVariable('CODEX_APP_SERVER_WS_URL',$config.websocketUrl,'User')
