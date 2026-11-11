@@ -1,0 +1,12 @@
+{
+  "windowsRunner": {
+    "workspaceRoot": "D:\\Projects",
+    "apiUrl": "http://127.0.0.1:3006",
+    "environment": {}
+  },
+  "wsl": {
+    "distribution": "Ubuntu-Example",
+    "linuxUser": "developer",
+    "units": ["hapi-hub", "hapi-runner"]
+  }
+}

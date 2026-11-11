@@ -16,7 +16,7 @@ seconds. The WSL keeper closes the input pipe used by its foreground Linux
 process before stopping the Windows client. Detached HAPI agent sessions remain
 independent of the runner task.
 
-Use `deployment/install-background-services.ps1` to update the launcher and all
-task actions together, with service readiness checks and rollback. `apply.ps1`
-is a retired entry point. The old `Launcher.cs` is retained only as historical
-source; deployment no longer uses a custom executable.
+Use the package-root `install-background-services.ps1` to update the launcher and
+task actions together, with readiness checks and rollback. The old compiled
+launcher and one-time apply script are available in Git history; current
+deployment uses the system script host.

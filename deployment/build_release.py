@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -61,8 +62,10 @@ def prepare(args):
             with tarfile.open(source_archive, "r:gz") as archive:
                 archive.extractall(source, filter="data")
 
-            bun = args.bun.expanduser().absolute()
-            node_bin_dir = args.node_bin_dir.expanduser().absolute()
+            if not args.bun or not args.node_bin_dir:
+                raise ValueError("Web/CLI builds require Bun and Node on PATH, or --bun and --node-bin-dir")
+            bun = Path(args.bun).expanduser().absolute()
+            node_bin_dir = Path(args.node_bin_dir).expanduser().absolute()
             env = dict(os.environ, PATH=os.pathsep.join((
                 str(bun.parent), str(node_bin_dir), "/usr/bin", "/bin", os.environ.get("PATH", "")
             )))
@@ -118,19 +121,19 @@ def prepare(args):
 
 def main():
     home = Path.home()
-    deployment = home / ".local/share/hapi"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("targets", nargs="+", choices=("source", "web", "cli"))
     parser.add_argument("--commit", required=True, help="full commit ID in the source repository")
     parser.add_argument("--output-dir", required=True, type=Path, help="new directory for the finished artifacts")
-    parser.add_argument("--repo", default="C:/Users/Igna/codex-temp/hapi-deployment/source",
+    parser.add_argument("--repo", default=".",
                         help="repository path as seen by the chosen Git executable")
-    parser.add_argument("--git", default="/mnt/c/Program Files/Git/cmd/git.exe", help="Git executable")
+    parser.add_argument("--git", default="git", help="Git executable")
     parser.add_argument("--build-root", type=Path, default=home / ".cache/hapi/builds",
                         help="WSL directory for temporary build trees")
-    parser.add_argument("--bun", type=Path, default=deployment / "build-tools/bun/bin/bun",
+    parser.add_argument("--bun", type=Path, default=shutil.which("bun"),
                         help="Bun executable")
-    parser.add_argument("--node-bin-dir", type=Path, default=home / ".nvm/current/bin",
+    node = shutil.which("node")
+    parser.add_argument("--node-bin-dir", type=Path, default=Path(node).parent if node else None,
                         help="directory containing Node.js")
     parser.add_argument("--cli-target", help="target accepted by the CLI build, defaults to the build host")
     parser.add_argument("--network-concurrency", type=int, help="maximum concurrent requests during Bun install")

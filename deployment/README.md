@@ -1,13 +1,13 @@
 # Prepare a HAPI release in WSL
 
-Run the helper as `igna` in `Ubuntu-26.04` with Python 3.12 or later. It uses Git for Windows to read the full commit ID in the authoritative Windows repository. Each build extracts that commit into its own temporary WSL directory and runs `bun install --frozen-lockfile` there. The helper finishes by moving the completed artifacts and their manifest into the requested new output directory.
+Run the helper in Linux/WSL with Python 3.12 or later. It uses the selected Git executable and source repository. Each build extracts the requested full commit into a temporary directory and runs `bun install --frozen-lockfile` there. The helper publishes completed artifacts and their manifest.
 
-From PowerShell, set `$commit` to the full commit ID you intend to release. This example prepares the files for a future source based Hub deployment.
+Set `commit` to the full commit ID you intend to release. These paths are fictional examples. Bun and Node are discovered on PATH or supplied explicitly.
 
-```powershell
-$helper = '/mnt/c/Users/Igna/codex-temp/hapi-deployment/ops/deployment/build_release.py'
-$release = "/home/igna/.cache/hapi/artifacts/$commit"
-wsl -d Ubuntu-26.04 -u igna -- python3 $helper source web --commit $commit --output-dir $release
+```sh
+python3 /srv/example/ops/deployment/build_release.py source web \
+  --repo /srv/example/hapi-source --commit "$commit" \
+  --output-dir "$HOME/.cache/hapi/artifacts/$commit"
 ```
 
 Choose any combination of `source`, `web`, and `cli`.
@@ -42,20 +42,20 @@ Legacy DSH wrappers did not persist their native session ID in HAPI. For the one
 
 ## Install Windows boot and sign-in tasks
 
-Run these commands from an independent elevated Windows PowerShell as the account that owns the runtime and WSL distribution. The cutover briefly stops the Windows runner and the shared Codex backend, which disconnects Desktop.
+The maintained guide is [Windows services](docs/WINDOWS_SERVICES.md), with [optional network dependencies](docs/NETWORK_AND_ENVIRONMENT.md). Fill private `services.json` from `services.example.json` first. Run the updater in an independent elevated Windows PowerShell as the deployment owner. The full update briefly stops the shared backend and disconnects Desktop.
 
 ```powershell
 .\install-background-services.ps1 -ValidateOnly
 .\install-background-services.ps1
 ```
 
-The WSL keeper, Windows HAPI runner, Windows Codex backend, and Codex Desktop have separate tasks that start when the deployment owner signs in, with limited privileges. The backend runs headless and can serve local clients while Desktop is closed. Windows Codex runs in the interactive session because its sandbox worker exited with status `0xC0000142` during initialization in Session 0 on this host. Linux systemd owns the WSL services after the keeper starts the distribution.
+The WSL keeper, Windows HAPI runner, Windows Codex backend, and Codex Desktop use separate limited Interactive logon tasks. Linux systemd owns WSL services. The backend remains available while Desktop is closed.
 
-For normal unattended restart or shutdown/cold boot on an unmanaged PC, run `configure-arso.ps1` as the owner with administrator permission. Windows ARSO signs the last interactive user back in and Winlogon locks the session. The user must remain signed in until shutdown; unexpected power loss is not a guaranteed recovery path. ARSO prepares its temporary credentials automatically and removes them after sign-in. The helper enables the user's ARSO preference, uses the protected-disk mode when BitLocker protection is on (otherwise the documented Always Enabled mode), disables permanent Autologon, deletes its `DefaultPassword` LSA secret without reading it, and removes this deployment's old lock/setup tasks. It does not reboot, lock the current session or change disk encryption. See [Microsoft's ARSO requirements](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/component-updates/winlogon-automatic-restart-sign-on--arso-).
+ARSO is optional. `configure-arso.ps1` defaults to the protected-disk policy; `-Mode Always` requires an explicit choice. Migrating an existing permanent Autologon requires `-RemovePermanentAutologon`, which deletes its saved password without retrieving it. See the service guide for prerequisites and restart limits.
 
-FlClash keeps its existing user startup entry and outbound proxy port. Tailscale retains its official Windows service with unattended mode enabled. No separate Mihomo deployment is required for this setup. Logging out ends the user session; lock it instead to keep the user services available.
+Tailscale uses its official service. Model connectivity, a proxy, a gateway and provider credentials belong to each target machine's environment. None of the startup wrappers requires a particular proxy client.
 
-The default runtime is `%LOCALAPPDATA%\HAPI` and the Windows runner uses `%USERPROFILE%\codex-temp`. Set `-RuntimeRoot` or `-WorkspaceRoot` to select another existing directory.
+The default runtime is `%LOCALAPPDATA%\HAPI`; select another persistent location with `-RuntimeRoot`. The runner workspace, WSL distribution/user and optional service list come from private `services.json`. The full updater expects an existing stack; Native first installation is documented separately.
 
 The installer verifies the Windows runner control endpoint, WSL user units, and Codex backend. If a cutover step fails, it restores the previous tasks and restarts services that were running. See `background-services\install-result.json` under the runtime for the outcome and `windows-native\state\update-result.json` for the native backend. Use `-ServicesOnly` to update the runner and WSL keeper without cycling Codex, or `install-wsl-services.ps1` to update only the keeper. These narrower modes require the shared launcher scripts to be unchanged.
 
@@ -66,11 +66,11 @@ Use the [Windows Desktop recovery procedure](windows-native/README.md) for subse
 The publisher uses explicit paths and can run from any checkout location. Update the handoff's `SHA256SUMS.txt` after changing its contents, then run in WSL:
 
 ```sh
-python3 /mnt/c/Users/Igna/codex-temp/hapi-deployment/ops/deployment/finalize-handoff.py \
-  --source /mnt/c/Users/Igna/codex-temp/service-deployment-handoff \
-  --output-dir /mnt/c/Users/Igna/codex-temp
+python3 /srv/example/ops/deployment/finalize-handoff.py \
+  --source /srv/example/service-deployment-handoff \
+  --output-dir /srv/example/distribution
 ```
 
 It publishes `service-deployment-handoff.7z` and its checksum sidecar, with `PACKAGED_AT.txt` inside. It compares maximum-compression PPMd and LZMA2 archives and keeps the smaller one. Temporary archives are removed after publication.
 
-The Windows source directory is the only persistent packaging workspace. There is no WSL handoff mirror. Keep only the latest fixed-name distribution archive.
+Keep a single packaging workspace and the latest fixed-name archive. Its location is independent of the live installation and requires no mirrored checkout.

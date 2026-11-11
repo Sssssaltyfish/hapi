@@ -27,24 +27,25 @@ def resume_termix(marker):
         marker.unlink()
 
 
-def write_archive(root, destination):
-    shared = Path.home() / '.local/share/seia-auth/passkeys.sqlite'
+def write_archive(root, destination, shared):
     target = destination / f'termix-{datetime.datetime.now():%Y%m%d-%H%M%S}.tgz'
+    required = {'data/.env'}
 
     with tempfile.TemporaryDirectory(dir=destination, prefix='.termix-backup-') as temporary:
-        snapshot = Path(temporary) / 'passkeys.sqlite'
         pending = Path(temporary) / target.name
-        with closing(sqlite3.connect(f'{shared.as_uri()}?mode=ro', uri=True)) as source:
-            with closing(sqlite3.connect(snapshot)) as backup:
-                source.backup(backup)
-
         with tarfile.open(pending, 'w:gz') as archive:
             archive.add(root / 'data', arcname='data')
-            archive.add(snapshot, arcname='shared-auth/passkeys.sqlite')
+            if shared is not None:
+                snapshot = Path(temporary) / 'passkeys.sqlite'
+                with closing(sqlite3.connect(f'{shared.as_uri()}?mode=ro', uri=True)) as source:
+                    with closing(sqlite3.connect(snapshot)) as backup:
+                        source.backup(backup)
+                archive.add(snapshot, arcname='shared-auth/passkeys.sqlite')
+                required.add('shared-auth/passkeys.sqlite')
 
         pending.chmod(0o600)
         with tarfile.open(pending, 'r:gz') as archive:
-            if not {'data/.env', 'shared-auth/passkeys.sqlite'}.issubset(archive.getnames()):
+            if not required.issubset(archive.getnames()):
                 raise RuntimeError('Termix backup is missing required files')
         pending.replace(target)
 
@@ -54,7 +55,12 @@ def write_archive(root, destination):
 
 
 def backup_termix(marker):
-    root = Path.home() / 'termix-deployment'
+    configured_root = os.environ.get('TERMIX_ROOT')
+    if not configured_root:
+        raise SystemExit('Set TERMIX_ROOT to the Termix deployment directory.')
+    root = Path(configured_root).expanduser().resolve()
+    shared_db = os.environ.get('TERMIX_SHARED_AUTH_DB')
+    shared = Path(shared_db).expanduser().resolve() if shared_db else None
     destination = root / 'backups'
     destination.mkdir(exist_ok=True, mode=0o700)
 
@@ -71,7 +77,7 @@ def backup_termix(marker):
             if running:
                 marker.touch(mode=0o600, exist_ok=False)
                 subprocess.run(['systemctl', '--user', 'stop', 'termix.service'], check=True)
-            write_archive(root, destination)
+            write_archive(root, destination, shared)
         finally:
             resume_termix(marker)
 
@@ -88,4 +94,4 @@ if __name__ == '__main__':
         signal.signal(signal.SIGTERM, interrupted)
         backup_termix(marker)
     else:
-        raise SystemExit('Usage: backup.py [--resume]')
+        raise SystemExit('Usage: backup-termix.py [--resume]')

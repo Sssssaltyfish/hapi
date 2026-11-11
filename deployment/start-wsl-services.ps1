@@ -1,15 +1,8 @@
-param(
-    [ValidatePattern('^[^"\r\n]+$')][string]$Distribution = 'Ubuntu-26.04',
-    [ValidatePattern('^[^"\r\n]+$')][string]$LinuxUser = 'igna'
-)
-
 $ErrorActionPreference = 'Stop'
 $wsl = Join-Path ([Environment]::SystemDirectory) 'wsl.exe'
+. (Join-Path $PSScriptRoot 'service-settings.ps1')
 . (Join-Path $PSScriptRoot 'task-lifetime.ps1')
 
-$distributionArg = if ($Distribution -match '\s') { '"{0}"' -f ($Distribution -replace '(\\+)$', '$1$1') } else { $Distribution }
-$userArg = if ($LinuxUser -match '\s') { '"{0}"' -f ($LinuxUser -replace '(\\+)$', '$1$1') } else { $LinuxUser }
-$arguments = '--distribution {0} --user {1} --cd / --exec /bin/cat' -f $distributionArg, $userArg
 $launcher = Get-TaskLauncher
 $instance = $null
 $writer = $null
@@ -17,6 +10,9 @@ try {
     $instance = Enter-TaskInstance $launcher (Join-Path $PSScriptRoot 'wsl-services.lock')
     if (!$instance) { return }
     try { $writer = Open-TaskLog (Join-Path $PSScriptRoot 'wsl-services.log') } catch { Write-Warning $_.Exception.Message }
+    $settings = Get-WslServiceSettings (Read-ServiceSettings $PSScriptRoot)
+    $arguments = '--distribution {0} --user {1} --cd / --exec /bin/cat' -f
+        (ConvertTo-ServiceArgument $settings.distribution), (ConvertTo-ServiceArgument $settings.linuxUser)
     $delay = 5
     while (Test-TaskLauncherRunning $launcher) {
         $attempt = [Diagnostics.Stopwatch]::StartNew()
@@ -33,6 +29,9 @@ try {
         if (!(Wait-TaskRetry $launcher $delay)) { break }
         $delay = [Math]::Min(30, $delay * 2)
     }
+} catch {
+    Write-TaskStatus $writer $_.Exception.GetBaseException().Message
+    throw
 } finally {
     try { if ($writer) { $writer.Dispose() } }
     finally {
