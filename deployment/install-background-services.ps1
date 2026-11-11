@@ -3,10 +3,12 @@ param(
     [string]$RuntimeRoot = (Join-Path $env:LOCALAPPDATA 'HAPI'),
     [string]$WorkspaceRoot = (Join-Path $env:USERPROFILE 'codex-temp'),
     [switch]$WslOnly,
+    [switch]$ServicesOnly,
     [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
+$includeNative = !$WslOnly -and !$ServicesOnly
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $ownerSid = $identity.User.Value
 if (!([Security.Principal.WindowsPrincipal]$identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -16,17 +18,18 @@ $RuntimeRoot = (Resolve-Path -LiteralPath $RuntimeRoot).ProviderPath
 if (!$WslOnly) { $WorkspaceRoot = (Resolve-Path -LiteralPath $WorkspaceRoot).ProviderPath }
 $nativeRoot = Join-Path $RuntimeRoot 'windows-native'
 $powershell = Join-Path ([Environment]::SystemDirectory) 'WindowsPowerShell\v1.0\powershell.exe'
+$scriptHost = Join-Path ([Environment]::SystemDirectory) 'wscript.exe'
 $wsl = Join-Path ([Environment]::SystemDirectory) 'wsl.exe'
 $hapi = Join-Path $RuntimeRoot 'package\bin\hapi.exe'
 $launcher = Join-Path $RuntimeRoot 'task-launcher.ps1'
 $receiptDirectory = Join-Path $RuntimeRoot 'background-services'
 $wslUnits = @('hapi-hub', 'hapi-runner', 'dsh-web', 'mobile-editor', 'remote-portal', 'seia-auth', 'termix', 'desktop-commander', 'seia-codex-daemon')
-$wslSpec = @{ name = 'Seia-WSL-Services'; entry = 'start-wsl-services.ps1'; directory = $RuntimeRoot; worker = $wsl; workerArgs = ' /bin/(?:sleep infinity|cat)\s*$' }
-$runnerSpec = @{ name = 'HAPI-Windows-Runner'; entry = 'start-windows-runner.ps1'; directory = $WorkspaceRoot; worker = $hapi; workerArgs = ' runner start-sync(?: |$)' }
-$nativeSpec = @{ name = "HAPI Codex Native $ownerSid"; entry = 'windows-native\run.ps1'; directory = $nativeRoot }
+$wslSpec = @{ name = 'Seia-WSL-Services'; entry = 'start-wsl-services.ps1'; directory = $RuntimeRoot; worker = $wsl; workerArgs = ' /bin/(?:sleep infinity|cat)\s*$'; interactive = $true }
+$runnerSpec = @{ name = 'HAPI-Windows-Runner'; entry = 'start-windows-runner.ps1'; directory = $WorkspaceRoot; worker = $hapi; workerArgs = ' runner start-sync(?: |$)'; interactive = $true }
+$nativeSpec = @{ name = "HAPI Codex Native $ownerSid"; entry = 'windows-native\run.ps1'; directory = $nativeRoot; interactive = $true }
 $desktopSpec = @{ name = "HAPI Codex Desktop $ownerSid"; entry = 'windows-native\desktop.ps1'; directory = $nativeRoot; interactive = $true }
 $services = if ($WslOnly) { @($wslSpec) } else { @($wslSpec, $runnerSpec) }
-$tasks = if ($WslOnly) { @($wslSpec) } else { @($wslSpec, $runnerSpec, $nativeSpec, $desktopSpec) }
+$tasks = if ($includeNative) { @($wslSpec, $runnerSpec, $nativeSpec, $desktopSpec) } else { $services }
 $receipt = [ordered]@{ startedUtc = [DateTime]::UtcNow.ToString('o'); status = 'running'; stage = 'preflight'; ownerSid = $ownerSid; tasks = [ordered]@{} }
 $recoveryErrors = [Collections.Generic.List[string]]::new()
 
@@ -63,13 +66,15 @@ function New-TaskXml($Spec) {
     } else {
         $definition.Principal.LogonType = 2 # S4U
         $null = $definition.Triggers.Create(8) # Boot
+    }
+    if ($Spec -ne $desktopSpec) {
         $definition.Settings.RestartInterval = 'PT1M'
         $definition.Settings.RestartCount = 3
     }
     $action = $definition.Actions.Create(0) # Exec
-    $action.Path = $powershell
-    $action.Arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "{0}" -Script "{1}" -WorkingDirectory "{2}"' -f
-        $launcher, (Join-Path $RuntimeRoot $Spec.entry), ($Spec.directory -replace '(\\+)$', '$1$1')
+    $action.Path = $scriptHost
+    $action.Arguments = '//B //NoLogo "{0}" "{1}" "{2}"' -f
+        (Join-Path $RuntimeRoot 'task-bootstrap.js'), (Join-Path $RuntimeRoot $Spec.entry), ($Spec.directory -replace '(\\+)$', '$1$1')
     $action.WorkingDirectory = $Spec.directory
     $null = $taskFolder.RegisterTaskDefinition($Spec.name, $definition, 1, $ownerSid, $null, [int]$definition.Principal.LogonType, $null)
     $definition.XmlText
@@ -90,7 +95,7 @@ function Save-Task($Spec) {
     $versionedLauncher = Join-Path $RuntimeRoot 'hidden-task-launcher\HiddenTaskLauncher-v2.exe'
     if ($principal -ne $ownerSid -or $task.Principal.LogonType -notin @('Interactive', 'S4U') -or
         $task.Principal.RunLevel -ne 'Limited' -or $task.Actions.Count -ne 1 -or
-        $task.Actions[0].Execute -notin @($powershell, $oldLauncher, $versionedLauncher) -or
+        $task.Actions[0].Execute -notin @($powershell, $scriptHost, $oldLauncher, $versionedLauncher) -or
         $task.Actions[0].Arguments -notmatch ('(?:^|\s)"' + $entry + '"(?:\s|$)')) {
         throw "Unexpected existing task definition: $($Spec.name)."
     }
@@ -98,6 +103,7 @@ function Save-Task($Spec) {
     $registered = $taskFolder.GetTask($Spec.name)
     $Spec.wasRunning = $registered.GetInstances(0).Count -gt 0
     $Spec.wasEnabled = [bool]$registered.Enabled
+    $Spec.oldLogonType = [string]$task.Principal.LogonType
     $registered.Xml | Set-Content -LiteralPath $Spec.oldXml -Encoding Unicode
 }
 
@@ -215,18 +221,20 @@ function Restore-Task($Spec) {
     } elseif (Get-Task $Spec) { Unregister-ScheduledTask -TaskName $Spec.name -TaskPath '\' -Confirm:$false }
 }
 
-function Wait-ServiceTasks([datetime]$After, $Pending, [switch]$AllowInteractive) {
+function Wait-ServiceTasks([datetime]$After, $Pending, [switch]$Restore) {
     $until = [DateTime]::UtcNow.AddSeconds(100)
     while ($Pending.Count) {
         $processes = @(Get-CimInstance Win32_Process)
         $Pending = @(foreach ($spec in $Pending) {
+            $interactive = if ($Restore) { $spec.oldLogonType -eq 'Interactive' } else { [bool]$spec.interactive }
+            $expectedLogonType = if ($interactive) { 'Interactive' } else { 'S4U' }
             $wrappers = @(Get-Wrappers $spec $processes)
             $workers = @(Get-Workers $spec $wrappers $processes | Where-Object {
-                $_.CreationDate.ToUniversalTime() -ge $After -and ($AllowInteractive -or $_.SessionId -eq 0)
+                $_.CreationDate.ToUniversalTime() -ge $After -and (($_.SessionId -gt 0) -eq $interactive)
             })
             $ready = $false
             $task = Get-Task $spec
-            if ($workers.Count -eq 1 -and $task.State -eq 'Running' -and ($AllowInteractive -or $task.Principal.LogonType -eq 'S4U')) {
+            if ($workers.Count -eq 1 -and $task.State -eq 'Running' -and $task.Principal.LogonType -eq $expectedLogonType) {
                 if ($spec -eq $wslSpec) {
                     $active = @(& $wsl --distribution Ubuntu-26.04 --user igna --cd / --exec /usr/bin/timeout 8s /usr/bin/systemctl --user is-active @wslUnits)
                     $ready = $LASTEXITCODE -eq 0 -and $active.Count -eq $wslUnits.Count -and @($active | Where-Object { $_ -ne 'active' }).Count -eq 0
@@ -255,6 +263,7 @@ New-Item -ItemType Directory -Path $receiptDirectory -Force | Out-Null
 $lock = [IO.File]::Open((Join-Path $receiptDirectory 'install.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
 $staging = Join-Path $receiptDirectory ([Guid]::NewGuid().ToString('N'))
 $assets = @(
+    @{ entry = 'task-bootstrap.js' }
     @{ entry = 'task-launcher.ps1' }
     @{ entry = 'task-lifetime.ps1' }
 ) + $services
@@ -275,13 +284,13 @@ try {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $spec.entry) -Destination $spec.candidate
         if (Test-Path -LiteralPath $spec.liveScript) {
             $spec.unchanged = (Get-FileHash -LiteralPath $spec.liveScript).Hash -eq (Get-FileHash -LiteralPath $spec.candidate).Hash
-            if ($WslOnly -and !$spec.worker -and !$spec.unchanged) { throw "Use the full installer to update the shared $($spec.entry) script." }
+            if (!$includeNative -and !$spec.worker -and !$spec.unchanged) { throw "Use the full installer to update the shared $($spec.entry) script." }
             $spec.backup = "$($spec.candidate).before"
             Copy-Item -LiteralPath $spec.liveScript -Destination $spec.backup
         }
         if ($spec.worker -and !(Test-Path -LiteralPath $spec.worker -PathType Leaf)) { throw "Worker executable is missing for $($spec.name)." }
     }
-    if (!$WslOnly) {
+    if ($includeNative) {
         $configPath = Join-Path $nativeRoot 'config.json'
         $nativeConfig = Read-Json $configPath -Required
         if ($nativeConfig.ownerSid -ne $ownerSid -or $nativeConfig.taskName -ne $nativeSpec.name -or !$nativeSpec.wasRunning) {
@@ -332,7 +341,7 @@ try {
     foreach ($spec in $services) { Start-ScheduledTask -TaskName $spec.name -TaskPath '\' }
     Wait-ServiceTasks $after @($services)
 
-    if (!$WslOnly) {
+    if ($includeNative) {
         $receipt.stage = 'switch-native'
         Write-Receipt
         $desktopSpec.touched = $true
@@ -389,7 +398,7 @@ try {
     }
     $restarted = @($touchedServices | Where-Object { $_.wasEnabled -and $_.wasRunning })
     if ($restarted.Count) {
-        Invoke-Recovery 'Service readiness after rollback' { Wait-ServiceTasks ([datetime]::MinValue) $restarted -AllowInteractive }
+        Invoke-Recovery 'Service readiness after rollback' { Wait-ServiceTasks ([datetime]::MinValue) $restarted -Restore }
     }
     if ($recoveryErrors.Count) {
         $receipt.status = 'rollback-failed'

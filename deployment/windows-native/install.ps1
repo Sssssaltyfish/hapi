@@ -10,6 +10,10 @@ $root = $PSScriptRoot
 $owner = [Security.Principal.WindowsIdentity]::GetCurrent()
 $ownerTag = ($owner.User.Value -replace '[^a-zA-Z0-9-]','')
 if (Test-Path -LiteralPath "$root\config.json") { throw 'Existing managed configuration: review it before replacing.' }
+$runtimeRoot = Split-Path -Parent $root
+foreach ($file in @('task-bootstrap.js','task-launcher.ps1','task-lifetime.ps1')) {
+    if (!(Test-Path -LiteralPath (Join-Path $runtimeRoot $file) -PathType Leaf)) { throw "Install the shared $file beside windows-native before setup." }
+}
 if (!$McpNodeExe) { $McpNodeExe = $NodeExe }
 if (!$BrowserNodeExe) { $BrowserNodeExe = $McpNodeExe }
 foreach ($file in @($NodeExe,$McpNodeExe,$BrowserNodeExe)) { if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Required runtime missing.' } }
@@ -42,13 +46,8 @@ try {
         $summary[$key] = $entry
     }
     $summary | ConvertTo-Json -Depth 4 | Set-Content "$root\state\proxy-summary.json" -Encoding UTF8
-    $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-    $launcher = Join-Path (Split-Path $root -Parent) 'task-launcher.ps1'
-    if (Test-Path -LiteralPath $launcher -PathType Leaf) {
-        $action = New-ScheduledTaskAction -Execute $powershell -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`" -Script `"$root\run.ps1`" -WorkingDirectory `"$root`"" -WorkingDirectory $root
-    } else {
-        $action = New-ScheduledTaskAction -Execute $powershell -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\run.ps1`"" -WorkingDirectory $root
-    }
+    $bootstrap = Join-Path $runtimeRoot 'task-bootstrap.js'
+    $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\wscript.exe" -Argument "//B //NoLogo `"$bootstrap`" `"$root\run.ps1`" `"$root`"" -WorkingDirectory $root
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $owner.Name
     $trigger.Delay = 'PT10S'
     $principal = New-ScheduledTaskPrincipal -UserId $owner.Name -LogonType Interactive -RunLevel Limited

@@ -1,0 +1,29 @@
+{
+  "deployedAt": "2026-11-11T12:12:32.8146054Z",
+  "arso": {
+    "savedAutologonPasswordDeleted": true,
+    "arsoMode": 1,
+    "arsoEnabled": true,
+    "lockHandledBy": "Winlogon",
+    "autoAdminLogon": "0",
+    "bitLockerProtection": "Off"
+  },
+  "windowsTaskMode": "Interactive Limited AtLogOn",
+  "launcher": "Microsoft wscript.exe + JScript bootstrap + PowerShell supervision",
+  "windowlessProbe": {
+    "session": 1,
+    "consoleVisible": false,
+    "newTerminalProcesses": 0,
+    "exitCodePropagated": 23
+  },
+  "bootstrapTermination": {
+    "entryObservedLauncherExit": true,
+    "entryAndLauncherExited": true
+  },
+  "nativeReadonlyInitialize": true,
+  "desktopToolsAndBackendConnected": true,
+  "defaultCodexPowerShellAndGit": true,
+  "wslActiveUnits": 9,
+  "proxy": "Original FlClash retained; independent proxy candidate removed",
+  "wholeMachineRebootTested": false
+}

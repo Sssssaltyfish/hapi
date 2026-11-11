@@ -10,12 +10,20 @@ function Test-LaunchRunning { !$taskLauncher -or (Test-TaskLauncherRunning $task
 function Test-DaemonReady {
     try {
         $managed = Get-Content -LiteralPath "$root\state\managed.json" -Raw | ConvertFrom-Json
-        if (!$managed.daemonReady -or !$managed.daemon -or $managed.launchDesktop -ne $false) { return $false }
+        if ($managed.status -ne 'ready' -or !$managed.daemonReady -or $managed.launchDesktop -ne $false -or
+            $managed.url -ne $config.websocketUrl -or $managed.daemon.ownerSid -ne $config.ownerSid) { return $false }
         $daemon = Get-CimInstance Win32_Process -Filter "ProcessId=$($managed.daemon.pid)"
-        if (!$daemon -or $daemon.ExecutablePath -ne $managed.daemon.executable -or
-            $daemon.CreationDate.ToUniversalTime().ToString('o') -ne $managed.daemon.started) { return $false }
-        $owner = Invoke-CimMethod -InputObject $daemon -MethodName GetOwnerSid
-        return $owner.Sid -eq $config.ownerSid
+        if (!$daemon -or
+            $daemon.CreationDate.ToUniversalTime() -ne ([DateTimeOffset]$managed.daemon.started).UtcDateTime) { return $false }
+
+        # A limited interactive token can see the Session 0 process and its
+        # creation time while Windows withholds its executable and owner SID.
+        # The supervisor has verified those fields in the private state file.
+        if ($daemon.ExecutablePath -and $daemon.ExecutablePath -ne $managed.daemon.executable) { return $false }
+        $owner = Invoke-CimMethod -InputObject $daemon -MethodName GetOwnerSid -ErrorAction SilentlyContinue
+        if ($owner.Sid -and $owner.Sid -ne $config.ownerSid) { return $false }
+        $null = & $config.nodeExe "$root\inspect.mjs" native $config.websocketUrl $config.codexHome $managed.daemon.pid
+        return $LASTEXITCODE -eq 0
     } catch { return $false }
 }
 
@@ -26,7 +34,11 @@ try {
     }
     while (Test-LaunchRunning) {
         if (Test-DaemonReady) {
-            $desktop = Start-Process -FilePath $config.nodeExe -ArgumentList @("`"$root\desktop.mjs`"") -WorkingDirectory $root -WindowStyle Hidden -PassThru
+            $start = [Diagnostics.ProcessStartInfo]::new($config.nodeExe, "`"$root\desktop.mjs`"")
+            $start.WorkingDirectory = $root
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $desktop = [Diagnostics.Process]::Start($start)
             try {
                 while (!$desktop.WaitForExit(500)) {
                     if (!(Test-LaunchRunning)) {

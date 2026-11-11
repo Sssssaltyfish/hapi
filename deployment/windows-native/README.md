@@ -3,8 +3,9 @@
 `run.ps1` holds an exclusive file handle in the deployment state directory
 across Windows sessions and waits for `supervisor.mjs`. The supervisor resolves
 the installed runtime, launches the loopback app-server, and verifies its identity.
-With `launchDesktop: false`, the backend runs in a startup task under the owner's
-limited S4U token. The separate interactive logon task runs `desktop.ps1`, waits
+With `launchDesktop: false`, the backend and Desktop have separate tasks. The
+backend starts at Windows login under the owner's limited interactive token so
+Codex workspace commands can use the Windows sandbox. The Desktop task runs `desktop.ps1`, waits
 for that daemon, and opens Desktop against the shared endpoint. The named-pipe
 relay connects Desktop tools when a Desktop instance is connected. Existing
 installations without `launchDesktop: false` continue to open Desktop from the
@@ -53,10 +54,13 @@ exit. Both failure-before-copy and failure-after-copy need to restore service.
 
 ## Startup, login and recovery
 
-The backend startup task uses `StartWhenAvailable` and three task retries one
-minute apart. The separate Desktop task uses the interactive user's logon trigger
-with a ten-second delay. Both tasks use `task-launcher.ps1` to run their Windows
-PowerShell entry points and track each task's lifetime. Run `configure-task.ps1`
+The backend and Desktop tasks use the interactive user's logon trigger. The
+backend task uses `StartWhenAvailable` and three task retries one minute apart.
+The Desktop task waits for backend readiness. Both tasks use Windows' signed
+`wscript.exe`, `task-bootstrap.js` and `task-launcher.ps1` to run their PowerShell
+entry points without opening a console and track each task's lifetime. Install
+the three shared launcher files beside `windows-native` before initial setup.
+Run `configure-task.ps1`
 in an existing deployment to refresh backend task settings while preserving its
 action and principal.
 
@@ -80,9 +84,10 @@ scheduling. The updater validates identities, requests a clean stop, waits for
 the supervisor's processes and the task instance to exit, replaces the scripts,
 and starts the normal task. Provide both `-CandidateConfig` and
 `-CandidateTaskXml` to change the private configuration and task definition as
-part of that update. The headless configuration requires the daemon and
-supervisor to be ready in session 0. The interactive configuration also requires
-Desktop and tools connectivity. The receipt is `state/update-result.json`.
+part of that update. With separate tasks, the updater verifies that the daemon
+and supervisor share the Windows session expected by the backend task principal.
+When the backend supervisor also opens Desktop, the updater verifies Desktop and
+tools connectivity before reporting success. The receipt is `state/update-result.json`.
 
 On failure after stopping, it restores the previous scripts, configuration and
 task definition as applicable, then restarts the managed task. Successful

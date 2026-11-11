@@ -22,20 +22,23 @@ function Matching-Process($Identity, [switch]$CheckOwner) {
     if (!$Identity) { return $null }
     $process = Get-CimInstance Win32_Process -Filter "ProcessId=$($Identity.pid)"
     if (!$process) { return $null }
-    if ($process.CreationDate.ToUniversalTime().ToString('o') -ne $Identity.started -or $process.ExecutablePath -ne $Identity.executable) {
-        throw 'Process identity changed; refusing to stop it.'
+    $creationMatches = $process.CreationDate -and
+        $process.CreationDate.ToUniversalTime() -eq ([DateTimeOffset]$Identity.started).UtcDateTime
+    if (!$CheckOwner) {
+        # While waiting for shutdown, CIM can drop ExecutablePath before it
+        # removes the process row. A reused PID means the old process is gone.
+        if (!$process.CreationDate -or $creationMatches) { return $process }
+        return $null
     }
-    # Verify ownership before requesting shutdown and after starting. During
-    # shutdown, PID + creation time + executable already identify that same
-    # verified process, so avoid a second CIM call racing with process exit.
-    if ($CheckOwner) {
-        try { $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid }
-        catch {
-            if (!(Get-CimInstance Win32_Process -Filter "ProcessId=$($Identity.pid)")) { return $null }
-            throw
-        }
-        if ($owner.Sid -ne $config.ownerSid) { throw 'Process owner changed; refusing to stop it.' }
+    if (!$creationMatches -or $process.ExecutablePath -ne $Identity.executable) {
+        throw "Process $($Identity.pid) identity changed or is unavailable."
     }
+    try { $owner = Invoke-CimMethod -InputObject $process -MethodName GetOwnerSid }
+    catch {
+        if (!(Get-CimInstance Win32_Process -Filter "ProcessId=$($Identity.pid)")) { return $null }
+        throw
+    }
+    if ($owner.Sid -ne $config.ownerSid) { throw "Process $($Identity.pid) owner does not match." }
     $process
 }
 function Owned-Identities($Managed) {
@@ -63,6 +66,7 @@ function Stop-Managed($Managed) {
 }
 function Start-Managed([DateTime]$StartedAfter) {
     Remove-Item -LiteralPath "$root\state\stop" -Force -ErrorAction SilentlyContinue
+    $logonType = [string](Get-ScheduledTask -TaskName $config.taskName).Principal.LogonType
     Start-ScheduledTask -TaskName $config.taskName
     $until = (Get-Date).AddSeconds(90)
     do {
@@ -74,7 +78,10 @@ function Start-Managed([DateTime]$StartedAfter) {
         $daemon = Matching-Process $state.daemon -CheckOwner
         if (!$supervisor -or !$daemon) { continue }
         if ($config.launchDesktop -eq $false) {
-            if ($state.launchDesktop -eq $false -and $supervisor.SessionId -eq 0 -and $daemon.SessionId -eq 0) { return $state }
+            if ($state.launchDesktop -ne $false -or $supervisor.SessionId -ne $daemon.SessionId) { continue }
+            if ($logonType -eq 'S4U' -and $supervisor.SessionId -ne 0) { continue }
+            if ($logonType -eq 'Interactive' -and $supervisor.SessionId -eq 0) { continue }
+            return $state
         } elseif ($state.toolsPipeReady -and $state.desktopBackendConnected -and (Matching-Process $state.desktop -CheckOwner)) {
             return $state
         }

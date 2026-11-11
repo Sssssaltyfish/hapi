@@ -80,7 +80,11 @@ try {
         $stopWait = $null
         $failure = $null
         try {
-            $child = Start-Process -FilePath $config.nodeExe -ArgumentList @("`"$root\supervisor.mjs`"") -WorkingDirectory $root -WindowStyle Hidden -PassThru
+            $start = [Diagnostics.ProcessStartInfo]::new($config.nodeExe, "`"$root\supervisor.mjs`"")
+            $start.WorkingDirectory = $root
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $child = [Diagnostics.Process]::Start($start)
             $null = $child.Handle
             while (!$child.WaitForExit(500)) {
                 if (!$stopWait) {

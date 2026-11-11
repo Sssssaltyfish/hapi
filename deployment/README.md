@@ -40,7 +40,7 @@ For Windows executable replacement, stop the scheduled task and verify that its 
 
 Legacy DSH wrappers did not persist their native session ID in HAPI. For the one-time migration, identify the exact native session from the running ACP child's open `session.lock`, gracefully terminate only the verified wrapper PID, and wait for both processes to exit and HAPI to record the CLI-authored archive. Start the upgraded wrapper with both `--resume <native-id>` and `--existing-session-id <hapi-id>`. Verify that the same native lock and saved configuration are restored. Subsequent DSH switches use the regular Hub archive/reopen path.
 
-## Start the Windows services before sign-in
+## Install Windows boot and sign-in tasks
 
 Run these commands from an independent elevated Windows PowerShell as the account that owns the runtime and WSL distribution. The cutover briefly stops the Windows runner and the shared Codex backend, which disconnects Desktop.
 
@@ -49,9 +49,15 @@ Run these commands from an independent elevated Windows PowerShell as the accoun
 .\install-background-services.ps1
 ```
 
-The WSL keeper, Windows HAPI runner, and Windows Codex backend have separate boot tasks. They run as the same Windows user with limited privileges in Session 0. Codex Desktop opens through a separate task when that user signs in. The default runtime is `%LOCALAPPDATA%\HAPI` and the Windows runner uses `%USERPROFILE%\codex-temp`. Set `-RuntimeRoot` or `-WorkspaceRoot` to select another existing directory.
+The WSL keeper, Windows HAPI runner, Windows Codex backend, and Codex Desktop have separate tasks that start when the deployment owner signs in, with limited privileges. The backend runs headless and can serve local clients while Desktop is closed. Windows Codex runs in the interactive session because its sandbox worker exited with status `0xC0000142` during initialization in Session 0 on this host. Linux systemd owns the WSL services after the keeper starts the distribution.
 
-The installer verifies the Windows runner control endpoint, WSL user units, and Codex backend. If a cutover step fails, it restores the previous tasks and restarts services that were running. See `background-services\install-result.json` under the runtime for the outcome and `windows-native\state\update-result.json` for the native backend. Run `install-wsl-services.ps1` to move only the WSL keeper to startup.
+For normal unattended restart or shutdown/cold boot on an unmanaged PC, run `configure-arso.ps1` as the owner with administrator permission. Windows ARSO signs the last interactive user back in and Winlogon locks the session. The user must remain signed in until shutdown; unexpected power loss is not a guaranteed recovery path. ARSO prepares its temporary credentials automatically and removes them after sign-in. The helper enables the user's ARSO preference, uses the protected-disk mode when BitLocker protection is on (otherwise the documented Always Enabled mode), disables permanent Autologon, deletes its `DefaultPassword` LSA secret without reading it, and removes this deployment's old lock/setup tasks. It does not reboot, lock the current session or change disk encryption. See [Microsoft's ARSO requirements](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/component-updates/winlogon-automatic-restart-sign-on--arso-).
+
+FlClash keeps its existing user startup entry and outbound proxy port. Tailscale retains its official Windows service with unattended mode enabled. No separate Mihomo deployment is required for this setup. Logging out ends the user session; lock it instead to keep the user services available.
+
+The default runtime is `%LOCALAPPDATA%\HAPI` and the Windows runner uses `%USERPROFILE%\codex-temp`. Set `-RuntimeRoot` or `-WorkspaceRoot` to select another existing directory.
+
+The installer verifies the Windows runner control endpoint, WSL user units, and Codex backend. If a cutover step fails, it restores the previous tasks and restarts services that were running. See `background-services\install-result.json` under the runtime for the outcome and `windows-native\state\update-result.json` for the native backend. Use `-ServicesOnly` to update the runner and WSL keeper without cycling Codex, or `install-wsl-services.ps1` to update only the keeper. These narrower modes require the shared launcher scripts to be unchanged.
 
 Use the [Windows Desktop recovery procedure](windows-native/README.md) for subsequent supervisor changes.
 

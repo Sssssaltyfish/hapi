@@ -63,8 +63,9 @@ $report.processes = @(
 )
 if ($CheckRunning -and $ready) {
     $state = if (Test-Path -LiteralPath $managedPath) { Get-Content -LiteralPath $managedPath -Raw | ConvertFrom-Json }
+    $url = "ws://127.0.0.1:$Port"
     $expectedPid = if ($state.daemon) { [string]$state.daemon.pid } else { '0' }
-    $raw = & $NodeExe "$PSScriptRoot\inspect.mjs" native "ws://127.0.0.1:$Port" $CodexHome $expectedPid
+    $raw = & $NodeExe "$PSScriptRoot\inspect.mjs" native $url $CodexHome $expectedPid
     $nativeExit = $LASTEXITCODE
     $report.native = $raw | ConvertFrom-Json
     $pipeOutput = if ($report.pathsExist.desktop) { & "$PSScriptRoot\find-tools-pipe.ps1" -ExpectedDesktopExe $DesktopExe -OwnerSid $owner.User.Value -BackendPort $Port }
@@ -75,7 +76,14 @@ if ($CheckRunning -and $ready) {
         $live = Get-CimInstance Win32_Process -Filter "ProcessId=$($state.daemon.pid)"
         if ($live) {
             $liveOwner = Invoke-CimMethod -InputObject $live -MethodName GetOwnerSid -ErrorAction SilentlyContinue
-            $daemonIdentityMatches = $liveOwner.Sid -eq $owner.User.Value -and $live.CreationDate.ToUniversalTime().ToString('o') -eq $state.daemon.started -and $live.ExecutablePath -eq $state.daemon.executable -and $report.native.endpointOwned
+            $verifiedState = $managedConfig.ownerSid -eq $owner.User.Value -and $managedConfig.websocketUrl -eq $url -and
+                $state.status -eq 'ready' -and $state.daemonReady -and $state.url -eq $url -and
+                $state.daemon.ownerSid -eq $owner.User.Value -and $state.daemon.executable
+            # A limited token may be unable to read another session's process metadata.
+            $ownerMatches = if ($liveOwner.Sid) { $liveOwner.Sid -eq $owner.User.Value } else { $verifiedState }
+            $pathMatches = if ($live.ExecutablePath) { $live.ExecutablePath -eq $state.daemon.executable } else { $verifiedState }
+            $daemonIdentityMatches = $ownerMatches -and $pathMatches -and $report.native.endpointOwned -and
+                $live.CreationDate.ToUniversalTime() -eq ([DateTimeOffset]$state.daemon.started).UtcDateTime
         }
     }
     $report.ownedDaemonEndpointMatches = $daemonIdentityMatches
