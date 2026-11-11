@@ -141,7 +141,7 @@
     "deployment/wsl/seia-codex-daemon.service": "737ed90ea9f63f17657e6590d6ad353958db1786fa311a6805904fe4303e7720",
     "deployment/wsl/termix-backup.service": "1fa273731be24d644cfc605f16334dc34c181a18776ba24645965cc9fc173c5d",
     "diagnostics/20261111/service-startup/deployed.json": "6729331f61e914d57ac9593ea0655d48123d8d6b9d466a22f1164d1e1fb11e11",
-    "deployment/docs/DEPLOYMENT_OPERATIONS.md": "c3cb82c5112fbdab9d04544464be426cbc2f40f9a0fc5f5f1df477deb90e712e",
+    "deployment/docs/DEPLOYMENT_OPERATIONS.md": "a8df59118b7ddaa15bb66ade28e21050ece69faa0f2cd14435a7109c0f49c497",
     "deployment/docs/NETWORK_AND_ENVIRONMENT.md": "a28bda0b8e833feefa85501ac14832e63495a1c8f3504ec117b6e5943ee3fb98",
     "deployment/docs/README.md": "a5975a1a8a9e4d572b81f73fd5fce303f70fadc99c820673562d02a973cd2310",
     "deployment/docs/WINDOWS_CONNECTION.md": "57311929500436a76447cbbfec0d52a880d126ccafc272f1c129706ce38c7bfe",
@@ -152,7 +152,8 @@
     "deployment/services.example.json": "effbcedba9d7a1c90fc0dd406bc010c669df003806aacb75dc43c36a9a0ea7bb",
     "deployment/wsl/dsh-web-recovery.conf": "4f8d83f3dd9f78008d7d68e35b1476f4cbb10cf99cc6ce7b5d5b0b39a218bd59",
     "deployment/wsl/service-env.example.sh": "b00eef77967b374389922d475efb09008181be9caf651681c0acc65d11888bc1",
-    "deployment/wsl/termix-backup.timer": "df1f858e9f7701d63f065b7a237b7cc05db1d8b020dcbbbb658b39a6ba812e8e"
+    "deployment/wsl/termix-backup.timer": "df1f858e9f7701d63f065b7a237b7cc05db1d8b020dcbbbb658b39a6ba812e8e",
+    "deployment/update-handoff.py": "3e774c3d2accfc0bd8b9de0c4dbcb756211612a49b94fa25ed2018eb05566046"
   },
   "currentApplicationCommit": "a273585eb62477f2b5dea1e2d8a4bd97795f0464"
 }

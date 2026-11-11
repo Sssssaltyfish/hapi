@@ -22,7 +22,7 @@ Windows Native 首次安装和现有整套安装更新是两个入口，分别�
 
 ## 技能与配置
 
-编译版 HAPI CLI 维护 `$HAPI_HOME/bundled-skills/hapi-visualize`。根据各 provider 的技能发现机制链接到这份共享目录；使用源模式时可链接 checkout 的 `skills`。路径按运行 Agent 的账户填写。详见 [当前可视化指南](docs/guide/visualizations.md)。
+编译版 HAPI CLI 维护 `$HAPI_HOME/bundled-skills/hapi-visualize`。根据各 provider 的技能发现机制链接到这份共享目录；使用源模式时可链接 checkout 的 `skills`。路径按运行 Agent 的账户填写。详见 [当前可视化指南](https://github.com/Sssssaltyfish/hapi/blob/a273585eb62477f2b5dea1e2d8a4bd97795f0464/docs/guide/visualizations.md)。
 
 `services.json`、`service-env.sh`、Native `config.json` 和状态目录都属于安装私有内容。这里只交付 `.example` 配置、公共脚本和补丁；不导出已部署机器的配置对象。
 
