@@ -8,7 +8,11 @@ if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -notlike "*$PSScrip
 $task.Settings.StartWhenAvailable = $true
 $task.Settings.RestartCount = 3
 $task.Settings.RestartInterval = 'PT1M'
-foreach ($trigger in $task.Triggers) {
-    if ($trigger.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger') { $trigger.Delay = 'PT10S' }
+if ($config.launchDesktop -eq $false) {
+    Set-ScheduledTask -TaskName $config.taskName -Settings $task.Settings | Out-Null
+} else {
+    foreach ($trigger in $task.Triggers) {
+        if ($trigger.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger') { $trigger.Delay = 'PT10S' }
+    }
+    Set-ScheduledTask -TaskName $config.taskName -Settings $task.Settings -Trigger $task.Triggers | Out-Null
 }
-Set-ScheduledTask -TaskName $config.taskName -Settings $task.Settings -Trigger $task.Triggers | Out-Null

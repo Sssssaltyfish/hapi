@@ -28,6 +28,7 @@ do {
         }
     }
 } while ($added)
+$found = $null
 foreach ($name in [IO.Directory]::GetFiles('\\.\pipe\')) {
     $leaf = $name.Substring($name.LastIndexOf('\')+1)
     if ($leaf -notmatch '^codex-app-tools-[0-9a-f-]{36}$') { continue }
@@ -38,8 +39,10 @@ foreach ($name in [IO.Directory]::GetFiles('\\.\pipe\')) {
         if ([PipeOwner]::GetNamedPipeServerProcessId($pipe.SafePipeHandle,[ref]$serverProcessId) -and $owned.Contains([int]$serverProcessId)) {
             $desktopRoot = $mainByDescendant[[int]$serverProcessId]
             $connections = @(Get-NetTCPConnection -RemotePort $BackendPort -State Established -ErrorAction SilentlyContinue | Where-Object { $mainByDescendant[[int]$_.OwningProcess] -eq $desktopRoot -and $_.RemoteAddress -in @('127.0.0.1','::1','::ffff:127.0.0.1') })
-            @{pipe=$name;processId=$serverProcessId;desktopProcessId=$desktopRoot;backendConnected=($connections.Count -gt 0);connectionProcessIds=@($connections.OwningProcess)} | ConvertTo-Json -Compress
-            break
+            $candidate = @{pipe=$name;processId=$serverProcessId;desktopProcessId=$desktopRoot;backendConnected=($connections.Count -gt 0);connectionProcessIds=@($connections.OwningProcess)}
+            if ($candidate.backendConnected) { $found = $candidate; break }
+            if (!$found) { $found = $candidate }
         }
     } catch {} finally { $pipe.Dispose() }
 }
+if ($found) { $found | ConvertTo-Json -Compress }

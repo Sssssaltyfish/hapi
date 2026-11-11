@@ -1,9 +1,14 @@
 # Windows Desktop shared backend
 
-`run.ps1` owns a per-user mutex and waits for `supervisor.mjs`. The supervisor
-resolves the installed Desktop and Codex runtime on each start, launches a
-loopback app-server, verifies it, then opens Desktop against that same backend.
-The named-pipe relay reconnects Desktop tools to the managed app-server.
+`run.ps1` holds an exclusive file handle in the deployment state directory
+across Windows sessions and waits for `supervisor.mjs`. The supervisor resolves
+the installed runtime, launches the loopback app-server, and verifies its identity.
+With `launchDesktop: false`, the backend runs in a startup task under the owner's
+limited S4U token. The separate interactive logon task runs `desktop.ps1`, waits
+for that daemon, and opens Desktop against the shared endpoint. The named-pipe
+relay connects Desktop tools when a Desktop instance is connected. Existing
+installations without `launchDesktop: false` continue to open Desktop from the
+interactive supervisor.
 
 ## Identity and readiness
 
@@ -17,20 +22,21 @@ as undefined TCP state `0`; undefined state itself is never accepted as proof.
 `state/managed.json` records `starting`, `ready`, `restarting`, `stopping`,
 `stopped` or `failed`. `daemonReady` means verified initialization, while
 `toolsPipeReady` and `desktopBackendConnected` describe Desktop integration.
-Stop/failure clears readiness before terminating children. A saved snapshot is
-not a liveness check: verify PID, start time, executable and owner before acting
-on it. An abrupt OS/process termination cannot run cleanup.
+Stop or failure clears readiness before terminating supervisor children. After
+an abrupt supervisor exit, the launcher checks for an orphaned daemon using the
+retained supervisor process handle, parent PID, creation times, expected CLI
+installation path and owner SID. A live check verifies PID, start time,
+executable and owner before acting on a saved snapshot.
 
 Startup, relay and unrecoverable daemon failures exit `1` with diagnostics in
 `events.jsonl`, `managed.json` and `stopped.json`. An explicit stop exits `0`.
 An exited daemon gets up to three local retries; one minute of healthy uptime
 resets this consecutive-failure budget. Exhaustion fails the supervisor so the
-scheduled task can recover the whole backend and resolve updated binaries.
-The PowerShell wrapper retries failed supervisors after 5, 15 and 30 seconds,
-resetting its retry budget after a minute of uptime. This also covers manual
-and time-triggered task starts where Task Scheduler did not retry an action
-returning a nonzero code in the observed Windows environment. Exhausted failures still propagate
-their exit code. A stop marker cancels further retries.
+wrapper can recover the whole backend and resolve updated binaries. The wrapper
+retries after 5, 15 and then 30 seconds between attempts while the task is active.
+A minute of supervisor uptime resets the backoff. A stop marker cancels further
+retries. Ending the scheduled launcher requests a clean supervisor stop and
+allows up to 20 seconds before the wrapper terminates it.
 The stop file is a one-shot request: the running supervisor/wrapper consumes it,
 and an explicit fresh `run.ps1` invocation discards any stale request. It never
 means persistently disabled. The updater always clears its request on exit and
@@ -45,19 +51,24 @@ counts only live process results (PowerShell arrays retain explicit nulls), and
 avoids redundant owner queries while waiting for already-verified processes to
 exit. Both failure-before-copy and failure-after-copy need to restore service.
 
-## Login and recovery
+## Startup, login and recovery
 
-The task uses the interactive user's logon trigger with a ten-second delay,
-`StartWhenAvailable`, and three failure retries one minute apart. Its hidden
-launcher and PowerShell wrapper preserve the child's exit code. Run
-`configure-task.ps1` in an existing deployment to update these settings without
-replacing its action. See [the launcher build](../hidden-task-launcher/README.md).
+The backend startup task uses `StartWhenAvailable` and three task retries one
+minute apart. The separate Desktop task uses the interactive user's logon trigger
+with a ten-second delay. Both tasks use `task-launcher.ps1` to run their Windows
+PowerShell entry points and track each task's lifetime. Run `configure-task.ps1`
+in an existing deployment to refresh backend task settings while preserving its
+action and principal.
+
+Use `inspect.ps1 -CheckRunning` with the deployment's Node executable and port
+to verify the native backend. Add `-RequireDesktop` to require the interactive
+tools pipe and Desktop's connection to that backend.
 
 ## Update an existing managed backend
 
-Use an independent scheduled task, because stopping this backend also stops
-the Desktop/agent that may be preparing the update. Stage these source files
-outside the live deployment, then run the staged `update.ps1` with:
+Use an independent scheduled task so the update can finish while the shared
+backend restarts. Stage these source files outside the live deployment, then
+run the staged `update.ps1`.
 
 ```powershell
 ./update.ps1 -DeploymentRoot "$env:LOCALAPPDATA\HAPI\windows-native" `
@@ -66,16 +77,18 @@ outside the live deployment, then run the staged `update.ps1` with:
 
 Read the expected identity from the current `managed.json` immediately before
 scheduling. The updater validates identities, requests a clean stop, waits for
-both processes and the task instance to exit, replaces only the listed scripts,
-preserves private configuration and the task action, then starts the normal
-task. It requires fresh process identities plus daemon, Desktop connection and
-tools-pipe readiness. The receipt is `state/update-result.json`.
+the supervisor's processes and the task instance to exit, replaces the scripts,
+and starts the normal task. Provide both `-CandidateConfig` and
+`-CandidateTaskXml` to change the private configuration and task definition as
+part of that update. The headless configuration requires the daemon and
+supervisor to be ready in session 0. The interactive configuration also requires
+Desktop and tools connectivity. The receipt is `state/update-result.json`.
 
-On failure after stopping, it restores the previous scripts and restarts the
-same managed task. Successful verification removes the small temporary script
-backup. A failed recovery retains it for inspection. This updater does not use
-the original migration's `switch.ps1`/`rollback.ps1`, which unregister the managed
-task and change the user's Desktop endpoint.
+On failure after stopping, it restores the previous scripts, configuration and
+task definition as applicable, then restarts the managed task. Successful
+verification or recovery removes the temporary backup. If recovery fails, the
+backup remains available for inspection. The original migration's `switch.ps1`
+and `rollback.ps1` also change the user's Desktop endpoint.
 
 ## 2026-11-11 incident
 

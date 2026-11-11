@@ -2,18 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { config, desktopEnvironment, powershell, prepareRuntime, relayPath, root, script } from './runtime.mjs';
 
-const root = path.dirname(fileURLToPath(import.meta.url));
-const config = JSON.parse(fs.readFileSync(path.join(root, 'config.json'), 'utf8').replace(/^\uFEFF/, ''));
 const stateDirectory = path.join(root, 'state');
 fs.mkdirSync(stateDirectory, { recursive: true });
-const powershell = path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe');
 const children = new Set();
 const sockets = new Set();
 let daemon;
 let desktop;
 let desktopIdentity;
+let toolsDesktopIdentity;
 let daemonIdentity;
 let target;
 let resolving;
@@ -34,42 +32,8 @@ function log(event) {
     fs.appendFileSync(path.join(stateDirectory, 'events.jsonl'), JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n');
 }
 
-function script(name, args = []) {
-    return spawnSync(powershell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, name), ...args], {
-        windowsHide: true,
-        encoding: 'utf8',
-        timeout: 10000
-    });
-}
-
-function parseOutput(result) {
-    if (result.status !== 0) throw new Error(`Managed helper failed (${result.status ?? result.error?.code}): ${result.stderr?.trim() || result.error?.message || 'no diagnostic'}`);
-    return JSON.parse(result.stdout.replace(/^\uFEFF/, ''));
-}
-
-const relayPath = `\\\\.\\pipe\\hapi-codex-app-tools-${config.ownerTag}`;
-function prepareRuntime() {
-    runtime = parseOutput(script('resolve-runtime.ps1', ['-Config', path.join(root, 'config.json')]));
-    supervisorIdentity = identify(process.pid);
-    env = { ...process.env };
-    for (const key of Object.keys(env)) {
-        if (/^(CODEX_|HAPI_|CHATGPT_)/i.test(key) || /TOKEN|SECRET|PASSWORD|API_KEY|CREDENTIAL/i.test(key)) delete env[key];
-        if (/^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)) delete env[key];
-    }
-    for (const key of ['NODE_OPTIONS', 'NODE_PATH', 'ELECTRON_RUN_AS_NODE']) delete env[key];
-    Object.assign(env, config.proxyEnvironment, {
-        CODEX_HOME: config.codexHome,
-        CODEX_CLI_PATH: runtime.cliExe,
-        CODEX_MCP_NODE_PATH: config.mcpNodeExe,
-        CODEX_BROWSER_USE_NODE_PATH: config.browserNodeExe,
-        CODEX_ELECTRON_RESOURCES_PATH: runtime.resourcesPath,
-        CODEX_APP_TOOLS_PIPE_PATH: relayPath
-    });
-    env.NO_PROXY = [env.NO_PROXY, '127.0.0.1', 'localhost', '::1'].filter(Boolean).join(',');
-}
-
 function identify(processId) {
-    return parseOutput(script('process-info.ps1', ['-ProcessId', String(processId)]));
+    return script('process-info.ps1', ['-ProcessId', String(processId)]);
 }
 
 function launch(executable, args, childEnvironment) {
@@ -98,7 +62,9 @@ function save() {
         failure,
         supervisor: supervisorIdentity,
         daemon: daemonIdentity,
-        desktop: desktopIdentity,
+        desktop: toolsDesktopIdentity ?? desktopIdentity,
+        ownedDesktop: desktopIdentity,
+        launchDesktop: config.launchDesktop !== false,
         url: config.websocketUrl,
         toolsRelay: relayPath,
         toolsPipeReady: !!target,
@@ -195,7 +161,7 @@ async function initializeOwnedDaemon() {
         if (probe) {
             try {
                 const { result } = probe;
-                const owner = parseOutput(script('process-info.ps1', ['-ProcessId', String(daemon.pid), '-ListeningPort', url.port, '-PeerProcessId', String(process.pid)]));
+                const owner = script('process-info.ps1', ['-ProcessId', String(daemon.pid), '-ListeningPort', url.port, '-PeerProcessId', String(process.pid)]);
                 const checks = {
                     endpoint: owner.listening || owner.probeConnection,
                     process: owner.pid === daemon.pid && owner.ownerSid === config.ownerSid && path.resolve(owner.executable ?? '').toLowerCase() === path.resolve(runtime.cliExe).toLowerCase(),
@@ -262,7 +228,7 @@ async function startDaemon() {
 function startDesktop() {
     if (desktop && desktop.exitCode === null && desktop.signalCode === null) return;
     target = null;
-    desktop = launch(runtime.desktopExe, [], { ...env, CODEX_APP_SERVER_WS_URL: config.websocketUrl });
+    desktop = launch(runtime.desktopExe, [], desktopEnvironment(env));
     desktopIdentity = identify(desktop.pid);
     desktop.once('exit', () => {
         target = null;
@@ -298,6 +264,7 @@ async function shutdown(reason, error) {
     }
     daemonIdentity = null;
     desktopIdentity = null;
+    toolsDesktopIdentity = null;
     status = error ? 'failed' : 'stopped';
     saveStoppedState();
     fs.writeFileSync(path.join(stateDirectory, 'stopped.json'), JSON.stringify({ at: new Date().toISOString(), reason, exitCode, failure }));
@@ -310,7 +277,7 @@ const relay = net.createServer(async client => {
     client.on('error', () => {});
     client.pause();
     const found = await findTarget();
-    if (!found || client.destroyed) return client.destroy();
+    if (!found?.backendConnected || client.destroyed) return client.destroy();
     target = found;
     const upstream = net.connect(found.pipe);
     sockets.add(upstream);
@@ -331,18 +298,19 @@ async function poll() {
         if (stopRequested()) return await shutdown('requested');
         if (fs.existsSync(path.join(stateDirectory, 'open'))) {
             fs.rmSync(path.join(stateDirectory, 'open'));
-            startDesktop();
+            if (config.launchDesktop !== false && daemonReady) startDesktop();
         }
+        if (!daemonReady) return;
         if (target && Date.now() - lastTargetCheck < 30000) return;
         lastTargetCheck = Date.now();
         const found = await findTarget();
         if (found) {
             if (!target || target.processId !== found.processId) log({ event: 'tools-pipe-bound', processId: found.processId });
             target = found;
-            desktopIdentity = identify(found.desktopProcessId);
+            toolsDesktopIdentity = identify(found.desktopProcessId);
         } else {
             target = null;
-            desktopIdentity = null;
+            toolsDesktopIdentity = null;
         }
         save();
     } catch (error) {
@@ -361,10 +329,11 @@ relay.listen(relayPath, async () => {
         fs.rmSync(path.join(stateDirectory, 'stopped.json'), { force: true });
         save();
         if (stopRequested()) return await shutdown('requested');
-        prepareRuntime();
-        await startDaemon();
-        startDesktop();
+        supervisorIdentity = identify(process.pid);
+        ({ runtime, env } = prepareRuntime());
         watch = setInterval(poll, 3000);
+        await startDaemon();
+        if (config.launchDesktop !== false) startDesktop();
     } catch (error) {
         log({ event: 'startup-error', message: error.message, code: error.code });
         await shutdown('startup-failed', error);

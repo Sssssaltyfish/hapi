@@ -42,11 +42,12 @@ try {
         $summary[$key] = $entry
     }
     $summary | ConvertTo-Json -Depth 4 | Set-Content "$root\state\proxy-summary.json" -Encoding UTF8
-    $launcher = Join-Path (Split-Path $root -Parent) 'hidden-task-launcher\HiddenTaskLauncher.exe'
+    $powershell = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $launcher = Join-Path (Split-Path $root -Parent) 'task-launcher.ps1'
     if (Test-Path -LiteralPath $launcher -PathType Leaf) {
-        $action = New-ScheduledTaskAction -Execute $launcher -Argument "`"$root\run.ps1`" `"$root`" Bypass" -WorkingDirectory $root
+        $action = New-ScheduledTaskAction -Execute $powershell -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`" -Script `"$root\run.ps1`" -WorkingDirectory `"$root`"" -WorkingDirectory $root
     } else {
-        $action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\run.ps1`"" -WorkingDirectory $root
+        $action = New-ScheduledTaskAction -Execute $powershell -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$root\run.ps1`"" -WorkingDirectory $root
     }
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $owner.Name
     $trigger.Delay = 'PT10S'

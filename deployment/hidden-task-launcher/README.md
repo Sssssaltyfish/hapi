@@ -1,17 +1,19 @@
-# Hidden scheduled-task launcher
+# Scheduled-task launcher
 
-Build on Windows using the installed .NET Framework compiler:
+Deploy `task-launcher.ps1` and `task-lifetime.ps1` at the runtime root beside the
+Windows runner and WSL startup scripts. Scheduled tasks run the launcher with
+Windows PowerShell. The launcher starts the entry script in its configured
+working directory, waits for it to exit, and returns its exit code.
 
-```powershell
-& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe /out:HiddenTaskLauncher.exe Launcher.cs
-```
+The launcher passes its own PID and process start time to PowerShell. The runner
+and WSL wrappers keep a handle to that process, hold separate exclusive locks
+across Windows sessions, and stop their immediate child if the launcher exits.
+They log native output and retry exited children with delays capped at 30
+seconds. The WSL keeper closes the input pipe used by its foreground Linux
+process before stopping the Windows client. Detached HAPI agent sessions remain
+independent of the runner task.
 
-Deploy the executable alongside `windows-native/`, in
-`hidden-task-launcher/`. The native installer uses it when present, otherwise
-it registers the PowerShell action. Both actions wait for `run.ps1` and preserve
-its exit code; nonzero failures reach Task Scheduler's restart policy.
-
-`apply.ps1` is the historical retrofit for both existing native and runner tasks.
-It assumes those task names and paths already exist. For an existing native
-installation, `windows-native/configure-task.ps1` changes only recovery settings
-and preserves its current action.
+`apply.ps1` updates the actions on the original native and runner tasks. It
+validates both definitions and saves both originals before changing either
+action. Changes take effect the next time the tasks start. Use the startup
+installer to configure boot triggers and account settings.
