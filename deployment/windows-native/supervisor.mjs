@@ -120,6 +120,13 @@ function save() {
     }
 }
 
+function stopRequested() {
+    const request = path.join(stateDirectory, 'stop');
+    if (!fs.existsSync(request)) return false;
+    fs.rmSync(request, { force: true });
+    return true;
+}
+
 async function findTarget() {
     if (!resolving) {
         resolving = new Promise(resolve => {
@@ -321,7 +328,7 @@ async function poll() {
     if (watchBusy || stopping) return;
     watchBusy = true;
     try {
-        if (fs.existsSync(path.join(stateDirectory, 'stop'))) return await shutdown('requested');
+        if (stopRequested()) return await shutdown('requested');
         if (fs.existsSync(path.join(stateDirectory, 'open'))) {
             fs.rmSync(path.join(stateDirectory, 'open'));
             startDesktop();
@@ -353,7 +360,7 @@ relay.listen(relayPath, async () => {
     try {
         fs.rmSync(path.join(stateDirectory, 'stopped.json'), { force: true });
         save();
-        if (fs.existsSync(path.join(stateDirectory, 'stop'))) return await shutdown('requested');
+        if (stopRequested()) return await shutdown('requested');
         prepareRuntime();
         await startDaemon();
         startDesktop();

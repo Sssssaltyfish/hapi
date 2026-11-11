@@ -31,6 +31,19 @@ resetting its retry budget after a minute of uptime. This also covers manual
 and time-triggered task starts where Task Scheduler did not retry an action
 returning a nonzero code in the observed Windows environment. Exhausted failures still propagate
 their exit code. A stop marker cancels further retries.
+The stop file is a one-shot request: the running supervisor/wrapper consumes it,
+and an explicit fresh `run.ps1` invocation discards any stale request. It never
+means persistently disabled. The updater always clears its request on exit and
+attempts recovery for every failure after requesting shutdown, including a
+process disappearing while CIM is reading its owner.
+
+The first rollout of this recovery change exposed an updater bug: it wrote the
+stop request before marking shutdown as begun, then an exiting process caused
+the owner query to fail. Recovery was skipped and the old request survived into
+the next login. The updater now marks this transition before issuing the request,
+counts only live process results (PowerShell arrays retain explicit nulls), and
+avoids redundant owner queries while waiting for already-verified processes to
+exit. Both failure-before-copy and failure-after-copy need to restore service.
 
 ## Login and recovery
 

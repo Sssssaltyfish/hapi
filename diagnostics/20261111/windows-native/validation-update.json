@@ -1,0 +1,53 @@
+{
+  "at": "2026-11-11T10:43:54.8786267Z",
+  "windowsBuild": "26300",
+  "sourceSha256": {
+    "supervisor.mjs": "803d878eaf6dfff6f7b93af0ed838c0bcbeabe92290c5ab19007801027b44da9",
+    "process-info.ps1": "833a5ac3ef7c8a3084b5538269d1a613a3e423158cd71368e1f703d931c423b0",
+    "run.ps1": "197de5faf91a7e7cf2d4090758fd24b3655b32651a798b49279d9a868facdcdf",
+    "install.ps1": "19d45c75325b05e680e0de42ec9b97a73a4742203a3831004f709c0b179aaa51",
+    "configure-task.ps1": "e22a8c5679a5ae43661f34e5f2c1b26fa3d4de5434283d807268b238d75b4f7c",
+    "update.ps1": "a5246ed5411eae201ebf1e1a0d91546fb718ca0e7f14300d69f30264c0c29f0b",
+    "inspect.ps1": "a65e5edfce7eda41a87975ada1130aa689623d4ebf0ae8e65b67152260044189",
+    "inspect.mjs": "0eaa0668ce30bc3342bd34223b4a794b2be5f4c02072271873b7b86d11b2d8fd"
+  },
+  "results": {
+    "staleStop": {
+      "stopMarkerAbsent": true,
+      "supervisorPid": 9152,
+      "ready": true
+    },
+    "requestedStopAndRestart": {
+      "stopMarkerAbsent": true,
+      "stopExit": 0,
+      "oldSupervisorPid": 9152,
+      "newSupervisorPid": 28268
+    },
+    "stopQueryFailure": {
+      "stopMarkerAbsent": true,
+      "exitCode": 1,
+      "originalHashesPreserved": true,
+      "oldSupervisorPid": 28268,
+      "recoveredSupervisorPid": 7960
+    },
+    "cutover": {
+      "exitCode": 0,
+      "newSupervisorPid": 29800,
+      "candidateHashesMatch": true,
+      "noOwnerLookupDuringStop": true,
+      "oldSupervisorPid": 7960,
+      "stopMarkerAbsent": true,
+      "taskRecoveryConfigured": true
+    },
+    "rollback": {
+      "stopMarkerAbsent": true,
+      "exitCode": 1,
+      "oldSupervisorPid": 29800,
+      "recoveredSupervisorPid": 28452,
+      "originalHashesRestored": true
+    }
+  },
+  "passed": true,
+  "validationTaskRemoved": true,
+  "fixtureRemoved": true
+}
