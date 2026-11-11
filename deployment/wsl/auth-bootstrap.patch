@@ -1,0 +1,97 @@
+diff --git a/deploy.py b/deploy.py
+index 33ee455..a0ebb5a 100644
+--- a/deploy.py
++++ b/deploy.py
+@@ -1,36 +1,59 @@
+-"""Install the shared gateway, then switch only Editor after its health check."""
++"""Bootstrap the shared gateway once, then switch Editor after its health check."""
++from contextlib import closing
+ from pathlib import Path
+-import datetime, json, os, secrets, shutil, sqlite3, subprocess, time, urllib.request
++import datetime, json, os, secrets, shutil, sqlite3, subprocess, sys, time, urllib.request
+ 
+ root = Path('/home/igna/seia-auth')
+-root.mkdir(exist_ok=True)
+ source = Path(__file__).resolve().parent
+-if source != root:
+-    shutil.copytree(source, root, dirs_exist_ok=True, ignore=shutil.ignore_patterns('node_modules', 'backups', '__pycache__'))
+-bun = '/home/igna/hapi-deployment/build-tools/bun/bin/bun'
++bun = Path('/home/igna/.local/share/hapi/build-tools/bun/bin/bun')
+ db = Path('/home/igna/.local/share/seia-auth/passkeys.sqlite')
+-sql = sqlite3.connect(db)
+-owners = sql.execute('SELECT DISTINCT userId FROM termix_credential_meta').fetchall()
+-assert len(owners) == 1, 'Explicit account selection required; no unique shared owner'
+-backup = root/'backups'/datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+-backup.mkdir(parents=True, mode=0o700)
+-backup.chmod(0o700)
+-copy = sqlite3.connect(backup/'passkeys.sqlite')
+-sql.backup(copy); copy.close(); sql.close()
+-(backup/'passkeys.sqlite').chmod(0o600)
+ env = root/'service.env'
+-previous_env = dict(line.split('=',1) for line in env.read_text().splitlines() if '=' in line) if env.exists() else {}
+-hapi_key = previous_env.get('SEIA_HAPI_CLIENT_TOKEN') or secrets.token_urlsafe(32)
++hapi_env = root/'hapi-external-auth.env'
++unit = Path.home()/'.config/systemd/user/seia-auth.service'
++portal = Path('/home/igna/.local/share/remote-shell/nginx.conf')
++editor = Path('/home/igna/editor-deployment/config.yaml')
++
++if sys.argv[1:] != ['--bootstrap']:
++    raise SystemExit('Usage: python3 deploy.py --bootstrap (first installation only)')
++if any(path.exists() or path.is_symlink() for path in (env, hapi_env, unit)):
++    raise SystemExit('Shared authentication is already configured. This script is only for the first installation.')
++if not portal.is_file() or not editor.is_file():
++    raise SystemExit('The existing portal and Editor configuration files are required.')
++old_portal, old_editor = portal.read_text(), editor.read_text()
++if 'location /auth/' in old_portal or 'location = /_seia_verify' in old_portal:
++    raise SystemExit('The portal already contains shared authentication routes.')
++for anchor in ('    location = /editor {', '    location /editor/ {', 'proxy_pass http://127.0.0.1:18081/;'):
++    if old_portal.count(anchor) != 1:
++        raise SystemExit('The portal does not have the expected legacy Editor routes.')
++if not bun.is_file() or not os.access(bun, os.X_OK):
++    raise SystemExit(f'Bun is missing or is not executable at {bun}.')
++if not db.is_file():
++    raise SystemExit('The shared Termix passkey database is required.')
++
++with closing(sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True)) as sql:
++    owners = sql.execute('SELECT DISTINCT userId FROM termix_credential_meta').fetchall()
++    if len(owners) != 1:
++        raise SystemExit('Explicit account selection required; no unique shared owner.')
++
++    root.mkdir(exist_ok=True)
++    if source != root:
++        shutil.copytree(source, root, dirs_exist_ok=True, ignore=shutil.ignore_patterns('node_modules', 'backups', '__pycache__'))
++    backup = root/'backups'/datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
++    backup.mkdir(parents=True, mode=0o700)
++    backup.chmod(0o700)
++    with closing(sqlite3.connect(backup/'passkeys.sqlite')) as copy:
++        sql.backup(copy)
++    (backup/'passkeys.sqlite').chmod(0o600)
++
++hapi_key = secrets.token_urlsafe(32)
+ env.write_text(f'SEIA_ORIGIN=https://seia.tailc9c975.ts.net\nSEIA_PASSKEY_DB={db}\nSEIA_USER_ID={owners[0][0]}\nSEIA_PORT=18082\nSEIA_HAPI_ORIGIN=https://seia.tailc9c975.ts.net:8444\nSEIA_HAPI_CLIENT_TOKEN={hapi_key}\n')
+ env.chmod(0o600)
+ # This file is supplied to the HAPI owner; no HAPI unit is changed here.
+-hapi_env = root/'hapi-external-auth.env'
+ hapi_env.write_text(f'HAPI_EXTERNAL_AUTH_URL=http://127.0.0.1:18082\nHAPI_EXTERNAL_AUTH_LOGIN_URL=https://seia.tailc9c975.ts.net/auth/?app=hapi\nHAPI_EXTERNAL_AUTH_ORIGIN=https://seia.tailc9c975.ts.net:8444\nHAPI_EXTERNAL_AUTH_SUBJECT={owners[0][0]}\nHAPI_EXTERNAL_AUTH_TOKEN={hapi_key}\nHAPI_EXTERNAL_AUTH_NAMESPACE=default\n')
+ hapi_env.chmod(0o600)
+ admin = root/'passkey-admin.sh'
+ admin.write_text(f'#!/bin/bash\nset -eu\nset -a\nsource {env}\nset +a\nexec {bun} run {root}/admin.ts "$@"\n')
+ admin.chmod(0o700)
+-unit = Path.home()/'.config/systemd/user/seia-auth.service'
+ unit.write_text(f'''[Unit]
+ Description=Seia shared Passkey authentication
+ After=network.target
+@@ -55,13 +78,8 @@ for _ in range(20):
+     except OSError: time.sleep(0.5)
+ else: raise RuntimeError('Auth service not ready; Editor remains unchanged')
+ 
+-portal = Path('/home/igna/.local/share/remote-shell/nginx.conf')
+-editor = Path('/home/igna/editor-deployment/config.yaml')
+ shutil.copy2(portal,backup/'nginx.conf')
+ shutil.copy2(editor,backup/'editor-config.yaml')
+-old_portal, old_editor = portal.read_text(), editor.read_text()
+-assert 'location /auth/' not in old_portal, 'Auth route already exists; review before rerunning deployment'
+-assert 'proxy_pass http://127.0.0.1:18081/;' in old_portal, 'Unexpected Editor upstream'
+ auth = '''    # Shared Seia authentication. /_seia_verify cannot be called by a browser.
+     location = /_seia_verify {
+       internal;

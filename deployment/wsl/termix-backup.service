@@ -1,0 +1,10 @@
+[Unit]
+Description=Consistent local backup of Termix
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 "%h/termix-deployment/backup.py"
+ExecStopPost=/usr/bin/python3 "%h/termix-deployment/backup.py" --resume
+TimeoutStartSec=15min
+TimeoutStopSec=30s
+UMask=0077

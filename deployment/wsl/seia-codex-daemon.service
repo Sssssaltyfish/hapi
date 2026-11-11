@@ -1,0 +1,15 @@
+[Unit]
+Description=Recover the managed Codex daemon for WSL
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=/bin/bash "%h/.local/lib/seia-wsl/keep-codex-daemon.sh"
+# Codex owns the daemon and updater it detaches. Stop only the watchdog.
+KillMode=process
+TimeoutStopSec=10s
+Restart=always
+RestartSec=30s
+
+[Install]
+WantedBy=default.target
