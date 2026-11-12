@@ -124,7 +124,9 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                         onChange={(e) => props.onModelChange(e.target.value || null)}
                         className={selectClassName}
                     >
-                        <option value="">{defaultModel ? getAgyModelFamilyLabel(defaultModel.modelId, defaultModel.name) : t('newSession.model.default')}</option>
+                        <option value="">{defaultModel
+                            ? `${getAgyModelFamilyLabel(defaultModel.modelId, defaultModel.name)} (${t('newSession.model.default')})`
+                            : t('newSession.model.default')}</option>
                         {modelOptions.map(({ value, label }) => (
                             <option key={value} value={value}>
                                 {label}
