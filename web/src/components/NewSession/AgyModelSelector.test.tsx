@@ -22,6 +22,22 @@ function renderSelector(overrides: Partial<Parameters<typeof AgyModelSelector>[0
 }
 
 describe('AgyModelSelector', () => {
+    it('shows the machine default and turns its effort change into an explicit model variant', () => {
+        const onModelChange = vi.fn()
+        renderSelector({
+            currentModelId: 'gemini-4-argon-high',
+            availableModels: [
+                { modelId: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
+                { modelId: 'gemini-4-argon-low', name: 'Gemini 4 Argon (Low)' },
+            ],
+            onModelChange,
+        })
+        const effort = screen.getByRole('combobox', { name: 'Effort' })
+        expect(effort).toHaveValue('high')
+        fireEvent.change(effort, { target: { value: 'low' } })
+        expect(onModelChange).toHaveBeenCalledExactlyOnceWith('gemini-4-argon-low')
+    })
+
     it('says it is fetching models, which is what the wait is actually spent on', () => {
         renderSelector({ isLoading: true })
 

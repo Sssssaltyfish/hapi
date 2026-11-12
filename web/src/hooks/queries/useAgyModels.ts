@@ -46,6 +46,7 @@ export function useAgyModels(args: {
         },
         enabled,
         staleTime: 60_000,
+        refetchInterval: 60_000,
         retry: false,
     })
 

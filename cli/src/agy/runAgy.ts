@@ -43,8 +43,8 @@ export async function runAgy(opts: {
     };
 
     const resolveSelection = async (model: string | null, effort: string | null | undefined) => {
-        const catalog = model ? await listAgyModels() : null;
-        return resolveAgyModelSelection(model, effort, catalog?.availableModels?.map(entry => entry.modelId) ?? []);
+        const catalog = await listAgyModels();
+        return resolveAgyModelSelection(model ?? catalog.currentModelId ?? null, effort, catalog.availableModels?.map(entry => entry.modelId) ?? []);
     };
     const initialSelection = await resolveSelection(opts.model ?? null, opts.effort);
     const initialModel = initialSelection.model;

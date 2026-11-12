@@ -40,7 +40,7 @@ export function EffortField(props: EffortFieldProps) {
     const { t } = useTranslation()
     const descriptor = getAgentConfigDescriptor(props.agent)
     const field = descriptor.fields.find((candidate) => candidate.id === 'effort')
-    if (!field) {
+    if (!field || (field.availability !== 'create' && field.availability !== 'both')) {
         return null
     }
 

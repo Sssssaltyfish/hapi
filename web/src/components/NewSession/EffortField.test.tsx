@@ -17,6 +17,11 @@ const baseProps = {
 }
 
 describe('EffortField', () => {
+    it.each(['agy', 'dsh'] as const)('does not borrow Claude launch effort for %s session-only controls', (agent) => {
+        const { container } = render(<EffortField {...baseProps} agent={agent} />)
+        expect(container.querySelector('select')).toBeNull()
+    })
+
     it('renders Grok low/medium/high effort and forwards the selection', () => {
         const onChange = vi.fn()
         const { container } = render(

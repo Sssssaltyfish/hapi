@@ -2,6 +2,7 @@ import { CLAUDE_EFFORT_LABELS, getAgyModelEffortLevels, getAgyModelVariant } fro
 import { getAgyModelFamilyLabel, groupAgyModelOptions } from '@/lib/agyModelOptions'
 import { useTranslation } from '@/lib/use-translation'
 import type { AgyModelSummary } from '@/types/api'
+import { SelectControl } from '@/components/ui/select-control'
 
 export type AgyModelSelectorProps = {
     machineId: string | null
@@ -13,6 +14,7 @@ export type AgyModelSelectorProps = {
     isFetching?: boolean
     availableModels: AgyModelSummary[]
     selectedModel: string | null
+    currentModelId?: string | null
     isDisabled?: boolean
     onModelChange: (modelId: string | null) => void
     onRetry?: () => void
@@ -67,15 +69,17 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
         return null
     }
 
-    const selectedVariant = getAgyModelVariant(props.selectedModel)
-    const selectedFamily = selectedVariant?.baseModel ?? props.selectedModel
-    const efforts = getAgyModelEffortLevels(props.selectedModel, props.availableModels.map(model => model.modelId))
+    const effectiveModel = props.selectedModel ?? props.currentModelId ?? null
+    const selectedVariant = getAgyModelVariant(effectiveModel)
+    const selectedFamily = selectedVariant?.baseModel ?? effectiveModel
+    const efforts = getAgyModelEffortLevels(effectiveModel, props.availableModels.map(model => model.modelId))
+    const defaultModel = props.availableModels.find(model => model.modelId === props.currentModelId)
     const modelOptions = groupAgyModelOptions(withSelectedModel(
         props.availableModels,
         props.selectedModel,
         t('newSession.agyModel.notListed')
-    ), props.selectedModel)
-    const selectClassName = 'w-full px-3 py-2 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50'
+    ), effectiveModel)
+    const selectClassName = 'py-2 pl-3 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50'
 
     return (
         <div className="flex flex-col gap-2 px-3 py-3">
@@ -92,10 +96,7 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
             ) : props.error ? (
                 <div className="flex flex-col gap-2" data-testid="agy-model-auth-error">
                     <div className="text-xs text-red-600">
-                        {t('newSession.agyModel.authRequired')}: {props.error}
-                    </div>
-                    <div className="text-xs text-[var(--app-hint)]">
-                        {t('newSession.agyModel.authHint')}
+                        {props.error}
                     </div>
                     <RetryButton onRetry={props.onRetry} isFetching={props.isFetching} />
                 </div>
@@ -116,24 +117,24 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                             <RetryButton onRetry={props.onRetry} isFetching={props.isFetching} />
                         </div>
                     ) : null}
-                    <select
+                    <SelectControl
                         data-testid="agy-model-list"
                         value={props.selectedModel ?? ''}
                         disabled={props.isDisabled}
                         onChange={(e) => props.onModelChange(e.target.value || null)}
                         className={selectClassName}
                     >
-                        <option value="">{t('newSession.model.default')}</option>
+                        <option value="">{defaultModel ? getAgyModelFamilyLabel(defaultModel.modelId, defaultModel.name) : t('newSession.model.default')}</option>
                         {modelOptions.map(({ value, label }) => (
                             <option key={value} value={value}>
                                 {label}
                             </option>
                         ))}
-                    </select>
+                    </SelectControl>
                     {selectedFamily && efforts.length > 0 ? (
                         <label className="flex flex-col gap-1.5 pt-1 text-xs font-medium text-[var(--app-hint)]">
                             {t('newSession.effort')}
-                            <select
+                            <SelectControl
                                 value={selectedVariant?.effort ?? ''}
                                 disabled={props.isDisabled}
                                 onChange={(e) => props.onModelChange(`${selectedFamily}-${e.target.value}`)}
@@ -146,7 +147,7 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                                 {efforts.map(effort => (
                                     <option key={effort} value={effort}>{CLAUDE_EFFORT_LABELS[effort]}</option>
                                 ))}
-                            </select>
+                            </SelectControl>
                         </label>
                     ) : null}
                 </div>

@@ -82,12 +82,7 @@ function getClaudeModelOptions(currentModel?: string | null, customOptions?: Mod
 }
 
 function getAgyModelOptions(currentModel?: string | null, customOptions?: ModelOption[]): ModelOption[] {
-    // The built-in list stands in until the machine answers. Neither list carries
-    // a null entry: agy has no mid-session "back to default".
-    const machineOptions = (customOptions ?? []).flatMap(({ value, label }) => value ? [{ modelId: value, name: label }] : [])
-    const options = machineOptions.length > 0 ? machineOptions : MODEL_OPTIONS.agy
-        .filter((option) => option.value !== 'auto')
-        .map(({ value, label }) => ({ modelId: value, name: label }))
+    const options = (customOptions ?? []).flatMap(({ value, label }) => value ? [{ modelId: value, name: label }] : [])
     // A session can be running a model the machine no longer lists. It stays
     // selectable as the representative of its family.
     const selected = normalizeCurrentModel(currentModel)

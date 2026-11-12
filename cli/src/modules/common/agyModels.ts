@@ -1,6 +1,9 @@
 import { spawn } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { getAgentLaunchCommand } from '@/agent/agentLaunchCommand'
-import { AGY_MODEL_LABELS, AGY_MODEL_PRESETS } from '@hapi/protocol'
+import { AGY_MODEL_LABELS } from '@hapi/protocol'
 import type { AgyModelsResponse } from '@hapi/protocol/apiTypes'
 
 export type ListAgyModelsResponse = AgyModelsResponse
@@ -18,7 +21,7 @@ type AgyCatalog = NonNullable<AgyModelsResponse['availableModels']>
 // A probe is a whole agy invocation, so the catalog is served from the last one
 // agy answered. STALE_TTL_MS is the outer bound on that trust: past it the
 // listing stops standing in for the machine even if probes keep failing.
-const FRESH_TTL_MS = 10 * 60_000
+const FRESH_TTL_MS = 60_000
 const STALE_TTL_MS = 24 * 60 * 60_000
 
 // Floor between probes after one comes back empty. On a machine where agy hangs
@@ -30,9 +33,7 @@ interface CachedCatalog {
     fetchedAt: number
 }
 
-// Only a live listing lands here, never the hardcoded mirror: the mirror is a
-// stand-in, not something the machine observed, and caching it would pin the
-// picker to it for a whole TTL after a single timeout.
+// Only catalogs actually returned by AGY are cached.
 let cachedCatalog: CachedCatalog | null = null
 
 // Kept for two reasons: it rate-limits retries, and an auth failure has to reach
@@ -54,10 +55,7 @@ function notifyCatalogChanged(): void {
     }
 }
 
-// Not the same as "nothing is cached": a machine whose agy is signed out has
-// been answering from the mirror all along, so its first real listing is a
-// change somebody needs to hear about. Until anything has been handed out
-// though, a probe landing has nothing to correct.
+// A successful probe must also notify clients previously served an error.
 let hasServedAnswer = false
 
 // The machine daemon owns `machineId:listAgyModels`, so this module runs once
@@ -71,15 +69,6 @@ type AgyCatalogFetch =
     | { kind: 'live'; models: AgyCatalog }
     | { kind: 'auth-error'; error: string }
     | { kind: 'unavailable' }
-
-// Hardcoded list — used as a FALLBACK only (when `agy models` can't be reached)
-// and as the source of truth for name→id mapping of known models.
-function buildModelList(): AgyModelsResponse['availableModels'] {
-    return AGY_MODEL_PRESETS.map((id) => ({
-        modelId: id,
-        name: AGY_MODEL_LABELS[id]
-    }))
-}
 
 // Reverse lookup: agy prints display names ("Gemini 3.5 Flash (Medium)") but
 // `--model` wants ids ("gemini-3.5-flash-medium"). Known names map exactly via
@@ -252,8 +241,7 @@ function probeAgyModels(args: string[]): Promise<AgyModelsProbe> {
 
 // Fetch the live model list from `agy models` (the agy CLI's own listing) so the
 // picker always matches what agy currently offers — no redeploy when agy changes
-// models. The hardcoded mirror is only a fallback (timeout / spawn error /
-// unparseable output). An auth failure is surfaced so the UI can prompt sign-in.
+// models. Failed probes retain the last observed catalog, if available.
 async function fetchAgyCatalog(): Promise<AgyCatalogFetch> {
     // `--output-format` is a global flag: it has to come before the subcommand,
     // and agy only accepts the `=` form here. Releases that predate it ignore
@@ -268,9 +256,7 @@ async function fetchAgyCatalog(): Promise<AgyCatalogFetch> {
         return { kind: 'auth-error', error: authError }
     }
 
-    // Prefer the structured listing, then the printed table for agy releases
-    // that don't emit it, then the hardcoded mirror if neither could be read
-    // (format change, partial fetch, etc.).
+    // Prefer the structured listing, then the printed table for older releases.
     const parsed = parseAgyModelsJson(probe.output) ?? parseAgyModelsOutput(probe.output)
     if (parsed) {
         return { kind: 'live', models: parsed }
@@ -278,7 +264,7 @@ async function fetchAgyCatalog(): Promise<AgyCatalogFetch> {
 
     // Nothing readable came back. Every agy release checked ignores an unknown
     // `--output-format` and prints the table anyway, but a build that rejected
-    // it would emit no models at all and leave the picker on the mirror, so ask
+    // it would emit no models at all, so ask
     // once more without the flag before giving up on the live list. This only
     // costs a second invocation on builds that produced nothing usable.
     const retry = await probeAgyModels(['models'])
@@ -384,13 +370,11 @@ function toResponse(fetched: AgyCatalogFetch): ListAgyModelsResponse {
     if (fetched.kind === 'auth-error') {
         return { success: false, error: fetched.error }
     }
-    return { success: true, availableModels: buildModelList() }
+    return { success: false, error: 'Unable to read the AGY model catalog.' }
 }
 
 // Built through toResponse so the announcement is keyed on the answer a plain
-// read would get, not on the cache behind it. Without a servable catalog those
-// two disagree: an uncached sign-in failure is an error response, while the
-// cache still looks like the fallback listing.
+// read would get, including failures when there is no usable cached catalog.
 function servedAnswerSignature(): string {
     return JSON.stringify(toResponse(lastFailedProbe?.result ?? { kind: 'unavailable' }))
 }
@@ -400,7 +384,17 @@ export async function listAgyModels(options?: { refresh?: boolean }): Promise<Li
     // Set on the way out, not on entry: the first caller is awaiting the probe
     // rather than looking at a stale screen, so it needs no announcement.
     hasServedAnswer = true
-    return answer
+    if (!answer.availableModels?.length) return answer
+    // `agy models` does not include the default. AGY saves its selection as a
+    // display name; resolve it against this machine's catalog, never its order.
+    try {
+        const settings = JSON.parse(await readFile(join(homedir(), '.gemini', 'antigravity-cli', 'settings.json'), 'utf8'))
+        if (typeof settings.model !== 'string' || !settings.model) return answer
+        const selected = answer.availableModels.find(model => model.modelId === settings.model || model.name === settings.model)
+        return selected ? { ...answer, currentModelId: selected.modelId } : answer
+    } catch {
+        return answer
+    }
 }
 
 async function answerAgyModels(options?: { refresh?: boolean }): Promise<ListAgyModelsResponse> {

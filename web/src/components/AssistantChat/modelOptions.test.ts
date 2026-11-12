@@ -5,7 +5,7 @@ describe('getModelOptionsForFlavor', () => {
     it('never offers the unsupported default reset in an active AGY session', () => {
         for (const currentModel of [null, 'auto']) {
             const options = getModelOptionsForFlavor('agy', currentModel)
-            expect(options.length).toBeGreaterThan(0)
+            expect(options).toEqual([])
             expect(options.some((option) => option.value === null)).toBe(false)
         }
 
@@ -42,11 +42,11 @@ describe('getModelOptionsForFlavor', () => {
         expect(options[0]).toEqual({ value: 'gemini-9.9-experimental', label: 'gemini-9.9-experimental' })
     })
 
-    it('falls back to the built-in AGY mirror until the machine catalog arrives', () => {
+    it('waits for the machine catalog instead of offering obsolete AGY presets', () => {
         const withoutCatalog = getModelOptionsForFlavor('agy', null, [])
 
         expect(withoutCatalog).toEqual(getModelOptionsForFlavor('agy', null))
-        expect(withoutCatalog.length).toBeGreaterThan(0)
+        expect(withoutCatalog).toEqual([])
     })
 
     it('returns Gemini model options for gemini flavor', () => {
@@ -245,12 +245,10 @@ describe('getModelOptionsForFlavor', () => {
 })
 
 describe('getNextModelForFlavor', () => {
-    it('cycles AGY null, auto, and unknown current values only to concrete models', () => {
-        const firstConcrete = getModelOptionsForFlavor('agy').find((option) => option.value !== null)?.value
-        expect(firstConcrete).toBeTruthy()
-        expect(getNextModelForFlavor('agy', null)).toBe(firstConcrete)
-        expect(getNextModelForFlavor('agy', 'auto')).toBe(firstConcrete)
-        expect(getNextModelForFlavor('agy', 'agy-custom-model')).toBe(firstConcrete)
+    it('keeps the AGY selection unchanged before the machine catalog arrives', () => {
+        expect(getNextModelForFlavor('agy', null)).toBeNull()
+        expect(getNextModelForFlavor('agy', 'auto')).toBeNull()
+        expect(getNextModelForFlavor('agy', 'agy-custom-model')).toBe('agy-custom-model')
     })
 
     it('cycles through AGY families and preserves effort where the next family supports it', () => {

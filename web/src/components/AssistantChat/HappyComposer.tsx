@@ -1805,8 +1805,8 @@ export function HappyComposer(props: {
             ? (!rawKey || rawKey === 'auto' || rawKey === 'default' || rawKey === 'default[]' ? 'auto' : rawKey)
             : (!rawKey || rawKey === 'auto' || rawKey === 'default' ? null : rawKey)
         const option = modelOptions.find((candidate) => candidate.value === normalizedKey)
-        return option?.label ?? rawKey ?? undefined
-    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel])
+        return option?.label ?? rawKey ?? t('misc.model')
+    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel, t])
     const defaultReasoningEffort = resolvedDefaultReasoningEffort?.trim() || null
     const effectiveModelReasoningEffort = modelReasoningEffort ?? defaultReasoningEffort
     const selectedEffort = agentFlavor === 'agy' && effortOptions.length > 0
@@ -1826,7 +1826,7 @@ export function HappyComposer(props: {
         : showModelReasoningEffortSettings
             ? codexReasoningEffortOptions.find(option => option.value === effectiveModelReasoningEffort)?.label
                 ?? effectiveModelReasoningEffort ?? t('misc.reasoningEffort')
-            : showEffortSettings
+            : showEffortSettings || (agentFlavor === 'agy' && effortOptions.length > 0)
                 ? effortOptions.find(option => option.value === effectiveEffort)?.label
                     ?? effectiveEffort ?? (agentFlavor === 'agy' ? t('misc.effort') : undefined)
                 : undefined
@@ -2590,12 +2590,12 @@ export function HappyComposer(props: {
                                 onClearSchedule={onUserClearSchedule}
                                 hasAttachments={blocksScheduling}
                                 modelValueLabel={modelValueLabel}
-                                modelValueDisabled={modelEffortControlsDisabled}
+                                modelValueDisabled={modelEffortControlsDisabled || (agentFlavor === 'agy' && !active)}
                                 modelValueOpen={showSettings && settingsSection !== 'effort'}
                                 onModelValueToggle={handleModelValueToggle}
                                 effortValueLabel={effortValueLabel}
                                 effortValueTitle={effortValueTitle}
-                                effortValueDisabled={modelEffortControlsDisabled}
+                                effortValueDisabled={modelEffortControlsDisabled || (agentFlavor === 'agy' && !active)}
                                 effortValueOpen={showSettings && settingsSection !== 'model'}
                                 onEffortValueToggle={handleEffortValueToggle}
                                 scratchlistMode={props.scratchlistMode}

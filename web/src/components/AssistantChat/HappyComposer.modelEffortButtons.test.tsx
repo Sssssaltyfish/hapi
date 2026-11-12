@@ -148,11 +148,30 @@ describe('HappyComposer generic model/effort value buttons', () => {
         runtime.sentIntents = []
     })
 
+    it('keeps the AGY model picker reachable before a default is known', () => {
+        runtime.narrowViewport = true
+        renderComposer('agy', {
+            model: null, effort: null,
+            availableModelOptions: [{ value: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' }],
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+        expect(screen.getByRole('button', { name: 'Gemini 4 Argon' })).toBeTruthy()
+    })
+
     it('shows model and effort value buttons for Claude on wide viewports', () => {
         renderComposer('claude')
         expect(screen.getByRole('button', { name: 'Sonnet 4' })).toBeTruthy()
         expect(screen.getByRole('button', { name: 'High' })).toBeTruthy()
         expect(screen.getByRole('button', { name: 'Settings' })).toBeTruthy()
+    })
+
+    it('keeps the AGY selection visible while its session is disconnected', () => {
+        renderComposer('agy', {
+            active: false, model: 'gemini-4-argon-high', effort: 'high', onEffortChange: undefined,
+            availableModelOptions: [{ value: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' }],
+        })
+        expect(screen.getByRole('button', { name: 'Gemini 4 Argon' })).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'High' })).toBeDisabled()
     })
 
     it('displays advertised defaults while retaining default selections', () => {

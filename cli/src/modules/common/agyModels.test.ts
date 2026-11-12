@@ -1,9 +1,10 @@
 import { EventEmitter } from 'node:events'
-import { AGY_MODEL_LABELS, AGY_MODEL_PRESETS } from '@hapi/protocol'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const spawnMock = vi.hoisted(() => vi.fn())
+const readFileMock = vi.hoisted(() => vi.fn())
 vi.mock('node:child_process', () => ({ spawn: spawnMock }))
+vi.mock('node:fs/promises', () => ({ readFile: readFileMock }))
 
 import {
     _parseAgyModelsJsonForTests,
@@ -14,12 +15,6 @@ import {
 } from './agyModels'
 
 // Real `agy --output-format=json models` capture, trimmed to four models.
-// The exact listing the hardcoded mirror produces, so a probe can land "no
-// change at all" for a caller that was being served that mirror.
-const MIRROR_LISTING = AGY_MODEL_PRESETS
-    .map((id) => `${id}\t${AGY_MODEL_LABELS[id as keyof typeof AGY_MODEL_LABELS]}`)
-    .join('\n') + '\n'
-
 const JSON_LISTING = JSON.stringify({
     conversation_id: '',
     status: 'SUCCESS',
@@ -48,6 +43,7 @@ function fakeChild() {
 beforeEach(() => {
     vi.useRealTimers()
     spawnMock.mockReset()
+    readFileMock.mockReset().mockResolvedValue('{}')
     _resetAgyModelsCacheForTests()
 })
 
@@ -236,8 +232,8 @@ describe('listAgyModels live probe', () => {
         await vi.advanceTimersByTimeAsync(15_000)
         const result = await resultPromise
         expect(child.kill).toHaveBeenCalledTimes(1)
-        expect(result.success).toBe(true)
-        expect(result.availableModels?.length).toBeGreaterThan(0)
+        expect(result.success).toBe(false)
+        expect(result.availableModels).toBeUndefined()
         child.emit('exit', 0)
         expect(child.kill).toHaveBeenCalledTimes(1)
     })
@@ -249,8 +245,8 @@ describe('listAgyModels live probe', () => {
         child.emit('error', new Error('missing'))
         child.emit('exit', 1)
         const result = await resultPromise
-        expect(result.success).toBe(true)
-        expect(result.availableModels?.length).toBeGreaterThan(0)
+        expect(result.success).toBe(false)
+        expect(result.availableModels).toBeUndefined()
     })
 })
 
@@ -280,6 +276,13 @@ describe('listAgyModels catalog cache', () => {
         return await pending
     }
 
+    it('resolves the saved default against the live catalog without assuming its first entry', async () => {
+        readFileMock.mockResolvedValueOnce(JSON.stringify({ model: 'Gemini 3.8 Flash (High)' }))
+        expect((await primeCatalog(LIVE_A + LIVE_B)).currentModelId).toBe('gemini-3.8-flash-high')
+        readFileMock.mockResolvedValueOnce(JSON.stringify({ model: 'no-longer-available' }))
+        expect((await listAgyModels()).currentModelId).toBeUndefined()
+    })
+
     it('probes agy when nothing is cached yet', async () => {
         vi.useFakeTimers()
         const result = await primeCatalog()
@@ -292,7 +295,7 @@ describe('listAgyModels catalog cache', () => {
         vi.useFakeTimers()
         await primeCatalog()
 
-        await vi.advanceTimersByTimeAsync(9 * 60_000)
+        await vi.advanceTimersByTimeAsync(30_000)
         const result = await listAgyModels()
 
         expect(spawnMock).toHaveBeenCalledTimes(1)
@@ -391,18 +394,18 @@ describe('listAgyModels catalog cache', () => {
         expect(result.availableModels).toEqual(CATALOG_A)
     })
 
-    it('answers from the hardcoded mirror without spawning agy again right after a failed probe', async () => {
+    it('backs off after a failed probe without inventing available models', async () => {
         // Each probe on an unreachable machine costs the full timeout.
         vi.useFakeTimers()
         queueProbe()
         const firstPending = listAgyModels()
         await vi.advanceTimersByTimeAsync(15_000)
         const fallback = await firstPending
-        expect(fallback.availableModels?.length).toBeGreaterThan(0)
+        expect(fallback.success).toBe(false)
 
         const backedOff = await listAgyModels()
         expect(spawnMock).toHaveBeenCalledTimes(1)
-        expect(backedOff.availableModels?.length).toBeGreaterThan(0)
+        expect(backedOff.success).toBe(false)
 
         await vi.advanceTimersByTimeAsync(60_000)
         const second = queueProbe()
@@ -612,16 +615,12 @@ describe('listAgyModels catalog cache', () => {
         expect(changes).toHaveLength(0)
     })
 
-    it('announces the first live listing to everyone who was already being served the mirror', async () => {
-        // One client asked while agy was signed out and got the hardcoded
-        // mirror; nothing is cached. Another client's probe then lands the real
-        // listing. The first client is holding a list that is now wrong, and
-        // only an announcement can tell it.
+    it('announces the first live listing after an unavailable probe', async () => {
         vi.useFakeTimers()
         queueProbe()
         const cold = listAgyModels()
         await vi.advanceTimersByTimeAsync(15_000)
-        expect((await cold).availableModels?.length).toBeGreaterThan(2)
+        expect((await cold).success).toBe(false)
 
         const changes: number[] = []
         setAgyCatalogChangeListener(() => changes.push(Date.now()))
@@ -636,9 +635,7 @@ describe('listAgyModels catalog cache', () => {
         expect(changes).toHaveLength(1)
     })
 
-    it('does not announce a change to an entry that had already stopped being served', async () => {
-        // Past the stale bound the route already answers from the mirror, so
-        // re-landing that same mirror changes nothing anyone could see.
+    it('announces a restored catalog after the previous entry expired', async () => {
         vi.useFakeTimers()
         await primeCatalog(LIVE_A)
         await vi.advanceTimersByTimeAsync(24 * 60 * 60_000 + 1_000)
@@ -646,25 +643,21 @@ describe('listAgyModels catalog cache', () => {
         const changes: number[] = []
         setAgyCatalogChangeListener(() => changes.push(Date.now()))
 
-        // Built from the presets the fallback uses, so the answer is unchanged.
-        const mirrorProbe = queueProbe()
+        const refresh = queueProbe()
         const expired = listAgyModels()
         await Promise.resolve()
-        finish(mirrorProbe, MIRROR_LISTING)
+        finish(refresh, LIVE_A)
         await expired
 
-        expect(changes).toHaveLength(0)
+        expect(changes).toHaveLength(1)
     })
 
-    it('announces a sign-in failure that replaces the fallback listing with an error', async () => {
-        // Nothing has ever been cached, so the route has been answering from the
-        // built-in list. A sign-in failure replaces that with an error — the
-        // picker loses its models — and an open one has to be told.
+    it('announces a sign-in failure after an unavailable probe', async () => {
         vi.useFakeTimers()
         queueProbe()
         const cold = listAgyModels()
         await vi.advanceTimersByTimeAsync(15_000)
-        expect((await cold).availableModels?.length).toBeGreaterThan(2)
+        expect((await cold).success).toBe(false)
 
         const changes: number[] = []
         setAgyCatalogChangeListener(() => changes.push(Date.now()))
@@ -679,10 +672,7 @@ describe('listAgyModels catalog cache', () => {
         expect(changes).toHaveLength(1)
     })
 
-    it('announces a sign-in that came back even when the listing matches the fallback', async () => {
-        // From an uncached auth failure the route answers an error. A listing
-        // that happens to equal the built-in one still turns that error back
-        // into a usable picker.
+    it('announces a catalog restored after a sign-in failure', async () => {
         vi.useFakeTimers()
         queueProbe()
         const cold = listAgyModels()
@@ -703,7 +693,7 @@ describe('listAgyModels catalog cache', () => {
         const recovering = queueProbe()
         const recovered = listAgyModels()
         await Promise.resolve()
-        finish(recovering, MIRROR_LISTING)
+        finish(recovering, LIVE_A)
 
         expect(await recovered).toMatchObject({ success: true })
         expect(changes).toHaveLength(1)

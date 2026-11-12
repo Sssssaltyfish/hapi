@@ -21,6 +21,12 @@ describe('NewSession preferences', () => {
         expect(loadPreferredYoloMode()).toBe(false)
     })
 
+    it('retains a saved AGY model discovered after the HAPI release', () => {
+        const preferred = resolvePreferredLaunchSettings('agy', null)
+        expect(resolvePreferredLaunchSettings('agy', { ...preferred, model: 'gemini-new-low' }).model)
+            .toBe('gemini-new-low')
+    })
+
     it('remembers native execution without storing a fake agent flavor in runner preferences', () => {
         savePreferredAgent('codex')
         savePreferredCreationChoice('codex-native')

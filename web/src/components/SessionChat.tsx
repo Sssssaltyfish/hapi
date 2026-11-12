@@ -1245,8 +1245,9 @@ function SessionChatInner(props: SessionChatProps) {
     const agyModelsState = useAgyModels({
         api: props.api,
         machineId: sessionMachineId,
-        enabled: agentFlavor === 'agy' && props.session.active && Boolean(sessionMachineId)
+        enabled: agentFlavor === 'agy' && Boolean(sessionMachineId)
     })
+    const agySessionModel = props.session.model ?? agyModelsState.currentModelId
     // Options only: the composer has no surface for a catalog warning, so a
     // machine whose sign-in has lapsed shows its last known list here and New
     // Session is where that gets explained.
@@ -2262,7 +2263,7 @@ function SessionChatInner(props: SessionChatProps) {
                         } : undefined}
                         collaborationMode={!native && codexCollaborationModeSupported ? props.session.collaborationMode : undefined}
                         copilotAgentMode={agentFlavor === 'copilot' ? props.session.copilotAgentMode : undefined}
-                        model={props.session.model}
+                        model={agentFlavor === 'agy' ? agySessionModel : props.session.model}
                         modelReasoningEffort={agentFlavor === 'codex' || agentFlavor === 'opencode' ? props.session.modelReasoningEffort : undefined}
                         effort={props.session.effort}
                         agentFlavor={agentFlavor}
