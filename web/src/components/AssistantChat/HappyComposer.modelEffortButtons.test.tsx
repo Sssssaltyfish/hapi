@@ -148,6 +148,20 @@ describe('HappyComposer generic model/effort value buttons', () => {
         runtime.sentIntents = []
     })
 
+    it('offers refresh after a failed first catalog load and refreshes on opening', () => {
+        const onOpen = vi.fn()
+        const onRefresh = vi.fn()
+        renderComposer('agy', {
+            model: null, availableModelOptions: [],
+            modelCatalog: { onOpen, onRefresh, isFetching: false, error: 'Catalog unavailable' },
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Model' }))
+        expect(onOpen).toHaveBeenCalledOnce()
+        expect(screen.getByText('Catalog unavailable')).toBeInTheDocument()
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+        expect(onRefresh).toHaveBeenCalledOnce()
+    })
+
     it('keeps the AGY model picker reachable before a default is known', () => {
         runtime.narrowViewport = true
         renderComposer('agy', {

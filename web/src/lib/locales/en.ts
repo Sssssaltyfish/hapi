@@ -1472,6 +1472,7 @@ export default {
   'misc.copilotAgentMode': 'Agent Mode',
   'misc.permissionMode': 'Permission Mode',
   'misc.model': 'Model',
+  'common.refresh': 'Refresh',
   'misc.reasoningEffort': 'Reasoning Effort',
   'misc.effort': 'Effort',
   'misc.fastMode': 'Fast Mode',

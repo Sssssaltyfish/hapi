@@ -13,6 +13,30 @@ function wrapper(queryClient: QueryClient) {
 }
 
 describe('useAgyModels', () => {
+    it('refreshes a stale catalog when opened, without polling while idle', async () => {
+        vi.useFakeTimers()
+        const getMachineAgyModels = vi.fn(async () => ({ success: true, availableModels: [] }))
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+        const { result, unmount } = renderHook(() => useAgyModels({
+            api: { getMachineAgyModels } as unknown as ApiClient,
+            machineId: 'machine-1', enabled: true,
+        }), { wrapper: wrapper(queryClient) })
+        try {
+            await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+            act(() => { result.current.refreshIfStale() })
+            expect(getMachineAgyModels).toHaveBeenCalledTimes(1)
+            await act(async () => { await vi.advanceTimersByTimeAsync(120_000) })
+            expect(getMachineAgyModels).toHaveBeenCalledTimes(1)
+            await act(async () => { result.current.refreshIfStale() })
+            expect(getMachineAgyModels).toHaveBeenCalledTimes(2)
+            expect(getMachineAgyModels).toHaveBeenLastCalledWith('machine-1', { refresh: false })
+        } finally {
+            unmount()
+            queryClient.clear()
+            vi.useRealTimers()
+        }
+    })
+
     it('forces a re-probe for the retry that follows, then goes back to the cached catalog', async () => {
         const getMachineAgyModels = vi.fn(async () => ({
             success: true,

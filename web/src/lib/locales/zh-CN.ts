@@ -1470,6 +1470,8 @@ export default {
   'misc.copilotAgentMode': '代理模式',
   'misc.permissionMode': '权限模式',
   'misc.model': '模型',
+  'common.refresh': '刷新',
+  'newSession.agyModel.fetchingModels': '正在获取可用模型…',
   'misc.reasoningEffort': '推理强度',
   'misc.effort': '思考强度',
   'misc.fastMode': '快速模式',

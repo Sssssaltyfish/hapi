@@ -63,7 +63,7 @@ describe('AgyModelSelector', () => {
         expect(screen.getByTestId('agy-model-stale-warning')).toBeInTheDocument()
         expect(screen.queryByTestId('agy-model-auth-error')).not.toBeInTheDocument()
 
-        fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
         expect(onRetry).toHaveBeenCalledTimes(1)
     })
 

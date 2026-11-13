@@ -1443,6 +1443,7 @@ export default {
   'misc.copilotAgentMode': 'Режим агента',
   'misc.permissionMode': 'Режим разрешений',
   'misc.model': 'Модель',
+  'common.refresh': 'Обновить',
   'misc.reasoningEffort': 'Уровень рассуждений',
   'misc.effort': 'Усилия',
   'misc.fastMode': 'Быстрый режим',

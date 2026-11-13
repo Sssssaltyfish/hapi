@@ -22,11 +22,12 @@ export function useAgyModels(args: {
     /** A request is in flight, including a Retry over an already-loaded catalog. */
     isFetching: boolean
     refetch: () => void
+    refreshIfStale: () => void
 } {
     const { api, machineId } = args
     const enabled = Boolean(args.enabled && api && machineId)
     // Spent on the very next fetch so mount and focus refetches stay answerable
-    // from the machine's cache; only Retry means that cache is not wanted.
+    // from the machine's cache; only a manual refresh bypasses that cache.
     const forceRefreshRef = useRef(false)
 
     const query = useQuery({
@@ -46,7 +47,6 @@ export function useAgyModels(args: {
         },
         enabled,
         staleTime: 60_000,
-        refetchInterval: 60_000,
         retry: false,
     })
 
@@ -63,9 +63,15 @@ export function useAgyModels(args: {
                     : null,
         warning: query.data?.success === true ? (query.data.error ?? null) : null,
         isFetching: query.isFetching,
+        refreshIfStale: () => {
+            if (enabled && query.isStale && !query.isFetching) {
+                void query.refetch({ cancelRefetch: false })
+            }
+        },
         refetch: () => {
+            if (!enabled || query.isFetching) return
             forceRefreshRef.current = true
-            void query.refetch()
+            void query.refetch({ cancelRefetch: false })
         }
     }
 }

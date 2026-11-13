@@ -3,6 +3,7 @@ import { getAgyModelFamilyLabel, groupAgyModelOptions } from '@/lib/agyModelOpti
 import { useTranslation } from '@/lib/use-translation'
 import type { AgyModelSummary } from '@/types/api'
 import { SelectControl } from '@/components/ui/select-control'
+import { ModelCatalogRefresh } from '@/components/ModelCatalogRefresh'
 
 export type AgyModelSelectorProps = {
     machineId: string | null
@@ -18,6 +19,7 @@ export type AgyModelSelectorProps = {
     isDisabled?: boolean
     onModelChange: (modelId: string | null) => void
     onRetry?: () => void
+    onOpen?: () => void
 }
 
 /** The catalog can change under an open form, so a model the user already picked
@@ -37,29 +39,6 @@ function withSelectedModel(
     }
     const label = getAgyModelFamilyLabel(selectedModel)
     return [{ modelId: selectedModel, name: `${label} (${notListedSuffix})` }, ...models]
-}
-
-/** Asks the machine to skip its cached catalog. It says so while it runs, because
- *  the probe is an agy invocation and a click can take tens of seconds. */
-function RetryButton(props: { onRetry?: () => void; isFetching?: boolean }) {
-    const { t } = useTranslation()
-
-    if (!props.onRetry) {
-        return null
-    }
-
-    return (
-        <button
-            type="button"
-            onClick={props.onRetry}
-            disabled={props.isFetching}
-            className="self-start rounded border border-[var(--app-divider)] px-2 py-1 text-xs text-[var(--app-link)] hover:bg-[var(--app-secondary-bg)] disabled:opacity-50"
-        >
-            {props.isFetching
-                ? t('newSession.agyModel.fetchingModels')
-                : t('newSession.agyModel.retry')}
-        </button>
-    )
 }
 
 export function AgyModelSelector(props: AgyModelSelectorProps) {
@@ -83,10 +62,13 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
 
     return (
         <div className="flex flex-col gap-2 px-3 py-3">
-            <label className="text-xs font-medium text-[var(--app-hint)]">
-                {t('newSession.model')}{' '}
-                <span className="font-normal">({t('newSession.model.optional')})</span>
-            </label>
+            <div className="flex items-center justify-between text-xs font-medium text-[var(--app-hint)]">
+                <span>
+                    {t('newSession.model')}{' '}
+                    <span className="font-normal">({t('newSession.model.optional')})</span>
+                </span>
+                {props.onRetry ? <ModelCatalogRefresh onRefresh={props.onRetry} isFetching={props.isFetching} /> : null}
+            </div>
 
             {props.isLoading ? (
                 <div className="flex items-center gap-2 text-xs text-[var(--app-hint)]">
@@ -98,7 +80,6 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                     <div className="text-xs text-red-600">
                         {props.error}
                     </div>
-                    <RetryButton onRetry={props.onRetry} isFetching={props.isFetching} />
                 </div>
             ) : props.availableModels.length === 0 ? (
                 <div className="text-xs text-[var(--app-hint)]">
@@ -114,13 +95,13 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                             <div className="text-xs text-[var(--app-hint)]">
                                 {t('newSession.agyModel.authHint')}
                             </div>
-                            <RetryButton onRetry={props.onRetry} isFetching={props.isFetching} />
                         </div>
                     ) : null}
                     <SelectControl
                         data-testid="agy-model-list"
                         value={props.selectedModel ?? ''}
                         disabled={props.isDisabled}
+                        onFocus={props.onOpen}
                         onChange={(e) => props.onModelChange(e.target.value || null)}
                         className={selectClassName}
                     >
@@ -139,6 +120,7 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
                             <SelectControl
                                 value={selectedVariant?.effort ?? ''}
                                 disabled={props.isDisabled}
+                                onFocus={props.onOpen}
                                 onChange={(e) => props.onModelChange(`${selectedFamily}-${e.target.value}`)}
                                 className={selectClassName}
                             >

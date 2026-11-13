@@ -2055,6 +2055,7 @@ export function NewSession(props: NewSessionProps) {
                         setAgySelectedModel(modelId)
                     }}
                     onRetry={agyModelsState.refetch}
+                    onOpen={agyModelsState.refreshIfStale}
                 />
             ) : agent === 'opencode' ? (
                 <OpencodeModelSelector

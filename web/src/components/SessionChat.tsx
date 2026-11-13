@@ -2267,6 +2267,12 @@ function SessionChatInner(props: SessionChatProps) {
                         modelReasoningEffort={agentFlavor === 'codex' || agentFlavor === 'opencode' ? props.session.modelReasoningEffort : undefined}
                         effort={props.session.effort}
                         agentFlavor={agentFlavor}
+                        modelCatalog={agentFlavor === 'agy' ? {
+                            onOpen: agyModelsState.refreshIfStale,
+                            onRefresh: agyModelsState.refetch,
+                            isFetching: agyModelsState.isFetching,
+                            error: agyModelsState.error ?? agyModelsState.warning,
+                        } : undefined}
                         concurrentClients={props.session.metadata?.capabilities?.concurrentClients}
                         availableModelOptions={
                             agentFlavor === 'codex'

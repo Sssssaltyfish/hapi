@@ -46,6 +46,7 @@ import type { AttachmentDraftInput } from '@/lib/composer-attachment-drafts'
 import { persistInactiveComposerAttachments, setComposerDraftSnapshot, updateComposerDraftTextSnapshot, attachmentDraftRevision, resetInactiveComposerAttachmentVisibility } from '@/lib/composer-draft-transfer'
 import { useComposerEnterBehavior } from '@/hooks/useComposerEnterBehavior'
 import { FloatingOverlay } from '@/components/ChatInput/FloatingOverlay'
+import { ModelCatalogRefresh } from '@/components/ModelCatalogRefresh'
 import { Autocomplete } from '@/components/ChatInput/Autocomplete'
 import { StatusBar } from '@/components/AssistantChat/StatusBar'
 import {
@@ -329,6 +330,12 @@ export function HappyComposer(props: {
     concurrentClients?: boolean
     agentFlavor?: string | null
     availableModelOptions?: Array<{ value: string | null; label: string }>
+    modelCatalog?: {
+        onOpen: () => void
+        onRefresh: () => void
+        isFetching: boolean
+        error: string | null
+    }
     /** Full Pi model data with thinkingLevelMap for provider grouping + thinking level filtering */
     piModels?: PiModelSummary[]
     /** Pi: provider-qualified selected model from metadata (survives reload;
@@ -446,6 +453,7 @@ export function HappyComposer(props: {
         concurrentClients = false,
         agentFlavor,
         availableModelOptions,
+        modelCatalog,
         piModels,
         piSelectedModel,
         availableModelReasoningEffortOptions,
@@ -1569,6 +1577,7 @@ export function HappyComposer(props: {
     const handleSettingsToggle = useCallback((section: 'model' | 'effort' | null = null) => {
         haptic('light')
         if (showSettings && section !== settingsSection) {
+            modelCatalog?.onOpen()
             // Open with a different anchor: switch sections, keep the sheet up.
             setSettingsSection(section)
             return
@@ -1582,7 +1591,8 @@ export function HappyComposer(props: {
         }
         setSettingsSection(section)
         setShowSettings(true)
-    }, [haptic, showSettings, settingsSection])
+        modelCatalog?.onOpen()
+    }, [haptic, showSettings, settingsSection, modelCatalog])
 
     const clearCursorDrillDown = useCallback(() => {
         setCursorDrillDownBase(null)
@@ -1725,7 +1735,7 @@ export function HappyComposer(props: {
         // back to the generic synthesized modelOptions rows (they would post a
         // bare model id the Pi runner cannot resolve to a provider).
         ? Boolean(onModelChange && piModelGroups)
-        : Boolean(onModelChange && supportsModelChange(agentFlavor) && modelOptions.length > 0)
+        : Boolean(onModelChange && supportsModelChange(agentFlavor) && (modelOptions.length > 0 || modelCatalog))
         && !cursorVariantDrillDownActive
     const showModelEffortSettings = cursorVariantDrillDownActive
         ? Boolean((onModelEffortChange ?? onModelChange) && visibleModelEffortOptions && visibleModelEffortOptions.length > 0)
@@ -1798,7 +1808,7 @@ export function HappyComposer(props: {
             if (!selectedPiModel) return undefined
             return selectedPiModel.name ?? selectedPiModel.modelId
         }
-        if (modelOptions.length === 0) return undefined
+        if (modelOptions.length === 0 && !modelCatalog) return undefined
         const rawKey = selectedModelBase !== undefined ? selectedModelBase : model
         if ((!rawKey || rawKey === 'auto' || rawKey === 'default') && resolvedDefaultModelLabel) return resolvedDefaultModelLabel
         const normalizedKey = agentFlavor === 'cursor'
@@ -1806,7 +1816,7 @@ export function HappyComposer(props: {
             : (!rawKey || rawKey === 'auto' || rawKey === 'default' ? null : rawKey)
         const option = modelOptions.find((candidate) => candidate.value === normalizedKey)
         return option?.label ?? rawKey ?? t('misc.model')
-    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, selectedModelBase, resolvedDefaultModelLabel, t])
+    }, [onModelChange, agentFlavor, selectedPiModel, model, modelOptions, modelCatalog, selectedModelBase, resolvedDefaultModelLabel, t])
     const defaultReasoningEffort = resolvedDefaultReasoningEffort?.trim() || null
     const effectiveModelReasoningEffort = modelReasoningEffort ?? defaultReasoningEffort
     const selectedEffort = agentFlavor === 'agy' && effortOptions.length > 0
@@ -1878,9 +1888,11 @@ export function HappyComposer(props: {
                     <FloatingOverlay maxHeight={320}>
                         {sheetModelSettings ? (
                             <div className="py-2">
-                                <div className="px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
+                                <div className="flex items-center justify-between px-3 pb-1 text-xs font-semibold text-[var(--app-hint)]">
                                     {t('misc.model')}
+                                    {modelCatalog ? <ModelCatalogRefresh onRefresh={modelCatalog.onRefresh} isFetching={modelCatalog.isFetching} /> : null}
                                 </div>
+                                {modelCatalog?.error ? <div className="px-3 pb-2 text-xs text-[var(--app-hint)]">{modelCatalog.error}</div> : null}
                                 {agentFlavor === 'pi'
                                     ? piModelGroups?.map((group) => (
                                         <div key={group.provider}>
@@ -2273,6 +2285,7 @@ export function HappyComposer(props: {
         approvalSettings,
         approvalSettingsTitle,
         showModelSettings,
+        modelCatalog,
         showModelEffortSettings,
         visibleModelEffortOptions,
         cursorVariantDrillDownActive,
