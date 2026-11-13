@@ -43,7 +43,9 @@ vi.mock('@tanstack/react-router', () => ({
     useNavigate: () => navigate,
 }))
 
-vi.mock('@hapi/protocol', () => ({ PROTOCOL_VERSION: 1 }))
+vi.mock('@hapi/protocol', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@hapi/protocol')>(), PROTOCOL_VERSION: 1,
+}))
 
 vi.mock('@/hooks/useTheme', () => ({
     useAppearance: () => ({ appearance: 'system', setAppearance }),
@@ -179,6 +181,7 @@ vi.mock('@/lib/app-context', () => ({
 vi.mock('@/components/settings/CompanionPairing', () => ({
     CompanionPairing: () => <div>Companion pairing</div>,
 }))
+vi.mock('@/components/settings/AppIconSettings', () => ({ AppIconSettings: () => null }))
 
 vi.mock('@/components/settings/VoiceAdvancedControls', () => ({
     VoiceRespondsControls: () => <div>Response length controls</div>,

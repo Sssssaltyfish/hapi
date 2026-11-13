@@ -4,6 +4,7 @@ import { useTranslation } from '@/lib/use-translation'
 import type { AgyModelSummary } from '@/types/api'
 import { SelectControl } from '@/components/ui/select-control'
 import { ModelCatalogRefresh } from '@/components/ModelCatalogRefresh'
+import { filterModelOptions } from '@/lib/modelFilters'
 
 export type AgyModelSelectorProps = {
     machineId: string | null
@@ -20,6 +21,7 @@ export type AgyModelSelectorProps = {
     onModelChange: (modelId: string | null) => void
     onRetry?: () => void
     onOpen?: () => void
+    modelFilter?: readonly string[]
 }
 
 /** The catalog can change under an open form, so a model the user already picked
@@ -53,11 +55,11 @@ export function AgyModelSelector(props: AgyModelSelectorProps) {
     const selectedFamily = selectedVariant?.baseModel ?? effectiveModel
     const efforts = getAgyModelEffortLevels(effectiveModel, props.availableModels.map(model => model.modelId))
     const defaultModel = props.availableModels.find(model => model.modelId === props.currentModelId)
-    const modelOptions = groupAgyModelOptions(withSelectedModel(
+    const modelOptions = filterModelOptions(groupAgyModelOptions(withSelectedModel(
         props.availableModels,
         props.selectedModel,
         t('newSession.agyModel.notListed')
-    ), effectiveModel)
+    ), effectiveModel), props.modelFilter, props.selectedModel)
     const selectClassName = 'py-2 pl-3 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)] disabled:opacity-50'
 
     return (

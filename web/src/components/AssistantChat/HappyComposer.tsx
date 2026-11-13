@@ -47,6 +47,7 @@ import { persistInactiveComposerAttachments, setComposerDraftSnapshot, updateCom
 import { useComposerEnterBehavior } from '@/hooks/useComposerEnterBehavior'
 import { FloatingOverlay } from '@/components/ChatInput/FloatingOverlay'
 import { ModelCatalogRefresh } from '@/components/ModelCatalogRefresh'
+import { filterModelOptions, matchesModelFilter } from '@/lib/modelFilters'
 import { Autocomplete } from '@/components/ChatInput/Autocomplete'
 import { StatusBar } from '@/components/AssistantChat/StatusBar'
 import {
@@ -330,6 +331,7 @@ export function HappyComposer(props: {
     concurrentClients?: boolean
     agentFlavor?: string | null
     availableModelOptions?: Array<{ value: string | null; label: string }>
+    modelFilter?: readonly string[]
     modelCatalog?: {
         onOpen: () => void
         onRefresh: () => void
@@ -453,6 +455,7 @@ export function HappyComposer(props: {
         concurrentClients = false,
         agentFlavor,
         availableModelOptions,
+        modelFilter,
         modelCatalog,
         piModels,
         piSelectedModel,
@@ -1038,10 +1041,12 @@ export function HappyComposer(props: {
         () => agentFlavor === 'copilot' ? getCopilotAgentModeOptions() : [],
         [agentFlavor]
     )
-    const modelOptions = useMemo(
+    const allModelOptions = useMemo(
         () => getModelOptionsForFlavor(agentFlavor, model, availableModelOptions),
         [agentFlavor, model, availableModelOptions]
     )
+    const modelOptions = useMemo(() => filterModelOptions(allModelOptions, modelFilter, selectedModelBase ?? model),
+        [allModelOptions, modelFilter, selectedModelBase, model])
 
     // Cursor dual picker: after choosing a multi-variant base, drill into variant
     // rows in-place (picker stays open). Variant pick dismisses; back returns to
@@ -1078,8 +1083,12 @@ export function HappyComposer(props: {
     )
     // Pi: group models by provider for hierarchical display
     const piModelGroups = useMemo(
-        () => piModels && piModels.length > 0 ? groupModelsByProvider(piModels) : null,
-        [piModels]
+        () => piModels && piModels.length > 0 ? groupModelsByProvider(piModels.filter(entry =>
+            (entry.modelId === model && (!piSelectedModel || entry.provider === piSelectedModel.provider))
+            || matchesModelFilter(entry.modelId, entry.name, modelFilter)
+            || matchesModelFilter(`${entry.provider}/${entry.modelId}`, entry.name, modelFilter)
+        )) : null,
+        [piModels, modelFilter, model, piSelectedModel]
     )
     // Pi: find the currently selected model's thinkingLevelMap for effort filtering.
     // Prefer provider-qualified match (metadata.piSelectedModel) when available —
@@ -1481,14 +1490,20 @@ export function HappyComposer(props: {
             if (agentFlavor === 'pi') return
             if (e.key === 'm' && (e.metaKey || e.ctrlKey) && onModelChange && supportsModelChange(agentFlavor)) {
                 e.preventDefault()
-                onModelChange(getNextModelForFlavor(agentFlavor, model, availableModelOptions))
+                if (modelFilter?.length) {
+                    const index = modelOptions.findIndex(option => option.value === model)
+                    const next = modelOptions[(index + 1) % modelOptions.length]
+                    if (next) onModelChange(next.value)
+                } else {
+                    onModelChange(getNextModelForFlavor(agentFlavor, model, availableModelOptions))
+                }
                 haptic('light')
             }
         }
 
         window.addEventListener('keydown', handleGlobalKeyDown)
         return () => window.removeEventListener('keydown', handleGlobalKeyDown)
-    }, [model, onModelChange, haptic, agentFlavor, availableModelOptions])
+    }, [model, onModelChange, haptic, agentFlavor, availableModelOptions, modelFilter, modelOptions])
 
     const handleChange = useCallback((e: ReactChangeEvent<HTMLTextAreaElement>) => {
         const selection = {

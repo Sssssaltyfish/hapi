@@ -5,6 +5,8 @@ import { CompanionPairing } from '@/components/settings/CompanionPairing'
 import { PWAInstallSettings } from '@/components/settings/PWAInstallSettings'
 import { SettingsChoiceGroup, SettingsPageContent, SettingsSection, SettingsSwitch } from '@/components/settings/SettingsPrimitives'
 import { queryKeys } from '@/lib/query-keys'
+import type { UpdateHubSettingsRequest } from '@hapi/protocol'
+import { ModelFilterSettings } from '@/components/settings/ModelFilterSettings'
 
 const locales: ReadonlyArray<{ value: Locale; label: string }> = [
     { value: 'en', label: 'English' },
@@ -43,7 +45,7 @@ export default function SettingsGeneralPage() {
     })
 
     const hubSettingsMutation = useMutation({
-        mutationFn: async (patch: { sessionSummaryContract?: boolean; sessionSummaryInChat?: boolean }) => {
+        mutationFn: async (patch: UpdateHubSettingsRequest) => {
             if (!api) throw new Error('API unavailable')
             return await api.updateHubSettings(patch)
         },
@@ -58,6 +60,9 @@ export default function SettingsGeneralPage() {
                 <SettingsChoiceGroup hideLabel label={t('settings.language.label')} value={locale} options={locales} onChange={setLocale} />
             </SettingsSection>
             <PWAInstallSettings />
+            {isOwner && hubSettingsQuery.data ? <ModelFilterSettings settings={hubSettingsQuery.data}
+                onSave={patch => hubSettingsMutation.mutate(patch)} isSaving={hubSettingsMutation.isPending}
+                error={hubSettingsMutation.error} /> : null}
             {isOwner ? (
                 <SettingsSection
                     title={t('settings.general.sessionSummary.title')}

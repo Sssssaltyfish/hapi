@@ -86,6 +86,7 @@ import { useToast } from '@/lib/toast-context'
 import { NativeCodexTarget, useNativeCreationTarget } from './NativeCodexTarget'
 import { NativeWorkspaceSection, useNativeWorkspace } from './NativeWorkspaceSection'
 import { NativeImportTree } from '@/codex-native/NativeImportTree'
+import { useModelFilters } from '@/hooks/queries/useModelFilters'
 import { CREATION_CHOICES, creationChoiceFlavor, disabledCreationChoices, type CreationTarget } from './creationChoices'
 
 
@@ -126,6 +127,8 @@ export function NewSession(props: NewSessionProps) {
         return props.initialMachineId ? creationChoiceFlavor(preferred) : preferred
     })
     const agent = creationChoiceFlavor(creationChoice)
+    const modelFilters = useModelFilters(props.api)
+    const modelFilter = modelFilters[creationChoice]
     const isNative = creationChoice === 'codex-native'
     const nativeTarget = useNativeCreationTarget(props.api, isNative, props.initialNativeEndpointId)
     const nativeWorkspace = useNativeWorkspace(props.api, nativeTarget.endpointId, isNative,
@@ -2021,6 +2024,7 @@ export function NewSession(props: NewSessionProps) {
             ) : null}
             {agent === 'dsh' ? (
                 <ModelSelector
+                    modelFilter={modelFilter}
                     agent={agent}
                     model={dshSelectedModel ?? 'auto'}
                     options={[
@@ -2041,6 +2045,7 @@ export function NewSession(props: NewSessionProps) {
                 />
             ) : agent === 'agy' ? (
                 <AgyModelSelector
+                    modelFilter={modelFilter}
                     machineId={machineId}
                     isLoading={agyModelsState.isLoading}
                     error={agyModelsState.error}
@@ -2059,6 +2064,7 @@ export function NewSession(props: NewSessionProps) {
                 />
             ) : agent === 'opencode' ? (
                 <OpencodeModelSelector
+                    modelFilter={modelFilter}
                     cwd={deferredDirectory}
                     machineId={machineId}
                     isLoading={opencodeModelsState.isLoading}
@@ -2073,6 +2079,7 @@ export function NewSession(props: NewSessionProps) {
                 agent === 'cursor' ? (
                     <>
                         <ModelSelector
+                            modelFilter={modelFilter}
                             agent={agent}
                             model={cursorPicker.mode === 'dual' ? cursorBaseSelectValue : model}
                             options={cursorPicker.modelOptions}
@@ -2111,6 +2118,7 @@ export function NewSession(props: NewSessionProps) {
                     </>
                 ) : (
                     <ModelSelector
+                        modelFilter={modelFilter}
                         agent={agent}
                         model={model}
                         options={

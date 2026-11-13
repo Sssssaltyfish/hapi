@@ -1,6 +1,7 @@
 import { useTranslation } from '@/lib/use-translation'
 import type { OpencodeModelSummary } from '@/types/api'
 import { SelectControl } from '@/components/ui/select-control'
+import { matchesModelFilter } from '@/lib/modelFilters'
 
 export type OpencodeModelSelectorProps = {
     cwd: string
@@ -12,6 +13,7 @@ export type OpencodeModelSelectorProps = {
     selectedModel: string | null | undefined
     onModelChange: (modelId: string | null) => void
     onRetry?: () => void
+    modelFilter?: readonly string[]
 }
 
 export function OpencodeModelSelector(props: OpencodeModelSelectorProps) {
@@ -70,7 +72,7 @@ export function OpencodeModelSelector(props: OpencodeModelSelectorProps) {
                     className="w-full px-3 py-2 text-sm rounded-lg border border-[var(--app-divider)] bg-[var(--app-bg)] text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-[var(--app-link)]"
                 >
                     <option value="">{t('newSession.model.default')}</option>
-                    {props.availableModels.map((model) => (
+                    {props.availableModels.filter(model => model.modelId === props.selectedModel || matchesModelFilter(model.modelId, model.name, props.modelFilter)).map((model) => (
                         <option key={model.modelId} value={model.modelId}>
                             {model.name ?? model.modelId}{props.currentModelId === model.modelId ? ` (${t('newSession.opencodeModel.default')})` : ''}
                         </option>

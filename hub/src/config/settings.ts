@@ -64,6 +64,8 @@ export interface Settings {
      * Default off: render/copy strip the footer; store stays raw.
      */
     sessionSummaryInChat?: boolean
+    /** Model picker visibility only; does not change provider catalogs or sessions. */
+    modelFilters?: Record<string, string[]>
     /**
      * Hub-side provider API keys / endpoints managed from Settings.
      * Env vars still win when set at process start (ops override).

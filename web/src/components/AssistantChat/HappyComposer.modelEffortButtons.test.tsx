@@ -148,6 +148,22 @@ describe('HappyComposer generic model/effort value buttons', () => {
         runtime.sentIntents = []
     })
 
+    it('applies model filters to both the picker and keyboard cycling', () => {
+        const onModelChange = vi.fn()
+        renderComposer('agy', {
+            model: 'gemini-4-hydrogen-xhigh', modelFilter: ['gemini-*'], onModelChange,
+            availableModelOptions: [
+                { value: 'gemini-4-hydrogen-xhigh', label: 'Hydrogen' },
+                { value: 'claude-sonnet-5-5', label: 'Sonnet' },
+                { value: 'gemini-4-argon-high', label: 'Argon' },
+            ],
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Hydrogen' }))
+        expect(screen.queryByRole('button', { name: 'Sonnet' })).toBeNull()
+        fireEvent.keyDown(window, { key: 'm', ctrlKey: true })
+        expect(onModelChange).toHaveBeenLastCalledWith('gemini-4-argon-high')
+    })
+
     it('offers refresh after a failed first catalog load and refreshes on opening', () => {
         const onOpen = vi.fn()
         const onRefresh = vi.fn()

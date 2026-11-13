@@ -84,6 +84,20 @@ describe('GET/PUT /api/hub-settings', () => {
         expect(response.status).toBe(400)
     })
 
+    it('updates one provider filter without losing another, and clears it with an empty list', async () => {
+        const { app } = await createApp()
+        for (const modelFilters of [{ agy: ['gemini-*'] }, { claude: ['sonnet*'] }, { agy: [] }]) {
+            const response = await app.request('/api/hub-settings', {
+                method: 'PUT', headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ modelFilters }),
+            })
+            expect(response.status).toBe(200)
+        }
+        const response = await app.request('/api/hub-settings')
+        const data = await response.json() as { modelFilters: Record<string, string[]> }
+        expect(data.modelFilters).toEqual({ agy: [], claude: ['sonnet*'] })
+    })
+
     it('rejects invalid body', async () => {
         const { app } = await createApp()
         const response = await app.request('/api/hub-settings', {

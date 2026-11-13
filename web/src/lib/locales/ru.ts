@@ -1444,6 +1444,8 @@ export default {
   'misc.permissionMode': 'Режим разрешений',
   'misc.model': 'Модель',
   'common.refresh': 'Обновить',
+  'settings.models.filters': 'Фильтры моделей',
+  'settings.models.filters.hint': 'По ID или имени модели. * — шаблон, правила через запятую. Пусто — все модели. Для всех устройств.',
   'misc.reasoningEffort': 'Уровень рассуждений',
   'misc.effort': 'Усилия',
   'misc.fastMode': 'Быстрый режим',

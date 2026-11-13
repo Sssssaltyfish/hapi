@@ -1471,6 +1471,8 @@ export default {
   'misc.permissionMode': '权限模式',
   'misc.model': '模型',
   'common.refresh': '刷新',
+  'settings.models.filters': '模型筛选',
+  'settings.models.filters.hint': '匹配模型 ID 或名称；支持 *，多条规则用逗号分隔。留空显示全部，所有设备共用。',
   'newSession.agyModel.fetchingModels': '正在获取可用模型…',
   'misc.reasoningEffort': '推理强度',
   'misc.effort': '思考强度',

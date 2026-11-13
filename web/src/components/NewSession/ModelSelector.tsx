@@ -2,19 +2,21 @@ import type { AgentType } from './types'
 import { MODEL_OPTIONS } from './types'
 import { useTranslation } from '@/lib/use-translation'
 import { SelectControl } from '@/components/ui/select-control'
+import { filterModelOptions } from '@/lib/modelFilters'
 
 export function ModelSelector(props: {
     agent: AgentType
     model: string
     label?: string
     options?: Array<{ value: string; label: string; group?: string }>
+    modelFilter?: readonly string[]
     isDisabled: boolean
     isLoading?: boolean
     error?: string | null
     onModelChange: (value: string) => void
 }) {
     const { t } = useTranslation()
-    const options: Array<{ value: string; label: string; group?: string }> = props.options ?? MODEL_OPTIONS[props.agent]
+    const options: Array<{ value: string; label: string; group?: string }> = filterModelOptions(props.options ?? MODEL_OPTIONS[props.agent], props.modelFilter, props.model)
     if (options.length === 0) {
         return null
     }

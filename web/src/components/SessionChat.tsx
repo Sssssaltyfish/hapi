@@ -110,6 +110,7 @@ import { useCodexModels } from '@/hooks/queries/useCodexModels'
 import { useCursorModels } from '@/hooks/queries/useCursorModels'
 import { useCursorModelsForMachine } from '@/hooks/queries/useCursorModelsForMachine'
 import { useAgyModels } from '@/hooks/queries/useAgyModels'
+import { useModelFilters } from '@/hooks/queries/useModelFilters'
 import {
     mergeCursorCliModelSkus,
     resolveCursorBaseFromWire
@@ -1242,6 +1243,7 @@ function SessionChatInner(props: SessionChatProps) {
         props.session.model,
         t
     ])
+    const modelFilters = useModelFilters(props.api)
     const agyModelsState = useAgyModels({
         api: props.api,
         machineId: sessionMachineId,
@@ -2267,6 +2269,7 @@ function SessionChatInner(props: SessionChatProps) {
                         modelReasoningEffort={agentFlavor === 'codex' || agentFlavor === 'opencode' ? props.session.modelReasoningEffort : undefined}
                         effort={props.session.effort}
                         agentFlavor={agentFlavor}
+                        modelFilter={modelFilters[native ? 'codex-native' : agentFlavor ?? 'claude']}
                         modelCatalog={agentFlavor === 'agy' ? {
                             onOpen: agyModelsState.refreshIfStale,
                             onRefresh: agyModelsState.refetch,

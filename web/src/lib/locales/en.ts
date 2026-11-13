@@ -1473,6 +1473,8 @@ export default {
   'misc.permissionMode': 'Permission Mode',
   'misc.model': 'Model',
   'common.refresh': 'Refresh',
+  'settings.models.filters': 'Model filters',
+  'settings.models.filters.hint': 'Match model IDs or names. Use * for a wildcard and commas between rules. Leave empty to show all. Shared across devices.',
   'misc.reasoningEffort': 'Reasoning Effort',
   'misc.effort': 'Effort',
   'misc.fastMode': 'Fast Mode',
