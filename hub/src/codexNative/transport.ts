@@ -21,6 +21,7 @@ function messageBytes(raw: RawData | string): number {
 export class NativeConnection {
     private socket?: WebSocket
     private ready?: Promise<void>
+    private rejectReady?: (error: Error) => void
     private sequence = 0
     private pending = new Map<
         number,
@@ -41,8 +42,10 @@ export class NativeConnection {
     ) {}
 
     connect(): Promise<void> {
+        if (this.disposed) return Promise.reject(new Error('Native connection unavailable'))
         if (this.ready) return this.ready
         this.ready = new Promise<void>((resolve, reject) => {
+            this.rejectReady = reject
             const url = this.endpoint.startsWith('unix://')
                 ? `ws+unix://${this.endpoint.slice(7)}:/`
                 : this.endpoint
@@ -63,6 +66,7 @@ export class NativeConnection {
                 }).then((result) => {
                     this.initialization = record(result)
                     socket.send(JSON.stringify({ method: 'initialized' }))
+                    this.rejectReady = undefined
                     resolve()
                 }, reject)
             })
@@ -162,6 +166,8 @@ export class NativeConnection {
     close(reason = 'Native connection released'): void {
         if (this.disposed) return
         this.disposed = true
+        this.rejectReady?.(new Error(reason))
+        this.rejectReady = undefined
         for (const pending of this.pending.values()) {
             clearTimeout(pending.timer)
             pending.reject(new Error(reason))

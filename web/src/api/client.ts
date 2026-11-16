@@ -63,6 +63,7 @@ import type {
     UploadFileResponse
 } from '@hapi/protocol/apiTypes'
 import { fetchThroughAuthProxy } from '@/api/authProxy'
+import { readNativeEventStream } from './nativeEventStream'
 import type {
     NativeEndpoint,
     NativeEndpointStatus,
@@ -568,37 +569,25 @@ export class ApiClient {
     }
 
     private async streamCodexNativePath(path: string, signal: AbortSignal, onEvent: (event: NativeEvent) => void): Promise<void> {
-        let token = this.getToken?.() ?? this.token
-        let response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal })
-        if (response.status === 401 && this.onUnauthorized) {
-            const refreshed = await this.onUnauthorized()
-            if (refreshed) {
-                this.token = refreshed
-                token = refreshed
-                response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal })
-            }
-        }
-        if (!response.ok || !response.body) throw new ApiError('Native event stream unavailable', response.status)
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ''
-        try {
-            while (!signal.aborted) {
-                const { value, done } = await reader.read()
-                if (done) break
-                buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n')
-                let boundary: number
-                while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-                    const frame = buffer.slice(0, boundary)
-                    buffer = buffer.slice(boundary + 2)
-                    const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
-                    if (data) onEvent(JSON.parse(data) as NativeEvent)
+        return readNativeEventStream(async streamSignal => {
+            let token = this.getToken?.() ?? this.token
+            let response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal: streamSignal })
+            if (response.status === 401 && this.onUnauthorized) {
+                void response.body?.cancel().catch(() => {})
+                const refreshed = await this.onUnauthorized()
+                streamSignal.throwIfAborted()
+                if (refreshed) {
+                    this.token = refreshed
+                    token = refreshed
+                    response = await fetchThroughAuthProxy(this.buildUrl(path), { headers: { authorization: `Bearer ${token}` }, signal: streamSignal })
                 }
             }
-        } finally {
-            await reader.cancel().catch(() => {})
-            reader.releaseLock()
-        }
+            if (!response.ok || !response.body) {
+                void response.body?.cancel().catch(() => {})
+                throw new ApiError('Native event stream unavailable', response.status)
+            }
+            return response
+        }, signal, onEvent)
     }
 
     async getHealth(): Promise<HubHealthResponse> {
