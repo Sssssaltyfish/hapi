@@ -50,6 +50,19 @@ function makeTool(input: unknown, permissionId = 'permission-1'): ChatToolCall {
 }
 
 describe('RequestUserInputFooter', () => {
+    it('keeps the answer visible and disables resubmission until the server confirms it', async () => {
+        const { approvePermission } = renderFooter()
+        let confirm!: () => void
+        approvePermission.mockReturnValueOnce(new Promise<void>(resolve => { confirm = resolve }))
+        fireEvent.click(screen.getByRole('button', { name: /自己填写/ }))
+        fireEvent.change(screen.getByRole('textbox'), { target: { value: 'keep until confirmed' } })
+        fireEvent.click(screen.getByRole('button', { name: 'tool.submit' }))
+        expect(screen.getByRole('textbox')).toHaveValue('keep until confirmed')
+        expect(screen.getByRole('button', { name: 'tool.submitting' })).toBeDisabled()
+        confirm()
+        await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+    })
+
     it('focuses the custom answer and requires text before submitting canonical values', async () => {
         const { approvePermission } = renderFooter()
         fireEvent.click(screen.getByRole('button', { name: /Alpha/ }))

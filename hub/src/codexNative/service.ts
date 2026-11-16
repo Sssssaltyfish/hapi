@@ -6,7 +6,7 @@ import { splitCodexInputContext } from '@hapi/protocol/codexInputContext'
 import { CodexGuardianDenials, codexRecap, codexSideQuestion, codexTitle, type CodexStructuredRequestTransport } from '@hapi/protocol/codexManagement'
 import { SideQuestions, type SideQuestionRequest } from '@hapi/protocol/sideQuestion'
 import { messageInput, mentionSuggestions } from './mentions'
-import { NativeConnection, record, text, type NativeEvent, type NativeRecord } from './transport'
+import { NativeConnection, record, text, type NativeEvent, type NativeRecord, type NativeReplyResult } from './transport'
 import { listDaemonProjects, projectMemberships } from './projects'
 import { DesktopWorkspaceLookup, type DesktopWorkspaceState } from './desktopWorkspaces'
 import { NativeCatalogEvents, type NativeCatalogObserver } from './catalogEvents'
@@ -76,9 +76,12 @@ function structuredRequestTransport(client: NativeConnection): CodexStructuredRe
             client.listeners.add(listener)
             return () => { client.listeners.delete(listener) }
         },
-        rejectRequest: (id, helperId) => client.reply(String(id), helperId, {
-            error: { code: -32601, message: 'Temporary helpers do not accept interaction requests' },
-        }),
+        rejectRequest: (id, helperId) => {
+            // The helper fails and releases this connection immediately afterwards.
+            void client.reply(String(id), helperId, {
+                error: { code: -32601, message: 'Temporary helpers do not accept interaction requests' },
+            }).catch(() => {})
+        },
     }
 }
 export function fallbackThread(thread: NativeRecord): boolean {
@@ -830,9 +833,9 @@ export class NativeService {
             if (!borrowed) client.close()
         }
     }
-    reply(threadId: string, id: string, response: { result?: unknown; error?: unknown }): void {
+    async reply(threadId: string, id: string, response: { result?: unknown; error?: unknown }): Promise<NativeReplyResult> {
         const entry = this.subscriptions.get(threadId)
         if (!entry) throw new Error('Open the native thread to answer its pending request')
-        entry.client.reply(id, threadId, response)
+        return await entry.client.reply(id, threadId, response)
     }
 }

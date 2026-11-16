@@ -436,8 +436,7 @@ export function createCodexNativeRoutes(
             Object.keys(body).some((key) => key !== 'result' && key !== 'error')
         )
             return c.json({ error: 'Provide result or error' }, 400)
-        getService(c).reply(c.req.param('id'), c.req.param('requestId'), body)
-        return c.json({ sent: true })
+        return c.json(await getService(c).reply(c.req.param('id'), c.req.param('requestId'), body))
     })
     app.get('/codex-native/threads/:id/events', (c) => {
         const encoder = new TextEncoder()

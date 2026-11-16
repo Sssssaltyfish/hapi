@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import { NativeService, fallbackThread } from './service'
-import type { NativeConnection, NativeEvent } from './transport'
+import type { NativeConnection, NativeEvent, NativeReplyResult } from './transport'
 import { createCodexNativeRoutes } from '../web/routes/codexNative'
 import type { WebAppEnv } from '../web/middleware/auth'
 
@@ -23,6 +23,9 @@ class FakeConnection {
         approvalPolicy: { granular: { sandbox_approval: true, rules: false, skill_approval: true, request_permissions: true, mcp_elicitations: false } } as unknown,
         approvalsReviewer: 'auto_review',
         sandboxPolicy: { type: 'readOnly' },
+    }
+    async reply(_id: string, _threadId: string, _response: unknown): Promise<NativeReplyResult> {
+        return { resolved: true, alreadyResolved: false }
     }
     async request(method: string, params: unknown): Promise<unknown> {
         this.calls.push({ method, params })
@@ -114,6 +117,28 @@ function routes(service: NativeService, namespace: string) {
     app.route('/api', createCodexNativeRoutes(service))
     return app
 }
+
+test('the reply HTTP response waits for native resolution', async () => {
+    let received!: () => void, resolve!: () => void
+    const sent = new Promise<void>(done => { received = done })
+    const confirmation = new Promise<void>(done => { resolve = done })
+    const { service } = fixture(client => {
+        client.reply = async () => { received(); await confirmation; return { resolved: true, alreadyResolved: false } }
+    })
+    const release = await service.subscribe('thread', () => {})
+    try {
+        let completed = false
+        const response = Promise.resolve(routes(service, 'owner').request('/api/codex-native/threads/thread/requests/42', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ result: { answers: {} } }),
+        })).then(value => { completed = true; return value })
+        await sent
+        expect(completed).toBe(false)
+        resolve()
+        const result = await response
+        expect(result.status).toBe(200)
+        expect(await result.json()).toEqual({ resolved: true, alreadyResolved: false })
+    } finally { release(); service.dispose() }
+})
 describe('native bridge boundaries', () => {
     test('steers the original queued input and identity before deleting it', async () => {
         const { service, clients } = fixture(client => { client.queueSecondPage = true })

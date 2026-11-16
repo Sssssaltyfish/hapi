@@ -3,6 +3,7 @@ import WebSocket, { type RawData } from 'ws'
 export type NativeRecord = Record<string, unknown>
 export type NativeEvent = { method: string; params?: unknown }
 export type NativeRequest = NativeEvent & { id: string | number }
+export type NativeReplyResult = { resolved: true; alreadyResolved: boolean }
 export const NATIVE_PAYLOAD_LIMIT_ERROR = 'Native response exceeded the WebSocket payload limit'
 export const record = (value: unknown): NativeRecord =>
     value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -32,6 +33,12 @@ export class NativeConnection {
         }
     >()
     readonly requests = new Map<string, NativeRequest>()
+    private resolvedRequests = new Map<string, string>()
+    private pendingReplies = new Map<string, {
+        resolve(value: NativeReplyResult): void
+        reject(error: Error): void
+        timer: ReturnType<typeof setTimeout>
+    }>()
     readonly listeners = new Set<(event: NativeEvent) => void>()
     private disposed = false
     initialization: NativeRecord = {}
@@ -118,13 +125,22 @@ export class NativeConnection {
                 return
             }
             const request = { id: message.id, method, params: message.params }
+            this.resolvedRequests.delete(String(message.id))
             this.requests.set(String(message.id), request)
             this.emit({ method: 'hapi/request', params: request })
             return
         }
         if (method === 'serverRequest/resolved') {
             const id = record(message.params).requestId
+            const threadId = text(record(this.requests.get(String(id))?.params).threadId)
+                ?? text(record(message.params).threadId)
+            if (threadId) {
+                this.resolvedRequests.set(String(id), threadId)
+                if (this.resolvedRequests.size > 128)
+                    this.resolvedRequests.delete(this.resolvedRequests.keys().next().value!)
+            }
             this.requests.delete(String(id))
+            this.finishReply(String(id))
             this.emit({ method: 'hapi/requestResolved', params: { id } })
         }
         this.emit({ method, params: message.params })
@@ -154,14 +170,37 @@ export class NativeConnection {
         await this.connect()
         return this.rawRequest(method, params)
     }
-    reply(id: string, threadId: string, response: { result?: unknown; error?: unknown }): void {
+    async reply(id: string, threadId: string, response: { result?: unknown; error?: unknown }): Promise<NativeReplyResult> {
+        if (this.resolvedRequests.get(id) === threadId) return { resolved: true, alreadyResolved: true }
         const request = this.requests.get(id)
         if (!request || record(request.params).threadId !== threadId)
             throw new Error('Native request is no longer pending')
         if (this.socket?.readyState !== WebSocket.OPEN)
             throw new Error('Native connection unavailable')
-        this.socket.send(JSON.stringify({ id: request.id, ...response }))
-        // Only the daemon's serverRequest/resolved event establishes resolution.
+        if (this.pendingReplies.has(id))
+            throw new Error('Native reply is awaiting confirmation')
+        // A WebSocket write only confirms local delivery. Keep the HTTP caller
+        // waiting until the daemon resolves the request, even if browser SSE lags.
+        return new Promise<NativeReplyResult>((resolve, reject) => {
+            const timer = setTimeout(() => this.finishReply(id,
+                new Error('Native reply was not confirmed; refresh before retrying')), 20_000)
+            this.pendingReplies.set(id, { resolve, reject, timer })
+            try {
+                this.socket!.send(JSON.stringify({ id: request.id, ...response }), error => {
+                    if (error) this.finishReply(id, error)
+                })
+            } catch (error) {
+                this.finishReply(id, error instanceof Error ? error : new Error(String(error)))
+            }
+        })
+    }
+    private finishReply(id: string, error?: Error): void {
+        const pending = this.pendingReplies.get(id)
+        if (!pending) return
+        this.pendingReplies.delete(id)
+        clearTimeout(pending.timer)
+        if (error) pending.reject(error)
+        else pending.resolve({ resolved: true, alreadyResolved: false })
     }
     close(reason = 'Native connection released'): void {
         if (this.disposed) return
@@ -173,7 +212,9 @@ export class NativeConnection {
             pending.reject(new Error(reason))
         }
         this.pending.clear()
+        for (const id of this.pendingReplies.keys()) this.finishReply(id, new Error(reason))
         this.requests.clear()
+        this.resolvedRequests.clear()
         this.socket?.terminate()
         this.emit({ method: 'hapi/disconnected', params: { error: reason } })
         this.listeners.clear()

@@ -35,7 +35,7 @@ it('checks current pending requests through a previously captured approval handl
     await approve('session', '21')
     expect(codexNativeAction).toHaveBeenCalledWith('thread', 'requests/21', { result: { decision: 'accept' } })
     requests = []
-    await expect(approve('session', '21')).rejects.toThrow('Native request is no longer pending')
+    await expect(approve('session', '21')).resolves.toBeUndefined()
     expect(codexNativeAction).toHaveBeenCalledTimes(1)
 })
 

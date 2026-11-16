@@ -166,7 +166,9 @@ export function createNativeSessionApiAdapter(
         const { projectedRequests, thread } = getState()
         if (isNativeAsyncQuestionRequest(requestId)) {
             const questions = record(projectedRequests[requestId]?.arguments).questions
-            if (!Array.isArray(questions)) throw new Error('Question is no longer pending')
+            // A live update may have removed the question before this old form's
+            // click is handled. Closing it does not send another answer.
+            if (!Array.isArray(questions)) return
             const answers = property === 'approvePermission' ? record(record(options).answers) : {}
             const replies = questions.map(record).map((question) => {
                 const value = answers[String(question.id)]
@@ -186,7 +188,7 @@ export function createNativeSessionApiAdapter(
             return
         }
         const request = thread.requests.find((value) => String(value.id) === requestId)
-        if (!request) throw new Error('Native request is no longer pending')
+        if (!request) return
         const isQuestion = request.method === 'item/tool/requestUserInput'
         const isApproval =
             request.method === 'item/commandExecution/requestApproval' ||
