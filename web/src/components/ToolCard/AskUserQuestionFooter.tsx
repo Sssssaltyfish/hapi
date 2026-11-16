@@ -178,15 +178,15 @@ export function AskUserQuestionFooter(props: {
     if (!permission || permission.status !== 'pending' || dismissed) return null
     if (!isAskUserQuestionToolName(props.tool.name)) return null
 
-    const run = async (action: () => Promise<void>, dismiss = false) => {
-        if (props.disabled || loading) return
+    const run = async (action: () => Promise<void>) => {
+        if (props.disabled || loading || submittedRef.current) return
         setLoading(true)
         setError(null)
         try {
             await action()
             submittedRef.current = true
             clearAskUserQuestionDraft(draftKey)
-            if (dismiss) setDismissed(true)
+            setDismissed(true)
             haptic.notification('success')
             props.onDone()
         } catch (e) {
@@ -344,7 +344,7 @@ export function AskUserQuestionFooter(props: {
                 </div>
                 <DismissQuestionButton
                     disabled={props.disabled || loading}
-                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }), true)}
+                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }))}
                 />
             </div>
 

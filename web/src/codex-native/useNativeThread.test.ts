@@ -13,6 +13,24 @@ const deferredPage = () => {
 }
 
 describe('native thread window', () => {
+    it('resolves requests whose IDs change JSON type', async () => {
+        let event!: (value: NativeEvent) => void
+        const api = {
+            getCodexNativeThread: vi.fn().mockResolvedValue({ thread: { id: 'request-resolution' } }),
+            getCodexNativeActiveTurn: vi.fn().mockResolvedValue({ activeTurn: null }),
+            getCodexNativeItems: vi.fn().mockResolvedValue({ data: [], nextCursor: null }),
+            streamCodexNativeEvents: vi.fn((_id: string, _signal: AbortSignal, onEvent: typeof event) => { event = onEvent; return new Promise<void>(() => {}) }),
+        }
+        const { result, unmount } = renderHook(() => useNativeThread(api as unknown as ApiClient, 'request-resolution'))
+        await waitFor(() => expect(result.current.loading).toBe(false))
+        act(() => event({ method: 'hapi/request', params: { id: 42, method: 'item/tool/requestUserInput' } }))
+        act(() => event({ method: 'hapi/request', params: { id: '42', method: 'item/tool/requestUserInput' } }))
+        expect(result.current.requests).toHaveLength(1)
+        act(() => event({ method: 'hapi/requestResolved', params: { id: 42 } }))
+        expect(result.current.requests).toHaveLength(0)
+        unmount()
+    })
+
     it('streams public summary slots without rolling back live text or mutating the history window', async () => {
         let event!: (value: NativeEvent) => void
         let resolvePage!: (page: NativePage<NativeItemEntry>) => void

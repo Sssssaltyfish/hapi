@@ -102,13 +102,13 @@ export function RequestUserInputFooter(props: {
     if (!isRequestUserInputToolName(props.tool.name)) return null
     const nativeAsync = isNativeAsyncQuestionRequest(permission.id)
 
-    const run = async (action: () => Promise<void>, dismiss = false) => {
-        if (props.disabled || loading) return
+    const run = async (action: () => Promise<void>) => {
+        if (props.disabled || loading || dismissed) return
         setLoading(true)
         setError(null)
         try {
             await action()
-            if (dismiss) setDismissed(true)
+            setDismissed(true)
             haptic.notification('success')
             props.onDone()
         } catch (e) {
@@ -215,7 +215,7 @@ export function RequestUserInputFooter(props: {
                 </div>
                 <DismissQuestionButton
                     disabled={props.disabled || loading}
-                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }), true)}
+                    onClick={() => run(() => props.api.denyPermission(props.sessionId, permission.id, { decision: 'abort' }))}
                 />
             </div>
 

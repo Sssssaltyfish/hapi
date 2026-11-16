@@ -115,6 +115,7 @@ describe('AskUserQuestionFooter draft persistence (hapi#1734)', () => {
         fireEvent.click(screen.getByRole('radio', { name: /Alpha/ }))
         fireEvent.click(screen.getByRole('button', { name: 'tool.submit' }))
         await vi.waitFor(() => expect(approvePermission).toHaveBeenCalled())
+        await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'tool.submit' })).not.toBeInTheDocument())
 
         // Re-mount the same session/tool pair as if the widget were shown again
         rerender(<SessionKeyedWrapper sessionId="session-A" tool={tool} />)

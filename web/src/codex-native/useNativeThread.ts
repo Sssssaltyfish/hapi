@@ -463,6 +463,7 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             if (event.method === 'hapi/ready') {
                 setConnected(true)
+                setError('')
                 settingsRevision.current += 1
                 if (Object.hasOwn(event.params, 'activeTurn')) {
                     activeTurnRevision.current += 1
@@ -506,11 +507,11 @@ export function useNativeThread(api: ApiClient, id: string, enabled = true, cach
             }
             if (event.method === 'hapi/request') {
                 const request = { ...event.params, receivedAt: Date.now() } as unknown as NativeRequest
-                setRequests(current => [...current.filter(value => value.id !== request.id), request])
+                setRequests(current => [...current.filter(value => String(value.id) !== String(request.id)), request])
                 return
             }
             if (event.method === 'hapi/requestResolved') {
-                setRequests(current => current.filter(value => value.id !== event.params.id))
+                setRequests(current => current.filter(value => String(value.id) !== String(event.params.id)))
                 return
             }
             if (event.method === 'item/reasoning/summaryPartAdded' || event.method === 'item/reasoning/summaryTextDelta') {

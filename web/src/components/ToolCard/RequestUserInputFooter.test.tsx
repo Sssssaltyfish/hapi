@@ -65,6 +65,7 @@ describe('RequestUserInputFooter', () => {
         await waitFor(() => expect(approvePermission).toHaveBeenCalledWith('session-1', 'permission-1', {
             answers: { choice: { answers: ['None of the above', 'user_note: 自定义\n说明'] } }
         }))
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'tool.submit' })).not.toBeInTheDocument())
     })
 
     it('retains notes across choices, questions, and SSE rerenders without auto-advancing', async () => {
