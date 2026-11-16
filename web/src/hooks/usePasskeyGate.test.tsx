@@ -1,8 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { renderHook, waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { passkeySessionKey, usePasskeyGate } from './usePasskeyGate'
 
-afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); sessionStorage.clear() })
 
 it('bootstraps external login from the cookie and discards a previously cached local token', async () => {
     sessionStorage.setItem(passkeySessionKey(''), JSON.stringify({ token: 'old-local-token', expiresAt: Date.now() + 60_000 }))
@@ -23,5 +23,24 @@ it('shows the app login when unauthenticated and never falls back to the old loc
     const { result } = renderHook(() => usePasskeyGate(''))
     await waitFor(() => expect(result.current.enabled).toBe(true))
     expect(result.current.session).toBeNull()
+    expect(result.current.error).toBeNull()
+})
+
+it('lets the user retry when the shared login service stalls', async () => {
+    const deadline = new AbortController()
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
+    const fetchMock = vi.fn().mockResolvedValueOnce({ ok: true, json: async () => ({ enabled: true, sharedSession: true }) })
+        .mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+        }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { result } = renderHook(() => usePasskeyGate(''))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await act(async () => deadline.abort(new DOMException('Timeout', 'TimeoutError')))
+    expect(result.current.error).toBe('连接超时，请重试。')
+    vi.mocked(AbortSignal.timeout).mockReturnValue(new AbortController().signal)
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ enabled: false }) })
+    act(() => result.current.retry())
+    await waitFor(() => expect(result.current.enabled).toBe(false))
     expect(result.current.error).toBeNull()
 })

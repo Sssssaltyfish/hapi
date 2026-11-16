@@ -11,10 +11,11 @@ export function usePasskeyGate(baseUrl: string) {
     const [retry, setRetry] = useState(0)
     useEffect(() => {
         const controller = new AbortController()
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
         setEnabled(null); setSession(null); setError(null)
         void (async () => {
             try {
-                const response = await fetch(`${baseUrl}/api/passkey/config`, { cache: 'no-store', signal: controller.signal })
+                const response = await fetch(`${baseUrl}/api/passkey/config`, { cache: 'no-store', signal })
                 if (!response.ok) throw new Error('无法读取登录设置，请检查连接后重试。')
                 const config = await response.json() as { enabled: boolean; sharedSession?: boolean }
                 if (typeof config.enabled !== 'boolean') throw new Error('登录设置无效。')
@@ -29,7 +30,7 @@ export function usePasskeyGate(baseUrl: string) {
                     const url = new URL(window.location.href)
                     if (url.searchParams.has('token')) { url.searchParams.delete('token'); window.history.replaceState(null, '', url) }
                     if (config.sharedSession) {
-                        const bootstrap = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', signal: controller.signal })
+                        const bootstrap = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', signal })
                         if (bootstrap.ok) {
                             const current = await bootstrap.json() as PasskeySession
                             if (!controller.signal.aborted) setSession(current)
@@ -41,7 +42,9 @@ export function usePasskeyGate(baseUrl: string) {
                 if (controller.signal.aborted) return
                 setEnabled(config.enabled)
             } catch (error) {
-                if (!controller.signal.aborted) setError(error instanceof Error ? error.message : '无法连接 HAPI。')
+                if (!controller.signal.aborted) setError(signal.aborted
+                    ? '连接超时，请重试。'
+                    : error instanceof Error ? error.message : '无法连接 HAPI。')
             }
         })()
         return () => controller.abort()

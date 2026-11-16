@@ -37,7 +37,7 @@ function getAuthPayload(source: AuthSource): { initData: string } | { accessToke
 
 async function authenticateSource(source: AuthSource, baseUrl: string, currentToken?: string | null): Promise<AuthResponse> {
     if (source.type !== 'passkey') return new ApiClient('', { baseUrl }).authenticate(getAuthPayload(source))
-    const response = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', headers: { Authorization: `Bearer ${currentToken ?? source.token}` } })
+    const response = await fetch(`${baseUrl}/api/passkey/session`, { credentials: 'include', cache: 'no-store', signal: AbortSignal.timeout(15_000), headers: { Authorization: `Bearer ${currentToken ?? source.token}` } })
     if (!response.ok) throw new ApiError(response.status === 401
         ? '登录已过期或已撤销，请重新使用 Passkey 登录。'
         : '认证服务暂时不可用，请稍后重试。', response.status)
