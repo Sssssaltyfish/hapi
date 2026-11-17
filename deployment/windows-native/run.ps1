@@ -16,18 +16,35 @@ function Stop-Requested {
 
 function Write-Event($Event) {
     $Event.at = [DateTime]::UtcNow.ToString('o')
-    $Event | ConvertTo-Json -Compress | Add-Content -LiteralPath "$stateDirectory\events.jsonl" -Encoding UTF8
+    try { $Event | ConvertTo-Json -Compress | Add-Content -LiteralPath "$stateDirectory\events.jsonl" -Encoding UTF8 }
+    catch {}
 }
 
 function Stop-OrphanedDaemon([Diagnostics.Process]$Supervisor) {
     $cliDirectory = Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin'
     $firstPossibleStart = $Supervisor.StartTime.ToUniversalTime().AddTicks(-9)
     $supervisorExit = $Supervisor.ExitTime.ToUniversalTime()
+    $backendPattern = '^\s*(?:"[^"]+"|\S+)\s+app-server\s+--listen\s+(?:"{0}"|{0})(?:\s|$)' -f [regex]::Escape([string]$config.websocketUrl)
+    $launch = $null
+    try {
+        $state = Get-Content -LiteralPath "$stateDirectory\managed.json" -Raw | ConvertFrom-Json
+        if ($state.supervisor.pid -eq $Supervisor.Id -and $state.supervisor.ownerSid -eq $config.ownerSid) {
+            $recordedStart = ([DateTimeOffset]$state.supervisor.started).UtcDateTime
+            if ($recordedStart -ge $firstPossibleStart -and $recordedStart -le $Supervisor.StartTime.ToUniversalTime()) {
+                $launch = $state.daemonLaunch
+            }
+        }
+    } catch {}
     # The retained supervisor handle pins its PID until this check is complete.
     foreach ($candidate in Get-CimInstance Win32_Process -Filter "ParentProcessId=$($Supervisor.Id)") {
         $executable = $candidate.ExecutablePath
-        if (!$executable -or [IO.Path]::GetFileName($executable) -ne 'codex.exe' -or
-            [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($executable)) -ne $cliDirectory) { continue }
+        if (!$executable) { continue }
+        $matchesLaunch = $launch.pid -eq $candidate.ProcessId -and $launch.executable -eq $executable
+        $matchesCache = [IO.Path]::GetFileName($executable) -eq 'codex.exe' -and
+            [IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($executable)) -eq $cliDirectory
+        # The invocation also identifies a launch whose disposable snapshot could not be written.
+        $matchesInvocation = $config.websocketUrl -and $candidate.CommandLine -match $backendPattern
+        if (!$matchesLaunch -and !$matchesCache -and !$matchesInvocation -and $executable -ne $config.cliExe) { continue }
         $created = $candidate.CreationDate.ToUniversalTime()
         if ($created -lt $firstPossibleStart -or $created -gt $supervisorExit) { continue }
         $process = Get-Process -Id $candidate.ProcessId -ErrorAction SilentlyContinue
@@ -36,6 +53,7 @@ function Stop-OrphanedDaemon([Diagnostics.Process]$Supervisor) {
             $null = $process.Handle
             $live = Get-CimInstance Win32_Process -Filter "ProcessId=$($candidate.ProcessId)"
             if (!$live -or $live.ParentProcessId -ne $Supervisor.Id -or $live.ExecutablePath -ne $executable -or
+                $live.CommandLine -ne $candidate.CommandLine -or
                 $live.CreationDate.ToUniversalTime() -ne $created) { continue }
             $owner = Invoke-CimMethod -InputObject $live -MethodName GetOwnerSid
             if ($owner.Sid -ne $config.ownerSid -or $process.HasExited) { continue }
@@ -112,12 +130,13 @@ try {
             # A killed supervisor cannot clear its own ready snapshot.
             try { $state = Get-Content -LiteralPath "$stateDirectory\managed.json" -Raw | ConvertFrom-Json }
             catch { $state = [pscustomobject]@{} }
-            $state | Add-Member -Force -NotePropertyMembers @{status='failed';daemonReady=$false;toolsPipeReady=$false;desktopBackendConnected=$false;at=[DateTime]::UtcNow.ToString('o')}
+            $state | Add-Member -Force -NotePropertyMembers @{status='failed';daemonReady=$false;toolsPipeReady=$false;toolsRelayReady=$false;desktopBackendConnected=$false;at=[DateTime]::UtcNow.ToString('o')}
             if ($failure -or !$state.failure) {
                 if (!$failure) { $failure = @{reason='supervisor-exit';exitCode=$code} }
                 $state | Add-Member -Force -NotePropertyName failure -NotePropertyValue $failure
             }
-            $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath "$stateDirectory\managed.json" -Encoding UTF8
+            try { $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath "$stateDirectory\managed.json" -Encoding UTF8 }
+            catch { Write-Event @{event='state-save-failed';code=$_.Exception.HResult} }
         }
         if ((Stop-Requested) -or $stopWait -or !(Test-LaunchRunning)) { exit 0 }
         if ($code -eq 0) { exit 0 }

@@ -1,29 +1,137 @@
-param([Parameter(Mandatory)][string]$Config)
+param(
+    [Parameter(Mandatory)][string]$Config,
+    [switch]$RequireDesktop,
+    [switch]$IncludeProxyEnvironment,
+    [switch]$Utf8Output
+)
 $ErrorActionPreference = 'Stop'
+if ($Utf8Output) { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) }
 $settings = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
-$package = $null
-try { $package = Get-AppxPackage -Name OpenAI.Codex | Sort-Object Version -Descending | Select-Object -First 1 }
-catch { }
-$desktop = if ($package) { Join-Path $package.InstallLocation 'app\ChatGPT.exe' }
-if (!$desktop -or !(Test-Path -LiteralPath $desktop -PathType Leaf)) {
-    # A noninteractive token can read the user's registered package location
-    # even if the AppX cmdlet is unavailable. Use the configured path as a fallback.
-    $repository = 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages'
-    $packages = foreach ($key in Get-ChildItem -LiteralPath $repository -ErrorAction SilentlyContinue) {
-        if ($key.PSChildName -match '^OpenAI\.Codex_(\d+\.\d+\.\d+\.\d+)_\w+__2p2nqsd0c76g0$') {
-            $folder = $key.GetValue('PackageRootFolder')
-            if ($folder -and [IO.Path]::GetFileName($folder) -eq $key.PSChildName) {
-                @{version=[version]$Matches[1];desktop=(Join-Path $folder 'app\ChatGPT.exe')}
+$packageFamily = 'OpenAI.Codex_2p2nqsd0c76g0'
+$packagePattern = '^OpenAI\.Codex_(\d+\.\d+\.\d+\.\d+)_\w+__2p2nqsd0c76g0$'
+
+function Get-File([string]$Path) {
+    if (!$Path) { return }
+    $file = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+    if ($file -is [IO.FileInfo]) { $file }
+}
+
+function Find-Desktop {
+    $locations = @(
+        try {
+            foreach ($package in Get-AppxPackage -Name OpenAI.Codex -ErrorAction Stop) {
+                if ($package.PackageFamilyName -eq $packageFamily -and $package.PackageFullName -match $packagePattern -and
+                    $package.InstallLocation -and [IO.Path]::GetFileName($package.InstallLocation) -eq $package.PackageFullName) {
+                    @{ version = [version]$Matches[1]; folder = $package.InstallLocation }
+                }
+            }
+        } catch {}
+        # A noninteractive token can often read registration even if AppX is unavailable.
+        $repository = 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages'
+        foreach ($key in Get-ChildItem -LiteralPath $repository -ErrorAction SilentlyContinue) {
+            if ($key.PSChildName -match $packagePattern) {
+                $folder = $key.GetValue('PackageRootFolder')
+                if ($folder -and [IO.Path]::GetFileName($folder) -eq $key.PSChildName) {
+                    @{ version = [version]$Matches[1]; folder = $folder }
+                }
             }
         }
+    )
+    foreach ($location in $locations | Sort-Object { $_.version } -Descending) {
+        $file = Get-File (Join-Path $location.folder 'app\ChatGPT.exe')
+        if ($file) { return $file }
     }
-    $desktop = $packages | Sort-Object { $_.version } -Descending | ForEach-Object { $_.desktop } |
-        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-    if (!$desktop) { $desktop = $settings.desktopExe }
 }
-$cli = Get-ChildItem -Path "$env:LOCALAPPDATA\OpenAI\Codex\bin\*\codex.exe" -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-if (!$cli) { throw 'Installed Codex CLI unavailable.' }
-foreach ($file in @($desktop,$cli.FullName,$settings.nodeExe)) { if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw 'Installed runtime unavailable.' } }
-$resources = Join-Path (Split-Path -Parent $desktop) 'resources'
-if (!(Test-Path -LiteralPath $resources -PathType Container)) { throw 'Desktop resources unavailable.' }
-@{desktopExe=$desktop;cliExe=$cli.FullName;nodeExe=$settings.nodeExe;resourcesPath=$resources} | ConvertTo-Json -Compress
+
+function Get-Version([string]$Value) {
+    if ($Value -match '^v?(\d+\.\d+(?:\.\d+){0,2})(?:$|[+\- ])') {
+        try { [version]$Matches[1] } catch {}
+    }
+}
+
+function Get-CompanionCli([string]$Resources) {
+    if (!$Resources) { return }
+    $direct = Get-File (Join-Path $Resources 'codex.exe')
+    if ($direct) { return $direct }
+    Get-File (Join-Path $Resources 'bin\codex.exe')
+}
+
+$desktop = $null
+$resources = $null
+try {
+    $configuredDesktop = Get-File $settings.desktopExe
+    $recordedPackage = $settings.desktopExe -match '[\\/]OpenAI\.Codex_\d+\.\d+\.\d+\.\d+_\w+__2p2nqsd0c76g0[\\/]app[\\/]ChatGPT\.exe$'
+    # Legacy configs record the Store path observed during install. Follow updates.
+    $desktop = if ($settings.desktopExe -and !$recordedPackage) { $configuredDesktop } else { Find-Desktop }
+    if (!$desktop) { $desktop = $configuredDesktop }
+    $resourcesCandidate = if ($settings.resourcesPath) { $settings.resourcesPath }
+        elseif ($desktop) { Join-Path $desktop.DirectoryName 'resources' }
+    if ($resourcesCandidate -and (Test-Path -LiteralPath $resourcesCandidate -PathType Container)) {
+        $resources = (Get-Item -LiteralPath $resourcesCandidate).FullName
+    }
+} catch {
+    if ($RequireDesktop) { throw }
+}
+if ($RequireDesktop -and (!$desktop -or !$resources)) { throw 'Installed Desktop executable or resources unavailable.' }
+
+if ($settings.cliExe) {
+    $cli = Get-File $settings.cliExe
+    if (!$cli) { throw 'Configured Codex CLI unavailable.' }
+} else {
+    $cli = $null
+    $cacheDirectory = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin' }
+    if (!$RequireDesktop -and !$settings.resourcesPath) {
+        $packageRoot = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'WindowsApps'
+        foreach ($process in Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Sort-Object StartTime) {
+            try {
+                $active = Get-File $process.Path
+                if ($active -and ($active.FullName -eq $desktop.FullName -or (
+                    $active.Directory.Name -eq 'app' -and $active.Directory.Parent.Name -match $packagePattern -and
+                    $active.Directory.Parent.Parent.FullName -eq $packageRoot))) {
+                    $activeResources = Join-Path $active.DirectoryName 'resources'
+                    if ($cacheDirectory) {
+                        foreach ($child in Get-CimInstance Win32_Process -Filter "ParentProcessId=$($process.Id) AND Name='codex.exe'" -ErrorAction SilentlyContinue) {
+                            if ($child.CommandLine -notmatch '(?:^|\s)app-server(?:\s|$)') { continue }
+                            $file = Get-File $child.ExecutablePath
+                            if ($file -and $file.Directory.Parent.FullName -eq $cacheDirectory) { $cli = $file; break }
+                        }
+                    }
+                    if (!$cli) { $cli = Get-CompanionCli $activeResources }
+                    if ($cli) { break }
+                }
+            } catch {}
+        }
+        if ($cli -and (Test-Path -LiteralPath $activeResources -PathType Container -ErrorAction SilentlyContinue)) { $resources = $activeResources }
+    }
+    if (!$cli) { $cli = Get-CompanionCli $resources }
+    if (!$cli -and $cacheDirectory) {
+        $cache = Join-Path $cacheDirectory '*\codex.exe'
+        $cli = Get-ChildItem -Path $cache -File -ErrorAction SilentlyContinue | ForEach-Object {
+            $version = Get-Version $_.Directory.Name
+            if (!$version) { $version = Get-Version $_.VersionInfo.ProductVersion }
+            @{ file = $_; version = $version; timestamp = $_.LastWriteTimeUtc }
+        } | Sort-Object @{ Expression = { $_.version }; Descending = $true },
+            @{ Expression = { $_.timestamp }; Descending = $true } | ForEach-Object { $_.file } | Select-Object -First 1
+    }
+    if (!$cli) {
+        foreach ($command in Get-Command codex.exe -CommandType Application -All -ErrorAction SilentlyContinue) {
+            $candidate = Get-File $command.Source
+            # A zero-length WindowsApps alias does not identify an installed CLI.
+            if ($candidate -and $candidate.Length -gt 0) { $cli = $candidate; break }
+        }
+    }
+    if (!$cli) { throw 'Installed Codex CLI unavailable.' }
+}
+
+if (!(Get-File $settings.nodeExe)) { throw 'Configured Node runtime unavailable.' }
+$result = @{desktopExe=$desktop.FullName;cliExe=$cli.FullName;nodeExe=$settings.nodeExe;resourcesPath=$resources}
+if ($IncludeProxyEnvironment -and !$settings.PSObject.Properties['proxyEnvironment']) {
+    $proxies = @{}
+    foreach ($name in 'HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY') {
+        $value = [Environment]::GetEnvironmentVariable($name, 'Process')
+        if (!$value) { $value = [Environment]::GetEnvironmentVariable($name, 'User') }
+        if ($value) { $proxies[$name] = $value }
+    }
+    $result.proxyEnvironment = $proxies
+}
+$result | ConvertTo-Json -Compress
