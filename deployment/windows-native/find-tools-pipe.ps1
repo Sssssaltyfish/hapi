@@ -3,16 +3,22 @@ param(
     [Parameter(Mandatory)][string]$OwnerSid,
     [Parameter(Mandatory)][ValidateRange(1,65535)][int]$BackendPort,
     [ValidateRange(1,2147483647)][int]$BackendPid,
+    [ValidatePattern('^hapi-codex-app-tools-[A-Za-z0-9-]+$')][string]$StableRelayName,
+    [int]$ExpectedRelayPid,
+    [DateTimeOffset]$ExpectedRelayStarted,
     [switch]$Utf8Output
 )
 $ErrorActionPreference = 'Stop'
 if ($Utf8Output) { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) }
-$result = @{desktopProcessId=$null; backendConnected=$false; pipe=$null; processId=$null; connectionProcessIds=@(); desktop=$null}
+$result = @{observation='unobservable'; desktopProcessId=$null; backendConnected=$false; pipe=$null; processId=$null; connectionProcessIds=@(); desktop=$null}
 # Most headless polls end here without starting a WMI query or loading the pipe API.
-if (!(Get-Process -Name ChatGPT -ErrorAction SilentlyContinue)) {
+$running = [Diagnostics.Process]::GetProcessesByName('ChatGPT')
+if ($running.Length -eq 0) {
+    $result.observation = 'closed'
     $result | ConvertTo-Json -Compress
     return
 }
+foreach ($process in $running) { $process.Dispose() }
 
 if (!('CodexDesktopIdentity' -as [type])) {
     Add-Type @'
@@ -89,6 +95,31 @@ function Find-DesktopRoot([int]$ProcessId) {
     $desktopId
 }
 
+function Get-StableRelayObservation {
+    $status = @{ status='unobservable'; serverPid=$null }
+    $relay = [IO.Pipes.NamedPipeClientStream]::new('.', $StableRelayName, [IO.Pipes.PipeDirection]::InOut)
+    $server = $null
+    try {
+        # Open and close the channel without sending any tool messages.
+        $relay.Connect(200)
+        [uint32]$serverPid = 0
+        if (![CodexDesktopIdentity]::GetNamedPipeServerProcessId($relay.SafePipeHandle,[ref]$serverPid)) { return $status }
+        $status.serverPid = $serverPid
+        if ($serverPid -ne $ExpectedRelayPid) { $status.status = 'other-process'; return $status }
+        $server = [Diagnostics.Process]::GetProcessById($serverPid)
+        $creationTicks = $server.StartTime.ToUniversalTime().Ticks
+        if (!$server.HasExited) {
+            $status.status = if ([Math]::Abs($creationTicks - $ExpectedRelayStarted.UtcDateTime.Ticks) -le 9) { 'verified' } else { 'other-process' }
+        }
+    } catch [TimeoutException] { $status.status = 'unreachable' }
+    catch {}
+    finally {
+        $relay.Dispose()
+        if ($server) { $server.Dispose() }
+    }
+    $status
+}
+
 $roots = @(Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe'" | Where-Object {
     $_.CommandLine -and $_.CommandLine -notmatch '--type=|--user-data-dir|--profile-directory' -and
     (Test-DesktopPackage $_) -and (Test-Owner $_)
@@ -99,7 +130,7 @@ foreach ($entry in $roots) {
     $processById[$processId] = $entry
     $rootById[$processId] = $processId
     $identity = @{pid=$processId;started=$entry.CreationDate.ToUniversalTime().ToString('o');ownerSid=$OwnerSid;executable=$entry.ExecutablePath}
-    $desktopById[$processId] = @{desktopProcessId=$processId; backendConnected=$false; pipe=$null; processId=$null; connectionProcessIds=@(); desktop=$identity}
+    $desktopById[$processId] = @{observation='available'; desktopProcessId=$processId; backendConnected=$false; pipe=$null; processId=$null; connectionProcessIds=@(); desktop=$identity}
 }
 if ($roots.Count -eq 0) {
     $result | ConvertTo-Json -Compress
@@ -107,14 +138,23 @@ if ($roots.Count -eq 0) {
 }
 
 $loopback = @('127.0.0.1', '::ffff:127.0.0.1')
-$clientConnections = @(Get-NetTCPConnection -RemotePort $BackendPort -State Established -ErrorAction SilentlyContinue | Where-Object {
-    $_.LocalAddress -in $loopback -and $_.RemoteAddress -in $loopback
+$tcp = @()
+try {
+    $filter = "State=5 AND (LocalPort=$BackendPort OR RemotePort=$BackendPort)"
+    $tcp = @(Get-CimInstance -Namespace root/StandardCimv2 -ClassName MSFT_NetTCPConnection -Filter $filter)
+} catch {
+    foreach ($candidate in $desktopById.Values) { $candidate.observation = 'unobservable' }
+}
+$clientConnections = @($tcp | Where-Object {
+    $_.RemotePort -eq $BackendPort -and $_.LocalAddress -in $loopback -and $_.RemoteAddress -in $loopback
 })
 if ($clientConnections.Count -gt 0) {
-    $connectionArgs = @{LocalAddress='127.0.0.1'; RemoteAddress='127.0.0.1'; LocalPort=$BackendPort; State='Established'; ErrorAction='SilentlyContinue'}
-    if ($BackendPid) { $connectionArgs.OwningProcess = $BackendPid }
+    $serverConnections = $tcp | Where-Object {
+        $_.LocalPort -eq $BackendPort -and $_.LocalAddress -eq '127.0.0.1' -and $_.RemoteAddress -eq '127.0.0.1' -and
+            (!$BackendPid -or $_.OwningProcess -eq $BackendPid)
+    }
     $peerPorts = [Collections.Generic.HashSet[int]]::new()
-    foreach ($server in Get-NetTCPConnection @connectionArgs) {
+    foreach ($server in $serverConnections) {
         $backend = Get-ProcessEntry $server.OwningProcess
         $matchesBackend = if ($BackendPid) { $backend.ProcessId -eq $BackendPid } else { [IO.Path]::GetFileName($backend.ExecutablePath) -eq 'codex.exe' }
         if ($backend -and $matchesBackend -and (Test-Owner $backend)) {
@@ -154,4 +194,7 @@ $candidateOrder = @(
     @{ Expression = { !!$_.pipe }; Descending = $true }
 )
 $result = $roots | ForEach-Object { $desktopById[[int]$_.ProcessId] } | Sort-Object -Property $candidateOrder | Select-Object -First 1
+if ($result.pipe -and $StableRelayName -and $ExpectedRelayPid -and $ExpectedRelayStarted) {
+    $result.relay = Get-StableRelayObservation
+}
 $result | ConvertTo-Json -Depth 3 -Compress
