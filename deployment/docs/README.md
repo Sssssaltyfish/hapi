@@ -9,6 +9,7 @@
 | 需求 | 入口 |
 | --- | --- |
 | 当前部署方式、构建与更新 | [部署操作](DEPLOYMENT_OPERATIONS.md) |
+| 检查故障、监测重连、查看本机维护信息 | [service-doctor](WINDOWS_SERVICES.md#日常检查) |
 | Windows 登录任务与可选 ARSO | [Windows 服务](WINDOWS_SERVICES.md) |
 | 网络、代理与环境差异 | [网络与环境](NETWORK_AND_ENVIRONMENT.md) |
 | 应用上游、补丁顺序和构建 | [PATCHES.md](PATCHES.md)、[PATCH_MANIFEST.json](PATCH_MANIFEST.json) |
@@ -17,14 +18,15 @@
 | Linux/WSL 生命周期 | [WSL 运维](WSL_OPERATIONS.md)、[恢复脚本](wsl/README.md) |
 | 手机编辑器 | [EDITOR.md](EDITOR.md) |
 | 各应用独立登录页和共享 Passkey | [SHARED_AUTH.md](SHARED_AUTH.md)、[SHARED_PASSKEYS.md](SHARED_PASSKEYS.md) |
+| 可选 AGY 模型网关 | [配置与迁移](wsl/AGY_GATEWAY.md) |
 | 可选 DSH / Termix | [DSH_TERMIX.md](DSH_TERMIX.md)、[SNIPPETS.md](SNIPPETS.md) |
 | 媒体与静态缓存 | [MEDIA_CACHE_PREVIEW.md](MEDIA_CACHE_PREVIEW.md)、[STATIC_CACHE.md](STATIC_CACHE.md) |
 
 ## 版本与内容
 
-HAPI 从 `tiann/hapi` 上游 `85ccab1ac673bb848a3ca80e448b919db1cfccef` 应用 96 份补丁，当前应用源提交为 `a273585eb62477f2b5dea1e2d8a4bd97795f0464`。Editor、Termix 和插件的精确基线见 manifest。认证等本地集成保持独立补丁，不要求安装者采用它们。
+HAPI、Editor、Termix 的上游 commit、应用补丁与发布版本在 `PATCH_MANIFEST.json` 中。认证等本地集成保持独立补丁，安装者可以按需选用。
 
-当前 Windows 方案使用系统脚本宿主、PowerShell 监督，以及独立 backend/Desktop 登录任务。需要无人值守正常重启恢复时可选 ARSO；不要求永久 Autologon、额外锁屏程序、自编译 launcher 或独立 Mihomo。Linux 服务可独立部署，不依赖 Windows。
+Windows backend 由用户登录任务启动。可选的 Desktop 任务在后端就绪后打开桌面。需要无人值守正常重启恢复时可选 ARSO。Linux 服务可独立部署。
 
 `PATCH_MANIFEST.json` 和 `WINDOWS_REFERENCE_MANIFEST.json` 标明当前源码与分发文件。`VALIDATION.md`、`STABLE_HISTORY.md` 及按功能命名的增量说明记录各自日期/commit 的历史验收；其中“本轮”“已部署”和旧补丁计数仅指当时版本，不能作为当前安装步骤。需要重建当前结果时从当前 manifest 的基线顺序应用全部补丁，不叠加旧包的单独补丁。
 

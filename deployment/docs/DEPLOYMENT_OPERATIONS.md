@@ -22,12 +22,14 @@ Windows Native 首次安装和现有整套安装更新是两个入口，分别�
 
 ## 技能与配置
 
-编译版 HAPI CLI 维护 `$HAPI_HOME/bundled-skills/hapi-visualize`。根据各 provider 的技能发现机制链接到这份共享目录；使用源模式时可链接 checkout 的 `skills`。路径按运行 Agent 的账户填写。详见 [当前可视化指南](https://github.com/Sssssaltyfish/hapi/blob/a273585eb62477f2b5dea1e2d8a4bd97795f0464/docs/guide/visualizations.md)。
+编译版 HAPI CLI 维护 `$HAPI_HOME/bundled-skills/hapi-visualize`。根据各 provider 的技能发现机制链接到这份共享目录；使用源模式时可链接 checkout 的 `skills`。路径按运行 Agent 的账户填写。详见 [可视化指南](https://github.com/Sssssaltyfish/hapi/blob/5ec5fb60f0779aa247a0bc1b4673f25374c5a24c/docs/guide/visualizations.md)。
 
 `services.json`、`service-env.sh`、Native `config.json` 和状态目录都属于安装私有内容。这里只交付 `.example` 配置、公共脚本和补丁；不导出已部署机器的配置对象。
 
 ## 打包与记录
 
 维护一个固定打包工作区即可，没有 WSL 镜像要求。以 `deployment/finalize-handoff.py --source <打包目录> --output-dir <输出目录>` 生成固定文件名压缩包；程序比较最高压缩级别 PPMd 与 LZMA2 后保留较小结果。包内时间戳用于区分更新。
+
+`service-doctor.exe` 可直接在 Windows x64 上运行。Rust 源码随包提供。更新工具源码后，在具备 Rust MSVC 工具链的 Windows 构建机运行 `deployment/update-handoff.py --source <打包目录> --ops-repo <部署源码库> --build-doctor`。它从已提交的源码构建、记录源码指纹和二进制摘要。之后更新其他组件时可以复用同一份已校验的工具。
 
 旧部署方案在 Git 历史中保留以说明演进。当前维护的说明与脚本已替换旧入口；不能从旧 commit 标题或历史验收记录推断当前任务类型。服务生命周期的修复和验证边界见 [审查结论](SERVICE_LIFECYCLE_AUDIT.md)。

@@ -3,9 +3,11 @@
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 
 
 def digest(data):
@@ -16,7 +18,28 @@ def json_bytes(value):
     return (json.dumps(value, ensure_ascii=False, indent=2) + '\n').encode()
 
 
-def update(kit, repo):
+def build_doctor(files):
+    target = 'x86_64-pc-windows-msvc'
+    with tempfile.TemporaryDirectory(prefix='service-doctor-') as tmp:
+        directory = Path(tmp)
+        for name, data in files.items():
+            path = directory / name.removeprefix('service-doctor/')
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        env = os.environ.copy()
+        # Build the committed source. Do not embed a machine's Cargo or source paths.
+        flags = [f'--remap-path-prefix={Path.home()}=/build/user',
+                 f'--remap-path-prefix={directory}=/build/service-doctor']
+        if env.get('CARGO_HOME'):
+            flags.append(f"--remap-path-prefix={env['CARGO_HOME']}=/build/cargo")
+        env['CARGO_ENCODED_RUSTFLAGS'] = '\x1f'.join(flags)
+        env['CARGO_TARGET_DIR'] = str(directory / 'target')
+        subprocess.run(['cargo', 'build', '--release', '--locked', '--target', target],
+                       cwd=directory, env=env, check=True)
+        return (directory / 'target' / target / 'release' / 'service-doctor.exe').read_bytes()
+
+
+def update(kit, repo, rebuild_doctor=False):
     def git(*args):
         return subprocess.check_output(['git', '-C', str(repo), *args])
 
@@ -45,7 +68,7 @@ def update(kit, repo):
     for source in files:
         relative = source.removeprefix('deployment/')
         destination = None
-        if relative in root_files or relative.startswith(('windows-native/', 'wsl/')):
+        if relative in root_files or relative.startswith(('windows-native/', 'wsl/', 'service-doctor/')):
             destination = relative
         elif relative.startswith('docs/'):
             destination = relative.removeprefix('docs/')
@@ -76,6 +99,21 @@ def update(kit, repo):
     manifest['deploymentOperations']['files'] = [dict(path=name, sourcePath=source, sha256=digest(outputs[name]))
         for name, source in sorted(sources.items())]
     manifest['deploymentOperations']['machineConfigurationIncluded'] = False
+    doctor_files = {name: data for name, data in outputs.items() if name.startswith('service-doctor/')}
+    if doctor_files:
+        binary_name = 'service-doctor.exe'
+        fingerprint = digest(json_bytes({name: digest(data) for name, data in sorted(doctor_files.items())}))
+        prior = manifest['deploymentOperations'].get('serviceDoctor', {})
+        if rebuild_doctor:
+            outputs[binary_name] = build_doctor(doctor_files)
+            binary_hash = digest(outputs[binary_name])
+        elif (fingerprint == prior.get('sourcesSha256') and binary_name in seal
+              and seal[binary_name] == prior.get('sha256')):
+            binary_hash = seal[binary_name]
+        else:
+            raise ValueError('Build the new Windows CLI with --build-doctor on a Windows Rust build host.')
+        manifest['deploymentOperations']['serviceDoctor'] = dict(path=binary_name,
+            target='x86_64-pc-windows-msvc', sourcesSha256=fingerprint, sha256=binary_hash)
     manifest['components']['windowsNative'].update(sourceCommit=head, fileCount=len(rows))
     # Keep historical validation outcomes, but not the source machine's settings.
     recovery = manifest.get('validations', {}).get('serviceStartupRecovery', {})
@@ -110,5 +148,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', required=True, type=Path, help='Existing sealed handoff directory')
     parser.add_argument('--ops-repo', type=Path, default=Path(__file__).resolve().parent.parent)
+    parser.add_argument('--build-doctor', action='store_true', help='Rebuild the Windows x64 maintenance CLI from the committed source')
     args = parser.parse_args()
-    update(args.source.resolve(strict=True), args.ops_repo.resolve(strict=True))
+    update(args.source.resolve(strict=True), args.ops_repo.resolve(strict=True), args.build_doctor)

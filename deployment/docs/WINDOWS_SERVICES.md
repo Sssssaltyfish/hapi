@@ -9,7 +9,7 @@ Windows Tailscale 使用官方系统服务。选择无人值守运行时，在�
 | 入口 | 职责 |
 | --- | --- |
 | Windows Codex backend | 监督同一 Windows daemon，独立于 Desktop 窗口 |
-| Codex Desktop | 等待 backend 就绪，再连接它及本地工具中继 |
+| Codex Desktop（可选） | 登录时等待 backend 就绪并打开桌面；也可以手动从 Store 或开始菜单打开 |
 | Windows HAPI Runner | 管理安装在 Windows 的 provider |
 | WSL keeper | 启动指定发行版并维持客户端连接；应用由 Linux systemd 管理 |
 
@@ -50,6 +50,18 @@ Windows Native 首次接线见 [Windows Desktop 迁移](WINDOWS_DESKTOP_MIGRATIO
 ```
 
 Native 的切换会暂时断开 Desktop，执行入口必须独立于它。只更新 Runner 与 WSL keeper 可用 `-ServicesOnly`；只安装或更新 keeper 用 `install-wsl-services.ps1`。窄范围更新会拒绝需要同时更换共享启动器的变更。安装失败会恢复之前的任务、入口文件和原运行状态，结果写入 runtime 下的 `background-services/install-result.json`。
+
+## 日常检查
+
+解压后可以直接从包根运行，也可以把 `service-doctor.exe` 放在持久 runtime 根目录。下面的路径为假想示例。
+
+```powershell
+.\service-doctor.exe check --root 'D:\Services\HAPI'
+.\service-doctor.exe info  --root 'D:\Services\HAPI'
+.\service-doctor.exe watch --root 'D:\Services\HAPI'
+```
+
+`check` 输出各组件当前能验证的结果；`info` 用于在本机定位安装、任务和日志；`watch` 适合在另一个窗口退出、重开 Desktop 时观察。按 Ctrl+C 退出监测。脚本或工单收集可用 `--json`。分享 `info` 前请留意其中的本机路径和服务名称。源码位于包内 `service-doctor/`。
 
 ## 可选 ARSO
 
