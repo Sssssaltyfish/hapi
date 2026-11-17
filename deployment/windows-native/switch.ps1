@@ -6,6 +6,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+. "$root\native-task.ps1"
+. "$root\live-backend.ps1"
 $config = Get-Content -LiteralPath "$root\config.json" -Raw | ConvertFrom-Json
 $backup = Get-Content -LiteralPath "$root\state\rollback.json" -Raw | ConvertFrom-Json
 $ownerSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -19,6 +21,8 @@ $launcher = $null
 $desktop = $null
 $backend = $null
 $cutoverStarted = $false
+$scheduledTaskVerified = $false
+$withDesktop = $config.launchDesktop -ne $false -or [bool]$config.desktopTaskName
 $result = @{started=[DateTime]::UtcNow.ToString('o');ready=$false;stage='preflight'}
 
 function Get-OldProcess([int]$ProcessId, [string]$Started, [string]$Name) {
@@ -36,8 +40,11 @@ function Get-OldProcess([int]$ProcessId, [string]$Started, [string]$Name) {
         if ($candidate.HasExited) { return }
         if ($live.SessionId -ne $sessionId -or $sid -ne $ownerSid -or $live.CreationDate.ToUniversalTime() -ne $expectedStart -or
             [IO.Path]::GetFileName($live.ExecutablePath) -ne $Name) { throw "Original $Name identity changed." }
-        if (($Name -eq 'ChatGPT.exe' -and $live.ExecutablePath -ne $runtime.desktopExe) -or
-            ($Name -eq 'codex.exe' -and $live.CommandLine -notmatch '(?:^|\s)app-server(?:\s|$)')) {
+        if (($Name -eq 'ChatGPT.exe' -and ($live.ExecutablePath -ne $runtime.desktopExe -or
+                $live.CommandLine -match '--type=|--user-data-dir|--profile-directory')) -or
+            ($Name -eq 'codex.exe' -and ($live.CommandLine -notmatch '(?:^|\s)app-server(?:\s|$)' -or
+                !(Test-CodexBackendExecutable $live.ExecutablePath @{desktopExe=$runtime.desktopExe}) -or
+                !(Test-OriginalBackendParent $live)))) {
             throw "Original $Name does not match the installed Desktop or its app-server."
         }
         $verified = $true
@@ -45,37 +52,60 @@ function Get-OldProcess([int]$ProcessId, [string]$Started, [string]$Name) {
     } finally { if (!$verified) { $candidate.Dispose() } }
 }
 
+function Test-OriginalBackendParent($Process) {
+    # The original app-server must descend from the pinned Desktop generation.
+    if (!$desktop -or $desktop.HasExited) { return $false }
+    while ($Process.ParentProcessId -gt 0) {
+        $parentProcess = Get-CimInstance Win32_Process -Filter "ProcessId=$($Process.ParentProcessId)"
+        if (!$parentProcess -or !$parentProcess.CreationDate -or $parentProcess.CreationDate -gt $Process.CreationDate -or
+            $parentProcess.SessionId -ne $sessionId -or
+            (Invoke-CimMethod -InputObject $parentProcess -MethodName GetOwnerSid -ErrorAction SilentlyContinue).Sid -ne $ownerSid) { return $false }
+        if ($parentProcess.ProcessId -eq $desktop.Id) { return !$desktop.HasExited }
+        $Process = $parentProcess
+    }
+    return $false
+}
+
 function Test-SwitchRunning {
     if ($launcher -and !(Test-TaskLauncherRunning $launcher)) { throw 'Scheduled switch was stopped.' }
 }
 
-function Test-LiveIdentity($Identity) {
-    if (!$Identity.pid -or !$Identity.started -or $Identity.ownerSid -ne $ownerSid) { return $false }
-    $live = Get-CimInstance Win32_Process -Filter "ProcessId=$([int]$Identity.pid)"
-    return $live -and $live.SessionId -eq $sessionId -and $live.ExecutablePath -eq $Identity.executable -and
-        $live.CreationDate.ToUniversalTime() -eq ([DateTimeOffset]$Identity.started).UtcDateTime -and
-        (Invoke-CimMethod -InputObject $live -MethodName GetOwnerSid -ErrorAction SilentlyContinue).Sid -eq $ownerSid
-}
-
-function Wait-Managed([DateTime]$After, [switch]$RequireDesktop) {
+function Wait-Managed([DateTime]$After) {
     $until = (Get-Date).AddSeconds(60)
+    $proof = $null
     do {
         Test-SwitchRunning
+        $proof = Get-CodexLiveBackend -Config $config -DeploymentRoot $root -StartedAfter $After
+        if ($proof.ok -and $proof.supervisor.sessionId -eq $sessionId -and $proof.daemon.sessionId -eq $sessionId -and
+            $taskFolder.GetTask($config.taskName).GetInstances(0).Count) { return $proof }
         Start-Sleep -Seconds 1
-        try { $state = Get-Content -LiteralPath "$root\state\managed.json" -Raw | ConvertFrom-Json } catch { continue }
-        if ($state.status -ne 'ready' -or !$state.daemonReady -or $state.url -ne $config.websocketUrl -or
-            ($config.launchDesktop -eq $false -and $state.launchDesktop -ne $false) -or
-            !$state.supervisor.started -or ([DateTimeOffset]$state.supervisor.started).UtcDateTime -lt $After -or
-            !(Test-LiveIdentity $state.daemon)) { continue }
-        if (!$RequireDesktop) { return $state }
-        if (!$state.toolsPipeReady -or !$state.desktopBackendConnected) { continue }
-        $desktopIdentity = $state.ownedDesktop
-        if ($config.launchDesktop -eq $false) {
-            try { $desktopIdentity = Get-Content -LiteralPath "$root\state\desktop-managed.json" -Raw | ConvertFrom-Json } catch { continue }
-        }
-        if ($desktopIdentity.pid -eq $state.desktop.pid -and (Test-LiveIdentity $desktopIdentity)) { return $state }
     } while ((Get-Date) -lt $until)
-    throw "Readiness timed out at stage $($result.stage)."
+    throw "Backend readiness timed out at stage $($result.stage) ($($proof.code))."
+}
+
+function Wait-Desktop([DateTime]$After) {
+    $until = (Get-Date).AddSeconds(60)
+    $port = ([uri]$config.websocketUrl).Port
+    do {
+        Test-SwitchRunning
+        $raw = & "$root\find-tools-pipe.ps1" -ExpectedDesktopExe $runtime.desktopExe -OwnerSid $ownerSid `
+            -BackendPort $port -BackendPid $result.managed.daemon.pid
+        if ($raw) {
+            $pipe = $raw | ConvertFrom-Json
+            $identity = $pipe.desktop
+            if ($pipe.backendConnected -and $identity.pid -and $identity.started -and
+                ([DateTimeOffset]$identity.started).UtcDateTime -ge $After) {
+                # A normal Store activation can win the single-instance launch.
+                # Readiness needs a verified connected client in this session.
+                # Rollback separately checks ownership before stopping any GUI.
+                $live = Get-CimInstance Win32_Process -Filter "ProcessId=$([int]$identity.pid)"
+                if ($live.SessionId -eq $sessionId -and $live.CreationDate -and
+                    $live.CreationDate.ToUniversalTime() -eq ([DateTimeOffset]$identity.started).UtcDateTime) { return $pipe }
+            }
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $until)
+    throw 'No new Desktop in this session connected to the verified backend.'
 }
 
 $migrationLock = [IO.File]::Open("$root\state\switch.lock", 'OpenOrCreate', 'ReadWrite', 'None')
@@ -84,6 +114,8 @@ try {
         . (Join-Path (Split-Path -Parent $root) 'task-lifetime.ps1')
         $launcher = Get-TaskLauncher
         Test-SwitchRunning
+        $null = Get-CodexDeploymentTask -Root $root -Name $switchTaskName -OwnerSid $ownerSid -Entry 'switch.ps1'
+        $scheduledTaskVerified = $true
         $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
         $OldDesktopPid = $request.oldDesktopPid
         $OldDesktopStarted = $request.oldDesktopStarted
@@ -91,42 +123,35 @@ try {
         $OldBackendStarted = $request.oldBackendStarted
     } elseif (Test-Path -LiteralPath $requestPath) { throw 'A switch is already scheduled.' }
     if ($OldDesktopPid -or $OldDesktopStarted -or $OldBackendPid -or $OldBackendStarted) {
+        if (!$withDesktop) { throw 'Process identities are only used for a Desktop cutover.' }
         if ($OldDesktopPid -le 0 -or !$OldDesktopStarted -or $OldBackendPid -le 0 -or !$OldBackendStarted) {
             throw 'Supply both original PIDs and creation timestamps together.'
         }
     }
-    $tasks = @($config.taskName)
-    if ($config.launchDesktop -eq $false) {
-        if (!$config.desktopTaskName) { throw 'The separate Desktop task is missing from configuration.' }
-        $tasks += $config.desktopTaskName
+    $tasks = @(Get-CodexDeploymentTask -Root $root -Name $config.taskName -OwnerSid $ownerSid -Entry 'run.ps1' -AllowLegacy:(!$backup.staged))
+    if ($config.desktopTaskName) {
+        $tasks += Get-CodexDeploymentTask -Root $root -Name $config.desktopTaskName -OwnerSid $ownerSid -Entry 'desktop.ps1'
     }
-    foreach ($name in $tasks) {
-        $task = Get-ScheduledTask -TaskName $name -TaskPath '\'
-        if ($task.State -eq 'Running' -or ($backup.staged -and $task.State -ne 'Disabled')) {
-            throw "The task is already active or enabled: $name."
-        }
-        if ($backup.staged) {
-            $script = if ($name -eq $config.taskName) { 'run.ps1' } else { 'desktop.ps1' }
-            $bootstrap = Join-Path (Split-Path -Parent $root) 'task-bootstrap.js'
-            $expected = "//B //NoLogo `"$bootstrap`" `"$root\$script`" `"$root`""
-            if ($task.Actions.Count -ne 1 -or $task.Actions[0].Arguments -ne $expected -or
-                $task.Actions[0].Execute -ne (Join-Path ([Environment]::SystemDirectory) 'wscript.exe') -or
-                $task.Principal.LogonType -ne 'Interactive' -or $task.Principal.RunLevel -ne 'Limited') {
-                throw "Unexpected staged task definition: $name."
-            }
+    $taskFolder = Get-CodexTaskFolder
+    foreach ($task in $tasks) {
+        $registered = $taskFolder.GetTask($task.TaskName)
+        if ($registered.GetInstances(0).Count -or ($backup.staged -and $registered.Enabled)) {
+            throw "The task is already active or enabled: $($task.TaskName)."
         }
     }
     $userUrl = [Environment]::GetEnvironmentVariable('CODEX_APP_SERVER_WS_URL','User')
     if ($userUrl -ne $backup.previousWsUrl -and $userUrl -ne $config.websocketUrl) { throw 'The user endpoint changed since installation.' }
-    $runtime = & "$root\resolve-runtime.ps1" -Config "$root\config.json" | ConvertFrom-Json
+    $runtime = & "$root\resolve-runtime.ps1" -Config "$root\config.json" -RequireDesktop:$withDesktop | ConvertFrom-Json
     if ($OldDesktopPid) {
         $desktop = Get-OldProcess $OldDesktopPid $OldDesktopStarted 'ChatGPT.exe'
         $backend = Get-OldProcess $OldBackendPid $OldBackendStarted 'codex.exe'
     }
-    foreach ($app in Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe' AND SessionId=$sessionId") {
-        if ($app.ExecutablePath -eq $runtime.desktopExe -and $app.CommandLine -notmatch '--type=|--user-data-dir|--profile-directory' -and
-            (Invoke-CimMethod -InputObject $app -MethodName GetOwnerSid -ErrorAction SilentlyContinue).Sid -eq $ownerSid -and
-            $app.ProcessId -ne $OldDesktopPid) { throw 'Close the running Codex Desktop or supply its current process identity.' }
+    if ($withDesktop) {
+        foreach ($app in Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe' AND SessionId=$sessionId") {
+            if ($app.ExecutablePath -eq $runtime.desktopExe -and $app.CommandLine -notmatch '--type=|--user-data-dir|--profile-directory' -and
+                (Invoke-CimMethod -InputObject $app -MethodName GetOwnerSid -ErrorAction SilentlyContinue).Sid -eq $ownerSid -and
+                $app.ProcessId -ne $OldDesktopPid) { throw 'Close the running Codex Desktop or supply its current process identity.' }
+        }
     }
 
     Test-SwitchRunning
@@ -150,13 +175,18 @@ try {
     $after = [DateTime]::UtcNow
     Enable-ScheduledTask -TaskName $config.taskName -TaskPath '\' | Out-Null
     Start-ScheduledTask -TaskName $config.taskName -TaskPath '\'
-    $null = Wait-Managed $after
-    $result.stage = 'start-desktop'
-    if ($config.launchDesktop -eq $false) {
-        Enable-ScheduledTask -TaskName $config.desktopTaskName -TaskPath '\' | Out-Null
-        Start-ScheduledTask -TaskName $config.desktopTaskName -TaskPath '\'
+    $result.managed = Wait-Managed $after
+    if ($withDesktop) {
+        $result.stage = 'start-desktop'
+        if ($config.desktopTaskName) {
+            Enable-ScheduledTask -TaskName $config.desktopTaskName -TaskPath '\' | Out-Null
+            Start-ScheduledTask -TaskName $config.desktopTaskName -TaskPath '\'
+        }
+        $result.desktop = Wait-Desktop $after
+        $verifiedBackend = Get-CodexLiveBackend -Config $config -DeploymentRoot $root -StartedAfter $after
+        if (!$verifiedBackend.ok -or $verifiedBackend.daemon.pid -ne $result.managed.daemon.pid -or
+            $verifiedBackend.daemon.started -ne $result.managed.daemon.started) { throw 'The backend changed during Desktop startup.' }
     }
-    $result.managed = Wait-Managed $after -RequireDesktop
     Test-SwitchRunning
     if ([Environment]::GetEnvironmentVariable('CODEX_APP_SERVER_WS_URL','User') -ne $userUrl) { throw 'The user endpoint changed during the switch.' }
     [Environment]::SetEnvironmentVariable('CODEX_APP_SERVER_WS_URL',$config.websocketUrl,'User')
@@ -175,7 +205,7 @@ try {
     $result.finished = [DateTime]::UtcNow.ToString('o')
     try { $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath "$root\state\switch-result.json" -Encoding UTF8 }
     finally {
-        if ($scheduled) {
+        if ($scheduledTaskVerified) {
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
             Unregister-ScheduledTask -TaskName $switchTaskName -TaskPath '\' -Confirm:$false -ErrorAction SilentlyContinue
         }

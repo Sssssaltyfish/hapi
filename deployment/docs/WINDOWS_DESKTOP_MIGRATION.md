@@ -20,9 +20,9 @@ cd D:\Services\HAPI\windows-native
 ./install.ps1 -NodeExe 'D:\Tools\node\node.exe'
 ```
 
-`install.ps1` 自动发现已安装的 Desktop 和 CLI；`-DesktopExe`、`-CliExe` 属于只读 inspect 的覆盖参数，不能直接传给 installer。需要专用工具运行时时可用 installer 的 `-McpNodeExe`、`-BrowserNodeExe`；Codex home 和端口也可显式选择。
+`install.ps1` 自动发现 Desktop 和 CLI，也接受 `-CliExe` 固定后端程序。需要单独指定工具运行时时可用 `-McpNodeExe`、`-BrowserNodeExe`。Codex home 和端口也可显式选择。
 
-staging 创建两项有限权限 Interactive 登录任务，但保持停用，backend 配置为 `launchDesktop: false`。此时不改用户级 `CODEX_APP_SERVER_WS_URL`。发现已有安装时先检查并使用更新流程。
+默认暂存两个停用的有限权限 Interactive 登录任务。指定 `-NoDesktopTask` 时只安装后台任务，桌面可以手动打开。首次接线成功后才写用户级 `CODEX_APP_SERVER_WS_URL`。已有安装通过更新流程保留任务名。
 
 ## 正式切换
 
@@ -32,14 +32,14 @@ staging 创建两项有限权限 Interactive 登录任务，但保持停用，ba
 ./switch.ps1
 ```
 
-它先启动 backend 并验证身份，再启动 Desktop 并验证 backend/工具连接；成功后提交用户级 endpoint。失败会停止本次实例、停用 staged tasks 并恢复此前 endpoint。
+它先启动 backend，验证真实握手、监听进程和 supervisor。选装了 Desktop 任务时再打开桌面并验证连接。成功后提交用户级 endpoint。切换开始后遇到故障会回退。
 
 需要从原 Desktop 发起切换时，可使用 `schedule-switch.ps1`，明确提供当前进程的 PID 和启动时间，使独立计划任务只处理该进程代际。该入口参数及示例以 Native README 为准；不要使用广泛杀进程的方式。
 
 ## 验证与恢复
 
-检查 `state/managed.json` 的新鲜状态，以及 `inspect.ps1` 中的真实 initialize、`ownedDaemonEndpointMatches`、Desktop backend 和工具连接结果。再从 HAPI 读取同一会话。服务 ready 与模型出站网络可用是不同检查；代理建议见 [网络与环境](NETWORK_AND_ENVIRONMENT.md)。
+用 `service-doctor.exe check` 检查整个部署，或用 `windows-native/inspect.ps1 -LiveOnly` 检查后台。来自实时握手与进程的结果在 `native`，工具连接在 `desktopTools`，上次快照的比对在 `snapshot`。再从 HAPI 读取同一会话。模型出站网络另行验证，见 [网络与环境](NETWORK_AND_ENVIRONMENT.md)。
 
-`rollback.ps1` 停止并移除本套 Native/Desktop 任务，恢复此前 endpoint；不删除 Codex home 和真实会话。回退后可重新正常打开 Desktop。新版本更新先运行 `update.ps1 -ValidateOnly`，再从独立进程执行更新。持续启动恢复、ARSO 与 WSL keeper 见 [Windows 服务](WINDOWS_SERVICES.md)。
+`rollback.ps1` 停止并移除本套安装的任务并恢复此前 endpoint。Codex home 和真实会话保留。单独更新 backend 时从候选目录运行 `update.ps1`，已停止的实例可使用 `-Stopped`，详见 [Native 更新步骤](windows-native/README.md#update-an-existing-managed-backend)。整套更新器的预检、ARSO 与 WSL keeper 见 [Windows 服务](WINDOWS_SERVICES.md)。
 
 不同 Desktop 版本的内部接线需要重新核对。分发包记录源版本和既有验证范围；目标机器应自行完成安装及计划中的重启验收。

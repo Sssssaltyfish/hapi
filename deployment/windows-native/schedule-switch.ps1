@@ -1,11 +1,12 @@
 param(
-    [Parameter(Mandatory)][ValidateRange(1,2147483647)][int]$OldDesktopPid,
-    [Parameter(Mandatory)][string]$OldDesktopStarted,
-    [Parameter(Mandatory)][ValidateRange(1,2147483647)][int]$OldBackendPid,
-    [Parameter(Mandatory)][string]$OldBackendStarted
+    [ValidateRange(1,2147483647)][int]$OldDesktopPid,
+    [string]$OldDesktopStarted,
+    [ValidateRange(1,2147483647)][int]$OldBackendPid,
+    [string]$OldBackendStarted
 )
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+. "$root\native-task.ps1"
 $config = Get-Content -LiteralPath "$root\config.json" -Raw | ConvertFrom-Json
 $owner = [Security.Principal.WindowsIdentity]::GetCurrent()
 if ($owner.User.Value -ne $config.ownerSid -or (Get-Process -Id $PID).SessionId -eq 0) { throw 'Schedule the switch in an interactive Windows session as the deployment owner.' }
@@ -14,18 +15,26 @@ $resultPath = "$root\state\switch-result.json"
 $taskName = "$($config.taskName) switch"
 $bootstrap = Join-Path (Split-Path -Parent $root) 'task-bootstrap.js'
 if (!(Test-Path -LiteralPath $bootstrap -PathType Leaf)) { throw 'The shared task bootstrap is missing.' }
-$request = @{
-    oldDesktopPid = $OldDesktopPid
-    oldDesktopStarted = ([DateTimeOffset]$OldDesktopStarted).UtcDateTime.ToString('o')
-    oldBackendPid = $OldBackendPid
-    oldBackendStarted = ([DateTimeOffset]$OldBackendStarted).UtcDateTime.ToString('o')
+$request = @{}
+if ($OldDesktopPid -or $OldDesktopStarted -or $OldBackendPid -or $OldBackendStarted) {
+    if ($config.launchDesktop -eq $false -and !$config.desktopTaskName) { throw 'Process identities are only used for a Desktop cutover.' }
+    if (!$OldDesktopPid -or !$OldDesktopStarted -or !$OldBackendPid -or !$OldBackendStarted) {
+        throw 'Supply both original PIDs and creation timestamps together.'
+    }
+    $request = @{
+        oldDesktopPid = $OldDesktopPid
+        oldDesktopStarted = ([DateTimeOffset]$OldDesktopStarted).UtcDateTime.ToString('o')
+        oldBackendPid = $OldBackendPid
+        oldBackendStarted = ([DateTimeOffset]$OldBackendStarted).UtcDateTime.ToString('o')
+    }
 }
 $lock = [IO.File]::Open("$root\state\switch.lock", 'OpenOrCreate', 'ReadWrite', 'None')
 try {
     if ((Test-Path -LiteralPath $requestPath) -or (Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction SilentlyContinue)) {
         throw 'A switch is already scheduled.'
     }
-    $action = New-ScheduledTaskAction -Execute (Join-Path ([Environment]::SystemDirectory) 'wscript.exe') -Argument "//B //NoLogo `"$bootstrap`" `"$root\switch.ps1`" `"$root`"" -WorkingDirectory $root
+    $actionArguments = Get-CodexTaskAction $root 'switch.ps1'
+    $action = New-ScheduledTaskAction @actionArguments
     $principal = New-ScheduledTaskPrincipal -UserId $owner.Name -LogonType Interactive -RunLevel Limited
     $startsAt = (Get-Date).AddSeconds(30)
     $trigger = New-ScheduledTaskTrigger -Once -At $startsAt

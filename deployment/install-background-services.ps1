@@ -30,10 +30,10 @@ $hapi = Join-Path $RuntimeRoot 'package\bin\hapi.exe'
 $receiptDirectory = Join-Path $RuntimeRoot 'background-services'
 $wslSpec = @{ name = 'Seia-WSL-Services'; entry = 'start-wsl-services.ps1'; directory = $RuntimeRoot; worker = $wsl; workerArgs = ' /bin/(?:sleep infinity|cat)\s*$' }
 $runnerSpec = @{ name = 'HAPI-Windows-Runner'; entry = 'start-windows-runner.ps1'; directory = $workspaceRoot; worker = $hapi; workerArgs = ' runner start-sync(?: |$)' }
-$nativeSpec = @{ name = "HAPI Codex Native $ownerSid"; entry = 'windows-native\run.ps1'; directory = $nativeRoot }
-$desktopSpec = @{ name = "HAPI Codex Desktop $ownerSid"; entry = 'windows-native\desktop.ps1'; directory = $nativeRoot }
 $services = if ($WslOnly) { @($wslSpec) } else { @($wslSpec, $runnerSpec) }
-$tasks = if ($includeNative) { @($wslSpec, $runnerSpec, $nativeSpec, $desktopSpec) } else { $services }
+$tasks = @($services)
+$nativeSpec = $null
+$desktopSpec = $null
 $receipt = [ordered]@{ startedUtc = [DateTime]::UtcNow.ToString('o'); status = 'running'; stage = 'preflight'; ownerSid = $ownerSid; tasks = [ordered]@{} }
 $recoveryErrors = [Collections.Generic.List[string]]::new()
 
@@ -81,23 +81,29 @@ function New-TaskXml($Spec) {
 }
 
 function Save-Task($Spec) {
-    $task = Get-Task $Spec
+    $task = if ($Spec -eq $nativeSpec) {
+        Get-CodexDeploymentTask -Root $nativeRoot -Name $Spec.name -OwnerSid $ownerSid -Entry 'run.ps1' -AllowLegacy
+    } elseif ($Spec -eq $desktopSpec) {
+        Get-CodexDeploymentTask -Root $nativeRoot -Name $Spec.name -OwnerSid $ownerSid -Entry 'desktop.ps1' -Optional
+    } else { Get-Task $Spec }
     if (!$task) {
         if ($Spec -eq $nativeSpec -or $Spec -eq $runnerSpec) { throw "Required task is missing: $($Spec.name)." }
         return
     }
-    $principal = $task.Principal.UserId
-    if ($principal -notlike 'S-1-*') {
-        $principal = [Security.Principal.NTAccount]::new($principal).Translate([Security.Principal.SecurityIdentifier]).Value
-    }
-    $entry = [regex]::Escape((Join-Path $RuntimeRoot $Spec.entry))
-    $oldLauncher = Join-Path $RuntimeRoot 'hidden-task-launcher\HiddenTaskLauncher.exe'
-    $versionedLauncher = Join-Path $RuntimeRoot 'hidden-task-launcher\HiddenTaskLauncher-v2.exe'
-    if ($principal -ne $ownerSid -or $task.Principal.LogonType -notin @('Interactive', 'S4U') -or
-        $task.Principal.RunLevel -ne 'Limited' -or $task.Actions.Count -ne 1 -or
-        $task.Actions[0].Execute -notin @($powershell, $scriptHost, $oldLauncher, $versionedLauncher) -or
-        $task.Actions[0].Arguments -notmatch ('(?:^|\s)"' + $entry + '"(?:\s|$)')) {
-        throw "Unexpected existing task definition: $($Spec.name)."
+    if ($Spec -ne $nativeSpec -and $Spec -ne $desktopSpec) {
+        $principal = $task.Principal.UserId
+        if ($principal -notlike 'S-1-*') {
+            $principal = [Security.Principal.NTAccount]::new($principal).Translate([Security.Principal.SecurityIdentifier]).Value
+        }
+        $entry = [regex]::Escape((Join-Path $RuntimeRoot $Spec.entry))
+        $oldLauncher = Join-Path $RuntimeRoot 'hidden-task-launcher\HiddenTaskLauncher.exe'
+        $versionedLauncher = Join-Path $RuntimeRoot 'hidden-task-launcher\HiddenTaskLauncher-v2.exe'
+        if ($principal -ne $ownerSid -or $task.Principal.LogonType -notin @('Interactive', 'S4U') -or
+            $task.Principal.RunLevel -ne 'Limited' -or $task.Actions.Count -ne 1 -or
+            $task.Actions[0].Execute -notin @($powershell, $scriptHost, $oldLauncher, $versionedLauncher) -or
+            $task.Actions[0].Arguments -notmatch ('(?:^|\s)"' + $entry + '"(?:\s|$)')) {
+            throw "Unexpected existing task definition: $($Spec.name)."
+        }
     }
     $Spec.oldXml = Join-Path $staging ($Spec.entry.Replace('\', '-') + '.before.xml')
     $registered = $taskFolder.GetTask($Spec.name)
@@ -169,7 +175,10 @@ function Invoke-RunnerControl([int]$Port, [string]$Operation) {
 }
 
 function Stop-TaskInstance($Spec) {
-    if (!(Get-Task $Spec)) { return }
+    $task = if ($Spec -eq $desktopSpec) {
+        Get-CodexDeploymentTask -Root $nativeRoot -Name $Spec.name -OwnerSid $ownerSid -Entry 'desktop.ps1' -Optional
+    } else { Get-Task $Spec }
+    if (!$task) { return }
     Disable-ScheduledTask -TaskName $Spec.name -TaskPath '\' | Out-Null
     if ($taskFolder.GetTask($Spec.name).GetInstances(0).Count) {
         try { Stop-ScheduledTask -TaskName $Spec.name -TaskPath '\' }
@@ -214,6 +223,9 @@ function Register-TaskXml($Spec, [string]$Path) {
 }
 
 function Restore-Task($Spec) {
+    if ($Spec -eq $desktopSpec) {
+        $null = Get-CodexDeploymentTask -Root $nativeRoot -Name $Spec.name -OwnerSid $ownerSid -Entry 'desktop.ps1' -Optional
+    }
     if ($Spec.oldXml) {
         Register-TaskXml $Spec $Spec.oldXml
         if (!$Spec.wasEnabled) { Disable-ScheduledTask -TaskName $Spec.name -TaskPath '\' | Out-Null }
@@ -287,6 +299,25 @@ $assets = @(
 ) + $services
 try {
     New-Item -ItemType Directory -Path $staging | Out-Null
+    if ($includeNative) {
+        $nativeSource = Join-Path $PSScriptRoot 'windows-native'
+        . "$nativeSource\native-task.ps1"
+        . "$nativeSource\live-backend.ps1"
+        $configPath = Join-Path $nativeRoot 'config.json'
+        $nativeConfig = Read-Json $configPath -Required
+        if ($nativeConfig.ownerSid -ne $ownerSid -or !$nativeConfig.taskName) { throw 'Run native migration as the configured deployment owner.' }
+        $nativeSpec = @{ name = $nativeConfig.taskName; entry = 'windows-native\run.ps1'; directory = $nativeRoot }
+        $tasks += $nativeSpec
+        $desktopTaskName = $nativeConfig.desktopTaskName
+        if (!$desktopTaskName -and $nativeConfig.launchDesktop -ne $false) {
+            $desktopTaskName = if ($nativeConfig.taskName -eq "HAPI Codex Native $ownerSid") { "HAPI Codex Desktop $ownerSid" }
+            else { "Codex Desktop $ownerSid" }
+        }
+        if ($desktopTaskName) {
+            $desktopSpec = @{ name = $desktopTaskName; entry = 'windows-native\desktop.ps1'; directory = $nativeRoot }
+            $tasks += $desktopSpec
+        }
+    }
     $taskService = New-Object -ComObject 'Schedule.Service'
     $taskService.Connect()
     $taskFolder = $taskService.GetFolder('\')
@@ -312,27 +343,23 @@ try {
         if ($spec.worker -and !(Test-Path -LiteralPath $spec.worker -PathType Leaf)) { throw "Worker executable is missing for $($spec.name)." }
     }
     if ($includeNative) {
-        $configPath = Join-Path $nativeRoot 'config.json'
-        $nativeConfig = Read-Json $configPath -Required
-        if ($nativeConfig.ownerSid -ne $ownerSid -or $nativeConfig.taskName -ne $nativeSpec.name -or !$nativeSpec.wasRunning) {
-            throw 'The native task must be running under the deployment owner before migration.'
-        }
-        $oldManaged = Read-Json "$nativeRoot\state\managed.json" -Required
-        if (!$oldManaged.supervisor.pid -or !$oldManaged.supervisor.started) { throw 'The previous native supervisor identity is unavailable.' }
+        if (!$nativeSpec.wasRunning) { throw 'The verified native task must be running before migration.' }
+        $oldManaged = Get-CodexLiveBackend -Config $nativeConfig -DeploymentRoot $nativeRoot
+        if (!$oldManaged.ok) { throw "The previous native supervisor could not be verified ($($oldManaged.code))." }
         if (Test-Path -LiteralPath "$nativeRoot\state\update-backup") { throw 'Review the previous native update backup before migration.' }
-        $nativeRuntime = & "$nativeRoot\resolve-runtime.ps1" -Config $configPath | ConvertFrom-Json
-        $nativeConfig | Add-Member -NotePropertyName launchDesktop -NotePropertyValue $false -Force
-        $nativeConfig | Add-Member -NotePropertyName desktopTaskName -NotePropertyValue $desktopSpec.name -Force
-        $nativeConfig | Add-Member -NotePropertyName desktopExe -NotePropertyValue $nativeRuntime.desktopExe -Force
+        $nativeRuntime = & "$nativeSource\resolve-runtime.ps1" -Config $configPath -RequireDesktop:([bool]$desktopSpec) | ConvertFrom-Json
+        $nextNativeConfig = $nativeConfig | Select-Object -Property *
+        $nextNativeConfig | Add-Member -NotePropertyName launchDesktop -NotePropertyValue $false -Force
+        $nextNativeConfig | Add-Member -NotePropertyName desktopTaskName -NotePropertyValue $desktopTaskName -Force
+        if ($desktopSpec) { $nextNativeConfig | Add-Member -NotePropertyName desktopExe -NotePropertyValue $nativeRuntime.desktopExe -Force }
         $candidateConfig = Join-Path $staging 'native-config.json'
-        $nativeConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $candidateConfig -Encoding UTF8
+        $nextNativeConfig | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $candidateConfig -Encoding UTF8
         $nativeCandidate = Join-Path $staging 'windows-native'
         New-Item -ItemType Directory -Path $nativeCandidate | Out-Null
-        foreach ($file in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'windows-native') -File | Where-Object { $_.Extension -in @('.ps1', '.mjs') }) {
-            Copy-Item -LiteralPath $file.FullName -Destination $nativeCandidate
-        }
-        foreach ($file in @('update.ps1', 'run.ps1', 'supervisor.mjs', 'desktop.ps1')) {
-            if (!(Test-Path -LiteralPath (Join-Path $nativeCandidate $file) -PathType Leaf)) { throw "Native candidate is missing $file." }
+        foreach ($file in Get-CodexNativePayload) {
+            $sourcePath = Join-Path $nativeSource $file
+            if (!(Test-Path -LiteralPath $sourcePath -PathType Leaf)) { throw "Native candidate is missing $file." }
+            Copy-Item -LiteralPath $sourcePath -Destination $nativeCandidate
         }
         foreach ($module in Get-ChildItem -LiteralPath $nativeCandidate -File -Filter '*.mjs') {
             & $nativeRuntime.nodeExe --check $module.FullName
@@ -365,11 +392,14 @@ try {
     if ($includeNative) {
         $receipt.stage = 'switch-native'
         Write-Receipt
-        $desktopSpec.touched = $true
-        Stop-TaskInstance $desktopSpec
-        Register-TaskXml $desktopSpec $desktopSpec.xml
-        $oldManaged = Read-Json "$nativeRoot\state\managed.json" -Required
-        if (!$oldManaged.supervisor.pid -or !$oldManaged.supervisor.started) { throw 'The previous native supervisor identity is unavailable.' }
+        $oldManaged = Get-CodexLiveBackend -Config $nativeConfig -DeploymentRoot $nativeRoot
+        if (!$oldManaged.ok) { throw "The previous native supervisor could not be verified ($($oldManaged.code))." }
+        if ($desktopSpec) {
+            $null = Get-CodexDeploymentTask -Root $nativeRoot -Name $desktopSpec.name -OwnerSid $ownerSid -Entry 'desktop.ps1' -Optional
+            $desktopSpec.touched = $true
+            Stop-TaskInstance $desktopSpec
+            Register-TaskXml $desktopSpec $desktopSpec.xml
+        }
         $oldStarted = ([DateTimeOffset]$oldManaged.supervisor.started).UtcDateTime.ToString('o')
         $nativeArgs = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "{0}" -DeploymentRoot "{1}" -ExpectedSupervisorPid {2} -ExpectedSupervisorStarted "{3}" -CandidateConfig "{4}" -CandidateTaskXml "{5}"' -f
             (Join-Path $nativeCandidate 'update.ps1'), $nativeRoot, [int]$oldManaged.supervisor.pid, $oldStarted, $candidateConfig, $nativeSpec.xml
@@ -387,10 +417,12 @@ try {
             throw 'Native background update failed. See windows-native\state\update-result.json.'
         }
         $receipt.tasks[$nativeSpec.name].worker = $nativeResult.managed.daemon
-        try {
-            Start-ScheduledTask -TaskName $desktopSpec.name -TaskPath '\'
-            $receipt.desktopStartRequested = $true
-        } catch { $receipt.desktopStartError = $_.Exception.Message }
+        if ($desktopSpec) {
+            try {
+                Start-ScheduledTask -TaskName $desktopSpec.name -TaskPath '\'
+                $receipt.desktopStartRequested = $true
+            } catch { $receipt.desktopStartError = $_.Exception.Message }
+        }
     }
     $receipt.status = 'installed'
     $receipt.stage = 'complete'
