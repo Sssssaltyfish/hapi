@@ -8,17 +8,22 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+mod update;
+
 const INSPECT: &str = include_str!("inspect.ps1");
 const COMPONENTS: &[&str] = &["runner", "native", "desktop", "wsl", "hub", "tailscale"];
 const HELP: &str = "HAPI service doctor (Windows)
 
 Usage: service-doctor [check|info|watch] [--root PATH] [--component NAME] [--json]
                       [--interval SECONDS]
+       service-doctor update <wsl-codex|tailscale> [--root PATH]
 
   check       Run a health snapshot (default).
   info        Add local paths, task names and endpoint authorities to the snapshot.
               Review this local inventory before sharing it.
   watch       Repeat health snapshots until Ctrl+C. JSON mode emits one line per sample.
+  update      Update the selected service using its own updater. Updating WSL Codex
+              can restart its daemon. Tailscale retains its own confirmation prompt.
   --root      Use the specified Windows runtime. Defaults to the installed executable's
               runtime or the current account's LocalAppData\\HAPI.
   --component Limit inspection to runner, native, desktop, wsl, hub or tailscale.
@@ -30,6 +35,7 @@ Exit status: 0 healthy, 1 degraded, 2 inspection or invocation error.";
 
 struct Options {
     mode: &'static str,
+    update: Option<update::Target>,
     root: PathBuf,
     components: Vec<String>,
     interval: Duration,
@@ -71,7 +77,25 @@ fn options() -> Result<Option<Options>, &'static str> {
             args.next();
             "watch"
         }
+        Some("update") => {
+            args.next();
+            "update"
+        }
         _ => "check",
+    };
+    let update = if mode == "update" {
+        match args
+            .next()
+            .and_then(|arg| arg.into_string().ok())
+            .as_deref()
+        {
+            Some("--help" | "-h") => return Ok(None),
+            Some("wsl-codex") => Some(update::Target::WslCodex),
+            Some("tailscale") => Some(update::Target::Tailscale),
+            _ => return Err("Choose an update target: wsl-codex or tailscale."),
+        }
+    } else {
+        None
     };
     let mut root = None;
     let mut components = Vec::new();
@@ -85,8 +109,8 @@ fn options() -> Result<Option<Options>, &'static str> {
                     args.next().ok_or("--root requires a directory.")?,
                 ))
             }
-            Some("--json") => json = true,
-            Some("--component") => {
+            Some("--json") if update.is_none() => json = true,
+            Some("--component") if update.is_none() => {
                 let name = args
                     .next()
                     .and_then(|arg| arg.into_string().ok())
@@ -120,6 +144,7 @@ fn options() -> Result<Option<Options>, &'static str> {
     };
     Ok(Some(Options {
         mode,
+        update,
         root,
         components,
         interval: Duration::from_secs(interval),
@@ -302,6 +327,15 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    if let Some(target) = options.update {
+        return match update::run(target, &options.root) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("service-doctor: {message}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let mut out = io::stdout().lock();
     let mut previous = BTreeMap::new();
     loop {

@@ -6,11 +6,15 @@ Run the doctor from the Windows account that owns the deployment. It reads the s
     .\service-doctor.exe info --root 'D:\Services\HAPI'
     .\service-doctor.exe watch --component hub --component tailscale --interval 5
     .\service-doctor.exe check --json
+    .\service-doctor.exe update wsl-codex
+    .\service-doctor.exe update tailscale
 
 - `check` is the default. It reports a single snapshot.
 - `info` adds maintenance paths, task names, the configured WSL distribution and user, and endpoint authorities. Review the local inventory before sharing it.
 - `watch` repeats the snapshot until Ctrl+C. The default wait between completed snapshots is 10 seconds. Set `--interval` to 1–3600 seconds.
 - `--root` selects the Windows runtime. The doctor otherwise searches beside the executable and its parent directories for an installed runtime, then falls back to `%LOCALAPPDATA%\HAPI`.
+- `update wsl-codex` runs the official CLI updater as the distribution and user in `services.json`. When needed, it installs and pins that CLI build for the managed daemon, which can interrupt running turns. It checks the running version afterwards. A matching daemon keeps running.
+- `update tailscale` opens the Windows Tailscale CLI updater for the installed track. Its own confirmation and privilege requirements apply.
 - Repeat `--component` to select any of `runner`, `native`, `desktop`, `wsl`, `hub`, and `tailscale`.
 
 The doctor uses the installed Native inspector. A portable copy also looks for a current `windows-native\inspect.ps1` beside the executable. The current inspector can read an older installation directly using its installed runtime as the deployment root. `--component native` uses the fast backend probe when the inspector supports it.
