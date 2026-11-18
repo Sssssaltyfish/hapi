@@ -17,15 +17,16 @@ function Get-File([string]$Path) {
 }
 
 function Find-Desktop {
-    $locations = @(
-        try {
-            foreach ($package in Get-AppxPackage -Name OpenAI.Codex -ErrorAction Stop) {
-                if ($package.PackageFamilyName -eq $packageFamily -and $package.PackageFullName -match $packagePattern -and
-                    $package.InstallLocation -and [IO.Path]::GetFileName($package.InstallLocation) -eq $package.PackageFullName) {
-                    @{ version = [version]$Matches[1]; folder = $package.InstallLocation }
-                }
+    try {
+        foreach ($package in Get-AppxPackage -Name OpenAI.Codex -ErrorAction Stop | Sort-Object Version -Descending) {
+            if ($package.PackageFamilyName -eq $packageFamily -and $package.PackageFullName -match $packagePattern -and
+                $package.InstallLocation -and [IO.Path]::GetFileName($package.InstallLocation) -eq $package.PackageFullName) {
+                $file = Get-File (Join-Path $package.InstallLocation 'app\ChatGPT.exe')
+                if ($file) { return $file }
             }
-        } catch {}
+        }
+    } catch {}
+    $locations = @(
         # A noninteractive token can often read registration even if AppX is unavailable.
         $repository = 'HKCU:\Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages'
         foreach ($key in Get-ChildItem -LiteralPath $repository -ErrorAction SilentlyContinue) {
@@ -82,16 +83,19 @@ if ($settings.cliExe) {
     $cacheDirectory = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'OpenAI\Codex\bin' }
     if (!$RequireDesktop -and !$settings.resourcesPath) {
         $packageRoot = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'WindowsApps'
-        foreach ($process in Get-Process -Name ChatGPT -ErrorAction SilentlyContinue | Sort-Object StartTime) {
+        # Query both process types once. Renderer and GPU processes share the
+        # Desktop image and must not each trigger a separate WMI query.
+        $processes = @(Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe' OR Name='codex.exe'" -Property Name,ProcessId,ParentProcessId,ExecutablePath,CommandLine,CreationDate -ErrorAction SilentlyContinue)
+        $servers = @($processes | Where-Object { $_.Name -eq 'codex.exe' -and $_.CommandLine -match '(?:^|\s)app-server(?:\s|$)' })
+        foreach ($process in $processes | Where-Object { $_.Name -eq 'ChatGPT.exe' -and $_.CommandLine -notmatch '(?:^|\s)--type=' } | Sort-Object CreationDate) {
             try {
-                $active = Get-File $process.Path
+                $active = Get-File $process.ExecutablePath
                 if ($active -and ($active.FullName -eq $desktop.FullName -or (
                     $active.Directory.Name -eq 'app' -and $active.Directory.Parent.Name -match $packagePattern -and
                     $active.Directory.Parent.Parent.FullName -eq $packageRoot))) {
                     $activeResources = Join-Path $active.DirectoryName 'resources'
                     if ($cacheDirectory) {
-                        foreach ($child in Get-CimInstance Win32_Process -Filter "ParentProcessId=$($process.Id) AND Name='codex.exe'" -ErrorAction SilentlyContinue) {
-                            if ($child.CommandLine -notmatch '(?:^|\s)app-server(?:\s|$)') { continue }
+                        foreach ($child in $servers | Where-Object { $_.ParentProcessId -eq $process.ProcessId }) {
                             $file = Get-File $child.ExecutablePath
                             if ($file -and $file.Directory.Parent.FullName -eq $cacheDirectory) { $cli = $file; break }
                         }

@@ -21,9 +21,9 @@ export function script(name, args = []) {
     const result = spawnSync(powershell, ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, name), ...args], {
         windowsHide: true,
         encoding: 'utf8',
-        timeout: 10000
+        timeout: 30000
     });
-    if (result.status !== 0) throw new Error(`Managed helper failed (${result.status ?? result.error?.code}): ${result.stderr?.trim() || result.error?.message || 'no diagnostic'}`);
+    if (result.status !== 0) throw new Error(`${name} failed (${result.status ?? result.error?.code}): ${result.stderr?.trim() || result.error?.message || 'no diagnostic'}`);
     return JSON.parse(result.stdout.replace(/^\uFEFF/, ''));
 }
 
