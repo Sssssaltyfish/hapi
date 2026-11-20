@@ -17,6 +17,8 @@ import { getConversationReadingPosition } from '@/lib/conversation-reading-posit
 import { getTimelineBlockSourceIds } from '@/lib/assistant-runtime'
 import { getNativeApprovalStatusLabel, NativeApprovalSettings } from './NativeApprovalSettings'
 import { useNativeQueue } from './useNativeQueue'
+import { useNativeSendPreview } from './useNativeSendPreview'
+import { optimisticUserMessage } from '@/lib/optimisticUserMessage'
 import { NativeQueuedMessagesBar } from './NativeQueuedMessagesBar'
 import type { NativeItemEntry } from './types'
 import type { TimelineHistoryLocator } from '@/lib/stable-chat-timeline'
@@ -125,6 +127,10 @@ function NativeSessionChat({
         [projectLiveItems, thread.items, thread.requests, turnStateKnown, reasoningTurnId]
     )
     const [sending, setSending] = useState(false)
+    const preview = useNativeSendPreview(thread.items, queue.items)
+    const previewMessage = thread.includesLiveTail ? preview.message : null
+    const messages = useMemo(() => previewMessage
+        ? [...projected.messages, previewMessage] : projected.messages, [projected.messages, previewMessage])
     const historyLocators = useMemo(() => {
         const locators = new Map<string, TimelineHistoryLocator>()
         for (const entry of thread.items) {
@@ -245,7 +251,7 @@ function NativeSessionChat({
                     onChange={adapter.setNativeApprovalSettings}
                 />,
             }}
-            messages={projected.messages}
+            messages={messages}
             historyLocators={historyLocators}
             nativeHistoryDirection={thread.historyDirection}
             onHydrateHistoryRow={async (locator, isCurrent = () => true) => {
@@ -351,7 +357,15 @@ function NativeSessionChat({
                     return false
                 }
                 if (command && unconfirmedPlan.current === text) { commands.reportError(t('nativeCommands.unconfirmed')); return false }
+                if (!preview.begin(optimisticUserMessage({ localId: attemptId, createdAt: Date.now(), text,
+                    attachments, deliveryMode: deliveryMode ?? 'queue' }))) return false
+                if (!thread.includesLiveTail) { setViewMode('tail'); void thread.latest(true) }
                 let commandPosted = false
+                const accept = () => {
+                    setSettlement({ attemptId, status: 'success' })
+                    preview.accept(attemptId, Promise.allSettled([thread.latest(), queue.refresh()]))
+                    return { attemptId }
+                }
                 setSending(true)
                 setSendError(null)
                 try {
@@ -360,9 +374,7 @@ function NativeSessionChat({
                         commandPosted = true
                         await commands.execute({ command: { ...command, prompt }, clientId: attemptId,
                             ...(attachments?.length ? { attachments: attachments.map(({ path }) => ({ path })) } : {}) })
-                        setSettlement({ attemptId, status: 'success' })
-                        void thread.latest(); void queue.refresh()
-                        return { attemptId }
+                        return accept()
                     }
                     const expectedTurnId =
                         deliveryMode === 'steer'
@@ -376,7 +388,6 @@ function NativeSessionChat({
                         ...(attachments?.length ? { attachments } : {}),
                         ...(expectedTurnId ? { expectedTurnId } : {}),
                     })
-                    setSettlement({ attemptId, status: 'success' })
                     if (result.startError)
                         setSendError({
                             id: Date.now(),
@@ -387,10 +398,10 @@ function NativeSessionChat({
                             mutationStarted: true,
                             restoreSuppressed: true,
                         })
-                    void thread.latest()
-                    void queue.refresh()
-                    return { attemptId }
+                    return accept()
                 } catch (error) {
+                    if (preview.confirmed(attemptId)) return accept()
+                    preview.reject(attemptId)
                     if (error instanceof NativeCommandInactiveError) return false
                     const uncertain = commandPosted && (isNativeCommandSubmissionUnconfirmed(error) || !(error instanceof ApiError) || error.status >= 500)
                     if (uncertain) { unconfirmedPlan.current = text; void queue.refresh() }
@@ -406,6 +417,7 @@ function NativeSessionChat({
                     })
                     return false
                 } finally {
+                    preview.finish(attemptId)
                     setSending(false)
                 }
             }}

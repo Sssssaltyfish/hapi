@@ -12,6 +12,7 @@ import {
 import { usePlatform } from '@/hooks/usePlatform'
 import type { MessageDeliveryMode } from '@hapi/protocol'
 import { getRetryDeliveryMode } from '@/lib/messageDelivery'
+import { optimisticUserMessage } from '@/lib/optimisticUserMessage'
 
 type SendMessageInput = {
     sessionId: string
@@ -106,35 +107,6 @@ type UseSendMessageOptions = {
     isSessionThinking?: boolean
 }
 
-/** Create an optimistic message for display. Extracted as an extension point
- *  so a future floating-UI PR can route queued messages to a separate area. */
-function createOptimisticMessage(input: SendMessageInput, status: 'queued' | 'sending'): DecryptedMessage {
-    return {
-        id: input.localId,
-        seq: null,
-        localId: input.localId,
-        content: {
-            role: 'user',
-            content: {
-                type: 'text',
-                text: input.text,
-                attachments: input.attachments
-            },
-            meta: {
-                deliveryMode: input.deliveryMode,
-            },
-        },
-        createdAt: input.createdAt,
-        // Explicit null so the strict-null queued check matches. A pre-V8 hub
-        // response that omits the field entirely (`undefined`) is treated as
-        // already-invoked and stays in the thread, not the floating bar.
-        invokedAt: null,
-        scheduledAt: input.scheduledAt ?? null,
-        status,
-        originalText: input.text,
-    }
-}
-
 function findMessageByLocalId(
     sessionId: string,
     localId: string,
@@ -148,7 +120,7 @@ function findMessageByLocalId(
 
 /** Pull attachments off a stored optimistic user message.  The schema types
  *  `content` as `unknown`, so this is a defensive narrow: we accept only the
- *  exact shape `createOptimisticMessage` produces (`role: 'user'`, text-typed
+ *  exact shape `optimisticUserMessage` produces (`role: 'user'`, text-typed
  *  content, attachments array) and return undefined otherwise.  Used by
  *  retryMessage so an attachment send retried from the failed-bubble button
  *  re-fires with its attachments instead of becoming a text-only send. */
@@ -227,7 +199,7 @@ export function useSendMessage(
         },
         onMutate: async (input) => {
             const successStatus = isSessionThinkingRef.current ? 'queued' as const : 'sent' as const
-            appendOptimisticMessage(input.sessionId, createOptimisticMessage(input, 'sending'))
+            appendOptimisticMessage(input.sessionId, optimisticUserMessage(input))
             return { successStatus }
         },
         onSuccess: (_, input, context) => {
@@ -235,12 +207,22 @@ export function useSendMessage(
             updateMessageStatus(
                 input.sessionId,
                 input.localId,
-                context?.successStatus ?? 'sent'
+                findMessageByLocalId(input.sessionId, input.localId)?.invokedAt != null
+                    ? 'sent' : context?.successStatus ?? 'sent'
             )
             haptic.notification('success')
             options?.onSuccess?.(input.sessionId)
         },
         onError: (error, input) => {
+            const echo = findMessageByLocalId(input.sessionId, input.localId)
+            if (echo && (echo.id !== input.localId || echo.invokedAt != null)) {
+                // The hub already published the row or the runner consumed it.
+                // A lost POST response must not restore a duplicate draft.
+                setSendSettlement({ attemptId: input.localId, status: 'success' })
+                updateMessageStatus(input.sessionId, input.localId, echo.invokedAt == null ? 'queued' : 'sent')
+                options?.onSuccess?.(input.sessionId)
+                return
+            }
             setSendSettlement({ attemptId: input.localId, status: 'error' })
             // Attachment sends keep the legacy failed-bubble UX: the
             // composer-restore path can only re-seat text + scheduledAt,

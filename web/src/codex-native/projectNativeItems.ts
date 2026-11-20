@@ -55,10 +55,10 @@ export function projectNativeItems(
     const pending: NonNullable<NonNullable<Session['agentState']>['requests']> = {}
     let replies: Map<string, string> | undefined
     const activeReasoning = latestActiveReasoning(entries, activeTurnId)
-    const add = (id: string, timestamp: number, body: NativeRecord, user = false) => {
+    const add = (id: string, timestamp: number, body: NativeRecord, user = false, localId = id) => {
         messages.push({
             id,
-            localId: id,
+            localId,
             seq: null,
             createdAt: timestamp,
             invokedAt: timestamp,
@@ -129,7 +129,7 @@ export function projectNativeItems(
         if (item.type === 'userMessage' || item.type === 'steeringUserMessage') {
             if (item.type === 'steeringUserMessage' && item.status !== 'accepted') continue
             const text = projectNativeUserText(item.content ?? item.input)
-            if (text) add(id, at, { text }, true)
+            if (text) add(id, at, { text }, true, typeof item.clientId === 'string' ? item.clientId : id)
         } else if (item.type === 'agentMessage') {
             const text = nativeText(item.text)
             if (text) add(id, at, {

@@ -504,7 +504,8 @@ export function buildMaterializedTimelineRows(blocks: readonly VisibleChatBlock[
             createdAt: Math.min(...group.map(block => block.createdAt)),
             metadataKey: JSON.stringify([timestamp, derived, toolGroupsCollapsed]),
             toolGroupsCollapsed,
-            transient: first.kind === 'user-text' && first.status !== undefined && first.status !== 'sent',
+            transient: first.kind === 'user-text' && first.status !== undefined &&
+                (first.status !== 'sent' || first.id === first.localId),
             project(id, materialized, previous) {
                 const materializedTimestamp = role === 'assistant'
                     ? Math.max(...materialized.map(getBlockPresentationTimestamp))

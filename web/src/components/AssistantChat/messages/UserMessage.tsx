@@ -110,9 +110,9 @@ export function HappyUserMessage() {
                         {hasText ? <UserBubbleContent text={text} nativeSkillLinks={Boolean(ctx.metadata?.nativeCodex)} /> : null}
                         {hasAttachments ? <MessageAttachments attachments={attachments} /> : null}
                     </div>
-                    {showStatus && (
+                    {showStatus && status !== 'sending' && (
                         <div className="happy-message-actions-first-line flex shrink-0 items-center gap-1">
-                            {showStatus ? <MessageStatusIndicator status={status} onRetry={onRetry} /> : null}
+                            <MessageStatusIndicator status={status} onRetry={onRetry} />
                         </div>
                     )}
                 </div>
@@ -125,6 +125,7 @@ export function HappyUserMessage() {
                     </span>
                 ) : null}
             </div>
+            {status === 'sending' && <MessageStatusIndicator status={status} />}
             <MessageActions
                 align="end"
                 copyText={hasText ? codexInputDisplayText(text) : undefined}

@@ -919,6 +919,7 @@ export default {
 
   // Кнопки редактора
   'composer.settings': 'Настройки',
+  'composer.sending': 'Отправка…',
   'composer.terminal': 'Терминал',
   'composer.abort': 'Прервать',
   'composer.switchRemote': 'Переключиться в удалённый режим',

@@ -948,6 +948,7 @@ export default {
 
   // Composer buttons
   'composer.settings': 'Settings',
+  'composer.sending': 'Sending…',
   'composer.terminal': 'Terminal',
   'composer.abort': 'Abort',
   'composer.switchRemote': 'Switch to remote mode',

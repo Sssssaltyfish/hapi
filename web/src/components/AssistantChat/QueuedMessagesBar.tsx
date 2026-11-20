@@ -2,7 +2,7 @@ import { useAui, useAuiState } from '@assistant-ui/react'
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { ApiClient } from '@/api/client'
 import { getMessageWindowState, subscribeMessageWindow } from '@/lib/message-window-store'
-import { isQueuedForInvocation } from '@/lib/messages'
+import { showInInvocationQueue } from '@/lib/messages'
 import { EMPTY_STATE } from '@/hooks/queries/useMessages'
 import { normalizeDecryptedMessage } from '@/chat/normalize'
 import type { DecryptedMessage } from '@/types/api'
@@ -96,14 +96,12 @@ function useQueuedMessages(sessionId: string): DecryptedMessage[] {
         () => EMPTY_STATE
     )
 
-    // `invokedAt` is the source of truth for invocation; see isQueuedForInvocation
-    // (lib/messages) for the shared predicate used by the thread filter and the
-    // window store trim helpers.
+    // Use the same placement rule as the timeline so a send never appears twice.
     // useSyncExternalStore guarantees a stable reference when the snapshot is
     // unchanged, so [state] as the dependency avoids unnecessary re-sorts.
     return useMemo(() => {
         return sortQueuedMessages(
-            state.messages.filter((msg) => isQueuedForInvocation(msg) && !msg.queueDismissed)
+            state.messages.filter((msg) => showInInvocationQueue(msg) && !msg.queueDismissed)
         )
     }, [state])
 }

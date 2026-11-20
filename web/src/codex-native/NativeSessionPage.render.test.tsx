@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, expect, it, vi } from 'vitest'
 import { I18nProvider } from '@/lib/i18n-context'
@@ -33,7 +33,9 @@ it('renders native content after the native model catalogue reaches the existing
         active: true, activeAt: 2000, metadataVersion: 1, agentStateVersion: 1, thinking: false, thinkingAt: 0, agentState: {},
         metadata: { flavor: 'codex', name: 'Native chat', host: 'Test daemon', path: '/tmp', nativeCodex: { endpointId: 'test', threadId: 'native-thread', available: true } }, model: 'gpt-6-astra', modelReasoningEffort: 'ultra' })
     let nativeSettings: Record<string, unknown> = { model: 'gpt-6-astra', effort: 'ultra', approvalsReviewer: 'auto_review', approvalPolicy: { granular: { sandbox_approval: true } }, sandboxPolicy: { type: 'readOnly' } }
-    const codexNativeAction = vi.fn(async (_id: string, _action: string, patch: Record<string, unknown>) => {
+    const post = Promise.withResolvers<void>()
+    const codexNativeAction = vi.fn(async (_id: string, action: string, patch: Record<string, unknown>) => {
+        if (action === 'messages') { await post.promise; return { accepted: true } }
         nativeSettings = { ...nativeSettings, ...patch }
         return { applied: nativeSettings }
     })
@@ -107,4 +109,7 @@ it('renders native content after the native model catalogue reaches the existing
             expect.objectContaining({ filename: 'proof.png', path: 'native-upload:proof.png' }),
         ])
     })))
+    expect(await screen.findByText('Sending…')).toBeVisible()
+    await act(async () => { post.resolve() })
+    await waitFor(() => expect(screen.queryByText('Sending…')).not.toBeInTheDocument())
 })

@@ -30,7 +30,7 @@ import { buildConversationOutline } from '@/chat/outline'
 import { buildVisibleChatBlocks, isToolGroupBlock, type ToolGroupBlock } from '@/chat/toolGroups'
 import { useUnseenBlockCount } from '@/hooks/useUnseenBlockCount'
 import { useToolGroupCollapse } from '@/hooks/useToolGroupCollapse'
-import { isQueuedForInvocation } from '@/lib/messages'
+import { showInInvocationQueue } from '@/lib/messages'
 import { inactiveSessionCanResume } from '@/lib/sessionResume'
 import {
     getCodexModelReasoningEfforts,
@@ -1497,12 +1497,9 @@ function SessionChatInner(props: SessionChatProps) {
         setOutlineOpen(false)
     }, [props.session.id])
 
-    // Exclude user messages that haven't been invoked yet — those appear in the
-    // QueuedMessagesBar above the composer, not in the thread timeline. The
-    // `isQueuedForInvocation` predicate is shared with the window store and the
-    // floating bar so the three views never disagree about queued state.
+    // In-flight sends belong to the timeline; the queue bar takes over once accepted.
     const visibleMessages = useMemo(
-        () => props.messages.filter((m) => !isQueuedForInvocation(m)),
+        () => props.messages.filter((m) => !showInInvocationQueue(m)),
         [props.messages]
     )
 

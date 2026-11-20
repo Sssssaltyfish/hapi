@@ -946,6 +946,7 @@ export default {
 
   // Composer buttons
   'composer.settings': '设置',
+  'composer.sending': '发送中…',
   'composer.terminal': '终端',
   'composer.abort': '中止',
   'composer.switchRemote': '切换到远程模式',

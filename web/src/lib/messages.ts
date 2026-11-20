@@ -22,6 +22,11 @@ export function isQueuedForInvocation(msg: DecryptedMessage): boolean {
     return isUserMessage(msg) && msg.invokedAt === null && msg.status !== 'failed'
 }
 
+/** Immediate sends appear in the timeline while in flight. Scheduled sends stay in the queue. */
+export function showInInvocationQueue(msg: DecryptedMessage): boolean {
+    return isQueuedForInvocation(msg) && (msg.status !== 'sending' || msg.scheduledAt != null)
+}
+
 function isOptimisticMessage(msg: DecryptedMessage): boolean {
     return Boolean(msg.localId && msg.id === msg.localId)
 }
